@@ -25,6 +25,11 @@ do {
     let config = try EngineConfig.parse(arguments)
     let runtime = try NativeRuntimeCore(config: config)
 
+    if config.displayPlanOnly {
+        print(DisplayPlanner.summary(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.validateOnly {
         let summary = runtime.validationSummary()
         print(summary)

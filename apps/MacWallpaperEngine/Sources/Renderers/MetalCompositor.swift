@@ -47,7 +47,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         let shouldUseCompositeVideo = runtime.config.foregroundMode == .compositeVideo
             && displayRole.prefersCompositeVideo
             && runtime.assetCatalog.compositeVideoAsset != nil
-        if runtime.config.videoEnabled == false {
+        if runtime.config.videoEnabled == false || displayRole.playsVideo == false {
             selectedVideo = nil
         } else if shouldUseCompositeVideo, let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
             selectedVideo = compositeVideo

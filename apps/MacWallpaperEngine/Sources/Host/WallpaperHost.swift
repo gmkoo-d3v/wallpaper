@@ -48,7 +48,7 @@ final class WallpaperHost: NSObject {
         guard let primary = screens.first else { return }
 
         for screen in screens {
-            guard let role = displayRole(for: screen, primary: primary) else { continue }
+            guard let role = DisplayPlanner.role(for: screen, primary: primary, runtime: runtime) else { continue }
             do {
                 let view: NSView = if runtime.config.metalEnabled {
                     try WallpaperMetalView(runtime: runtime, displayRole: role)
@@ -120,42 +120,99 @@ final class WallpaperHost: NSObject {
         }
     }
 
-    private func displayRole(for screen: NSScreen, primary: NSScreen) -> RenderDisplayRole? {
-        let isPrimary = screen === primary
-        switch runtime.config.displayMode {
-        case .all:
-            return isPrimary ? .primaryFull : .secondaryFull
-        case .primaryAnimated, .primaryOnly:
-            return isPrimary ? .primaryFull : nil
+}
+
+enum DisplayPlanner {
+    static func role(for screen: NSScreen, primary: NSScreen, runtime: NativeRuntimeCore) -> RenderDisplayRole? {
+        role(isPrimary: screen === primary, displayMode: runtime.config.displayMode, manifest: runtime.manifest)
+    }
+
+    static func role(
+        isPrimary: Bool,
+        displayMode: DisplayMode,
+        manifest: WallpaperNativeManifest
+    ) -> RenderDisplayRole? {
+        if isPrimary {
+            let role = RenderDisplayRole(kind: .primary, policy: manifest.displayPolicy.primary)
+            return role.isRenderable ? role : nil
         }
+
+        let policy: DisplayRolePolicy
+        switch displayMode {
+        case .all:
+            policy = .full
+        case .primaryAnimated:
+            policy = manifest.displayPolicy.secondary
+        case .primaryOnly:
+            return nil
+        }
+        let role = RenderDisplayRole(kind: .secondary, policy: policy)
+        return role.isRenderable ? role : nil
+    }
+
+    static func summary(runtime: NativeRuntimeCore) -> String {
+        let screens = NSScreen.screens
+        guard let primary = screens.first else {
+            return "display plan: no screens detected"
+        }
+
+        let lines = screens.enumerated().map { index, screen in
+            let role = role(for: screen, primary: primary, runtime: runtime)
+            let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
+            let foreground = role?.rendersForeground == true ? "foreground" : "no-foreground"
+            let video = role?.playsVideo == true ? "video" : "static"
+            let interaction = role?.allowsInteraction == true ? "interactive" : "passive"
+            return "#\(index) \(screen.localizedName)\t\(Int(screen.frame.width))x\(Int(screen.frame.height))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
+        }
+
+        return """
+        display plan OK
+        displayMode: \(runtime.config.displayMode.rawValue)
+        manifest primary: \(runtime.manifest.displayPolicy.primary.rawValue)
+        manifest secondary: \(runtime.manifest.displayPolicy.secondary.rawValue)
+        occluded: \(runtime.manifest.displayPolicy.occluded.rawValue)
+        fullscreenObscured: \(runtime.manifest.displayPolicy.fullscreenObscured.rawValue)
+        \(lines.joined(separator: "\n"))
+        """
     }
 }
 
-enum RenderDisplayRole {
-    case primaryFull
-    case secondaryFull
+struct RenderDisplayRole {
+    enum Kind {
+        case primary
+        case secondary
+
+        var label: String {
+            switch self {
+            case .primary:
+                return "primary"
+            case .secondary:
+                return "secondary"
+            }
+        }
+    }
+
+    let kind: Kind
+    let policy: DisplayRolePolicy
 
     var rendersForeground: Bool {
-        switch self {
-        case .primaryFull, .secondaryFull:
-            return true
-        }
+        policy == .full
+    }
+
+    var playsVideo: Bool {
+        policy == .full || policy == .videoOnly
     }
 
     var prefersCompositeVideo: Bool {
-        switch self {
-        case .primaryFull, .secondaryFull:
-            return true
-        }
+        policy == .full
     }
 
     var allowsInteraction: Bool {
-        switch self {
-        case .primaryFull:
-            return true
-        case .secondaryFull:
-            return false
-        }
+        kind == .primary && policy == .full
+    }
+
+    var isRenderable: Bool {
+        policy != .pause
     }
 }
 
