@@ -5,23 +5,23 @@ final class DesktopMouseInteractionMonitor {
     private weak var window: NSWindow?
     private let policy: InteractionPolicy
     private let onMove: (CGPoint) -> Void
-    private let onDown: (CGPoint) -> Void
-    private let onUp: (CGPoint) -> Void
+    private let onDown: (CGPoint, PointerButton) -> Void
+    private let onUp: (CGPoint, PointerButton) -> Void
     private let onExit: () -> Void
     private var monitors: [Any] = []
 
     private enum EventKind {
         case move
-        case down
-        case up
+        case down(PointerButton)
+        case up(PointerButton)
     }
 
     init(
         window: NSWindow,
         policy: InteractionPolicy,
         onMove: @escaping (CGPoint) -> Void,
-        onDown: @escaping (CGPoint) -> Void,
-        onUp: @escaping (CGPoint) -> Void,
+        onDown: @escaping (CGPoint, PointerButton) -> Void,
+        onUp: @escaping (CGPoint, PointerButton) -> Void,
         onExit: @escaping () -> Void
     ) {
         self.window = window
@@ -41,7 +41,7 @@ final class DesktopMouseInteractionMonitor {
 
         if policy.mode == .always {
             if let monitor = NSEvent.addGlobalMonitorForEvents(
-                matching: [.mouseMoved, .leftMouseDragged],
+                matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
                 handler: { [weak self] event in
                     self?.handle(event: event, kind: .move)
                 }
@@ -52,7 +52,7 @@ final class DesktopMouseInteractionMonitor {
         if let monitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown],
             handler: { [weak self] event in
-                self?.handle(event: event, kind: .down)
+                self?.handle(event: event, kind: .down(.left))
             }
         ) {
             monitors.append(monitor)
@@ -60,7 +60,23 @@ final class DesktopMouseInteractionMonitor {
         if let monitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseUp],
             handler: { [weak self] event in
-                self?.handle(event: event, kind: .up)
+                self?.handle(event: event, kind: .up(.left))
+            }
+        ) {
+            monitors.append(monitor)
+        }
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.rightMouseDown],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .down(.right))
+            }
+        ) {
+            monitors.append(monitor)
+        }
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.rightMouseUp],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .up(.right))
             }
         ) {
             monitors.append(monitor)
@@ -81,7 +97,14 @@ final class DesktopMouseInteractionMonitor {
             onExit()
             return
         }
-        if kind != .up {
+        let isMouseUpEvent: Bool
+        switch kind {
+        case .up:
+            isMouseUpEvent = true
+        case .move, .down:
+            isMouseUpEvent = false
+        }
+        if !isMouseUpEvent {
             guard isEligible(screenPoint: screenPoint, event: event) else {
                 onExit()
                 return
@@ -99,10 +122,10 @@ final class DesktopMouseInteractionMonitor {
         )
 
         switch kind {
-        case .down:
-            onDown(normalized)
-        case .up:
-            onUp(normalized)
+        case .down(let button):
+            onDown(normalized, button)
+        case .up(let button):
+            onUp(normalized, button)
         case .move:
             onMove(normalized)
         }

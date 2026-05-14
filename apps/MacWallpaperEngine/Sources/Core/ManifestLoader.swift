@@ -79,6 +79,7 @@ enum ManifestLoader {
             try validateLayerRenderingMode(layer)
         }
         try validateInteractions(manifest.interactions)
+        try validateInteractionPolicy(manifest.interactionPolicy)
 
         if let video = manifest.assets.video {
             try validatePlaybackRate(video.playbackRate, label: video.id)
@@ -155,6 +156,34 @@ enum ManifestLoader {
                     try validateHitZone(hitZone)
                 }
             }
+            if let buttons = interaction.buttons, buttons.isEmpty {
+                throw EngineError.manifest("\(interaction.event.rawValue) buttons must not be empty")
+            }
+        }
+    }
+
+    private static func validateInteractionPolicy(_ policy: InteractionPolicy?) throws {
+        guard let policy else { return }
+        if let pointerSmoothing = policy.pointerSmoothing {
+            guard pointerSmoothing.isFinite, pointerSmoothing > 0, pointerSmoothing <= 1 else {
+                throw EngineError.manifest("interactionPolicy.pointerSmoothing must satisfy 0 < value <= 1")
+            }
+        }
+        if let idleDeadZone = policy.idleDeadZone {
+            guard idleDeadZone.isFinite, idleDeadZone >= 0, idleDeadZone < 0.5 else {
+                throw EngineError.manifest("interactionPolicy.idleDeadZone must satisfy 0 <= value < 0.5")
+            }
+        }
+        if let directionSwitchMargin = policy.directionSwitchMargin {
+            guard directionSwitchMargin.isFinite, directionSwitchMargin >= 0, directionSwitchMargin < 0.5 else {
+                throw EngineError.manifest("interactionPolicy.directionSwitchMargin must satisfy 0 <= value < 0.5")
+            }
+        }
+        if let defaultClickTailSeconds = policy.defaultClickTailSeconds {
+            try validateInteractionDuration(defaultClickTailSeconds, label: "interactionPolicy.defaultClickTailSeconds")
+        }
+        if let releaseFadeSeconds = policy.releaseFadeSeconds {
+            try validateInteractionDuration(releaseFadeSeconds, label: "interactionPolicy.releaseFadeSeconds")
         }
     }
 
@@ -175,6 +204,18 @@ enum ManifestLoader {
         let y1 = hitZone.rect[3]
         guard x0 >= 0, y0 >= 0, x1 <= 1, y1 <= 1, x0 < x1, y0 < y1 else {
             throw EngineError.manifest("hitZone \(hitZone.id) rect must satisfy 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1")
+        }
+        if let tailSeconds = hitZone.tailSeconds {
+            try validateInteractionDuration(tailSeconds, label: "hitZone \(hitZone.id) tailSeconds")
+        }
+        if let buttons = hitZone.buttons, buttons.isEmpty {
+            throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")
+        }
+    }
+
+    private static func validateInteractionDuration(_ value: Double, label: String) throws {
+        guard value.isFinite, value >= 0, value <= 10 else {
+            throw EngineError.manifest("\(label) must satisfy 0 <= value <= 10")
         }
     }
 

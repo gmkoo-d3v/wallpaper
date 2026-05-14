@@ -9,11 +9,11 @@ struct InteractionSnapshot {
 }
 
 final class InteractionController {
-    private let clickTailDuration: CFTimeInterval = 1.15
-    private let releaseFadeDuration: CFTimeInterval = 0.20
-    private let pointerSmoothing: CGFloat = 0.18
-    private let idleDeadZone: CGFloat = 0.18
-    private let directionSwitchMargin: CGFloat = 0.10
+    private let defaultClickTailDuration: CFTimeInterval
+    private let releaseFadeDuration: CFTimeInterval
+    private let pointerSmoothing: CGFloat
+    private let idleDeadZone: CGFloat
+    private let directionSwitchMargin: CGFloat
     private let lock = NSLock()
     private var pointerState = CGPoint(x: 0.5, y: 0.5)
     private var smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
@@ -21,13 +21,23 @@ final class InteractionController {
     private var clickCommandState: String?
     private var clickCommandExpiresAt: CFTimeInterval = 0
     private var clickCommandHeld = false
+    private var activeClickTailDuration: CFTimeInterval
     private var pressedHitAction: String?
+    private var pressedHitTrigger: HitZoneTrigger?
+    private var pressedHitTailDuration: CFTimeInterval = 0
+    private var pressedButton: PointerButton?
     private var pressStartedAt: CFTimeInterval = 0
     private var lookTrackingHeld = false
     private let interactions: [InteractionConfig]
 
-    init(interactions: [InteractionConfig]) {
+    init(interactions: [InteractionConfig], policy: InteractionPolicy?) {
         self.interactions = interactions
+        self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
+        self.releaseFadeDuration = policy?.releaseFadeSeconds ?? 0.20
+        self.pointerSmoothing = CGFloat(policy?.pointerSmoothing ?? 0.18)
+        self.idleDeadZone = CGFloat(policy?.idleDeadZone ?? 0.18)
+        self.directionSwitchMargin = CGFloat(policy?.directionSwitchMargin ?? 0.10)
+        self.activeClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
     }
 
     func snapshot() -> InteractionSnapshot {
@@ -35,13 +45,13 @@ final class InteractionController {
         defer { lock.unlock() }
 
         let now = CACurrentMediaTime()
-        if pressedHitAction == "boll" {
-            clickCommandState = "boll"
+        if let pressedHitAction, pressedHitTrigger == .hold {
+            clickCommandState = pressedHitAction
             clickCommandHeld = true
             clickCommandExpiresAt = now + releaseFadeDuration
         }
         if let clickCommandState, clickCommandHeld || now < clickCommandExpiresAt {
-            let fadeDuration = clickCommandState == "boll" ? releaseFadeDuration : clickTailDuration
+            let fadeDuration = clickCommandHeld ? releaseFadeDuration : max(activeClickTailDuration, 0.001)
             let pulse = clickCommandHeld ? 1.0 : CGFloat((clickCommandExpiresAt - now) / fadeDuration)
             return InteractionSnapshot(
                 pointer: pointerState,
@@ -71,23 +81,28 @@ final class InteractionController {
         lock.unlock()
     }
 
-    func pointerDown(at normalizedPoint: CGPoint) {
+    func pointerDown(at normalizedPoint: CGPoint, button: PointerButton = .left) {
         let pointer = clamp(normalizedPoint)
-        let hitAction = hitAction(at: pointer)
+        let hitZone = hitZone(at: pointer, button: button)
 
         let now = CACurrentMediaTime()
         lock.lock()
         pointerState = pointer
         smoothedPointerState = pointer
         pressStartedAt = now
-        pressedHitAction = hitAction
+        pressedButton = button
+        pressedHitAction = hitZone?.action
+        pressedHitTrigger = hitZone?.trigger ?? .tap
+        pressedHitTailDuration = hitZone?.tailSeconds ?? defaultClickTailDuration
         clickCommandState = nil
         clickCommandHeld = false
         clickCommandExpiresAt = 0
-        if let hitAction {
+        activeClickTailDuration = pressedHitTailDuration
+        if let hitAction = hitZone?.action {
+            let trigger = hitZone?.trigger ?? .tap
             clickCommandState = hitAction
-            clickCommandHeld = hitAction == "boll"
-            clickCommandExpiresAt = now + (hitAction == "boll" ? releaseFadeDuration : clickTailDuration)
+            clickCommandHeld = trigger == .hold
+            clickCommandExpiresAt = now + (trigger == .hold ? releaseFadeDuration : pressedHitTailDuration)
             lookTrackingHeld = false
             moveCommandState = "idle"
         } else {
@@ -97,21 +112,31 @@ final class InteractionController {
         lock.unlock()
     }
 
-    func pointerUp(at normalizedPoint: CGPoint) {
+    func pointerUp(at normalizedPoint: CGPoint, button: PointerButton = .left) {
+        _ = button
         let pointer = clamp(normalizedPoint)
         let now = CACurrentMediaTime()
         lock.lock()
         pointerState = pointer
-        if pressedHitAction == "act" {
-            clickCommandState = "act"
+        guard pressedButton == nil || pressedButton == button else {
+            lock.unlock()
+            return
+        }
+        if let pressedHitAction, pressedHitTrigger == .tap {
+            clickCommandState = pressedHitAction
             clickCommandHeld = false
-            clickCommandExpiresAt = max(clickCommandExpiresAt, now + clickTailDuration)
-        } else if pressedHitAction == "boll" || clickCommandState == "boll" {
-            clickCommandState = "boll"
+            activeClickTailDuration = pressedHitTailDuration
+            clickCommandExpiresAt = max(clickCommandExpiresAt, now + pressedHitTailDuration)
+        } else if let pressedHitAction, pressedHitTrigger == .hold {
+            clickCommandState = pressedHitAction
             clickCommandHeld = false
+            activeClickTailDuration = releaseFadeDuration
             clickCommandExpiresAt = now + releaseFadeDuration
         }
         pressedHitAction = nil
+        pressedHitTrigger = nil
+        pressedHitTailDuration = 0
+        pressedButton = nil
         lookTrackingHeld = false
         moveCommandState = "idle"
         lock.unlock()
@@ -124,12 +149,16 @@ final class InteractionController {
         moveCommandState = "idle"
         if clickCommandHeld {
             clickCommandHeld = false
+            activeClickTailDuration = releaseFadeDuration
             clickCommandExpiresAt = CACurrentMediaTime() + releaseFadeDuration
         } else {
             clickCommandState = nil
             clickCommandExpiresAt = 0
         }
         pressedHitAction = nil
+        pressedHitTrigger = nil
+        pressedHitTailDuration = 0
+        pressedButton = nil
         lookTrackingHeld = false
         lock.unlock()
     }
@@ -140,12 +169,16 @@ final class InteractionController {
         return lookTrackingHeld
     }
 
-    private func hitAction(at pointer: CGPoint) -> String? {
+    private func hitZone(at pointer: CGPoint, button: PointerButton) -> HitZone? {
         guard let config = interactions.first(where: { $0.event == .pointerDown }),
               let hitZones = config.hitZones else {
             return nil
         }
+        let interactionButtons = config.buttons ?? [.left]
+        guard interactionButtons.contains(button) else { return nil }
         for hitZone in hitZones {
+            let zoneButtons = hitZone.buttons ?? interactionButtons
+            guard zoneButtons.contains(button) else { continue }
             guard hitZone.rect.count == 4 else { continue }
             let x0 = hitZone.rect[0]
             let y0 = hitZone.rect[1]
@@ -155,7 +188,7 @@ final class InteractionController {
                Double(pointer.x) <= x1,
                Double(pointer.y) >= y0,
                Double(pointer.y) <= y1 {
-                return hitZone.action
+                return hitZone
             }
         }
         return nil

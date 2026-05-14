@@ -17,6 +17,11 @@ struct InteractionPolicy: Decodable {
     let mode: InteractionPolicyMode
     let blockApplicationWindows: Bool
     let blockDesktopItems: Bool
+    let pointerSmoothing: Double?
+    let idleDeadZone: Double?
+    let directionSwitchMargin: Double?
+    let defaultClickTailSeconds: Double?
+    let releaseFadeSeconds: Double?
 }
 
 enum InteractionPolicyMode: String, Decodable {
@@ -130,6 +135,7 @@ struct InteractionConfig: Decodable {
     let mapping: String?
     let actions: [String: String]?
     let hitZones: [HitZone]?
+    let buttons: [PointerButton]?
 }
 
 enum InteractionEvent: String, Decodable {
@@ -137,10 +143,23 @@ enum InteractionEvent: String, Decodable {
     case pointerDown
 }
 
+enum PointerButton: String, Decodable {
+    case left
+    case right
+}
+
+enum HitZoneTrigger: String, Decodable {
+    case tap
+    case hold
+}
+
 struct HitZone: Decodable {
     let id: String
     let rect: [Double]
     let action: String
+    let trigger: HitZoneTrigger?
+    let tailSeconds: Double?
+    let buttons: [PointerButton]?
 }
 
 struct ValidationConfig: Decodable {

@@ -22,17 +22,27 @@ final class WallpaperMetalView: MTKView {
         }
 
         self.displayRole = displayRole
-        self.interaction = InteractionController(interactions: runtime.manifest.interactions)
         let manifestInteractionPolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
             mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
             blockApplicationWindows: true,
-            blockDesktopItems: true
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
         )
         self.interactionPolicy = runtime.config.interactive && displayRole.allowsInteraction ? manifestInteractionPolicy : InteractionPolicy(
             mode: .disabled,
             blockApplicationWindows: true,
-            blockDesktopItems: true
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
         )
+        self.interaction = InteractionController(interactions: runtime.manifest.interactions, policy: manifestInteractionPolicy)
         self.compositor = try MetalCompositor(
             device: device,
             runtime: runtime,
@@ -114,12 +124,12 @@ final class WallpaperMetalView: MTKView {
                     self?.interaction.pointerMoved(to: point)
                     self?.syncPointerPolling()
                 },
-                onDown: { [weak self] point in
-                    self?.interaction.pointerDown(at: point)
+                onDown: { [weak self] point, button in
+                    self?.interaction.pointerDown(at: point, button: button)
                     self?.syncPointerPolling()
                 },
-                onUp: { [weak self] point in
-                    self?.interaction.pointerUp(at: point)
+                onUp: { [weak self] point, button in
+                    self?.interaction.pointerUp(at: point, button: button)
                     self?.syncPointerPolling()
                 },
                 onExit: { [weak self] in
@@ -165,13 +175,25 @@ final class WallpaperMetalView: MTKView {
 
     override func mouseDown(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerDown(at: normalizedPoint(from: event))
+        interaction.pointerDown(at: normalizedPoint(from: event), button: .left)
+        syncPointerPolling()
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard interactionPolicy.mode == .always else { return }
+        interaction.pointerDown(at: normalizedPoint(from: event), button: .right)
         syncPointerPolling()
     }
 
     override func mouseUp(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerUp(at: normalizedPoint(from: event))
+        interaction.pointerUp(at: normalizedPoint(from: event), button: .left)
+        syncPointerPolling()
+    }
+
+    override func rightMouseUp(with event: NSEvent) {
+        guard interactionPolicy.mode == .always else { return }
+        interaction.pointerUp(at: normalizedPoint(from: event), button: .right)
         syncPointerPolling()
     }
 
