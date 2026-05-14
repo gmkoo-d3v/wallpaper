@@ -219,6 +219,32 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         )
     }
 
+    func controlPanelChooseWallpaperBundle(_ url: URL) {
+        do {
+            let bundleRoot = url.standardizedFileURL
+            let nextConfig = runtime.config.replacing(
+                wallpaperRoot: bundleRoot,
+                manifestURL: bundleRoot.appendingPathComponent("wallpaper.native.json"),
+                startHidden: false,
+                duration: nil,
+                launchControlPanel: true,
+                launchWallpaper: true
+            )
+            let nextRuntime = try NativeRuntimeCore(config: nextConfig)
+            let wasRunning = host != nil
+            stopHost()
+            runtime = nextRuntime
+            if wasRunning {
+                try startHost()
+            }
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+            showError(error)
+        }
+        controlPanel?.refresh()
+    }
+
     func controlPanelQuit() {
         NSApplication.shared.terminate(nil)
     }

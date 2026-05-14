@@ -10,17 +10,16 @@ APP_DIR="$DIST_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers/sample_imported"
-WALLPAPER_DEST="$RESOURCES_DIR/wallpapers/sample_imported"
+WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers"
+WALLPAPER_DEST="$RESOURCES_DIR/wallpapers"
 
 swift build -c release --package-path "$SCRIPT_DIR"
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR/wallpapers"
+mkdir -p "$MACOS_DIR" "$WALLPAPER_DEST"
 
 cp "$SCRIPT_DIR/.build/release/$APP_NAME" "$MACOS_DIR/$APP_NAME"
 chmod 755 "$MACOS_DIR/$APP_NAME"
-mkdir -p "$WALLPAPER_DEST"
 rsync -a --exclude ".DS_Store" "$WALLPAPER_SOURCE/" "$WALLPAPER_DEST/"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST

@@ -24,6 +24,7 @@ protocol ControlPanelDelegate: AnyObject {
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode
     )
+    func controlPanelChooseWallpaperBundle(_ url: URL)
     func controlPanelQuit()
 }
 
@@ -66,6 +67,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let startButton = NSButton(title: "START", target: nil, action: nil)
     private let stopButton = NSButton(title: "STOP", target: nil, action: nil)
     private let applyButton = NSButton(title: "APPLY SETTINGS", target: nil, action: nil)
+    private let chooseBundleButton = NSButton(title: "SELECT BUNDLE", target: nil, action: nil)
     private let quitButton = NSButton(title: "QUIT", target: nil, action: nil)
 
     init(delegate: ControlPanelDelegate) {
@@ -138,11 +140,13 @@ final class ControlPanelWindowController: NSWindowController {
         stopButton.action = #selector(stopWallpaper)
         applyButton.target = self
         applyButton.action = #selector(applySettings)
+        chooseBundleButton.target = self
+        chooseBundleButton.action = #selector(chooseBundle)
         quitButton.target = self
         quitButton.action = #selector(quitApp)
 
         [startButton, applyButton].forEach(stylePrimaryButton)
-        [stopButton, quitButton].forEach(styleSecondaryButton)
+        [stopButton, chooseBundleButton, quitButton].forEach(styleSecondaryButton)
     }
 
     private func heroBand() -> NSView {
@@ -184,7 +188,7 @@ final class ControlPanelWindowController: NSWindowController {
         view.addSubview(stack)
 
         stack.addArrangedSubview(infoRow(label: "STATUS", value: statusValue))
-        stack.addArrangedSubview(infoRow(label: "BUNDLE", value: pathValue))
+        stack.addArrangedSubview(bundleRow())
         stack.addArrangedSubview(modeRow())
         stack.addArrangedSubview(foregroundRow())
         stack.addArrangedSubview(renderRow())
@@ -213,6 +217,33 @@ final class ControlPanelWindowController: NSWindowController {
 
         row.addArrangedSubview(caption)
         row.addArrangedSubview(value)
+        return row
+    }
+
+    private func bundleRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .vertical
+        row.spacing = 8
+
+        let caption = NSTextField(labelWithString: "BUNDLE")
+        caption.font = .systemFont(ofSize: 11, weight: .medium)
+        caption.textColor = NSColor(red: 0.42, green: 0.42, blue: 0.42, alpha: 1)
+
+        let line = NSStackView()
+        line.orientation = .horizontal
+        line.alignment = .centerY
+        line.spacing = 12
+
+        pathValue.font = .systemFont(ofSize: 14, weight: .light)
+        pathValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
+        pathValue.lineBreakMode = .byTruncatingMiddle
+        pathValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        chooseBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
+
+        line.addArrangedSubview(pathValue)
+        line.addArrangedSubview(chooseBundleButton)
+        row.addArrangedSubview(caption)
+        row.addArrangedSubview(line)
         return row
     }
 
@@ -403,6 +434,20 @@ final class ControlPanelWindowController: NSWindowController {
             fitMode: selectedFitMode(),
             foregroundMode: selectedForegroundMode()
         )
+        refresh()
+    }
+
+    @objc private func chooseBundle() {
+        let panel = NSOpenPanel()
+        panel.title = "Select Wallpaper Bundle"
+        panel.message = "Choose a folder containing wallpaper.native.json"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            delegate?.controlPanelChooseWallpaperBundle(url)
+        }
         refresh()
     }
 

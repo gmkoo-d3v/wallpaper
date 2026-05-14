@@ -73,6 +73,8 @@ struct EngineConfig {
     let plainWindowStyle: Bool
 
     func replacing(
+        wallpaperRoot: URL? = nil,
+        manifestURL: URL? = nil,
         displayMode: DisplayMode? = nil,
         interactive: Bool? = nil,
         renderFps: Int? = nil,
@@ -89,8 +91,8 @@ struct EngineConfig {
     ) -> EngineConfig {
         EngineConfig(
             projectRoot: projectRoot,
-            wallpaperRoot: wallpaperRoot,
-            manifestURL: manifestURL,
+            wallpaperRoot: wallpaperRoot ?? self.wallpaperRoot,
+            manifestURL: manifestURL ?? self.manifestURL,
             level: level,
             displayMode: displayMode ?? self.displayMode,
             duration: duration,
@@ -228,7 +230,12 @@ struct EngineConfig {
         } else if let bundledWallpaperRoot {
             resolvedWallpaperRoot = bundledWallpaperRoot
         } else if let detectedRoot {
-            resolvedWallpaperRoot = detectedRoot.appendingPathComponent("wallpapers/sample_imported").standardizedFileURL
+            guard let defaultWallpaperRoot = ProjectPaths.findDefaultWallpaperRoot(
+                in: detectedRoot.appendingPathComponent("wallpapers")
+            ) else {
+                throw EngineError.invalidArgument("Could not find a wallpaper bundle under \(detectedRoot.appendingPathComponent("wallpapers").path)")
+            }
+            resolvedWallpaperRoot = defaultWallpaperRoot
         } else {
             throw EngineError.invalidArgument("Could not find default wallpaper root; pass --wallpaper-root or --manifest")
         }
@@ -273,7 +280,7 @@ struct EngineConfig {
     MacWallpaperEngine native MVP
 
     Options:
-      --wallpaper-root <path>   Wallpaper bundle root. Defaults to wallpapers/sample_imported.
+      --wallpaper-root <path>   Wallpaper bundle root. Defaults to the first valid bundle under wallpapers/.
       --manifest <path>         Native manifest path. Defaults to wallpaper.native.json under root.
       --display-mode <mode>     all | primaryAnimated | primaryOnly. Default: primaryAnimated.
       --level <level>           normal | desktop | desktopMinusOne | desktopPlusOne | backstop. Default: desktop.
@@ -298,25 +305,55 @@ struct EngineConfig {
 enum ProjectPaths {
     static func findBundledWallpaperRoot() -> URL? {
         guard let resourceURL = Bundle.main.resourceURL else { return nil }
-        let wallpaperRoot = resourceURL
-            .appendingPathComponent("wallpapers/sample_imported")
-            .standardizedFileURL
-        let marker = wallpaperRoot.appendingPathComponent("assets")
-        guard FileManager.default.fileExists(atPath: marker.path) else { return nil }
-        return wallpaperRoot
+        return findDefaultWallpaperRoot(in: resourceURL.appendingPathComponent("wallpapers"))
     }
 
     static func findProjectRoot() throws -> URL {
         var current = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).standardizedFileURL
 
         for _ in 0..<8 {
-            let marker = current.appendingPathComponent("wallpapers/sample_imported/assets")
-            if FileManager.default.fileExists(atPath: marker.path) {
+            let packageMarker = current.appendingPathComponent("apps/MacWallpaperEngine/Package.swift")
+            let wallpaperMarker = current.appendingPathComponent("wallpapers")
+            if FileManager.default.fileExists(atPath: packageMarker.path),
+               directoryExists(wallpaperMarker) {
                 return current
             }
             current.deleteLastPathComponent()
         }
 
         throw EngineError.invalidArgument("Could not find project root from current directory")
+    }
+
+    static func findDefaultWallpaperRoot(in wallpapersDirectory: URL) -> URL? {
+        let directory = wallpapersDirectory.standardizedFileURL
+        let preferred = directory.appendingPathComponent("sample_imported")
+        if isWallpaperBundle(preferred) {
+            return preferred
+        }
+
+        guard let children = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+        return children
+            .filter(isWallpaperBundle)
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            .first
+    }
+
+    private static func isWallpaperBundle(_ url: URL) -> Bool {
+        directoryExists(url)
+            && FileManager.default.fileExists(
+                atPath: url.appendingPathComponent("wallpaper.native.json").path
+            )
+    }
+
+    private static func directoryExists(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            && isDirectory.boolValue
     }
 }
