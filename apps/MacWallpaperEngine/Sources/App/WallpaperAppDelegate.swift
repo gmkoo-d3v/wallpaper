@@ -115,13 +115,17 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode
     ) {
+        guard let currentRuntime = runtime else {
+            let error = EngineError.invalidArgument("Select a valid wallpaper bundle before applying settings.")
+            lastError = error.localizedDescription
+            showError(error)
+            controlPanel?.refresh()
+            return
+        }
+
+        let wasRunning = host != nil
         do {
-            guard let runtime else {
-                throw EngineError.invalidArgument("Select a valid wallpaper bundle before applying settings.")
-            }
-            let wasRunning = host != nil
-            stopHost()
-            let nextConfig = runtime.config.replacing(
+            let nextConfig = currentRuntime.config.replacing(
                 displayMode: displayMode,
                 interactive: interactive,
                 renderFps: renderFps,
@@ -131,13 +135,39 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 startHidden: false,
                 clearDuration: true
             )
-            self.runtime = try NativeRuntimeCore(config: nextConfig)
+            let nextRuntime = try NativeRuntimeCore(config: nextConfig)
             if wasRunning {
-                try startHost()
+                stopHost()
+                runtime = nextRuntime
+                do {
+                    try startHost()
+                    lastError = nil
+                } catch let restartError {
+                    runtime = currentRuntime
+                    do {
+                        try startHost()
+                        lastError = nil
+                        showError(EngineError.renderer(
+                            "Updated settings failed to start, so the previous wallpaper was restored. "
+                                + "Original failure: \(restartError.localizedDescription)"
+                        ))
+                    } catch let rollbackError {
+                        let message = "Updated settings failed to start: \(restartError.localizedDescription). "
+                            + "Rollback also failed: \(rollbackError.localizedDescription)"
+                        lastError = message
+                        showError(EngineError.renderer(message))
+                    }
+                }
+            } else {
+                runtime = nextRuntime
+                lastError = nil
             }
-            lastError = nil
         } catch {
-            lastError = error.localizedDescription
+            if wasRunning && host != nil {
+                lastError = nil
+            } else {
+                lastError = error.localizedDescription
+            }
             showError(error)
         }
         controlPanel?.refresh()
