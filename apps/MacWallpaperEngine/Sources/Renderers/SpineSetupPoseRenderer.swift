@@ -2538,6 +2538,16 @@ final class SpineSetupPoseRenderer {
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
                 let type = raw["type"] as? String ?? "region"
+                let atlasRegionName = raw["path"] as? String ?? attachmentName
+                if type == "region" {
+                    let attachment = makeRegionAttachment(
+                        name: atlasRegionName,
+                        slotName: slotName,
+                        raw: raw
+                    )
+                    bySlot[slotName, default: [:]][attachmentName] = attachment
+                    continue
+                }
                 guard type == "mesh" else {
                     continue
                 }
@@ -2547,7 +2557,7 @@ final class SpineSetupPoseRenderer {
                     throw EngineError.asset("Spine mesh attachment \(slotName)/\(attachmentName) missing uvs, triangles, or vertices")
                 }
                 let attachment = Attachment(
-                    name: attachmentName,
+                    name: atlasRegionName,
                     slotName: slotName,
                     uvs: uvs,
                     triangles: triangles,
@@ -2557,6 +2567,44 @@ final class SpineSetupPoseRenderer {
             }
         }
         return bySlot
+    }
+
+    private static func makeRegionAttachment(name: String, slotName: String, raw: [String: Any]) -> Attachment {
+        let width = number(raw["width"], default: 0)
+        let height = number(raw["height"], default: 0)
+        let x = number(raw["x"], default: 0)
+        let y = number(raw["y"], default: 0)
+        let scaleX = number(raw["scaleX"], default: 1)
+        let scaleY = number(raw["scaleY"], default: 1)
+        let rotation = number(raw["rotation"], default: 0) * .pi / 180.0
+        let cosValue = cos(rotation)
+        let sinValue = sin(rotation)
+
+        let halfWidth = width / 2.0
+        let halfHeight = height / 2.0
+        let corners = [
+            CGPoint(x: -halfWidth, y: -halfHeight),
+            CGPoint(x: -halfWidth, y: halfHeight),
+            CGPoint(x: halfWidth, y: halfHeight),
+            CGPoint(x: halfWidth, y: -halfHeight)
+        ]
+
+        let vertices = corners.flatMap { corner in
+            let localX = corner.x * scaleX
+            let localY = corner.y * scaleY
+            return [
+                x + (localX * cosValue) - (localY * sinValue),
+                y + (localX * sinValue) + (localY * cosValue)
+            ]
+        }
+
+        return Attachment(
+            name: name,
+            slotName: slotName,
+            uvs: [0, 1, 0, 0, 1, 0, 1, 1],
+            triangles: [0, 1, 2, 2, 3, 0],
+            vertices: vertices
+        )
     }
 
     private static func parsePathAttachments(root: [String: Any]) throws -> [String: [String: PathAttachment]] {

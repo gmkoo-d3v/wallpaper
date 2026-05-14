@@ -30,7 +30,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 
 - Full Spine 4.2 runtime parity.
 - Draw order, clipping attachments, events/audio, sequence attachments, and
-  non-mesh region attachment paths. The current Imported asset uses mesh/path only.
+  non-region non-mesh attachment paths. The current Imported asset uses mesh/path only.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Runtime-calibrated region/mesh attachment parity for every action.
