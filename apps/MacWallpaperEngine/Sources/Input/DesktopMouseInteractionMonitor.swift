@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import QuartzCore
 
 final class DesktopMouseInteractionMonitor {
     private weak var window: NSWindow?
@@ -9,6 +10,13 @@ final class DesktopMouseInteractionMonitor {
     private let onUp: (CGPoint, PointerButton) -> Void
     private let onExit: () -> Void
     private var monitors: [Any] = []
+    private let moveEventMinInterval: CFTimeInterval = 1.0 / 30.0
+    private let eligibilityCacheInterval: CFTimeInterval = 0.15
+    private let eligibilityCacheDistanceSquared: CGFloat = 24 * 24
+    private var lastMoveEventAt: CFTimeInterval = 0
+    private var lastEligibilityCheckAt: CFTimeInterval = 0
+    private var lastEligibilityPoint: CGPoint?
+    private var lastEligibility = false
 
     private enum EventKind {
         case move
@@ -39,15 +47,13 @@ final class DesktopMouseInteractionMonitor {
     func start() {
         guard monitors.isEmpty, policy.mode != .disabled else { return }
 
-        if policy.mode == .always {
-            if let monitor = NSEvent.addGlobalMonitorForEvents(
-                matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
-                handler: { [weak self] event in
-                    self?.handle(event: event, kind: .move)
-                }
-            ) {
-                monitors.append(monitor)
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .move)
             }
+        ) {
+            monitors.append(monitor)
         }
         if let monitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown],
@@ -88,10 +94,17 @@ final class DesktopMouseInteractionMonitor {
             NSEvent.removeMonitor(monitor)
         }
         monitors.removeAll()
+        resetEligibilityCache()
     }
 
     private func handle(event: NSEvent, kind: EventKind) {
         guard let window else { return }
+        if case .move = kind {
+            let now = CACurrentMediaTime()
+            guard now - lastMoveEventAt >= moveEventMinInterval else { return }
+            lastMoveEventAt = now
+        }
+
         let screenPoint = NSEvent.mouseLocation
         guard window.frame.contains(screenPoint) else {
             onExit()
@@ -138,16 +151,51 @@ final class DesktopMouseInteractionMonitor {
         case .disabled:
             return false
         case .desktopEmptyOnly:
+            if let cached = cachedEligibility(screenPoint: screenPoint) {
+                return cached
+            }
+
+            let eligible: Bool
             if policy.blockApplicationWindows,
                DesktopInteractionGate.isCoveredByApplicationWindow(screenPoint: screenPoint) {
-                return false
+                eligible = false
+            } else if policy.blockDesktopItems,
+                      DesktopInteractionGate.isLikelyDesktopItem(event: event, screenPoint: screenPoint) {
+                eligible = false
+            } else if policy.blockDesktopItems,
+                      DesktopInteractionGate.isLikelyDesktopItem(screenPoint: screenPoint) {
+                eligible = false
+            } else {
+                eligible = true
             }
-            if policy.blockDesktopItems,
-               DesktopInteractionGate.isLikelyDesktopItem(event: event, screenPoint: screenPoint) {
-                return false
-            }
-            return true
+            cacheEligibility(eligible, screenPoint: screenPoint)
+            return eligible
         }
+    }
+
+    private func cachedEligibility(screenPoint: CGPoint) -> Bool? {
+        guard let lastEligibilityPoint else { return nil }
+        let now = CACurrentMediaTime()
+        let dx = screenPoint.x - lastEligibilityPoint.x
+        let dy = screenPoint.y - lastEligibilityPoint.y
+        guard now - lastEligibilityCheckAt < eligibilityCacheInterval,
+              (dx * dx) + (dy * dy) < eligibilityCacheDistanceSquared else {
+            return nil
+        }
+        return lastEligibility
+    }
+
+    private func cacheEligibility(_ eligible: Bool, screenPoint: CGPoint) {
+        lastEligibilityCheckAt = CACurrentMediaTime()
+        lastEligibilityPoint = screenPoint
+        lastEligibility = eligible
+    }
+
+    private func resetEligibilityCache() {
+        lastEligibilityCheckAt = 0
+        lastEligibilityPoint = nil
+        lastEligibility = false
+        lastMoveEventAt = 0
     }
 }
 

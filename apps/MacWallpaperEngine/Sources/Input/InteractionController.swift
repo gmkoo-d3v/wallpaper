@@ -27,7 +27,6 @@ final class InteractionController {
     private var pressedHitTailDuration: CFTimeInterval = 0
     private var pressedButton: PointerButton?
     private var pressStartedAt: CFTimeInterval = 0
-    private var lookTrackingHeld = false
     private let interactions: [InteractionConfig]
 
     init(interactions: [InteractionConfig], policy: InteractionPolicy?) {
@@ -63,7 +62,7 @@ final class InteractionController {
         clickCommandState = nil
         return InteractionSnapshot(
             pointer: pointerState,
-            command: lookTrackingHeld ? moveCommandState : "idle",
+            command: moveCommandState,
             clickPulse: 0.0
         )
     }
@@ -75,9 +74,7 @@ final class InteractionController {
         let smoothedPointer = smooth(current: smoothedPointerState, target: pointer)
         pointerState = pointer
         smoothedPointerState = smoothedPointer
-        if lookTrackingHeld {
-            moveCommandState = command(for: smoothedPointer)
-        }
+        moveCommandState = command(for: smoothedPointer)
         lock.unlock()
     }
 
@@ -103,10 +100,8 @@ final class InteractionController {
             clickCommandState = hitAction
             clickCommandHeld = trigger == .hold
             clickCommandExpiresAt = now + (trigger == .hold ? releaseFadeDuration : pressedHitTailDuration)
-            lookTrackingHeld = false
             moveCommandState = "idle"
         } else {
-            lookTrackingHeld = true
             moveCommandState = command(for: pointer)
         }
         lock.unlock()
@@ -137,7 +132,6 @@ final class InteractionController {
         pressedHitTrigger = nil
         pressedHitTailDuration = 0
         pressedButton = nil
-        lookTrackingHeld = false
         moveCommandState = "idle"
         lock.unlock()
     }
@@ -159,14 +153,7 @@ final class InteractionController {
         pressedHitTrigger = nil
         pressedHitTailDuration = 0
         pressedButton = nil
-        lookTrackingHeld = false
         lock.unlock()
-    }
-
-    func needsPointerPolling() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return lookTrackingHeld
     }
 
     private func hitZone(at pointer: CGPoint, button: PointerButton) -> HitZone? {
