@@ -20,7 +20,22 @@ mkdir -p "$MACOS_DIR" "$WALLPAPER_DEST"
 
 cp "$SCRIPT_DIR/.build/release/$APP_NAME" "$MACOS_DIR/$APP_NAME"
 chmod 755 "$MACOS_DIR/$APP_NAME"
-rsync -a --exclude ".DS_Store" "$WALLPAPER_SOURCE/" "$WALLPAPER_DEST/"
+
+bundle_count=0
+for bundle_dir in "$WALLPAPER_SOURCE"/*; do
+  [ -d "$bundle_dir" ] || continue
+  [ -f "$bundle_dir/wallpaper.native.json" ] || continue
+  "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only >/dev/null
+  bundle_name="$(basename "$bundle_dir")"
+  mkdir -p "$WALLPAPER_DEST/$bundle_name"
+  rsync -a --exclude ".DS_Store" "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
+  bundle_count=$((bundle_count + 1))
+done
+
+if [ "$bundle_count" -eq 0 ]; then
+  echo "No valid wallpaper bundles found under $WALLPAPER_SOURCE" >&2
+  exit 1
+fi
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

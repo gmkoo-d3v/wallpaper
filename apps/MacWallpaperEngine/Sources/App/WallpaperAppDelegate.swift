@@ -220,6 +220,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
     }
 
     func controlPanelChooseWallpaperBundle(_ url: URL) {
+        let oldRuntime = runtime
+        let wasRunning = host != nil
+        lastError = nil
         do {
             let bundleRoot = url.standardizedFileURL
             let nextConfig = runtime.config.replacing(
@@ -231,15 +234,29 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 launchWallpaper: true
             )
             let nextRuntime = try NativeRuntimeCore(config: nextConfig)
-            let wasRunning = host != nil
             stopHost()
             runtime = nextRuntime
             if wasRunning {
-                try startHost()
+                do {
+                    try startHost()
+                } catch {
+                    runtime = oldRuntime
+                    if wasRunning {
+                        do {
+                            try startHost()
+                        } catch {
+                            lastError = "New bundle failed: \(nextRuntime.config.wallpaperRoot.path). Rollback also failed: \(error.localizedDescription)"
+                            throw error
+                        }
+                    }
+                    throw error
+                }
             }
             lastError = nil
         } catch {
-            lastError = error.localizedDescription
+            if lastError == nil {
+                lastError = error.localizedDescription
+            }
             showError(error)
         }
         controlPanel?.refresh()

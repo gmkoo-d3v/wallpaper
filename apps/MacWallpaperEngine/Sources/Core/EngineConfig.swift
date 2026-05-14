@@ -345,10 +345,10 @@ enum ProjectPaths {
     }
 
     private static func isWallpaperBundle(_ url: URL) -> Bool {
-        directoryExists(url)
-            && FileManager.default.fileExists(
-                atPath: url.appendingPathComponent("wallpaper.native.json").path
-            )
+        guard directoryExists(url) else { return false }
+        let manifestURL = url.appendingPathComponent("wallpaper.native.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else { return false }
+        return (try? ManifestLoader.load(url: manifestURL, bundleRoot: url)) != nil
     }
 
     private static func directoryExists(_ url: URL) -> Bool {
