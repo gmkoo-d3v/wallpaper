@@ -1,0 +1,64 @@
+# macOS metadata
+.DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Editor, IDE, and local tooling
+.vscode/
+.vscode/*
+!.vscode/settings.example.json
+.idea/
+.idea/*
+*.iml
+*.iws
+*.ipr
+.fleet/
+.zed/
+.nova/
+*.swp
+*.swo
+*~
+.serena/
+.serena/**
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.pid
+*.seed
+*.pid.lock
+tmp/
+temp/
+
+# Swift / Xcode build outputs
+.build/
+**/.build/
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+.swiftpm/
+
+# App/package build outputs
+dist/
+*.app/
+*.dSYM/
+*.xcarchive/
+
+# Project archives and local documentation dumps
+archive/
+docs/
+
+# Dependency and generated artifact caches
+node_modules/
+.tools/
+converted/
+preview_intermediate/
+preview_assets/
