@@ -91,4 +91,9 @@ if command -v codesign >/dev/null 2>&1; then
   codesign --force --deep --sign - "$APP_DIR" >/dev/null
 fi
 
+if ! "$MACOS_DIR/$APP_NAME" --self-test >/dev/null; then
+  echo "Packaged app self-test failed: $APP_DIR" >&2
+  exit 1
+fi
+
 echo "$APP_DIR"
