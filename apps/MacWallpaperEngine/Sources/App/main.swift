@@ -35,6 +35,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.selfTestOnly {
+        print(try RuntimeSelfTest.run(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.validateOnly {
         let summary = runtime.validationSummary()
         print(summary)

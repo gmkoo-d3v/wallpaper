@@ -66,6 +66,7 @@ struct EngineConfig {
     let validateOnly: Bool
     let displayPlanOnly: Bool
     let performancePlanOnly: Bool
+    let selfTestOnly: Bool
     let startHidden: Bool
     let interactive: Bool
     let launchControlPanel: Bool
@@ -92,7 +93,8 @@ struct EngineConfig {
         metalEnabled: Bool? = nil,
         plainWindowStyle: Bool? = nil,
         displayPlanOnly: Bool? = nil,
-        performancePlanOnly: Bool? = nil
+        performancePlanOnly: Bool? = nil,
+        selfTestOnly: Bool? = nil
     ) -> EngineConfig {
         EngineConfig(
             projectRoot: projectRoot,
@@ -108,6 +110,7 @@ struct EngineConfig {
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly ?? self.displayPlanOnly,
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
+            selfTestOnly: selfTestOnly ?? self.selfTestOnly,
             startHidden: startHidden ?? self.startHidden,
             interactive: interactive ?? self.interactive,
             launchControlPanel: launchControlPanel ?? self.launchControlPanel,
@@ -131,6 +134,7 @@ struct EngineConfig {
         var validateOnly = false
         var displayPlanOnly = false
         var performancePlanOnly = false
+        var selfTestOnly = false
         var startHidden = false
         var interactive = true
         var launchControlPanel = true
@@ -204,6 +208,8 @@ struct EngineConfig {
                 displayPlanOnly = true
             case "--performance-plan":
                 performancePlanOnly = true
+            case "--self-test":
+                selfTestOnly = true
             case "--hidden":
                 startHidden = true
             case "--pass-through":
@@ -270,6 +276,7 @@ struct EngineConfig {
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly,
             performancePlanOnly: performancePlanOnly,
+            selfTestOnly: selfTestOnly,
             startHidden: startHidden,
             interactive: interactive,
             launchControlPanel: launchControlPanel,
@@ -307,6 +314,7 @@ struct EngineConfig {
       --list-bundles           Print validated wallpaper bundles and exit.
       --display-plan           Print current monitor role/policy mapping and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
+      --self-test              Run built-in policy/runtime self checks and exit.
       --validate-only           Validate manifest and assets without opening windows.
       --hidden                  Build host but keep windows hidden.
       --pass-through            Ignore mouse events and let desktop clicks pass through.
