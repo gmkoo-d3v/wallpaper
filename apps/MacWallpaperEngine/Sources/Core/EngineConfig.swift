@@ -299,7 +299,7 @@ struct EngineConfig {
     }
 
     static let help = """
-    MacWallpaperEngine native MVP
+    MacWallpaperEngine native runtime
 
     Options:
       --wallpaper-root <path>   Wallpaper bundle root. Defaults to the first valid bundle under wallpapers/.

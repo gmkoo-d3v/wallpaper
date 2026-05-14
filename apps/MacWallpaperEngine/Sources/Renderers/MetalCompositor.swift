@@ -12,7 +12,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private let displayRole: RenderDisplayRole
     private let interaction: InteractionController
     private let governor: ResourceGovernor
-    private let semaphore = DispatchSemaphore(value: 1)
+    private let semaphore: DispatchSemaphore
 
     private var videoSource: VideoFrameSource?
     private var deskOcclusionSource: VideoFrameSource?
@@ -39,6 +39,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         self.displayRole = displayRole
         self.interaction = interaction
         self.governor = ResourceGovernor(manifest: runtime.manifest, targetFps: runtime.renderTargetFps)
+        self.semaphore = DispatchSemaphore(value: runtime.performancePlan.maxInFlightCommandBuffers)
         self.normalPipelineState = try Self.makePipeline(device: device, blendMode: .normal)
         self.multiplyPipelineState = try Self.makePipeline(device: device, blendMode: .multiply)
         super.init()
@@ -113,10 +114,14 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         guard isPausedByHost == false else { return }
 
+        let now = CACurrentMediaTime()
+        let currentFps = governor.frameStarted(now: now)
         let thermalPaused = governor.shouldPauseForThermal
-        if thermalPaused != isPausedByThermal {
-            isPausedByThermal = thermalPaused
-            if thermalPaused {
+        let resourcePaused = governor.shouldPauseForResourceBudget
+        let shouldPause = thermalPaused || resourcePaused
+        if shouldPause != isPausedByThermal {
+            isPausedByThermal = shouldPause
+            if shouldPause {
                 videoSource?.pause()
                 deskOcclusionSource?.pause()
             } else {
@@ -124,15 +129,13 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 deskOcclusionSource?.play()
             }
         }
-        if thermalPaused {
+        if shouldPause {
             if view.preferredFramesPerSecond != 1 {
                 view.preferredFramesPerSecond = 1
             }
             return
         }
 
-        let now = CACurrentMediaTime()
-        let currentFps = governor.frameStarted(now: now)
         if view.preferredFramesPerSecond != currentFps {
             view.preferredFramesPerSecond = max(currentFps, 1)
         }

@@ -1,6 +1,6 @@
-# MacWallpaperEngine Native MVP
+# MacWallpaperEngine Native Runtime
 
-Native macOS MVP for the Wallpaper Engine-like runtime.
+Native macOS runtime for Wallpaper Engine-like bundle playback.
 
 ## Current Scope
 
@@ -19,7 +19,7 @@ Native macOS MVP for the Wallpaper Engine-like runtime.
 - First-pass IK, transform, path, and asset-used physics constraint evaluation.
 - Reusable native Spine mesh buffers when batch structure is stable.
 - Pointer movement and click command mapping.
-- Basic frame-time governor with late-frame drop and one in-flight command buffer.
+- Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
 - Control panel foreground switch:
@@ -39,7 +39,6 @@ Native macOS MVP for the Wallpaper Engine-like runtime.
   complete, because action continuity depends on correct pose and constraint
   evaluation.
 - Calibrated Imported hit zones.
-- CPU/RSS telemetry guard.
 - Production-grade frame cache and profiler-backed native Spine optimization.
 - Exact Finder desktop icon hit-testing without Accessibility trust.
 

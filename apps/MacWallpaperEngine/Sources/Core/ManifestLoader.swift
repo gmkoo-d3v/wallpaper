@@ -32,8 +32,8 @@ enum ManifestLoader {
             throw EngineError.manifest("runtime FPS values are invalid")
         }
         try validatePerformanceTiers(manifest.runtime.performanceTiers, maxFps: manifest.runtime.maxFps)
-        guard manifest.runtime.scheduler.maxInFlightCommandBuffers == 1 else {
-            throw EngineError.manifest("maxInFlightCommandBuffers must be 1 for MVP")
+        guard (1...3).contains(manifest.runtime.scheduler.maxInFlightCommandBuffers) else {
+            throw EngineError.manifest("maxInFlightCommandBuffers must satisfy 1...3")
         }
         guard manifest.runtime.scheduler.lateFramePolicy == "drop", manifest.runtime.scheduler.catchUp == false else {
             throw EngineError.manifest("scheduler must drop late frames and disable catch-up")

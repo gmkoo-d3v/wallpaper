@@ -25,6 +25,7 @@ enum RuntimeSelfTest {
         check(plan.downgradeFpsLadder == plan.downgradeFpsLadder.sorted(by: >), "downgrade ladder must be descending")
         check(Set(plan.downgradeFpsLadder).count == plan.downgradeFpsLadder.count, "downgrade ladder must not contain duplicates")
         check(plan.maxInFlightCommandBuffers >= 1, "scheduler must allow at least one in-flight command buffer")
+        check(plan.maxInFlightCommandBuffers <= 3, "scheduler must cap in-flight command buffers to prevent queue buildup")
         check(plan.cpuTargetPercent > 0, "CPU target percent must be positive")
         check(plan.cpuDowngradePercent >= plan.cpuTargetPercent, "CPU downgrade threshold must not be below target")
         check(plan.rssHardMb >= plan.rssTargetMb, "RSS hard limit must not be below target")
