@@ -30,6 +30,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.performancePlanOnly {
+        print(runtime.performanceSummary())
+        exit(EXIT_SUCCESS)
+    }
+
     if config.validateOnly {
         let summary = runtime.validationSummary()
         print(summary)

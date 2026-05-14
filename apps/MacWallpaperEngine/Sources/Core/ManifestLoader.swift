@@ -25,9 +25,13 @@ enum ManifestLoader {
         guard manifest.runtime.kind == "native-metal" else {
             throw EngineError.manifest("runtime.kind must be native-metal")
         }
-        guard manifest.runtime.targetFps > 0, manifest.runtime.maxFps >= manifest.runtime.targetFps else {
+        guard manifest.runtime.targetFps > 0,
+              manifest.runtime.fallbackFps > 0,
+              manifest.runtime.maxFps >= manifest.runtime.targetFps,
+              manifest.runtime.targetFps >= manifest.runtime.fallbackFps else {
             throw EngineError.manifest("runtime FPS values are invalid")
         }
+        try validatePerformanceTiers(manifest.runtime.performanceTiers, maxFps: manifest.runtime.maxFps)
         guard manifest.runtime.scheduler.maxInFlightCommandBuffers == 1 else {
             throw EngineError.manifest("maxInFlightCommandBuffers must be 1 for MVP")
         }
@@ -37,6 +41,7 @@ enum ManifestLoader {
         guard manifest.layerBudgets.maxTexturePages > 0 else {
             throw EngineError.manifest("layerBudgets.maxTexturePages must be positive")
         }
+        try validateLayerBudgets(manifest.layerBudgets)
         guard manifest.layers.isEmpty == false else {
             throw EngineError.manifest("at least one layer is required")
         }
@@ -116,6 +121,38 @@ enum ManifestLoader {
         guard let playbackRate else { return }
         guard playbackRate.isFinite, playbackRate > 0.0, playbackRate <= 4.0 else {
             throw EngineError.manifest("video asset \(label) playbackRate must satisfy 0 < playbackRate <= 4")
+        }
+    }
+
+    private static func validatePerformanceTiers(_ tiers: [PerformanceTier]?, maxFps: Int) throws {
+        guard let tiers else { return }
+        var ids = Set<String>()
+        for tier in tiers {
+            guard tier.id.isEmpty == false, ids.insert(tier.id).inserted else {
+                throw EngineError.manifest("performanceTier ids must be unique and non-empty")
+            }
+            guard tier.targetFps > 0, tier.targetFps <= maxFps else {
+                throw EngineError.manifest("performanceTier \(tier.id) targetFps must satisfy 0 < targetFps <= maxFps")
+            }
+            if let refresh = tier.requiresDisplayRefreshHz {
+                guard refresh > 0 else {
+                    throw EngineError.manifest("performanceTier \(tier.id) requiresDisplayRefreshHz must be positive")
+                }
+            }
+        }
+    }
+
+    private static func validateLayerBudgets(_ budgets: LayerBudgets) throws {
+        guard budgets.maxTextureDimension > 0 else {
+            throw EngineError.manifest("layerBudgets.maxTextureDimension must be positive")
+        }
+        guard budgets.rssTargetMb > 0, budgets.rssHardMb >= budgets.rssTargetMb else {
+            throw EngineError.manifest("layerBudgets RSS values must satisfy 0 < rssTargetMb <= rssHardMb")
+        }
+        guard budgets.primaryCpuTargetPercent > 0,
+              budgets.cpuDowngradePercent >= budgets.primaryCpuTargetPercent,
+              budgets.cpuDowngradeWindowSeconds > 0 else {
+            throw EngineError.manifest("layerBudgets CPU values must satisfy target > 0, downgrade >= target, window > 0")
         }
     }
 

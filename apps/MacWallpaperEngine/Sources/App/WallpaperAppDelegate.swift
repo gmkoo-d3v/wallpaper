@@ -333,6 +333,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             foregroundMode: .compositeVideo,
             validateOnly: false,
             displayPlanOnly: false,
+            performancePlanOnly: false,
             startHidden: false,
             interactive: true,
             launchControlPanel: true,

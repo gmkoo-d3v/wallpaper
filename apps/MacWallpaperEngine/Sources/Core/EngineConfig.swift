@@ -65,6 +65,7 @@ struct EngineConfig {
     let foregroundMode: ForegroundRenderMode
     let validateOnly: Bool
     let displayPlanOnly: Bool
+    let performancePlanOnly: Bool
     let startHidden: Bool
     let interactive: Bool
     let launchControlPanel: Bool
@@ -90,7 +91,8 @@ struct EngineConfig {
         videoEnabled: Bool? = nil,
         metalEnabled: Bool? = nil,
         plainWindowStyle: Bool? = nil,
-        displayPlanOnly: Bool? = nil
+        displayPlanOnly: Bool? = nil,
+        performancePlanOnly: Bool? = nil
     ) -> EngineConfig {
         EngineConfig(
             projectRoot: projectRoot,
@@ -105,6 +107,7 @@ struct EngineConfig {
             foregroundMode: foregroundMode ?? self.foregroundMode,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly ?? self.displayPlanOnly,
+            performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             startHidden: startHidden ?? self.startHidden,
             interactive: interactive ?? self.interactive,
             launchControlPanel: launchControlPanel ?? self.launchControlPanel,
@@ -127,6 +130,7 @@ struct EngineConfig {
         var foregroundMode = ForegroundRenderMode.compositeVideo
         var validateOnly = false
         var displayPlanOnly = false
+        var performancePlanOnly = false
         var startHidden = false
         var interactive = true
         var launchControlPanel = true
@@ -198,6 +202,8 @@ struct EngineConfig {
                 validateOnly = true
             case "--display-plan":
                 displayPlanOnly = true
+            case "--performance-plan":
+                performancePlanOnly = true
             case "--hidden":
                 startHidden = true
             case "--pass-through":
@@ -263,6 +269,7 @@ struct EngineConfig {
             foregroundMode: foregroundMode,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly,
+            performancePlanOnly: performancePlanOnly,
             startHidden: startHidden,
             interactive: interactive,
             launchControlPanel: launchControlPanel,
@@ -299,6 +306,7 @@ struct EngineConfig {
       --foreground-mode <mode>  composite | native. Default: composite.
       --list-bundles           Print validated wallpaper bundles and exit.
       --display-plan           Print current monitor role/policy mapping and exit.
+      --performance-plan       Print manifest performance budget mapping and exit.
       --validate-only           Validate manifest and assets without opening windows.
       --hidden                  Build host but keep windows hidden.
       --pass-through            Ignore mouse events and let desktop clicks pass through.

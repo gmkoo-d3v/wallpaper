@@ -1,15 +1,79 @@
 import Foundation
 
+struct PerformancePlan {
+    let requestedFps: Int
+    let effectiveTargetFps: Int
+    let maxFps: Int
+    let fallbackFps: Int
+    let downgradeFpsLadder: [Int]
+    let seriousThermalFps: Int
+    let criticalPauses: Bool
+    let maxInFlightCommandBuffers: Int
+    let cpuTargetPercent: Double
+    let cpuDowngradePercent: Double
+    let cpuDowngradeWindowSeconds: Int
+    let rssTargetMb: Int
+    let rssHardMb: Int
+
+    static func make(manifest: WallpaperNativeManifest, requestedFps: Int) -> PerformancePlan {
+        let maxFps = max(manifest.runtime.maxFps, 1)
+        let fallbackFps = max(min(manifest.runtime.fallbackFps, maxFps), 1)
+        let effectiveTargetFps = max(min(requestedFps, maxFps), fallbackFps)
+        let seriousThermalFps = manifest.thermalPolicy.serious.contains("15fps") ? 15 : fallbackFps
+        let criticalPauses = manifest.thermalPolicy.critical == "pause"
+
+        var ladder = [effectiveTargetFps, fallbackFps]
+        for candidate in [120, 60, 30, 15] where candidate < effectiveTargetFps && candidate >= fallbackFps {
+            ladder.append(candidate)
+        }
+        ladder = Array(Set(ladder.map { max(min($0, maxFps), 1) })).sorted(by: >)
+
+        return PerformancePlan(
+            requestedFps: requestedFps,
+            effectiveTargetFps: effectiveTargetFps,
+            maxFps: maxFps,
+            fallbackFps: fallbackFps,
+            downgradeFpsLadder: ladder,
+            seriousThermalFps: max(min(seriousThermalFps, maxFps), 1),
+            criticalPauses: criticalPauses,
+            maxInFlightCommandBuffers: manifest.runtime.scheduler.maxInFlightCommandBuffers,
+            cpuTargetPercent: manifest.layerBudgets.primaryCpuTargetPercent,
+            cpuDowngradePercent: manifest.layerBudgets.cpuDowngradePercent,
+            cpuDowngradeWindowSeconds: manifest.layerBudgets.cpuDowngradeWindowSeconds,
+            rssTargetMb: manifest.layerBudgets.rssTargetMb,
+            rssHardMb: manifest.layerBudgets.rssHardMb
+        )
+    }
+
+    func summary() -> String {
+        """
+        performance plan OK
+        requestedFps: \(requestedFps)
+        effectiveTargetFps: \(effectiveTargetFps)
+        maxFps: \(maxFps)
+        fallbackFps: \(fallbackFps)
+        downgradeFpsLadder: \(downgradeFpsLadder.map(String.init).joined(separator: " -> "))
+        seriousThermalFps: \(seriousThermalFps)
+        criticalThermal: \(criticalPauses ? "pause" : "throttle")
+        maxInFlightCommandBuffers: \(maxInFlightCommandBuffers)
+        cpuTargetPercent: \(cpuTargetPercent)
+        cpuDowngradePercent: \(cpuDowngradePercent)
+        cpuDowngradeWindowSeconds: \(cpuDowngradeWindowSeconds)
+        rssTargetMb: \(rssTargetMb)
+        rssHardMb: \(rssHardMb)
+        """
+    }
+}
+
 final class ResourceGovernor {
-    private let manifest: WallpaperNativeManifest
+    private let plan: PerformancePlan
     private var frameDurations: [TimeInterval] = []
     private var currentFps: Int
     private var lastFrameTime: TimeInterval?
-    private var lastUpgradeTime = Date()
 
     init(manifest: WallpaperNativeManifest, targetFps: Int) {
-        self.manifest = manifest
-        self.currentFps = targetFps
+        self.plan = PerformancePlan.make(manifest: manifest, requestedFps: targetFps)
+        self.currentFps = plan.effectiveTargetFps
     }
 
     func frameStarted(now: TimeInterval) -> Int {
@@ -33,30 +97,28 @@ final class ResourceGovernor {
     }
 
     var shouldPauseForThermal: Bool {
-        ProcessInfo.processInfo.thermalState == .critical
+        plan.criticalPauses && ProcessInfo.processInfo.thermalState == .critical
     }
 
     private func evaluate() {
         let thermal = ProcessInfo.processInfo.thermalState
         if thermal == .critical {
-            currentFps = min(currentFps, 1)
+            currentFps = min(currentFps, plan.criticalPauses ? 1 : plan.seriousThermalFps)
             return
         }
         if thermal == .serious {
-            currentFps = min(currentFps, 15)
+            currentFps = min(currentFps, plan.seriousThermalFps)
             return
         }
 
+        guard frameDurations.count >= max(currentFps * 2, 60) else { return }
         let p95 = p95FrameTime
-        if currentFps >= 120, p95 > 1.0 / 120.0 {
-            currentFps = 60
-            lastUpgradeTime = Date()
-        } else if currentFps >= 60, p95 > 1.0 / 60.0 {
-            currentFps = 30
-            lastUpgradeTime = Date()
-        } else if currentFps >= 30, p95 > 1.0 / 30.0 {
-            currentFps = 15
-            lastUpgradeTime = Date()
+        let frameBudget = 1.0 / Double(max(currentFps, 1))
+        guard p95 > frameBudget * 1.10 else { return }
+        guard let currentIndex = plan.downgradeFpsLadder.firstIndex(of: currentFps),
+              currentIndex + 1 < plan.downgradeFpsLadder.count else {
+            return
         }
+        currentFps = plan.downgradeFpsLadder[currentIndex + 1]
     }
 }
