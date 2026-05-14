@@ -8,6 +8,20 @@ private enum ApplicationLifetime {
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 do {
+    if arguments.contains("--list-bundles") {
+        let projectRoot = try? ProjectPaths.findProjectRoot()
+        let bundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: projectRoot)
+        guard bundles.isEmpty == false else {
+            fputs("No valid wallpaper bundles found.\n", stderr)
+            exit(EXIT_FAILURE)
+        }
+
+        for bundle in bundles {
+            print("\(bundle.id)\t\(bundle.displayName)\t\(bundle.root.path)")
+        }
+        exit(EXIT_SUCCESS)
+    }
+
     let config = try EngineConfig.parse(arguments)
     let runtime = try NativeRuntimeCore(config: config)
 

@@ -8,7 +8,9 @@ struct ControlPanelState {
     let playbackRate: Float
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
+    let wallpaperRoot: URL?
     let wallpaperPath: String
+    let availableBundles: [WallpaperBundleSummary]
     let statusText: String
 }
 
@@ -69,6 +71,8 @@ final class ControlPanelWindowController: NSWindowController {
     private let applyButton = NSButton(title: "APPLY SETTINGS", target: nil, action: nil)
     private let chooseBundleButton = NSButton(title: "SELECT BUNDLE", target: nil, action: nil)
     private let quitButton = NSButton(title: "QUIT", target: nil, action: nil)
+    private let bundlePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private var availableBundles: [WallpaperBundleSummary] = []
 
     init(delegate: ControlPanelDelegate) {
         self.delegate = delegate
@@ -103,6 +107,8 @@ final class ControlPanelWindowController: NSWindowController {
         guard let state = delegate?.controlPanelState else { return }
         statusValue.stringValue = state.statusText
         pathValue.stringValue = state.wallpaperPath
+        availableBundles = state.availableBundles
+        reloadBundlePopup(currentRoot: state.wallpaperRoot)
         displayModeControl.selectedSegment = segment(for: state.displayMode)
         interactionToggle.state = state.interactive ? .on : .off
         fpsControl.selectedSegment = segment(forFps: state.renderFps)
@@ -142,6 +148,8 @@ final class ControlPanelWindowController: NSWindowController {
         applyButton.action = #selector(applySettings)
         chooseBundleButton.target = self
         chooseBundleButton.action = #selector(chooseBundle)
+        bundlePopup.target = self
+        bundlePopup.action = #selector(selectLibraryBundle)
         quitButton.target = self
         quitButton.action = #selector(quitApp)
 
@@ -238,8 +246,10 @@ final class ControlPanelWindowController: NSWindowController {
         pathValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
         pathValue.lineBreakMode = .byTruncatingMiddle
         pathValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        bundlePopup.widthAnchor.constraint(equalToConstant: 220).isActive = true
         chooseBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
 
+        line.addArrangedSubview(bundlePopup)
         line.addArrangedSubview(pathValue)
         line.addArrangedSubview(chooseBundleButton)
         row.addArrangedSubview(caption)
@@ -367,6 +377,31 @@ final class ControlPanelWindowController: NSWindowController {
         foregroundMode == .nativeSpine ? 1 : 0
     }
 
+    private func reloadBundlePopup(currentRoot: URL?) {
+        let selectedPath = currentRoot?.standardizedFileURL.resolvingSymlinksInPath().path
+        bundlePopup.removeAllItems()
+
+        guard availableBundles.isEmpty == false else {
+            bundlePopup.addItem(withTitle: "No validated bundles")
+            bundlePopup.isEnabled = false
+            return
+        }
+
+        bundlePopup.isEnabled = true
+        for bundle in availableBundles {
+            bundlePopup.addItem(withTitle: bundle.displayName)
+            bundlePopup.lastItem?.representedObject = bundle.root.path
+        }
+
+        if let selectedPath,
+           let selectedItem = bundlePopup.itemArray.first(where: {
+               guard let path = $0.representedObject as? String else { return false }
+               return URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path == selectedPath
+           }) {
+            bundlePopup.select(selectedItem)
+        }
+    }
+
     private func selectedDisplayMode() -> DisplayMode {
         switch displayModeControl.selectedSegment {
         case 1:
@@ -448,6 +483,12 @@ final class ControlPanelWindowController: NSWindowController {
         if panel.runModal() == .OK, let url = panel.url {
             delegate?.controlPanelChooseWallpaperBundle(url)
         }
+        refresh()
+    }
+
+    @objc private func selectLibraryBundle() {
+        guard let path = bundlePopup.selectedItem?.representedObject as? String else { return }
+        delegate?.controlPanelChooseWallpaperBundle(URL(fileURLWithPath: path))
         refresh()
     }
 

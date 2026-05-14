@@ -187,7 +187,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 playbackRate: 1.0,
                 fitMode: .contain,
                 foregroundMode: .compositeVideo,
+                wallpaperRoot: nil,
                 wallpaperPath: "No wallpaper bundle selected",
+                availableBundles: availableWallpaperBundles(),
                 statusText: lastError.map { "ERROR / \($0)" } ?? "NO BUNDLE SELECTED"
             )
         }
@@ -206,7 +208,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             playbackRate: runtime.selectedPlaybackRate,
             fitMode: runtime.config.fitMode,
             foregroundMode: runtime.config.foregroundMode,
+            wallpaperRoot: runtime.config.wallpaperRoot,
             wallpaperPath: runtime.config.wallpaperRoot.path,
+            availableBundles: availableWallpaperBundles(),
             statusText: status
         )
     }
@@ -336,5 +340,25 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             metalEnabled: true,
             plainWindowStyle: false
         )
+    }
+
+    private func availableWallpaperBundles() -> [WallpaperBundleSummary] {
+        let projectRoot = runtime?.config.projectRoot ?? (try? ProjectPaths.findProjectRoot())
+        var bundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: projectRoot)
+
+        if let currentRoot = runtime?.config.wallpaperRoot {
+            let currentPath = currentRoot.standardizedFileURL.resolvingSymlinksInPath().path
+            let isAlreadyListed = bundles.contains {
+                $0.root.standardizedFileURL.resolvingSymlinksInPath().path == currentPath
+            }
+            if !isAlreadyListed, let currentBundle = WallpaperBundleCatalog.validateBundle(currentRoot) {
+                bundles.append(currentBundle)
+                bundles.sort {
+                    $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+                }
+            }
+        }
+
+        return bundles
     }
 }

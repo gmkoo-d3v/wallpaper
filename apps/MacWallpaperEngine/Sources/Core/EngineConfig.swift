@@ -290,6 +290,7 @@ struct EngineConfig {
       --playback-rate <value>   Video playback rate override. Defaults to manifest asset rate.
       --fit-mode <mode>         contain | fill. Default: contain.
       --foreground-mode <mode>  composite | native. Default: composite.
+      --list-bundles           Print validated wallpaper bundles and exit.
       --validate-only           Validate manifest and assets without opening windows.
       --hidden                  Build host but keep windows hidden.
       --pass-through            Ignore mouse events and let desktop clicks pass through.
@@ -304,9 +305,15 @@ struct EngineConfig {
 }
 
 enum ProjectPaths {
-    static func findBundledWallpaperRoot() -> URL? {
+    static func findBundledWallpapersDirectory() -> URL? {
         guard let resourceURL = Bundle.main.resourceURL else { return nil }
-        return findDefaultWallpaperRoot(in: resourceURL.appendingPathComponent("wallpapers"))
+        let directory = resourceURL.appendingPathComponent("wallpapers")
+        return directoryExists(directory) ? directory : nil
+    }
+
+    static func findBundledWallpaperRoot() -> URL? {
+        guard let directory = findBundledWallpapersDirectory() else { return nil }
+        return findDefaultWallpaperRoot(in: directory)
     }
 
     static func findProjectRoot() throws -> URL {
@@ -326,34 +333,10 @@ enum ProjectPaths {
     }
 
     static func findDefaultWallpaperRoot(in wallpapersDirectory: URL) -> URL? {
-        let directory = wallpapersDirectory.standardizedFileURL
-        guard let children = try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-        return children
-            .filter(isWallpaperBundle)
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-            .first
+        WallpaperBundleCatalog.discover(in: wallpapersDirectory).first?.root
     }
 
-    private static func isWallpaperBundle(_ url: URL) -> Bool {
-        guard directoryExists(url) else { return false }
-        let manifestURL = url.appendingPathComponent("wallpaper.native.json")
-        guard FileManager.default.fileExists(atPath: manifestURL.path) else { return false }
-        do {
-            _ = try ManifestLoader.load(url: manifestURL, bundleRoot: url)
-            return true
-        } catch {
-            fputs("Skipping invalid wallpaper bundle \(url.lastPathComponent): \(error.localizedDescription)\n", stderr)
-            return false
-        }
-    }
-
-    private static func directoryExists(_ url: URL) -> Bool {
+    static func directoryExists(_ url: URL) -> Bool {
         var isDirectory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
             && isDirectory.boolValue
