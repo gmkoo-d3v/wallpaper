@@ -5,10 +5,10 @@ private enum ApplicationLifetime {
     static var delegate: WallpaperAppDelegate?
 }
 
-let arguments = CommandLine.arguments.dropFirst()
+let arguments = Array(CommandLine.arguments.dropFirst())
 
 do {
-    let config = try EngineConfig.parse(Array(arguments))
+    let config = try EngineConfig.parse(arguments)
     let runtime = try NativeRuntimeCore(config: config)
 
     if config.validateOnly {
@@ -25,5 +25,16 @@ do {
     application.run()
 } catch {
     fputs("MacWallpaperEngine failed: \(error.localizedDescription)\n", stderr)
+
+    if arguments.isEmpty || arguments.contains("--control-panel-only") {
+        let application = NSApplication.shared
+        application.setActivationPolicy(.regular)
+
+        ApplicationLifetime.delegate = WallpaperAppDelegate(runtime: nil, startupError: error)
+        application.delegate = ApplicationLifetime.delegate
+        application.run()
+        exit(EXIT_SUCCESS)
+    }
+
     exit(EXIT_FAILURE)
 }

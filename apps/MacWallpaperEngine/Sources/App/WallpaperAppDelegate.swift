@@ -1,18 +1,24 @@
 import AppKit
 
 final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
-    private var runtime: NativeRuntimeCore
+    private var runtime: NativeRuntimeCore?
     private var host: WallpaperHost?
     private var statusItem: NSStatusItem?
     private var controlPanel: ControlPanelWindowController?
     private var lastError: String?
 
-    init(runtime: NativeRuntimeCore) {
+    init(runtime: NativeRuntimeCore?, startupError: Error? = nil) {
         self.runtime = runtime
+        self.lastError = startupError?.localizedDescription
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard let runtime else {
+            showControlPanel()
+            return
+        }
+
         do {
             if runtime.config.launchWallpaper {
                 try startHost()
@@ -85,6 +91,9 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
 
     private func startHost() throws {
         guard host == nil else { return }
+        guard let runtime else {
+            throw EngineError.invalidArgument("Select a valid wallpaper bundle before starting wallpaper.")
+        }
         let host = try WallpaperHost(runtime: runtime)
         try host.start()
         self.host = host
@@ -107,6 +116,9 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         foregroundMode: ForegroundRenderMode
     ) {
         do {
+            guard let runtime else {
+                throw EngineError.invalidArgument("Select a valid wallpaper bundle before applying settings.")
+            }
             let wasRunning = host != nil
             stopHost()
             let nextConfig = runtime.config.replacing(
@@ -117,11 +129,9 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 fitMode: fitMode,
                 foregroundMode: foregroundMode,
                 startHidden: false,
-                duration: nil,
-                launchControlPanel: true,
-                launchWallpaper: true
+                clearDuration: true
             )
-            runtime = try NativeRuntimeCore(config: nextConfig)
+            self.runtime = try NativeRuntimeCore(config: nextConfig)
             if wasRunning {
                 try startHost()
             }
@@ -168,6 +178,20 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
 
 extension WallpaperAppDelegate: ControlPanelDelegate {
     var controlPanelState: ControlPanelState {
+        guard let runtime else {
+            return ControlPanelState(
+                isRunning: false,
+                displayMode: .primaryAnimated,
+                interactive: true,
+                renderFps: 60,
+                playbackRate: 1.0,
+                fitMode: .contain,
+                foregroundMode: .compositeVideo,
+                wallpaperPath: "No wallpaper bundle selected",
+                statusText: lastError.map { "ERROR / \($0)" } ?? "NO BUNDLE SELECTED"
+            )
+        }
+
         let status: String
         if let lastError {
             status = "ERROR / \(lastError)"
@@ -222,40 +246,56 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
     func controlPanelChooseWallpaperBundle(_ url: URL) {
         let oldRuntime = runtime
         let wasRunning = host != nil
-        lastError = nil
         do {
             let bundleRoot = url.standardizedFileURL
-            let nextConfig = runtime.config.replacing(
-                wallpaperRoot: bundleRoot,
-                manifestURL: bundleRoot.appendingPathComponent("wallpaper.native.json"),
-                startHidden: false,
-                duration: nil,
-                launchControlPanel: true,
-                launchWallpaper: true
-            )
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: bundleRoot.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                throw EngineError.invalidArgument("Selected path is not a directory: \(bundleRoot.path)")
+            }
+
+            let manifestURL = bundleRoot.appendingPathComponent("wallpaper.native.json")
+            guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+                throw EngineError.manifest("Selected folder does not contain wallpaper.native.json: \(bundleRoot.path)")
+            }
+
+            let nextConfig = makeConfigForSelectedBundle(bundleRoot: bundleRoot, manifestURL: manifestURL)
             let nextRuntime = try NativeRuntimeCore(config: nextConfig)
-            stopHost()
-            runtime = nextRuntime
             if wasRunning {
+                guard let oldRuntime else {
+                    throw EngineError.renderer("Internal state error: wallpaper host is running without a runtime.")
+                }
+                stopHost()
+                runtime = nextRuntime
                 do {
                     try startHost()
-                } catch {
+                    lastError = nil
+                } catch let newBundleError {
                     runtime = oldRuntime
-                    if wasRunning {
-                        do {
-                            try startHost()
-                        } catch {
-                            lastError = "New bundle failed: \(nextRuntime.config.wallpaperRoot.path). Rollback also failed: \(error.localizedDescription)"
-                            throw error
-                        }
+                    do {
+                        try startHost()
+                        lastError = nil
+                        showError(EngineError.renderer(
+                            "Selected bundle failed to start, so the previous wallpaper was restored. "
+                                + "Selected bundle: \(nextRuntime.config.wallpaperRoot.path). "
+                                + "Original failure: \(newBundleError.localizedDescription)"
+                        ))
+                    } catch let rollbackError {
+                        let message = "Selected bundle failed to start: \(newBundleError.localizedDescription). "
+                            + "Rollback also failed: \(rollbackError.localizedDescription)"
+                        lastError = message
+                        showError(EngineError.renderer(message))
                     }
-                    throw error
                 }
+            } else {
+                runtime = nextRuntime
+                lastError = nil
             }
-            lastError = nil
         } catch {
-            if lastError == nil {
+            if !wasRunning || host == nil {
                 lastError = error.localizedDescription
+            } else {
+                lastError = nil
             }
             showError(error)
         }
@@ -264,5 +304,37 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
 
     func controlPanelQuit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    private func makeConfigForSelectedBundle(bundleRoot: URL, manifestURL: URL) -> EngineConfig {
+        if let runtime {
+            return runtime.config.replacing(
+                wallpaperRoot: bundleRoot,
+                manifestURL: manifestURL,
+                startHidden: false,
+                clearDuration: true
+            )
+        }
+
+        return EngineConfig(
+            projectRoot: (try? ProjectPaths.findProjectRoot()) ?? bundleRoot.deletingLastPathComponent(),
+            wallpaperRoot: bundleRoot,
+            manifestURL: manifestURL,
+            level: .desktop,
+            displayMode: .primaryAnimated,
+            duration: nil,
+            renderFps: 60,
+            playbackRateOverride: 1.0,
+            fitMode: .contain,
+            foregroundMode: .compositeVideo,
+            validateOnly: false,
+            startHidden: false,
+            interactive: true,
+            launchControlPanel: true,
+            launchWallpaper: true,
+            videoEnabled: true,
+            metalEnabled: true,
+            plainWindowStyle: false
+        )
     }
 }

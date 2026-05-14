@@ -83,6 +83,7 @@ struct EngineConfig {
         foregroundMode: ForegroundRenderMode? = nil,
         startHidden: Bool? = nil,
         duration: TimeInterval? = nil,
+        clearDuration: Bool = false,
         launchControlPanel: Bool? = nil,
         launchWallpaper: Bool? = nil,
         videoEnabled: Bool? = nil,
@@ -95,7 +96,7 @@ struct EngineConfig {
             manifestURL: manifestURL ?? self.manifestURL,
             level: level,
             displayMode: displayMode ?? self.displayMode,
-            duration: duration,
+            duration: clearDuration ? nil : (duration ?? self.duration),
             renderFps: renderFps ?? self.renderFps,
             playbackRateOverride: playbackRateOverride ?? self.playbackRateOverride,
             fitMode: fitMode ?? self.fitMode,
@@ -326,11 +327,6 @@ enum ProjectPaths {
 
     static func findDefaultWallpaperRoot(in wallpapersDirectory: URL) -> URL? {
         let directory = wallpapersDirectory.standardizedFileURL
-        let preferred = directory.appendingPathComponent("sample_imported")
-        if isWallpaperBundle(preferred) {
-            return preferred
-        }
-
         guard let children = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -348,7 +344,13 @@ enum ProjectPaths {
         guard directoryExists(url) else { return false }
         let manifestURL = url.appendingPathComponent("wallpaper.native.json")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else { return false }
-        return (try? ManifestLoader.load(url: manifestURL, bundleRoot: url)) != nil
+        do {
+            _ = try ManifestLoader.load(url: manifestURL, bundleRoot: url)
+            return true
+        } catch {
+            fputs("Skipping invalid wallpaper bundle \(url.lastPathComponent): \(error.localizedDescription)\n", stderr)
+            return false
+        }
     }
 
     private static func directoryExists(_ url: URL) -> Bool {

@@ -13,6 +13,11 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers"
 WALLPAPER_DEST="$RESOURCES_DIR/wallpapers"
 
+if [ ! -d "$WALLPAPER_SOURCE" ]; then
+  echo "Wallpaper source directory is missing: $WALLPAPER_SOURCE" >&2
+  exit 1
+fi
+
 swift build -c release --package-path "$SCRIPT_DIR"
 
 rm -rf "$APP_DIR"
@@ -25,8 +30,18 @@ bundle_count=0
 for bundle_dir in "$WALLPAPER_SOURCE"/*; do
   [ -d "$bundle_dir" ] || continue
   [ -f "$bundle_dir/wallpaper.native.json" ] || continue
-  "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only >/dev/null
   bundle_name="$(basename "$bundle_dir")"
+
+  if [ -L "$bundle_dir" ]; then
+    echo "Skipping symlinked wallpaper bundle: $bundle_name" >&2
+    continue
+  fi
+
+  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only >/dev/null; then
+    echo "Invalid wallpaper bundle failed validation: $bundle_name ($bundle_dir)" >&2
+    exit 1
+  fi
+
   mkdir -p "$WALLPAPER_DEST/$bundle_name"
   rsync -a --exclude ".DS_Store" "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
   bundle_count=$((bundle_count + 1))
