@@ -16,12 +16,14 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
     private var videoSource: VideoFrameSource?
     private var deskOcclusionSource: VideoFrameSource?
+    private var resourceFallbackVideoSource: VideoFrameSource?
     private var interactionTexture: MTLTexture?
     private var usingCompositeVideo = false
     private var fallbackBackground: MTLTexture?
     private var spineRenderer: SpineSetupPoseRenderer?
     private var isPausedByHost = false
     private var isPausedByThermal = false
+    private var isUsingResourceFallbackVideo = false
 
     init(
         device: MTLDevice,
@@ -75,6 +77,19 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 playbackRate: runtime.config.playbackRateOverride ?? backgroundVideo.playbackRate
             )
         }
+        if runtime.config.videoEnabled,
+           runtime.config.foregroundMode == .nativeSpine,
+           displayRole.rendersForeground,
+           usingCompositeVideo == false,
+           let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
+            let fallbackSource = try VideoFrameSource(
+                url: compositeVideo.url,
+                device: device,
+                playbackRate: runtime.config.playbackRateOverride ?? compositeVideo.playbackRate
+            )
+            fallbackSource.pause()
+            self.resourceFallbackVideoSource = fallbackSource
+        }
         self.interactionTexture = Self.makeInteractionTexture(device: device)
 
         self.fallbackBackground = try? textureLoader.newTexture(
@@ -125,11 +140,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     func setPausedByHost(_ paused: Bool) {
         isPausedByHost = paused
         if paused {
-            videoSource?.pause()
-            deskOcclusionSource?.pause()
+            pauseAllVideoSources()
         } else {
-            videoSource?.play()
-            deskOcclusionSource?.play()
+            resumeActiveVideoSources()
         }
     }
 
@@ -144,11 +157,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         if shouldPause != isPausedByThermal {
             isPausedByThermal = shouldPause
             if shouldPause {
-                videoSource?.pause()
-                deskOcclusionSource?.pause()
+                pauseAllVideoSources()
             } else {
-                videoSource?.play()
-                deskOcclusionSource?.play()
+                resumeActiveVideoSources()
             }
         }
         if shouldPause {
@@ -161,6 +172,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         if view.preferredFramesPerSecond != currentFps {
             view.preferredFramesPerSecond = max(currentFps, 1)
         }
+
+        setResourceFallbackVideoActive(governor.shouldUseVideoOnlyFallback && resourceFallbackVideoSource != nil)
 
         guard semaphore.wait(timeout: .now()) == .success else {
             return
@@ -180,7 +193,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         encoder.setRenderPipelineState(normalPipelineState)
         let interactionSnapshot = interaction.snapshot()
 
-        let baseVideoTexture = videoSource?.copyTextureForCurrentTime()
+        let baseVideoTexture = isUsingResourceFallbackVideo
+            ? resourceFallbackVideoSource?.copyTextureForCurrentTime()
+            : videoSource?.copyTextureForCurrentTime()
         let foregroundContentRect: CGRect
         if let videoTexture = baseVideoTexture {
             drawVideo(texture: videoTexture, drawableSize: view.drawableSize, interaction: interactionSnapshot, encoder: encoder)
@@ -192,8 +207,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             foregroundContentRect = CGRect(x: -1, y: -1, width: 2, height: 2)
         }
 
-        drawDeskOcclusion(baseVideoTexture: usingCompositeVideo ? nil : baseVideoTexture, drawableSize: view.drawableSize, encoder: encoder)
-        if displayRole.rendersForeground, let spineRenderer {
+        if isUsingResourceFallbackVideo == false {
+            drawDeskOcclusion(baseVideoTexture: usingCompositeVideo ? nil : baseVideoTexture, drawableSize: view.drawableSize, encoder: encoder)
+        }
+        if isUsingResourceFallbackVideo == false, displayRole.rendersForeground, let spineRenderer {
             spineRenderer.draw(
                 command: interactionSnapshot.command,
                 pointer: interactionSnapshot.pointer,
@@ -209,6 +226,35 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    private func setResourceFallbackVideoActive(_ active: Bool) {
+        guard active != isUsingResourceFallbackVideo else { return }
+        isUsingResourceFallbackVideo = active
+        resumeActiveVideoSources()
+    }
+
+    private func pauseAllVideoSources() {
+        videoSource?.pause()
+        deskOcclusionSource?.pause()
+        resourceFallbackVideoSource?.pause()
+    }
+
+    private func resumeActiveVideoSources() {
+        guard isPausedByHost == false, isPausedByThermal == false else {
+            pauseAllVideoSources()
+            return
+        }
+
+        if isUsingResourceFallbackVideo {
+            videoSource?.pause()
+            deskOcclusionSource?.pause()
+            resourceFallbackVideoSource?.play()
+        } else {
+            resourceFallbackVideoSource?.pause()
+            videoSource?.play()
+            deskOcclusionSource?.play()
+        }
     }
 
     private func draw(

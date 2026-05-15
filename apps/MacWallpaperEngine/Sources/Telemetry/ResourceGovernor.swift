@@ -56,6 +56,7 @@ struct PerformancePlan {
         downgradeFpsLadder: \(downgradeFpsLadder.map(String.init).joined(separator: " -> "))
         seriousThermalFps: \(seriousThermalFps)
         criticalThermal: \(criticalPauses ? "pause" : "throttle")
+        exhaustedBudgetFallback: video-only when available
         maxInFlightCommandBuffers: \(maxInFlightCommandBuffers)
         cpuTargetPercent: \(cpuTargetPercent)
         cpuDowngradePercent: \(cpuDowngradePercent)
@@ -74,6 +75,7 @@ final class ResourceGovernor {
     private var lastFrameTime: TimeInterval?
     private var lastResourceSampleTime: TimeInterval?
     private var pauseForResourceBudget = false
+    private var videoOnlyForResourceBudget = false
 
     init(manifest: WallpaperNativeManifest, targetFps: Int) {
         self.plan = PerformancePlan.make(manifest: manifest, requestedFps: targetFps)
@@ -109,6 +111,10 @@ final class ResourceGovernor {
         pauseForResourceBudget
     }
 
+    var shouldUseVideoOnlyFallback: Bool {
+        videoOnlyForResourceBudget
+    }
+
     private func sampleResources(now: TimeInterval) {
         if let lastResourceSampleTime, now - lastResourceSampleTime < 1.0 {
             return
@@ -140,19 +146,21 @@ final class ResourceGovernor {
                 return
             }
             if rssMb >= plan.rssTargetMb {
-                downgradeOneStep()
+                downgradeOrUseVideoFallback()
+                return
             }
         }
 
         if shouldDowngradeForCPU() {
-            downgradeOneStep()
+            downgradeOrUseVideoFallback()
+            return
         }
 
         guard frameDurations.count >= max(currentFps * 2, 60) else { return }
         let p95 = p95FrameTime
         let frameBudget = 1.0 / Double(max(currentFps, 1))
         guard p95 > frameBudget * 1.10 else { return }
-        downgradeOneStep()
+        downgradeOrUseVideoFallback()
     }
 
     private func shouldDowngradeForCPU() -> Bool {
@@ -169,12 +177,20 @@ final class ResourceGovernor {
         return average >= plan.cpuDowngradePercent
     }
 
-    private func downgradeOneStep() {
+    private func downgradeOneStep() -> Bool {
         guard let currentIndex = plan.downgradeFpsLadder.firstIndex(of: currentFps),
               currentIndex + 1 < plan.downgradeFpsLadder.count else {
-            return
+            return false
         }
         currentFps = plan.downgradeFpsLadder[currentIndex + 1]
+        return true
+    }
+
+    private func downgradeOrUseVideoFallback() {
+        guard videoOnlyForResourceBudget == false else { return }
+        if downgradeOneStep() == false {
+            videoOnlyForResourceBudget = true
+        }
     }
 }
 

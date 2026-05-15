@@ -61,7 +61,7 @@ final class ControlPanelWindowController: NSWindowController {
         action: nil
     )
     private let foregroundModeControl = NSSegmentedControl(
-        labels: ["Composite", "Native WIP"],
+        labels: ["Composite", "Native Spine"],
         trackingMode: .selectOne,
         target: nil,
         action: nil

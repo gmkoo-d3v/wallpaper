@@ -14,13 +14,17 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   `translatey`, `scale`, `shear`, slot `rgba` and `attachment` timelines.
 - Bezier/stepped curve sampling for Spine timelines.
 - Spine draw order timeline application.
+- Spine clipping attachment CPU triangle clipping.
 - Weighted mesh deform timeline application for rendered mesh attachments.
 - Basic Spine bone inherit handling for `noScale`, `noScaleOrReflection`, and
   `onlyTranslation`.
 - First-pass IK, transform, path, and asset-used physics constraint evaluation.
 - Reusable native Spine mesh buffers when batch structure is stable.
 - Pointer movement and click command mapping.
+- Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
+- Resource-budget fallback from native Spine to composite video when the
+  downgrade ladder is exhausted and a composite asset exists.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
 - Control panel foreground switch:
@@ -30,15 +34,11 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Clipping attachments, events/audio, sequence attachments, and non-region
-  non-mesh attachment paths. The current Imported asset uses mesh/path only.
+- Events/audio, sequence attachments, and non-region non-mesh attachment paths.
+  The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Runtime-calibrated region/mesh attachment parity for every action.
-- Native Spine click/hold continuity still feels cut off after the input tail
-  improvement; keep this as a known issue until Swift renderer parity is
-  complete, because action continuity depends on correct pose and constraint
-  evaluation.
 - Calibrated Imported hit zones.
 - Production-grade frame cache and profiler-backed native Spine optimization.
 - Exact Finder desktop icon hit-testing without Accessibility trust.
@@ -47,7 +47,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 
 - Treat `~/project/wall-paper/archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported` as the original Unity package source of truth.
 - Keep `Composite` as the user-visible fallback while native parity is incomplete.
-- Keep `Native WIP` isolated for renderer work until the character no longer tears.
+- Keep `Native Spine` as the renderer parity track until the character no longer tears.
 - Complete Swift renderer reproduction before tuning click action duration:
   remaining profiler-backed runtime parity checks and wider wallpaper fixture
   coverage.
