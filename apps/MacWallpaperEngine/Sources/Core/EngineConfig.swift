@@ -70,6 +70,8 @@ struct EngineConfig {
     let renderPlanOnly: Bool
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
+    let compositeQualityPlanOnly: Bool
+    let strictCompositeQuality: Bool
     let selfTestOnly: Bool
     let startHidden: Bool
     let interactive: Bool
@@ -101,6 +103,8 @@ struct EngineConfig {
         renderPlanOnly: Bool? = nil,
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
+        compositeQualityPlanOnly: Bool? = nil,
+        strictCompositeQuality: Bool? = nil,
         selfTestOnly: Bool? = nil
     ) -> EngineConfig {
         EngineConfig(
@@ -120,6 +124,8 @@ struct EngineConfig {
             renderPlanOnly: renderPlanOnly ?? self.renderPlanOnly,
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
+            compositeQualityPlanOnly: compositeQualityPlanOnly ?? self.compositeQualityPlanOnly,
+            strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
             startHidden: startHidden ?? self.startHidden,
             interactive: interactive ?? self.interactive,
@@ -156,6 +162,8 @@ struct EngineConfig {
         var renderPlanOnly = false
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
+        var compositeQualityPlanOnly = false
+        var strictCompositeQuality = false
         var selfTestOnly = false
         var startHidden = false
         var interactive = true
@@ -250,6 +258,10 @@ struct EngineConfig {
                 performancePlanOnly = true
             case "--runtime-capabilities":
                 runtimeCapabilitiesOnly = true
+            case "--composite-quality-plan":
+                compositeQualityPlanOnly = true
+            case "--strict-composite-quality":
+                strictCompositeQuality = true
             case "--self-test":
                 selfTestOnly = true
             case "--hidden":
@@ -287,6 +299,7 @@ struct EngineConfig {
             || renderPlanOnly
             || performancePlanOnly
             || runtimeCapabilitiesOnly
+            || compositeQualityPlanOnly
             || selfTestOnly
         let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
         if let persistedSettings {
@@ -360,6 +373,8 @@ struct EngineConfig {
             renderPlanOnly: renderPlanOnly,
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
+            compositeQualityPlanOnly: compositeQualityPlanOnly,
+            strictCompositeQuality: strictCompositeQuality,
             selfTestOnly: selfTestOnly,
             startHidden: startHidden,
             interactive: interactive,
@@ -405,6 +420,9 @@ struct EngineConfig {
       --render-plan            Print effective per-display background/foreground renderer path and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
+      --composite-quality-plan Print composite fallback FPS/quality and regeneration target, then exit.
+      --strict-composite-quality
+                              Fail validation/quality-plan when composite fallback FPS is below target.
       --self-test              Run built-in policy/runtime self checks and exit.
       --validate-only           Validate manifest and assets without opening windows.
       --hidden                  Build host but keep windows hidden.

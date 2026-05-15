@@ -73,6 +73,15 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.compositeQualityPlanOnly {
+        let report = runtime.compositeQualityReport()
+        print(report.text)
+        if config.strictCompositeQuality, report.isAcceptable == false {
+            exit(EXIT_FAILURE)
+        }
+        exit(EXIT_SUCCESS)
+    }
+
     if config.selfTestOnly {
         print(try RuntimeSelfTest.run(runtime: runtime))
         exit(EXIT_SUCCESS)
@@ -81,6 +90,7 @@ do {
     if config.validateOnly {
         let summary = runtime.validationSummary()
         print(summary)
+        try runtime.requireCompositeQualityIfStrict()
         exit(EXIT_SUCCESS)
     }
 

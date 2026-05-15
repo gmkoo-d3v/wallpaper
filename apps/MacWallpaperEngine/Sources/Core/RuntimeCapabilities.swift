@@ -188,29 +188,10 @@ enum RuntimeCapabilities {
         manifest: WallpaperNativeManifest,
         bundleRoot: URL
     ) -> [String] {
-        guard let compositeVideo = manifest.assets.compositeVideo else {
-            return []
-        }
-
-        let url = bundleRoot
-            .standardizedFileURL
-            .appendingPathComponent(compositeVideo.path)
-            .standardizedFileURL
-        do {
-            let playbackRate = compositeVideo.playbackRate ?? 1
-            let metadata = try VideoMetadataInspector.inspect(url: url)
-            guard let effectiveFps = metadata.effectiveFrameRate(playbackRate: playbackRate) else {
-                return ["compositeVideo FPS metadata unavailable"]
-            }
-            if effectiveFps + 0.5 < Double(manifest.runtime.targetFps) {
-                return [
-                    "compositeVideo effectiveFps=\(formatNumber(effectiveFps)) below target=\(manifest.runtime.targetFps)"
-                ]
-            }
-            return []
-        } catch {
-            return ["compositeVideo metadata unreadable: \(error.localizedDescription)"]
-        }
+        CompositeFallbackQualityReport.make(
+            manifest: manifest,
+            bundleRoot: bundleRoot
+        ).warnings
     }
 
     private static func assetRow(name: String, isPresent: Bool, detail: String?) -> RuntimeCapabilityRow {
@@ -265,19 +246,8 @@ enum RuntimeCapabilities {
     ) -> String {
         let width = Int(abs(metadata.presentationSize.width).rounded())
         let height = Int(abs(metadata.presentationSize.height).rounded())
-        let duration = metadata.durationSeconds.map { "\(formatNumber($0))s" } ?? "unknown"
-        return "fps=\(formatNumber(Double(metadata.nominalFrameRate))) effectiveFps=\(formatNumber(effectiveFps)) playbackRate=\(formatNumber(Double(playbackRate)))x size=\(width)x\(height) duration=\(duration)"
-    }
-
-    private static func formatNumber(_ value: Double?) -> String {
-        guard let value, value.isFinite else {
-            return "unknown"
-        }
-        let rounded = value.rounded()
-        if abs(value - rounded) < 0.005 {
-            return "\(Int(rounded))"
-        }
-        return String(format: "%.2f", value)
+        let duration = metadata.durationSeconds.map { "\(formatVideoDiagnosticNumber($0))s" } ?? "unknown"
+        return "fps=\(formatVideoDiagnosticNumber(Double(metadata.nominalFrameRate))) effectiveFps=\(formatVideoDiagnosticNumber(effectiveFps)) playbackRate=\(formatVideoDiagnosticNumber(Double(playbackRate)))x size=\(width)x\(height) duration=\(duration)"
     }
 
     private static func layerStatus(_ layer: LayerConfig) -> String {

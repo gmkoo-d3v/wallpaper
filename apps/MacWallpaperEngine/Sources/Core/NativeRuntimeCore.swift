@@ -35,7 +35,8 @@ final class NativeRuntimeCore {
     }
 
     func validationSummary() -> String {
-        """
+        let compositeQuality = compositeQualityReport()
+        return """
         native runtime validation OK
         manifest: \(config.manifestURL.path)
         runtime: \(manifest.runtime.kind)
@@ -50,6 +51,7 @@ final class NativeRuntimeCore {
         static image: \(assetCatalog.staticImageAssetURL?.path ?? "none")
         video: \(assetCatalog.videoAssetURL?.path ?? "none") @ \(assetCatalog.videoAsset?.playbackRate ?? 0)x
         composite video: \(assetCatalog.compositeVideoAssetURL?.path ?? "none") @ \(assetCatalog.compositeVideoAsset?.playbackRate ?? 0)x
+        composite quality: \(compositeQuality.summaryLine)
         spine json: \(assetCatalog.spineAsset?.json.path ?? "none")
         """
     }
@@ -60,5 +62,19 @@ final class NativeRuntimeCore {
 
     func runtimeCapabilitiesSummary() -> String {
         RuntimeCapabilities.summary(runtime: self)
+    }
+
+    func compositeQualityReport() -> CompositeFallbackQualityReport {
+        CompositeFallbackQualityReport.make(runtime: self)
+    }
+
+    func requireCompositeQualityIfStrict() throws {
+        guard config.strictCompositeQuality else { return }
+        let report = compositeQualityReport()
+        guard report.isAcceptable else {
+            throw EngineError.asset(
+                "strict composite quality failed: \(report.warnings.joined(separator: "; "))"
+            )
+        }
     }
 }

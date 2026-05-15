@@ -131,6 +131,28 @@ enum RuntimeSelfTest {
                 "bundle catalog quality warning must identify the low-FPS composite asset"
             )
         }
+        let compositeQualityReport = runtime.compositeQualityReport()
+        check(
+            runtime.validationSummary().contains("composite quality: \(compositeQualityReport.summaryLine)"),
+            "validation summary must surface composite fallback quality"
+        )
+        if compositeQualityReport.isAcceptable == false {
+            check(
+                compositeQualityReport.text.contains("recommendedExportFps: 120"),
+                "low-FPS composite quality report must recommend 120fps export when bundle maxFps allows it"
+            )
+            let strictRuntime = try NativeRuntimeCore(config: runtime.config.replacing(strictCompositeQuality: true))
+            var strictQualityFailed = false
+            do {
+                try strictRuntime.requireCompositeQualityIfStrict()
+            } catch {
+                strictQualityFailed = true
+            }
+            check(
+                strictQualityFailed,
+                "strict composite quality must fail for low-FPS composite fallback"
+            )
+        }
         let capabilitySummary = runtime.runtimeCapabilitiesSummary()
         check(
             capabilitySummary.contains("runtime capabilities"),
@@ -803,6 +825,25 @@ enum RuntimeSelfTest {
         check(
             diagnosticParse.foregroundMode == .automatic,
             "diagnostic validation must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let compositeQualityParse = try EngineConfig.parse(["--composite-quality-plan", "--strict-composite-quality"])
+        check(
+            compositeQualityParse.compositeQualityPlanOnly,
+            "EngineConfig must parse composite quality plan diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            compositeQualityParse.strictCompositeQuality,
+            "EngineConfig must parse strict composite quality gate",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            compositeQualityParse.foregroundMode == .automatic,
+            "composite quality diagnostics must ignore persisted foreground mode",
             failures: &failures,
             checks: &checks
         )
