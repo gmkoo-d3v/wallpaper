@@ -517,7 +517,7 @@ final class ControlPanelWindowController: NSWindowController {
 
         bundlePopup.isEnabled = true
         for bundle in availableBundles {
-            bundlePopup.addItem(withTitle: "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)]")
+            bundlePopup.addItem(withTitle: "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.qualityStatus)]")
             bundlePopup.lastItem?.representedObject = bundle.root.path
         }
 

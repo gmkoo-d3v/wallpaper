@@ -487,9 +487,13 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
 
         let metadataLine = fields.joined(separator: " / ")
         let capabilityLine = "capabilities: \(bundle.capabilities.briefText)"
+        let qualityLine = bundle.capabilities.qualityWarnings.isEmpty
+            ? nil
+            : "quality warnings: \(bundle.capabilities.qualityWarnings.joined(separator: " / "))"
+        let lines = [metadataLine, capabilityLine] + [qualityLine].compactMap { $0 }
         guard let description = bundle.description else {
-            return metadataLine + "\n" + capabilityLine
+            return lines.joined(separator: "\n")
         }
-        return metadataLine + "\n" + capabilityLine + "\n" + description
+        return (lines + [description]).joined(separator: "\n")
     }
 }

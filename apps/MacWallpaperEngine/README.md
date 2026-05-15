@@ -31,6 +31,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   from `preview.jpg` or a declared `staticImage` asset.
 - Control panel bundle library surfaces asset/layer/interaction/native-fallback
   capabilities before the user starts a selected bundle.
+- Bundle library and `--list-bundles --include-capabilities` summaries flag
+  low-FPS composite fallback quality before the user selects or starts a bundle.
 - Control panel render diagnostics show the same per-display background,
   foreground, fallback, and interaction path exposed by `--render-plan`.
 - Control panel display settings expose the same primary display selector used

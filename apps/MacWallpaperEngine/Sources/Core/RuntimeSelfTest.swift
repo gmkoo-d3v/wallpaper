@@ -118,6 +118,19 @@ enum RuntimeSelfTest {
             validatedBundle?.capabilities.fallbackStatus == expectedFallbackStatus,
             "bundle catalog must expose active bundle fallback readiness"
         )
+        if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
+           let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
+           let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),
+           effectiveFps + 0.5 < Double(runtime.manifest.runtime.targetFps) {
+            check(
+                validatedBundle?.capabilities.qualityStatus == "warning",
+                "bundle catalog must flag low-FPS composite fallback quality"
+            )
+            check(
+                validatedBundle?.capabilities.qualityWarnings.contains(where: { $0.contains("compositeVideo effectiveFps=") }) == true,
+                "bundle catalog quality warning must identify the low-FPS composite asset"
+            )
+        }
         let capabilitySummary = runtime.runtimeCapabilitiesSummary()
         check(
             capabilitySummary.contains("runtime capabilities"),

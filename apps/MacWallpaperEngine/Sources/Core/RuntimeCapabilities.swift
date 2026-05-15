@@ -26,6 +26,8 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     let interactionKinds: [String]
     let nativeSpineStatus: String
     let fallbackStatus: String
+    let qualityStatus: String
+    let qualityWarnings: [String]
 
     var briefText: String {
         [
@@ -33,8 +35,13 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             "layers: \(layerKinds.joined(separator: "+"))",
             "interactions: \(interactionKinds.joined(separator: "+"))",
             "native: \(nativeSpineStatus)",
-            "fallback: \(fallbackStatus)"
+            "fallback: \(fallbackStatus)",
+            "quality: \(qualitySummary)"
         ].joined(separator: " / ")
+    }
+
+    var qualitySummary: String {
+        qualityWarnings.isEmpty ? qualityStatus : "\(qualityStatus)(\(qualityWarnings.count))"
     }
 }
 
@@ -163,14 +170,47 @@ enum RuntimeCapabilities {
         } else {
             fallbackStatus = manifest.assets.compositeVideo == nil ? "blocked" : "composite"
         }
+        let qualityWarnings = bundleQualityWarnings(manifest: manifest, bundleRoot: bundleRoot)
+        let qualityStatus = qualityWarnings.isEmpty ? "ok" : "warning"
 
         return WallpaperBundleCapabilityInfo(
             assetKinds: assetKinds,
             layerKinds: layerKinds.isEmpty ? ["none"] : layerKinds,
             interactionKinds: interactionKinds,
             nativeSpineStatus: nativeSpineStatus,
-            fallbackStatus: fallbackStatus
+            fallbackStatus: fallbackStatus,
+            qualityStatus: qualityStatus,
+            qualityWarnings: qualityWarnings
         )
+    }
+
+    private static func bundleQualityWarnings(
+        manifest: WallpaperNativeManifest,
+        bundleRoot: URL
+    ) -> [String] {
+        guard let compositeVideo = manifest.assets.compositeVideo else {
+            return []
+        }
+
+        let url = bundleRoot
+            .standardizedFileURL
+            .appendingPathComponent(compositeVideo.path)
+            .standardizedFileURL
+        do {
+            let playbackRate = compositeVideo.playbackRate ?? 1
+            let metadata = try VideoMetadataInspector.inspect(url: url)
+            guard let effectiveFps = metadata.effectiveFrameRate(playbackRate: playbackRate) else {
+                return ["compositeVideo FPS metadata unavailable"]
+            }
+            if effectiveFps + 0.5 < Double(manifest.runtime.targetFps) {
+                return [
+                    "compositeVideo effectiveFps=\(formatNumber(effectiveFps)) below target=\(manifest.runtime.targetFps)"
+                ]
+            }
+            return []
+        } catch {
+            return ["compositeVideo metadata unreadable: \(error.localizedDescription)"]
+        }
     }
 
     private static func assetRow(name: String, isPresent: Bool, detail: String?) -> RuntimeCapabilityRow {
