@@ -39,6 +39,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Control panel bundle, display, interaction, FPS, playback, fit, and foreground
   renderer selections persist under Application Support and are restored on the
   next normal app launch unless an explicit CLI flag overrides them.
+- Validation, self-test, capability, display-plan, render-plan, and performance
+  diagnostics ignore persisted user settings so package/build checks remain
+  reproducible.
 - Bundle import into the user Application Support wallpaper library with
   manifest validation and symlink rejection.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime

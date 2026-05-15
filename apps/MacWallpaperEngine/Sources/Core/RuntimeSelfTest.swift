@@ -619,7 +619,7 @@ enum RuntimeSelfTest {
             }
         }
 
-        let parsed = try EngineConfig.parse(["--validate-only"])
+        let parsed = try EngineConfig.parse([])
         check(
             parsed.wallpaperRoot.standardizedFileURL.path == tunedConfig.wallpaperRoot.standardizedFileURL.path,
             "EngineConfig must restore persisted wallpaper root when no explicit root is passed",
@@ -649,7 +649,51 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
-        let overridden = try EngineConfig.parse(["--validate-only", "--foreground-mode", "composite", "--fps", "30"])
+        let diagnosticParse = try EngineConfig.parse(["--validate-only"])
+        check(
+            diagnosticParse.displayMode == .primaryAnimated,
+            "diagnostic validation must ignore persisted display mode",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.primaryDisplaySelector == nil,
+            "diagnostic validation must ignore persisted primary display selector",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.interactive,
+            "diagnostic validation must ignore persisted interaction toggle",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.renderFps == nil,
+            "diagnostic validation must ignore persisted FPS override",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.playbackRateOverride == nil,
+            "diagnostic validation must ignore persisted playback-rate override",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.fitMode == .contain,
+            "diagnostic validation must ignore persisted fit mode",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.foregroundMode == .automatic,
+            "diagnostic validation must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let overridden = try EngineConfig.parse(["--foreground-mode", "composite", "--fps", "30"])
         check(
             overridden.foregroundMode == .compositeVideo,
             "explicit CLI foreground mode must override persisted settings",

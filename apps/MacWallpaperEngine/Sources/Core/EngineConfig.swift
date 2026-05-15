@@ -282,7 +282,13 @@ struct EngineConfig {
             index += 1
         }
 
-        let persistedSettings = RuntimeSettingsStore.load()
+        let ignoresPersistedSettings = validateOnly
+            || displayPlanOnly
+            || renderPlanOnly
+            || performancePlanOnly
+            || runtimeCapabilitiesOnly
+            || selfTestOnly
+        let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
         if let persistedSettings {
             if !explicitDisplayMode, let persisted = persistedSettings.displayMode {
                 displayMode = persisted
