@@ -10,8 +10,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Manifest `metadata.id` and `metadata.title` for stable library identity.
 - Bundle discovery from packaged resources, project wallpapers, and the user
   Application Support wallpaper library.
-- `--list-bundles --include-invalid` diagnostics for unsupported or malformed
-  wallpaper folders.
+- `--list-bundles --include-invalid --include-capabilities` diagnostics for
+  unsupported or malformed wallpaper folders and validated bundle capability
+  summaries.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
@@ -99,6 +100,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 cd ~/project/wall-paper/apps/MacWallpaperEngine
 swift run MacWallpaperEngine --validate-only
 swift run MacWallpaperEngine --runtime-capabilities
+swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain
 ```

@@ -29,21 +29,22 @@ do {
     if arguments.contains("--list-bundles") {
         let projectRoot = try? ProjectPaths.findProjectRoot()
         let includeInvalid = arguments.contains("--include-invalid")
+        let includeCapabilities = arguments.contains("--include-capabilities")
         let diagnostics = WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
         guard bundles.isEmpty == false else {
             fputs("No valid wallpaper bundles found.\n", stderr)
             if includeInvalid {
-                printBundleDiagnostics(diagnostics)
+                printBundleDiagnostics(diagnostics, includeCapabilities: includeCapabilities)
             }
             exit(EXIT_FAILURE)
         }
 
         if includeInvalid {
-            printBundleDiagnostics(diagnostics)
+            printBundleDiagnostics(diagnostics, includeCapabilities: includeCapabilities)
         } else {
             for bundle in bundles {
-                print("\(bundle.id)\t\(bundle.displayName)\t\(bundle.root.path)")
+                printBundle(bundle, includeCapabilities: includeCapabilities)
             }
         }
         exit(EXIT_SUCCESS)
@@ -108,9 +109,26 @@ private func value(after option: String, in arguments: [String]) -> String? {
     return arguments[index + 1]
 }
 
-private func printBundleDiagnostics(_ diagnostics: [WallpaperBundleDiagnostic]) {
+private func printBundleDiagnostics(
+    _ diagnostics: [WallpaperBundleDiagnostic],
+    includeCapabilities: Bool
+) {
     for diagnostic in diagnostics {
         let errorMessage = diagnostic.errorMessage ?? ""
-        print("\(diagnostic.status.rawValue)\t\(diagnostic.id)\t\(diagnostic.displayName)\t\(diagnostic.root.path)\t\(errorMessage)")
+        if let bundle = diagnostic.bundle {
+            print("\(diagnostic.status.rawValue)\t\(bundleLine(bundle, includeCapabilities: includeCapabilities))\t\(errorMessage)")
+        } else {
+            print("\(diagnostic.status.rawValue)\t\(diagnostic.id)\t\(diagnostic.displayName)\t\(diagnostic.root.path)\t\(errorMessage)")
+        }
     }
+}
+
+private func printBundle(_ bundle: WallpaperBundleSummary, includeCapabilities: Bool) {
+    print(bundleLine(bundle, includeCapabilities: includeCapabilities))
+}
+
+private func bundleLine(_ bundle: WallpaperBundleSummary, includeCapabilities: Bool) -> String {
+    let base = "\(bundle.id)\t\(bundle.displayName)\t\(bundle.root.path)"
+    guard includeCapabilities else { return base }
+    return base + "\t" + bundle.capabilities.briefText
 }
