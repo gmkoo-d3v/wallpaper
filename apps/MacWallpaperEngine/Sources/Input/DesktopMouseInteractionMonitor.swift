@@ -145,35 +145,37 @@ final class DesktopMouseInteractionMonitor {
     }
 
     private func isEligible(screenPoint: CGPoint, event: NSEvent) -> Bool {
-        switch policy.mode {
-        case .always:
-            return true
-        case .disabled:
-            return false
-        case .desktopEmptyOnly:
-            if let cached = cachedEligibility(screenPoint: screenPoint) {
-                return cached
-            }
-
-            let eligible: Bool
-            if policy.blockDesktopItems,
-               DesktopInteractionGate.hasAccessibilityTrust() == false {
-                eligible = false
-            } else if policy.blockApplicationWindows,
-               DesktopInteractionGate.isCoveredByApplicationWindow(screenPoint: screenPoint) {
-                eligible = false
-            } else if policy.blockDesktopItems,
-                      DesktopInteractionGate.isLikelyDesktopItem(event: event, screenPoint: screenPoint) {
-                eligible = false
-            } else if policy.blockDesktopItems,
-                      DesktopInteractionGate.isLikelyDesktopItem(screenPoint: screenPoint) {
-                eligible = false
-            } else {
-                eligible = true
-            }
-            cacheEligibility(eligible, screenPoint: screenPoint)
-            return eligible
+        if let cached = cachedEligibility(screenPoint: screenPoint) {
+            return cached
         }
+
+        if policy.mode == .always {
+            cacheEligibility(true, screenPoint: screenPoint)
+            return true
+        }
+        if policy.mode == .disabled {
+            cacheEligibility(false, screenPoint: screenPoint)
+            return false
+        }
+
+        let accessibilityTrusted = policy.blockDesktopItems == false || DesktopInteractionGate.hasAccessibilityTrust()
+        let coveredByApplicationWindow = policy.blockApplicationWindows
+            && DesktopInteractionGate.isCoveredByApplicationWindow(screenPoint: screenPoint)
+        let likelyDesktopItem = policy.blockDesktopItems
+            && accessibilityTrusted
+            && (
+                DesktopInteractionGate.isLikelyDesktopItem(event: event, screenPoint: screenPoint)
+                    || DesktopInteractionGate.isLikelyDesktopItem(screenPoint: screenPoint)
+            )
+        let decision = DesktopInteractionGate.eligibilityDecision(
+            policy: policy,
+            accessibilityTrusted: accessibilityTrusted,
+            coveredByApplicationWindow: coveredByApplicationWindow,
+            likelyDesktopItem: likelyDesktopItem
+        )
+        let eligible = decision == .eligible
+        cacheEligibility(eligible, screenPoint: screenPoint)
+        return eligible
     }
 
     private func cachedEligibility(screenPoint: CGPoint) -> Bool? {
@@ -203,6 +205,39 @@ final class DesktopMouseInteractionMonitor {
 }
 
 enum DesktopInteractionGate {
+    enum EligibilityDecision: String {
+        case eligible
+        case blockedDisabled
+        case blockedAccessibilityTrust
+        case blockedApplicationWindow
+        case blockedDesktopItem
+    }
+
+    static func eligibilityDecision(
+        policy: InteractionPolicy,
+        accessibilityTrusted: Bool,
+        coveredByApplicationWindow: Bool,
+        likelyDesktopItem: Bool
+    ) -> EligibilityDecision {
+        switch policy.mode {
+        case .disabled:
+            return .blockedDisabled
+        case .always:
+            return .eligible
+        case .desktopEmptyOnly:
+            if policy.blockDesktopItems && accessibilityTrusted == false {
+                return .blockedAccessibilityTrust
+            }
+            if policy.blockApplicationWindows && coveredByApplicationWindow {
+                return .blockedApplicationWindow
+            }
+            if policy.blockDesktopItems && likelyDesktopItem {
+                return .blockedDesktopItem
+            }
+            return .eligible
+        }
+    }
+
     static func hasAccessibilityTrust() -> Bool {
         AXIsProcessTrusted()
     }

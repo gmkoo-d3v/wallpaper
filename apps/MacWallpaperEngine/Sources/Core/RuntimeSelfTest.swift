@@ -792,6 +792,61 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        check(
+            DesktopInteractionGate.eligibilityDecision(
+                policy: interactivePolicy,
+                accessibilityTrusted: true,
+                coveredByApplicationWindow: false,
+                likelyDesktopItem: false
+            ) == .eligible,
+            "desktop interaction gate must allow empty desktop when trusted",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.eligibilityDecision(
+                policy: interactivePolicy,
+                accessibilityTrusted: false,
+                coveredByApplicationWindow: false,
+                likelyDesktopItem: false
+            ) == .blockedAccessibilityTrust,
+            "desktop interaction gate must fail closed when desktop item blocking requires missing Accessibility trust",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.eligibilityDecision(
+                policy: interactivePolicy,
+                accessibilityTrusted: true,
+                coveredByApplicationWindow: true,
+                likelyDesktopItem: false
+            ) == .blockedApplicationWindow,
+            "desktop interaction gate must block pointer tracking over application windows",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.eligibilityDecision(
+                policy: interactivePolicy,
+                accessibilityTrusted: true,
+                coveredByApplicationWindow: false,
+                likelyDesktopItem: true
+            ) == .blockedDesktopItem,
+            "desktop interaction gate must block pointer tracking over Finder desktop items",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.eligibilityDecision(
+                policy: noDesktopItemBlockPolicy,
+                accessibilityTrusted: false,
+                coveredByApplicationWindow: false,
+                likelyDesktopItem: true
+            ) == .eligible,
+            "desktop interaction gate must ignore desktop item hits when item blocking is disabled",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func checkRuntimeSettingsPersistence(
