@@ -42,6 +42,19 @@ enum RuntimeSelfTest {
             "performance plan must document that resource pressure keeps the selected renderer"
         )
         check(highPlan.summary().contains("telemetryFields: currentFps"), "performance plan must document runtime telemetry fields")
+        let displayRefreshRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            renderFps: 60,
+            matchDisplayRefresh: true,
+            clearDuration: true
+        ))
+        check(
+            displayRefreshRuntime.renderTargetFps(displayRefreshFps: 144) == 144,
+            "display-refresh FPS mode must match monitor refresh above 60Hz"
+        )
+        check(
+            displayRefreshRuntime.renderTargetFps(displayRefreshFps: 60) == 60,
+            "display-refresh FPS mode must preserve 60Hz displays"
+        )
         check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(
@@ -138,8 +151,8 @@ enum RuntimeSelfTest {
         )
         if compositeQualityReport.isAcceptable == false {
             check(
-                compositeQualityReport.text.contains("recommendedExportFps: 120"),
-                "low-FPS composite quality report must recommend 120fps export when bundle maxFps allows it"
+                compositeQualityReport.text.contains("recommendedExportFps: display-refresh"),
+                "low-FPS composite quality report must recommend display-refresh export above 60fps"
             )
             let strictRuntime = try NativeRuntimeCore(config: runtime.config.replacing(strictCompositeQuality: true))
             var strictQualityFailed = false
@@ -698,7 +711,8 @@ enum RuntimeSelfTest {
             displayMode: .all,
             primaryDisplaySelector: "displayID:42",
             interactive: false,
-            renderFps: 120,
+            renderFps: 60,
+            matchDisplayRefresh: true,
             playbackRateOverride: 1.15,
             fitMode: .fill,
             foregroundMode: .nativeSpine,
@@ -723,7 +737,8 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(loaded.interactive == false, "runtime settings must persist interaction toggle", failures: &failures, checks: &checks)
-        check(loaded.renderFps == 120, "runtime settings must persist FPS", failures: &failures, checks: &checks)
+        check(loaded.renderFps == 60, "runtime settings must persist fixed FPS fallback", failures: &failures, checks: &checks)
+        check(loaded.matchDisplayRefresh == true, "runtime settings must persist display-refresh FPS mode", failures: &failures, checks: &checks)
         check(
             abs((loaded.playbackRateOverride ?? 0) - 1.15) < 0.001,
             "runtime settings must persist playback rate",
@@ -770,7 +785,8 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(parsed.interactive == false, "EngineConfig must restore persisted interaction toggle", failures: &failures, checks: &checks)
-        check(parsed.renderFps == 120, "EngineConfig must restore persisted FPS", failures: &failures, checks: &checks)
+        check(parsed.renderFps == 60, "EngineConfig must restore persisted fixed FPS fallback", failures: &failures, checks: &checks)
+        check(parsed.matchDisplayRefresh, "EngineConfig must restore persisted display-refresh FPS mode", failures: &failures, checks: &checks)
         check(
             abs((parsed.playbackRateOverride ?? 0) - 1.15) < 0.001,
             "EngineConfig must restore persisted playback rate",
@@ -858,6 +874,20 @@ enum RuntimeSelfTest {
         check(
             overridden.renderFps == 30,
             "explicit CLI FPS must override persisted settings",
+            failures: &failures,
+            checks: &checks
+        )
+        let displayFpsOverride = try EngineConfig.parse(["--fps", "display"])
+        check(
+            displayFpsOverride.matchDisplayRefresh && displayFpsOverride.renderFps == nil,
+            "EngineConfig must support display-refresh FPS mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let legacyHighFpsOverride = try EngineConfig.parse(["--fps", "120"])
+        check(
+            legacyHighFpsOverride.matchDisplayRefresh && legacyHighFpsOverride.renderFps == nil,
+            "EngineConfig must map legacy FPS values above 60 to display-refresh mode",
             failures: &failures,
             checks: &checks
         )

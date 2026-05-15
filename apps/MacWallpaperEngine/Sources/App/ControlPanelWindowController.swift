@@ -6,6 +6,7 @@ struct ControlPanelState {
     let primaryDisplaySelector: String?
     let interactive: Bool
     let renderFps: Int
+    let matchDisplayRefresh: Bool
     let playbackRate: Float
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
@@ -31,6 +32,7 @@ protocol ControlPanelDelegate: AnyObject {
         primaryDisplaySelector: String?,
         interactive: Bool,
         renderFps: Int,
+        matchDisplayRefresh: Bool,
         playbackRate: Float,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode
@@ -61,7 +63,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
-        labels: ["30", "60", "120"],
+        labels: ["30", "60", "Display"],
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -146,7 +148,7 @@ final class ControlPanelWindowController: NSWindowController {
         reloadPrimaryDisplayPopup(selector: state.primaryDisplaySelector)
         displayModeControl.selectedSegment = segment(for: state.displayMode)
         interactionToggle.state = state.interactive ? .on : .off
-        fpsControl.selectedSegment = segment(forFps: state.renderFps)
+        fpsControl.selectedSegment = segment(forFps: state.renderFps, matchDisplayRefresh: state.matchDisplayRefresh)
         speedControl.selectedSegment = segment(forPlaybackRate: state.playbackRate)
         fitModeControl.selectedSegment = segment(forFitMode: state.fitMode)
         foregroundModeControl.selectedSegment = segment(forForegroundMode: state.foregroundMode)
@@ -469,12 +471,13 @@ final class ControlPanelWindowController: NSWindowController {
         }
     }
 
-    private func segment(forFps fps: Int) -> Int {
+    private func segment(forFps fps: Int, matchDisplayRefresh: Bool) -> Int {
+        if matchDisplayRefresh {
+            return 2
+        }
         switch fps {
         case 30:
             return 0
-        case 120:
-            return 2
         default:
             return 1
         }
@@ -593,11 +596,13 @@ final class ControlPanelWindowController: NSWindowController {
         switch fpsControl.selectedSegment {
         case 0:
             return 30
-        case 2:
-            return 120
         default:
             return 60
         }
+    }
+
+    private func selectedMatchDisplayRefresh() -> Bool {
+        fpsControl.selectedSegment == 2
     }
 
     private func selectedPlaybackRate() -> Float {
@@ -649,6 +654,7 @@ final class ControlPanelWindowController: NSWindowController {
             primaryDisplaySelector: selectedPrimaryDisplaySelector(),
             interactive: interactionToggle.state == .on,
             renderFps: selectedFps(),
+            matchDisplayRefresh: selectedMatchDisplayRefresh(),
             playbackRate: selectedPlaybackRate(),
             fitMode: selectedFitMode(),
             foregroundMode: selectedForegroundMode()

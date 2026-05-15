@@ -82,7 +82,11 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   uses Spine feature classes the native renderer does not implement yet.
 - Runtime capability diagnostics report video/composite size, duration,
   playback rate, and effective FPS; low-FPS composite fallback is flagged so it
-  can be regenerated at 60/120fps+ instead of being mistaken for a renderer bug.
+  can be regenerated at the display refresh rate instead of being mistaken for
+  a renderer bug.
+- FPS policy exposes fixed `30`, fixed `60`, and `display` refresh matching;
+  legacy values above 60 are treated as display-refresh mode instead of fixed
+  120fps.
 - Composite fallback quality diagnostics can emit a regeneration plan and can
   run as a strict validation gate for release/package workflows that require
   fallback FPS to meet the manifest target.
@@ -154,6 +158,7 @@ swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain
+swift run MacWallpaperEngine --foreground-mode native --fps display
 ```
 
 Packaged app:

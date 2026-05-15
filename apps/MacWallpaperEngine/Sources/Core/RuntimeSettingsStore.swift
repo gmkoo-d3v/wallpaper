@@ -7,6 +7,7 @@ struct PersistedEngineSettings: Codable, Equatable {
     let primaryDisplaySelector: String?
     let interactive: Bool?
     let renderFps: Int?
+    let matchDisplayRefresh: Bool?
     let playbackRateOverride: Float?
     let fitMode: RenderFitMode?
     let foregroundMode: ForegroundRenderMode?
@@ -21,6 +22,7 @@ struct PersistedEngineSettings: Codable, Equatable {
             primaryDisplaySelector: config.primaryDisplaySelector,
             interactive: config.interactive,
             renderFps: config.renderFps,
+            matchDisplayRefresh: config.matchDisplayRefresh,
             playbackRateOverride: config.playbackRateOverride,
             fitMode: config.fitMode,
             foregroundMode: config.foregroundMode
@@ -34,7 +36,8 @@ struct PersistedEngineSettings: Codable, Equatable {
             displayMode: displayMode,
             primaryDisplaySelector: primaryDisplaySelector?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             interactive: interactive,
-            renderFps: renderFps.flatMap { [30, 60, 120].contains($0) ? $0 : nil },
+            renderFps: renderFps.flatMap { [30, 60].contains($0) ? $0 : nil },
+            matchDisplayRefresh: matchDisplayRefresh ?? (renderFps.map { $0 > 60 } ?? false),
             playbackRateOverride: playbackRateOverride.flatMap { $0.isFinite && $0 > 0 && $0 <= 4 ? $0 : nil },
             fitMode: fitMode,
             foregroundMode: foregroundMode

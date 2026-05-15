@@ -4,7 +4,7 @@ struct CompositeFallbackQualityReport {
     let status: String
     let targetFps: Int
     let maxFps: Int
-    let recommendedExportFps: Int?
+    let recommendedExportFps: String?
     let assetPath: String?
     let fpsText: String
     let effectiveFpsText: String
@@ -27,7 +27,7 @@ struct CompositeFallbackQualityReport {
             "status: \(summaryLine)",
             "targetFps: \(targetFps)",
             "maxFps: \(maxFps)",
-            "recommendedExportFps: \(recommendedExportFps.map(String.init) ?? "none")",
+            "recommendedExportFps: \(recommendedExportFps ?? "none")",
             "asset: \(assetPath ?? "none")",
             "fps: \(fpsText)",
             "effectiveFps: \(effectiveFpsText)",
@@ -40,7 +40,7 @@ struct CompositeFallbackQualityReport {
         } else {
             lines.append("warnings:")
             lines.append(contentsOf: warnings.map { "- \($0)" })
-            lines.append("action: regenerate the composite fallback from native/source animation at \(recommendedExportFps.map(String.init) ?? "\(targetFps)")fps; do not merely duplicate low-FPS frames")
+            lines.append("action: regenerate the composite fallback from native/source animation at display refresh rate; do not merely duplicate low-FPS frames")
         }
         return lines.joined(separator: "\n")
     }
@@ -55,7 +55,7 @@ struct CompositeFallbackQualityReport {
     ) -> CompositeFallbackQualityReport {
         let targetFps = manifest.runtime.targetFps
         let maxFps = manifest.runtime.maxFps
-        let recommended = recommendedExportFps(maxFps: maxFps)
+        let recommended = "display-refresh"
 
         guard let compositeVideo = manifest.assets.compositeVideo else {
             return CompositeFallbackQualityReport(
@@ -127,13 +127,6 @@ struct CompositeFallbackQualityReport {
             return ["compositeVideo effectiveFps=\(formatNumber(effectiveFps)) below target=\(targetFps)"]
         }
         return []
-    }
-
-    private static func recommendedExportFps(maxFps: Int) -> Int {
-        if maxFps >= 120 {
-            return 120
-        }
-        return maxFps
     }
 
     private static func sizeText(_ size: CGSize) -> String {

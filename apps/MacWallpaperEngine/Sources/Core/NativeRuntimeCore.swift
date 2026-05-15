@@ -6,9 +6,12 @@ final class NativeRuntimeCore {
     let assetCatalog: AssetCatalog
     let telemetry = RuntimeTelemetryStore()
     var performancePlan: PerformancePlan {
-        PerformancePlan.make(manifest: manifest, requestedFps: config.renderFps ?? manifest.runtime.targetFps)
+        performancePlan(displayRefreshFps: nil)
     }
     var renderTargetFps: Int { performancePlan.effectiveTargetFps }
+    var renderFpsModeText: String {
+        config.matchDisplayRefresh ? "display" : "\(renderTargetFps)"
+    }
     var selectedPlaybackRate: Float {
         if let playbackRateOverride = config.playbackRateOverride {
             return playbackRateOverride
@@ -41,6 +44,7 @@ final class NativeRuntimeCore {
         manifest: \(config.manifestURL.path)
         runtime: \(manifest.runtime.kind)
         targetFps: \(renderTargetFps)
+        fpsMode: \(renderFpsModeText)
         fitMode: \(config.fitMode.rawValue)
         foregroundMode: \(config.foregroundMode.rawValue)
         maxFps: \(manifest.runtime.maxFps)
@@ -58,6 +62,26 @@ final class NativeRuntimeCore {
 
     func performanceSummary() -> String {
         performancePlan.summary()
+    }
+
+    func performancePlan(displayRefreshFps: Int?) -> PerformancePlan {
+        let requestedFps = requestedRenderFps(displayRefreshFps: displayRefreshFps)
+        return PerformancePlan.make(
+            manifest: manifest,
+            requestedFps: requestedFps,
+            maxFpsOverride: config.matchDisplayRefresh ? requestedFps : nil
+        )
+    }
+
+    func renderTargetFps(displayRefreshFps: Int?) -> Int {
+        performancePlan(displayRefreshFps: displayRefreshFps).effectiveTargetFps
+    }
+
+    private func requestedRenderFps(displayRefreshFps: Int?) -> Int {
+        if config.matchDisplayRefresh {
+            return max(displayRefreshFps ?? manifest.runtime.targetFps, 1)
+        }
+        return config.renderFps ?? manifest.runtime.targetFps
     }
 
     func runtimeCapabilitiesSummary() -> String {

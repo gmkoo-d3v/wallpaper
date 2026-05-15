@@ -18,15 +18,19 @@ struct PerformancePlan {
     let rssTargetMb: Int
     let rssHardMb: Int
 
-    static func make(manifest: WallpaperNativeManifest, requestedFps: Int) -> PerformancePlan {
-        let maxFps = max(manifest.runtime.maxFps, 1)
+    static func make(
+        manifest: WallpaperNativeManifest,
+        requestedFps: Int,
+        maxFpsOverride: Int? = nil
+    ) -> PerformancePlan {
+        let maxFps = max(manifest.runtime.maxFps, maxFpsOverride ?? 1, 1)
         let fallbackFps = max(min(manifest.runtime.fallbackFps, maxFps), 1)
         let effectiveTargetFps = max(min(requestedFps, maxFps), fallbackFps)
         let seriousThermalFps = manifest.thermalPolicy.serious.contains("15fps") ? 15 : fallbackFps
         let criticalPauses = manifest.thermalPolicy.critical == "pause"
 
         var ladder = [effectiveTargetFps, fallbackFps]
-        for candidate in [120, 60, 30, 15] where candidate < effectiveTargetFps && candidate >= fallbackFps {
+        for candidate in [240, 165, 144, 120, 60, 30, 15] where candidate < effectiveTargetFps && candidate >= fallbackFps {
             ladder.append(candidate)
         }
         ladder = Array(Set(ladder.map { max(min($0, maxFps), 1) })).sorted(by: >)

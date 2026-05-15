@@ -31,8 +31,11 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         runtime: NativeRuntimeCore,
         displayRole: RenderDisplayRole,
         displayName: String,
+        displayRefreshFps: Int?,
         interaction: InteractionController
     ) throws {
+        let displayPerformancePlan = runtime.performancePlan(displayRefreshFps: displayRefreshFps)
+        let displayTargetFps = displayPerformancePlan.effectiveTargetFps
         let nativeSpineCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
         let foregroundPlan = ForegroundRenderPlan.make(
             runtime: runtime,
@@ -51,10 +54,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         self.interaction = interaction
         self.governor = ResourceGovernor(
             manifest: runtime.manifest,
-            targetFps: runtime.renderTargetFps,
+            targetFps: displayTargetFps,
             videoOnlyFallbackEnabled: foregroundPlan.allowsVideoOnlyResourceFallback
         )
-        self.semaphore = DispatchSemaphore(value: runtime.performancePlan.maxInFlightCommandBuffers)
+        self.semaphore = DispatchSemaphore(value: displayPerformancePlan.maxInFlightCommandBuffers)
         self.normalPipelineState = try Self.makePipeline(device: device, blendMode: .normal)
         self.multiplyPipelineState = try Self.makePipeline(device: device, blendMode: .multiply)
         super.init()
@@ -130,7 +133,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 spineAsset: spineAsset,
                 device: device,
                 playbackRate: runtime.selectedPlaybackRate,
-                poseSampleFps: runtime.renderTargetFps,
+                poseSampleFps: displayTargetFps,
                 loopingAnimationNames: Self.loopingAnimationNames(from: runtime.manifest),
                 oneShotAnimationNames: Self.oneShotAnimationNames(from: runtime.manifest)
             )

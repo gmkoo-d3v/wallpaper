@@ -11,7 +11,12 @@ final class WallpaperMetalView: MTKView {
     private var mouseMonitor: DesktopMouseInteractionMonitor?
     private var didRequestAccessibilityTrust = false
 
-    init(runtime: NativeRuntimeCore, displayRole: RenderDisplayRole, displayName: String) throws {
+    init(
+        runtime: NativeRuntimeCore,
+        displayRole: RenderDisplayRole,
+        displayName: String,
+        displayRefreshFps: Int?
+    ) throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
             throw EngineError.renderer("Metal device is unavailable")
         }
@@ -44,6 +49,7 @@ final class WallpaperMetalView: MTKView {
             runtime: runtime,
             displayRole: displayRole,
             displayName: displayName,
+            displayRefreshFps: displayRefreshFps,
             interaction: interaction
         )
 
@@ -53,7 +59,7 @@ final class WallpaperMetalView: MTKView {
         autoResizeDrawable = false
         enableSetNeedsDisplay = false
         isPaused = false
-        preferredFramesPerSecond = runtime.renderTargetFps
+        preferredFramesPerSecond = runtime.renderTargetFps(displayRefreshFps: displayRefreshFps)
         clearColor = MTLClearColor(red: 0.02, green: 0.02, blue: 0.025, alpha: 1.0)
         delegate = compositor
 

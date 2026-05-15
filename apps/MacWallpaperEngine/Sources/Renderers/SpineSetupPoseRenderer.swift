@@ -413,7 +413,7 @@ final class SpineSetupPoseRenderer {
         self.animations = animations
         self.poseConstraints = poseConstraints
         self.playbackRate = max(0.01, Double(playbackRate))
-        self.poseSampleFps = Double(max(1, min(poseSampleFps, 120)))
+        self.poseSampleFps = Double(max(1, min(poseSampleFps, 240)))
         self.loopingAnimationNames = loopingAnimationNames.union(["idle"])
         self.oneShotAnimationNames = oneShotAnimationNames.subtracting(loopingAnimationNames)
         self.referenceScale = referenceScale

@@ -62,6 +62,7 @@ struct EngineConfig {
     let primaryDisplaySelector: String?
     let duration: TimeInterval?
     let renderFps: Int?
+    let matchDisplayRefresh: Bool
     let playbackRateOverride: Float?
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
@@ -88,6 +89,7 @@ struct EngineConfig {
         primaryDisplaySelector: String? = nil,
         interactive: Bool? = nil,
         renderFps: Int? = nil,
+        matchDisplayRefresh: Bool? = nil,
         playbackRateOverride: Float? = nil,
         fitMode: RenderFitMode? = nil,
         foregroundMode: ForegroundRenderMode? = nil,
@@ -116,6 +118,7 @@ struct EngineConfig {
             primaryDisplaySelector: primaryDisplaySelector ?? self.primaryDisplaySelector,
             duration: clearDuration ? nil : (duration ?? self.duration),
             renderFps: renderFps ?? self.renderFps,
+            matchDisplayRefresh: matchDisplayRefresh ?? self.matchDisplayRefresh,
             playbackRateOverride: playbackRateOverride ?? self.playbackRateOverride,
             fitMode: fitMode ?? self.fitMode,
             foregroundMode: foregroundMode ?? self.foregroundMode,
@@ -145,6 +148,7 @@ struct EngineConfig {
         var primaryDisplaySelector: String?
         var duration: TimeInterval?
         var renderFps: Int?
+        var matchDisplayRefresh = false
         var playbackRateOverride: Float?
         var fitMode = RenderFitMode.contain
         var foregroundMode = ForegroundRenderMode.automatic
@@ -219,10 +223,19 @@ struct EngineConfig {
             case "--fps":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
-                guard let parsed = Int(raw), [30, 60, 120].contains(parsed) else {
-                    throw EngineError.invalidArgument("Invalid --fps: \(raw). Supported values: 30, 60, 120")
+                let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if ["display", "refresh", "native", "auto"].contains(normalized) {
+                    renderFps = nil
+                    matchDisplayRefresh = true
+                } else if let parsed = Int(normalized), [30, 60].contains(parsed) {
+                    renderFps = parsed
+                    matchDisplayRefresh = false
+                } else if let parsed = Int(normalized), parsed > 60 {
+                    renderFps = nil
+                    matchDisplayRefresh = true
+                } else {
+                    throw EngineError.invalidArgument("Invalid --fps: \(raw). Supported values: 30, 60, display")
                 }
-                renderFps = parsed
                 explicitRenderFps = true
             case "--playback-rate":
                 index += 1
@@ -315,6 +328,9 @@ struct EngineConfig {
             if !explicitRenderFps, let persisted = persistedSettings.renderFps {
                 renderFps = persisted
             }
+            if !explicitRenderFps, let persisted = persistedSettings.matchDisplayRefresh {
+                matchDisplayRefresh = persisted
+            }
             if !explicitPlaybackRateOverride {
                 playbackRateOverride = persistedSettings.playbackRateOverride
             }
@@ -365,6 +381,7 @@ struct EngineConfig {
             primaryDisplaySelector: primaryDisplaySelector,
             duration: duration,
             renderFps: renderFps,
+            matchDisplayRefresh: matchDisplayRefresh,
             playbackRateOverride: playbackRateOverride,
             fitMode: fitMode,
             foregroundMode: foregroundMode,
@@ -407,7 +424,7 @@ struct EngineConfig {
       --primary-display <sel>   Treat a matching display as primary. Accepts displayID:<id>, fingerprint:<hash>, arrangement:<hash>, name:<name>, or raw id/hash/name.
       --level <level>           normal | desktop | desktopMinusOne | desktopPlusOne | backstop. Default: desktop.
       --duration <seconds>      Auto-quit after a short smoke run.
-      --fps <value>             Render FPS: 30 | 60 | 120. Defaults to manifest targetFps.
+      --fps <value>             Render FPS: 30 | 60 | display. Values above 60 map to display refresh.
       --playback-rate <value>   Video playback rate override. Defaults to manifest asset rate.
       --fit-mode <mode>         contain | fill. Default: contain.
       --foreground-mode <mode>  auto | composite | native. Default: auto.

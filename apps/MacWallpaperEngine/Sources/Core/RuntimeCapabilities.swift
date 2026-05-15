@@ -221,7 +221,7 @@ enum RuntimeCapabilities {
                 && (effectiveFps ?? 0) + 0.5 < Double(targetFps)
             let status = belowTarget ? "warning" : "supported"
             let warning = belowTarget
-                ? " below target=\(targetFps); regenerate 60/120fps+ fallback for smooth composite playback"
+                ? " below target=\(targetFps); regenerate display-refresh fallback for smooth composite playback"
                 : ""
             return RuntimeCapabilityRow(
                 category: "asset",
