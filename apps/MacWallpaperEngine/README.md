@@ -39,6 +39,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Pointer movement and click command mapping.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
+- Frame/drop telemetry snapshot for submitted frames, skipped frames, last skip
+  reason, actual FPS, and p95 frame time.
 - Resource-budget fallback from native Spine to composite video when the
   downgrade ladder is exhausted and a composite asset exists.
 - Atomic display rebuild policy keeps the previous wallpaper windows alive if

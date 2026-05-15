@@ -178,13 +178,23 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         setResourceFallbackVideoActive(governor.shouldUseVideoOnlyFallback && resourceFallbackVideoSource != nil)
 
         guard semaphore.wait(timeout: .now()) == .success else {
+            governor.recordSkippedFrame(reason: .commandBufferBackpressure)
             return
         }
         guard let drawable = view.currentDrawable,
-              let descriptor = view.currentRenderPassDescriptor,
-              let commandBuffer = commandQueue.makeCommandBuffer(),
-              let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
+              let descriptor = view.currentRenderPassDescriptor else {
             semaphore.signal()
+            governor.recordSkippedFrame(reason: .drawableUnavailable)
+            return
+        }
+        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+            semaphore.signal()
+            governor.recordSkippedFrame(reason: .commandBufferUnavailable)
+            return
+        }
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
+            semaphore.signal()
+            governor.recordSkippedFrame(reason: .encoderUnavailable)
             return
         }
 
@@ -227,6 +237,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         encoder.endEncoding()
         commandBuffer.present(drawable)
+        governor.recordSubmittedFrame()
         commandBuffer.commit()
     }
 

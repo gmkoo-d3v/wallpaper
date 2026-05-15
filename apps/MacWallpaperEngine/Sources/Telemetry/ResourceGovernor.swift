@@ -63,8 +63,28 @@ struct PerformancePlan {
         cpuDowngradeWindowSeconds: \(cpuDowngradeWindowSeconds)
         rssTargetMb: \(rssTargetMb)
         rssHardMb: \(rssHardMb)
+        telemetryFields: currentFps, actualFps, p95FrameTimeMs, submittedFrames, skippedFrames, lastSkipReason, pauseForThermal, pauseForResourceBudget, videoOnlyFallback
         """
     }
+}
+
+enum FrameSkipReason: String {
+    case commandBufferBackpressure
+    case drawableUnavailable
+    case commandBufferUnavailable
+    case encoderUnavailable
+}
+
+struct ResourceGovernorSnapshot {
+    let currentFps: Int
+    let actualFps: Double
+    let p95FrameTimeMs: Double
+    let submittedFrames: Int
+    let skippedFrames: Int
+    let lastSkipReason: String?
+    let pauseForThermal: Bool
+    let pauseForResourceBudget: Bool
+    let videoOnlyFallback: Bool
 }
 
 final class ResourceGovernor {
@@ -76,6 +96,9 @@ final class ResourceGovernor {
     private var lastResourceSampleTime: TimeInterval?
     private var pauseForResourceBudget = false
     private var videoOnlyForResourceBudget = false
+    private var submittedFrames = 0
+    private var skippedFrames = 0
+    private var lastSkipReason: FrameSkipReason?
 
     init(manifest: WallpaperNativeManifest, targetFps: Int) {
         self.plan = PerformancePlan.make(manifest: manifest, requestedFps: targetFps)
@@ -96,6 +119,15 @@ final class ResourceGovernor {
         return currentFps
     }
 
+    func recordSubmittedFrame() {
+        submittedFrames += 1
+    }
+
+    func recordSkippedFrame(reason: FrameSkipReason) {
+        skippedFrames += 1
+        lastSkipReason = reason
+    }
+
     var p95FrameTime: TimeInterval {
         guard frameDurations.isEmpty == false else { return 0 }
         let sorted = frameDurations.sorted()
@@ -113,6 +145,27 @@ final class ResourceGovernor {
 
     var shouldUseVideoOnlyFallback: Bool {
         videoOnlyForResourceBudget
+    }
+
+    var snapshot: ResourceGovernorSnapshot {
+        ResourceGovernorSnapshot(
+            currentFps: currentFps,
+            actualFps: actualFps,
+            p95FrameTimeMs: p95FrameTime * 1000.0,
+            submittedFrames: submittedFrames,
+            skippedFrames: skippedFrames,
+            lastSkipReason: lastSkipReason?.rawValue,
+            pauseForThermal: shouldPauseForThermal,
+            pauseForResourceBudget: shouldPauseForResourceBudget,
+            videoOnlyFallback: shouldUseVideoOnlyFallback
+        )
+    }
+
+    private var actualFps: Double {
+        guard frameDurations.isEmpty == false else { return 0 }
+        let average = frameDurations.reduce(0, +) / Double(frameDurations.count)
+        guard average > 0 else { return 0 }
+        return 1.0 / average
     }
 
     private func sampleResources(now: TimeInterval) {

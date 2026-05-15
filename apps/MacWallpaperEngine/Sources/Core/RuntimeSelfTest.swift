@@ -39,6 +39,7 @@ enum RuntimeSelfTest {
             highPlan.summary().contains("exhaustedBudgetFallback: video-only when available"),
             "performance plan must document exhausted-budget video-only fallback"
         )
+        check(highPlan.summary().contains("telemetryFields: currentFps"), "performance plan must document runtime telemetry fields")
         check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(
@@ -49,6 +50,8 @@ enum RuntimeSelfTest {
             RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: false) == false,
             "wallpaper-only startup failures must not create recovery UI unexpectedly"
         )
+
+        checkResourceGovernorTelemetry(runtime: runtime, failures: &failures, checks: &checks)
 
         let primaryRole = DisplayPlanner.role(
             isPrimary: true,
@@ -122,6 +125,25 @@ enum RuntimeSelfTest {
         manifest: \(runtime.config.manifestURL.path)
         bundle: \(runtime.config.wallpaperRoot.path)
         """
+    }
+
+    private static func checkResourceGovernorTelemetry(
+        runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) {
+        let governor = ResourceGovernor(manifest: runtime.manifest, targetFps: runtime.renderTargetFps)
+        let initial = governor.snapshot
+        check(initial.currentFps == runtime.renderTargetFps, "resource governor snapshot must expose current FPS", failures: &failures, checks: &checks)
+        check(initial.submittedFrames == 0, "resource governor snapshot must start with zero submitted frames", failures: &failures, checks: &checks)
+        check(initial.skippedFrames == 0, "resource governor snapshot must start with zero skipped frames", failures: &failures, checks: &checks)
+
+        governor.recordSkippedFrame(reason: .commandBufferBackpressure)
+        governor.recordSubmittedFrame()
+        let updated = governor.snapshot
+        check(updated.skippedFrames == 1, "resource governor must count skipped frames", failures: &failures, checks: &checks)
+        check(updated.lastSkipReason == FrameSkipReason.commandBufferBackpressure.rawValue, "resource governor must preserve last skip reason", failures: &failures, checks: &checks)
+        check(updated.submittedFrames == 1, "resource governor must count submitted frames", failures: &failures, checks: &checks)
     }
 
     private static func checkBundleDiagnostics(
