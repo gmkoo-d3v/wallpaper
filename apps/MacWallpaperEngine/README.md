@@ -51,6 +51,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Runtime telemetry is aggregated per display and surfaced in the control panel.
 - Resource-budget fallback from native Spine to composite video when the
   downgrade ladder is exhausted and a composite asset exists.
+- Native Spine compatibility gate falls back to `compositeVideo` when a bundle
+  uses Spine feature classes the native renderer does not implement yet.
 - Atomic display rebuild policy keeps the previous wallpaper windows alive if
   a hot-plug/display rebuild fails partway through.
 - Window visibility loss from occlusion or fullscreen-obscured states pauses

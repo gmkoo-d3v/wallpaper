@@ -49,8 +49,28 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         self.multiplyPipelineState = try Self.makePipeline(device: device, blendMode: .multiply)
         super.init()
 
+        let nativeSpineCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let shouldFallbackNativeSpineToComposite = runtime.config.foregroundMode == .nativeSpine
+            && displayRole.rendersForeground
+            && nativeSpineCompatibility.isSupported == false
+            && runtime.assetCatalog.compositeVideoAsset != nil
+        if runtime.config.foregroundMode == .nativeSpine,
+           displayRole.rendersForeground,
+           nativeSpineCompatibility.isSupported == false,
+           runtime.assetCatalog.compositeVideoAsset == nil {
+            throw EngineError.renderer(
+                "Native Spine renderer cannot safely play this bundle and no compositeVideo fallback exists: \(nativeSpineCompatibility.reasonText)"
+            )
+        }
+        if shouldFallbackNativeSpineToComposite {
+            fputs(
+                "Native Spine renderer unsupported for this bundle; using compositeVideo fallback: \(nativeSpineCompatibility.reasonText)\n",
+                stderr
+            )
+        }
+
         let selectedVideo: VideoAsset?
-        let shouldUseCompositeVideo = runtime.config.foregroundMode == .compositeVideo
+        let shouldUseCompositeVideo = (runtime.config.foregroundMode == .compositeVideo || shouldFallbackNativeSpineToComposite)
             && displayRole.prefersCompositeVideo
             && runtime.assetCatalog.compositeVideoAsset != nil
         if runtime.config.videoEnabled == false || displayRole.playsVideo == false {
@@ -71,6 +91,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
         if runtime.config.videoEnabled,
            runtime.config.foregroundMode == .nativeSpine,
+           shouldFallbackNativeSpineToComposite == false,
            displayRole.rendersForeground,
            let backgroundVideo = runtime.assetCatalog.videoAsset,
            selectedVideo?.url != backgroundVideo.url {
@@ -82,6 +103,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
         if runtime.config.videoEnabled,
            runtime.config.foregroundMode == .nativeSpine,
+           shouldFallbackNativeSpineToComposite == false,
            displayRole.rendersForeground,
            usingCompositeVideo == false,
            let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
@@ -103,6 +125,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         )
 
         if runtime.config.foregroundMode == .nativeSpine,
+           shouldFallbackNativeSpineToComposite == false,
            usingCompositeVideo == false,
            displayRole.rendersForeground,
            let spineAsset = runtime.assetCatalog.spineAsset {

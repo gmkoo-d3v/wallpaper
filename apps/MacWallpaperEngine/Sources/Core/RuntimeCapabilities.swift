@@ -11,6 +11,15 @@ struct RuntimeCapabilityRow {
     }
 }
 
+struct NativeSpineCompatibility {
+    let isSupported: Bool
+    let reasons: [String]
+
+    var reasonText: String {
+        reasons.isEmpty ? "supported" : reasons.joined(separator: "; ")
+    }
+}
+
 enum RuntimeCapabilities {
     static func summary(runtime: NativeRuntimeCore) -> String {
         let rows = makeRows(runtime: runtime)
@@ -67,6 +76,26 @@ enum RuntimeCapabilities {
         rows.append(contentsOf: spineRows(runtime: runtime))
 
         return rows
+    }
+
+    static func nativeSpineCompatibility(runtime: NativeRuntimeCore) -> NativeSpineCompatibility {
+        guard let spine = runtime.assetCatalog.spineAsset else {
+            return NativeSpineCompatibility(isSupported: true, reasons: [])
+        }
+
+        let scan = SpineFeatureScan.scan(url: spine.json)
+        var reasons: [String] = []
+        if scan.unsupportedAttachmentTypes.isEmpty == false {
+            reasons.append("unsupported attachment types: \(scan.unsupportedAttachmentTypes.listOrNone)")
+        }
+        if scan.unsupportedTimelineKeys.isEmpty == false {
+            reasons.append("unsupported timeline keys: \(scan.unsupportedTimelineKeys.listOrNone)")
+        }
+        if scan.hasEventsOrAudioOrSequence {
+            reasons.append("events/audio/sequence data is not implemented")
+        }
+
+        return NativeSpineCompatibility(isSupported: reasons.isEmpty, reasons: reasons)
     }
 
     private static func assetRow(name: String, isPresent: Bool, detail: String?) -> RuntimeCapabilityRow {
@@ -155,11 +184,18 @@ enum RuntimeCapabilities {
             ]
         }
 
+        let compatibility = nativeSpineCompatibility(runtime: runtime)
         let scan = SpineFeatureScan.scan(url: spine.json)
         let attachmentStatus = scan.unsupportedAttachmentTypes.isEmpty ? "supported" : "unsupported"
         let timelineStatus = scan.unsupportedTimelineKeys.isEmpty ? "supported" : "unsupported"
 
         return [
+            RuntimeCapabilityRow(
+                category: "spine",
+                name: "nativeCompatibilityGate",
+                status: compatibility.isSupported ? "supported" : "unsupported",
+                detail: compatibility.reasonText
+            ),
             RuntimeCapabilityRow(
                 category: "spine",
                 name: "nativeRenderer",

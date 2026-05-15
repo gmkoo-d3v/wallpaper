@@ -106,6 +106,14 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("spine\tattachments"),
             "runtime capabilities summary must report Spine attachment compatibility"
         )
+        check(
+            capabilitySummary.contains("spine\tnativeCompatibilityGate"),
+            "runtime capabilities summary must expose the native Spine compatibility gate"
+        )
+        check(
+            RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported,
+            "active bundle must pass native Spine compatibility gate"
+        )
         if let metadata = manifest.metadata {
             if let id = metadata.id {
                 check(validatedBundle?.id == id, "bundle catalog id must prefer manifest metadata.id")
@@ -136,6 +144,7 @@ enum RuntimeSelfTest {
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
         try checkStaticImageBundle(from: runtime, failures: &failures, checks: &checks)
+        try checkUnsupportedSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
             let details = failures.map { "- \($0)" }.joined(separator: "\n")
@@ -543,6 +552,206 @@ enum RuntimeSelfTest {
         check(staticRuntime.runtimeCapabilitiesSummary().contains("layer\tstatic_image\tsupported"), "static image capability summary must report static_image support", failures: &failures, checks: &checks)
         let staticSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(staticSummary.previewURL?.lastPathComponent == "poster.jpg", "static image bundle catalog preview must fall back to staticImage asset", failures: &failures, checks: &checks)
+    }
+
+    private static func checkUnsupportedSpineCompatibilityBundle(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        checks += 1
+        guard let sourceVideo = runtime.assetCatalog.compositeVideoAssetURL ?? runtime.assetCatalog.videoAssetURL else {
+            failures.append("unsupported Spine compatibility fixture requires an active video asset")
+            return
+        }
+
+        let sourceTexture = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        checks += 1
+        guard FileManager.default.fileExists(atPath: sourceTexture.path) else {
+            failures.append("unsupported Spine compatibility fixture requires active bundle preview.jpg")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let fixtureRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineUnsupportedSpineSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureRoot)
+        }
+
+        let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+        try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
+        let fixtureVideo = assetsRoot.appendingPathComponent("background.mp4")
+        let fixtureTexture = assetsRoot.appendingPathComponent("texture.jpg")
+        do {
+            try fileManager.linkItem(at: sourceVideo, to: fixtureVideo)
+        } catch {
+            try fileManager.copyItem(at: sourceVideo, to: fixtureVideo)
+        }
+        do {
+            try fileManager.linkItem(at: sourceTexture, to: fixtureTexture)
+        } catch {
+            try fileManager.copyItem(at: sourceTexture, to: fixtureTexture)
+        }
+
+        let fixtureAtlas = assetsRoot.appendingPathComponent("character.atlas")
+        try Data("texture.jpg\nsize: 64,64\n".utf8).write(to: fixtureAtlas, options: .atomic)
+
+        let fixtureSpineJSON = assetsRoot.appendingPathComponent("character.json")
+        let spineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43"
+          },
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "face": {
+                  "animated-sequence": {
+                    "type": "sequence"
+                  }
+                }
+              }
+            }
+          ],
+          "events": {
+            "voice": {
+              "audio": "voice.wav"
+            }
+          },
+          "animations": {
+            "idle": {},
+            "touch": {
+              "events": [
+                {
+                  "time": 0,
+                  "name": "voice"
+                }
+              ]
+            }
+          }
+        }
+        """
+        try Data(spineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+
+        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let manifestJSON = """
+        {
+          "schemaVersion": "macos-wallpaper-native.v2",
+          "metadata": {
+            "id": "selftest_unsupported_spine",
+            "title": "Self Test Unsupported Spine"
+          },
+          "runtime": {
+            "kind": "native-metal",
+            "targetFps": 30,
+            "maxFps": 60,
+            "fallbackFps": 15,
+            "scheduler": {
+              "maxInFlightCommandBuffers": 1,
+              "lateFramePolicy": "drop",
+              "catchUp": false
+            }
+          },
+          "displayPolicy": {
+            "primary": "full",
+            "secondary": "video-only",
+            "fullscreenObscured": "pause",
+            "occluded": "pause"
+          },
+          "thermalPolicy": {
+            "nominal": "30fps",
+            "serious": "15fps-or-video-only",
+            "critical": "pause"
+          },
+          "layerBudgets": {
+            "maxTexturePages": 1,
+            "maxTextureDimension": 4096,
+            "rssTargetMb": 250,
+            "rssHardMb": 500,
+            "primaryCpuTargetPercent": 10,
+            "cpuDowngradePercent": 20,
+            "cpuDowngradeWindowSeconds": 10
+          },
+          "assets": {
+            "video": {
+              "id": "backgroundVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+            "compositeVideo": {
+              "id": "compositeVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+            "spine": {
+              "id": "unsupportedCharacter",
+              "version": "4.2.43",
+              "json": "assets/character.json",
+              "atlas": "assets/character.atlas",
+              "textures": [
+                "assets/texture.jpg"
+              ],
+              "premultipliedAlpha": true
+            }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "video",
+              "asset": "backgroundVideo"
+            },
+            {
+              "id": "character",
+              "type": "spine",
+              "asset": "unsupportedCharacter",
+              "renderingMode": "setup-mesh"
+            }
+          ],
+          "interactions": [
+            {
+              "event": "pointerDown",
+              "hitZones": [
+                {
+                  "id": "head",
+                  "rect": [0.25, 0.25, 0.75, 0.75],
+                  "action": "touch"
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "bundleRootOnly": true,
+            "requirePremultipliedAlpha": false,
+            "requireSpineVersion": "4.2.x",
+            "rejectUnknownLayerTypes": true
+          }
+        }
+        """
+        try Data(manifestJSON.utf8).write(to: manifestURL, options: .atomic)
+
+        let unsupportedRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            displayMode: .primaryAnimated,
+            renderFps: 30,
+            foregroundMode: .nativeSpine,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: unsupportedRuntime)
+        check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("events/audio/sequence"), "compatibility gate must report events/audio/sequence limits", failures: &failures, checks: &checks)
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeCompatibilityGate\tunsupported"),
+            "unsupported Spine capability summary must mark nativeCompatibilityGate unsupported",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func check(
