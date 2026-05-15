@@ -432,6 +432,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             performancePlanOnly: false,
             runtimeCapabilitiesOnly: false,
             interactionPlanOnly: false,
+            spineAnimationPlanOnly: false,
             compositeQualityPlanOnly: false,
             strictCompositeQuality: false,
             selfTestOnly: false,

@@ -82,6 +82,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.spineAnimationPlanOnly {
+        print(try SpineAnimationDiagnostics.make(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.compositeQualityPlanOnly {
         let report = runtime.compositeQualityReport()
         print(report.text)

@@ -42,6 +42,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--interaction-plan` reports pointer movement commands, accepted click
   buttons, hit zones, tail timing, and left/right click probes from the same
   interaction planner used by the renderer.
+- `--spine-animation-plan` reports Spine animation duration, timeline coverage,
+  and whether every manifest interaction action resolves to a real animation.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
@@ -169,6 +171,7 @@ swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mo
 swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode primaryAnimated
 swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
 swift run MacWallpaperEngine --interaction-plan
+swift run MacWallpaperEngine --spine-animation-plan
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain

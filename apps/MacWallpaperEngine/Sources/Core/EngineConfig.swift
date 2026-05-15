@@ -72,6 +72,7 @@ struct EngineConfig {
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
     let interactionPlanOnly: Bool
+    let spineAnimationPlanOnly: Bool
     let compositeQualityPlanOnly: Bool
     let strictCompositeQuality: Bool
     let selfTestOnly: Bool
@@ -107,6 +108,7 @@ struct EngineConfig {
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
         interactionPlanOnly: Bool? = nil,
+        spineAnimationPlanOnly: Bool? = nil,
         compositeQualityPlanOnly: Bool? = nil,
         strictCompositeQuality: Bool? = nil,
         selfTestOnly: Bool? = nil
@@ -130,6 +132,7 @@ struct EngineConfig {
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
             interactionPlanOnly: interactionPlanOnly ?? self.interactionPlanOnly,
+            spineAnimationPlanOnly: spineAnimationPlanOnly ?? self.spineAnimationPlanOnly,
             compositeQualityPlanOnly: compositeQualityPlanOnly ?? self.compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
@@ -170,6 +173,7 @@ struct EngineConfig {
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
         var interactionPlanOnly = false
+        var spineAnimationPlanOnly = false
         var compositeQualityPlanOnly = false
         var strictCompositeQuality = false
         var selfTestOnly = false
@@ -277,6 +281,8 @@ struct EngineConfig {
                 runtimeCapabilitiesOnly = true
             case "--interaction-plan":
                 interactionPlanOnly = true
+            case "--spine-animation-plan":
+                spineAnimationPlanOnly = true
             case "--composite-quality-plan":
                 compositeQualityPlanOnly = true
             case "--strict-composite-quality":
@@ -319,6 +325,7 @@ struct EngineConfig {
             || performancePlanOnly
             || runtimeCapabilitiesOnly
             || interactionPlanOnly
+            || spineAnimationPlanOnly
             || compositeQualityPlanOnly
             || selfTestOnly
         let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
@@ -398,6 +405,7 @@ struct EngineConfig {
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
             interactionPlanOnly: interactionPlanOnly,
+            spineAnimationPlanOnly: spineAnimationPlanOnly,
             compositeQualityPlanOnly: compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality,
             selfTestOnly: selfTestOnly,
@@ -446,6 +454,7 @@ struct EngineConfig {
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
       --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.
+      --spine-animation-plan   Print Spine animation durations, timeline coverage, and manifest action links, then exit.
       --composite-quality-plan Print composite fallback FPS/quality and regeneration target, then exit.
       --strict-composite-quality
                               Fail validation/quality-plan when composite fallback FPS is below target.

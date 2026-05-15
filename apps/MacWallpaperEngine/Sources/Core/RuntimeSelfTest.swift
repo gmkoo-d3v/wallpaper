@@ -282,6 +282,29 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("pointerDownButtons:"),
             "interaction diagnostics must expose move probes and click buttons"
         )
+        var manifestActionNames = Set<String>()
+        for interaction in manifest.interactions {
+            interaction.actions?.values.forEach { manifestActionNames.insert($0) }
+            interaction.hitZones?.forEach { manifestActionNames.insert($0.action) }
+        }
+        let spineAnimationPlan = try SpineAnimationDiagnostics.make(runtime: runtime)
+        check(
+            spineAnimationPlan.contains("spine animation plan OK")
+                && spineAnimationPlan.contains("columns: kind\tname\tstatus\tduration\ttimelines\tframes\ttypes\tuses"),
+            "Spine animation diagnostics must expose a stable CLI header and columns"
+        )
+        if runtime.assetCatalog.spineAsset != nil {
+            check(
+                spineAnimationPlan.contains("animation\tidle\tavailable"),
+                "Spine animation diagnostics must report idle animation availability"
+            )
+            for actionName in manifestActionNames.sorted() {
+                check(
+                    spineAnimationPlan.contains("action\t\(actionName)\tavailable"),
+                    "Spine animation diagnostics must link manifest action \(actionName) to an available animation"
+                )
+            }
+        }
         if let hitZone = hitZoneSummaries.first {
             let center = CGPoint(
                 x: CGFloat((hitZone.rect[0] + hitZone.rect[2]) / 2.0),
@@ -916,6 +939,19 @@ enum RuntimeSelfTest {
         check(
             interactionPlanParse.foregroundMode == .automatic,
             "interaction diagnostics must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let spineAnimationPlanParse = try EngineConfig.parse(["--spine-animation-plan"])
+        check(
+            spineAnimationPlanParse.spineAnimationPlanOnly,
+            "EngineConfig must parse Spine animation plan diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            spineAnimationPlanParse.foregroundMode == .automatic,
+            "Spine animation diagnostics must ignore persisted foreground mode",
             failures: &failures,
             checks: &checks
         )
