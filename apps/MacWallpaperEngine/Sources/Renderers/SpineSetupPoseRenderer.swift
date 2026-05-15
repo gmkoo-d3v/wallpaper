@@ -329,6 +329,8 @@ final class SpineSetupPoseRenderer {
     private let referenceScale: Double
     private let playbackRate: Double
     private let poseSampleFps: Double
+    private let loopingAnimationNames: Set<String>
+    private let oneShotAnimationNames: Set<String>
     private let rendererStartedAt: CFTimeInterval
     private let animationTransitionDuration: CFTimeInterval = 0.30
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
@@ -343,7 +345,14 @@ final class SpineSetupPoseRenderer {
     private static let enablePathConstraints = true
     private static let enablePhysicsConstraints = false
 
-    init(spineAsset: SpineAsset, device: MTLDevice, playbackRate: Float = 1.0, poseSampleFps: Int = 60) throws {
+    init(
+        spineAsset: SpineAsset,
+        device: MTLDevice,
+        playbackRate: Float = 1.0,
+        poseSampleFps: Int = 60,
+        loopingAnimationNames: Set<String> = ["idle"],
+        oneShotAnimationNames: Set<String> = []
+    ) throws {
         let textureLoader = MTKTextureLoader(device: device)
         let atlas = try Self.parseAtlas(url: spineAsset.atlas, textureLoader: textureLoader)
         let jsonData = try Data(contentsOf: spineAsset.json)
@@ -405,6 +414,8 @@ final class SpineSetupPoseRenderer {
         self.poseConstraints = poseConstraints
         self.playbackRate = max(0.01, Double(playbackRate))
         self.poseSampleFps = Double(max(1, min(poseSampleFps, 120)))
+        self.loopingAnimationNames = loopingAnimationNames.union(["idle"])
+        self.oneShotAnimationNames = oneShotAnimationNames.subtracting(loopingAnimationNames)
         self.referenceScale = referenceScale
         self.rendererStartedAt = CACurrentMediaTime()
         self.batchCount = builtBatches.count
@@ -521,7 +532,7 @@ final class SpineSetupPoseRenderer {
         let requested = animations[command] == nil ? "idle" : command
         let current = animations[activeAnimationName]
 
-        if ["act", "eye"].contains(activeAnimationName),
+        if oneShotAnimationNames.contains(activeAnimationName),
            let current,
            (now - activeAnimationStartedAt) * playbackRate < max(current.duration, 0.1),
            requested == "idle" {
@@ -559,7 +570,7 @@ final class SpineSetupPoseRenderer {
         if animation.duration <= 0 {
             return 0
         }
-        if animation.name == "idle" || animation.name == "boll" {
+        if loopingAnimationNames.contains(animation.name) {
             return elapsed.truncatingRemainder(dividingBy: animation.duration)
         }
         return min(elapsed, animation.duration)
