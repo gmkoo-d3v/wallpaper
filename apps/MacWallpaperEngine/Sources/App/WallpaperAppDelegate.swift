@@ -232,6 +232,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 foregroundMode: .compositeVideo,
                 wallpaperRoot: nil,
                 wallpaperPath: "No wallpaper bundle selected",
+                bundleInfoText: "No validated wallpaper bundle is selected.",
+                bundlePreviewURL: nil,
                 availableBundles: libraryState.bundles,
                 bundleDiagnosticsText: libraryState.diagnosticsText,
                 telemetryText: "No runtime telemetry yet",
@@ -245,6 +247,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         } else {
             status = host == nil ? "STOPPED" : "RUNNING"
         }
+        let selectedBundle = currentBundleSummary(from: libraryState.bundles, currentRoot: runtime.config.wallpaperRoot)
         return ControlPanelState(
             isRunning: host != nil,
             displayMode: runtime.config.displayMode,
@@ -255,6 +258,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             foregroundMode: runtime.config.foregroundMode,
             wallpaperRoot: runtime.config.wallpaperRoot,
             wallpaperPath: runtime.config.wallpaperRoot.path,
+            bundleInfoText: bundleInfoText(for: selectedBundle),
+            bundlePreviewURL: selectedBundle?.previewURL,
             availableBundles: libraryState.bundles,
             bundleDiagnosticsText: libraryState.diagnosticsText,
             telemetryText: controlPanelTelemetryText,
@@ -429,5 +434,36 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
 
         let bundles = diagnostics.compactMap(\.bundle)
         return (bundles, WallpaperBundleCatalog.invalidDiagnosticsSummary(for: diagnostics))
+    }
+
+    private func currentBundleSummary(from bundles: [WallpaperBundleSummary], currentRoot: URL) -> WallpaperBundleSummary? {
+        let currentPath = currentRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        if let listedBundle = bundles.first(where: {
+            $0.root.standardizedFileURL.resolvingSymlinksInPath().path == currentPath
+        }) {
+            return listedBundle
+        }
+
+        return WallpaperBundleCatalog.validateBundle(currentRoot)
+    }
+
+    private func bundleInfoText(for bundle: WallpaperBundleSummary?) -> String {
+        guard let bundle else {
+            return "No validated wallpaper bundle is selected."
+        }
+
+        var fields = ["id: \(bundle.id)"]
+        if let author = bundle.author {
+            fields.append("author: \(author)")
+        }
+        if let version = bundle.version {
+            fields.append("version: \(version)")
+        }
+
+        let metadataLine = fields.joined(separator: " / ")
+        guard let description = bundle.description else {
+            return metadataLine
+        }
+        return metadataLine + "\n" + description
     }
 }

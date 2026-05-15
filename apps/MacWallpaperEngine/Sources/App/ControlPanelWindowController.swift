@@ -10,6 +10,8 @@ struct ControlPanelState {
     let foregroundMode: ForegroundRenderMode
     let wallpaperRoot: URL?
     let wallpaperPath: String
+    let bundleInfoText: String
+    let bundlePreviewURL: URL?
     let availableBundles: [WallpaperBundleSummary]
     let bundleDiagnosticsText: String
     let telemetryText: String
@@ -39,8 +41,10 @@ final class ControlPanelWindowController: NSWindowController {
 
     private let statusValue = NSTextField(labelWithString: "")
     private let pathValue = NSTextField(labelWithString: "")
+    private let bundleInfoValue = NSTextField(labelWithString: "")
     private let bundleDiagnosticsValue = NSTextField(labelWithString: "")
     private let telemetryValue = NSTextField(labelWithString: "")
+    private let previewImageView = NSImageView(frame: .zero)
     private let displayModeControl = NSSegmentedControl(
         labels: ["Primary", "All", "Only"],
         trackingMode: .selectOne,
@@ -121,6 +125,8 @@ final class ControlPanelWindowController: NSWindowController {
         guard let state = delegate?.controlPanelState else { return }
         statusValue.stringValue = state.statusText
         pathValue.stringValue = state.wallpaperPath
+        bundleInfoValue.stringValue = state.bundleInfoText
+        updatePreviewImage(state.bundlePreviewURL)
         bundleDiagnosticsValue.stringValue = state.bundleDiagnosticsText
         bundleDiagnosticsValue.isHidden = state.bundleDiagnosticsText.isEmpty
         telemetryValue.stringValue = state.telemetryText
@@ -233,6 +239,7 @@ final class ControlPanelWindowController: NSWindowController {
 
         stack.addArrangedSubview(infoRow(label: "STATUS", value: statusValue))
         stack.addArrangedSubview(bundleRow())
+        stack.addArrangedSubview(bundlePreviewRow())
         stack.addArrangedSubview(infoRow(label: "TELEMETRY", value: telemetryValue))
         stack.addArrangedSubview(modeRow())
         stack.addArrangedSubview(foregroundRow())
@@ -298,6 +305,39 @@ final class ControlPanelWindowController: NSWindowController {
         row.addArrangedSubview(caption)
         row.addArrangedSubview(line)
         row.addArrangedSubview(bundleDiagnosticsValue)
+        return row
+    }
+
+    private func bundlePreviewRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 16
+
+        previewImageView.imageScaling = .scaleProportionallyUpOrDown
+        previewImageView.wantsLayer = true
+        previewImageView.layer?.backgroundColor = NSColor(red: 0.98, green: 0.98, blue: 0.98, alpha: 1).cgColor
+        previewImageView.layer?.borderColor = NSColor(red: 0.90, green: 0.90, blue: 0.90, alpha: 1).cgColor
+        previewImageView.layer?.borderWidth = 1
+        previewImageView.widthAnchor.constraint(equalToConstant: 160).isActive = true
+        previewImageView.heightAnchor.constraint(equalToConstant: 90).isActive = true
+
+        let infoStack = NSStackView()
+        infoStack.orientation = .vertical
+        infoStack.spacing = 8
+
+        let caption = self.caption("BUNDLE INFO")
+        bundleInfoValue.font = .systemFont(ofSize: 13, weight: .light)
+        bundleInfoValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
+        bundleInfoValue.lineBreakMode = .byTruncatingTail
+        bundleInfoValue.maximumNumberOfLines = 3
+        bundleInfoValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        infoStack.addArrangedSubview(caption)
+        infoStack.addArrangedSubview(bundleInfoValue)
+
+        row.addArrangedSubview(previewImageView)
+        row.addArrangedSubview(infoStack)
         return row
     }
 
@@ -444,6 +484,14 @@ final class ControlPanelWindowController: NSWindowController {
            }) {
             bundlePopup.select(selectedItem)
         }
+    }
+
+    private func updatePreviewImage(_ url: URL?) {
+        guard let url, let image = NSImage(contentsOf: url) else {
+            previewImageView.image = nil
+            return
+        }
+        previewImageView.image = image
     }
 
     private func selectedDisplayMode() -> DisplayMode {

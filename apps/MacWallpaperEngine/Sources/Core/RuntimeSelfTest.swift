@@ -92,6 +92,7 @@ enum RuntimeSelfTest {
                 check(validatedBundle?.displayName == title, "bundle catalog displayName must prefer manifest metadata.title")
             }
         }
+        check(validatedBundle?.previewURL != nil, "bundle catalog must expose a preview URL when preview.jpg exists")
 
         let discoveredBundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: runtime.config.projectRoot)
         let discoveredIds = discoveredBundles.map(\.id)
@@ -447,6 +448,8 @@ enum RuntimeSelfTest {
         check(staticRuntime.assetCatalog.spineAsset == nil, "static image bundle must not require a Spine asset", failures: &failures, checks: &checks)
         check(staticRuntime.manifest.layers.first?.type == .staticImage, "static image bundle must preserve static_image layer type", failures: &failures, checks: &checks)
         check(staticRuntime.validationSummary().contains("static image: \(fixtureImage.path)"), "static image validation summary must report the image asset", failures: &failures, checks: &checks)
+        let staticSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
+        check(staticSummary.previewURL?.lastPathComponent == "poster.jpg", "static image bundle catalog preview must fall back to staticImage asset", failures: &failures, checks: &checks)
     }
 
     private static func check(

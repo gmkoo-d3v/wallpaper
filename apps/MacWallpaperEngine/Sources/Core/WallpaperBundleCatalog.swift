@@ -3,6 +3,10 @@ import Foundation
 struct WallpaperBundleSummary: Equatable {
     let id: String
     let displayName: String
+    let author: String?
+    let version: String?
+    let description: String?
+    let previewURL: URL?
     let root: URL
     let manifestURL: URL
 }
@@ -109,6 +113,10 @@ enum WallpaperBundleCatalog {
         return WallpaperBundleSummary(
             id: metadataValue(manifest.metadata?.id) ?? root.lastPathComponent,
             displayName: metadataValue(manifest.metadata?.title) ?? displayName(for: root),
+            author: metadataValue(manifest.metadata?.author),
+            version: metadataValue(manifest.metadata?.version),
+            description: metadataValue(manifest.metadata?.description),
+            previewURL: previewURL(for: manifest, root: root),
             root: root,
             manifestURL: manifestURL
         )
@@ -157,6 +165,19 @@ enum WallpaperBundleCatalog {
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "-", with: " ")
             .capitalized
+    }
+
+    private static func previewURL(for manifest: WallpaperNativeManifest, root: URL) -> URL? {
+        let preview = root.appendingPathComponent("preview.jpg").standardizedFileURL
+        if FileManager.default.fileExists(atPath: preview.path) {
+            return preview
+        }
+
+        guard let staticImagePath = manifest.assets.staticImage?.path else {
+            return nil
+        }
+        let staticImage = root.appendingPathComponent(staticImagePath).standardizedFileURL
+        return FileManager.default.fileExists(atPath: staticImage.path) ? staticImage : nil
     }
 
     private static func metadataValue(_ value: String?) -> String? {
