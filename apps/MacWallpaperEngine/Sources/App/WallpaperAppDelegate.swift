@@ -399,6 +399,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             validateOnly: false,
             displayPlanOnly: false,
             performancePlanOnly: false,
+            runtimeCapabilitiesOnly: false,
             selfTestOnly: false,
             startHidden: false,
             interactive: true,

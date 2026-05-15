@@ -89,6 +89,23 @@ enum RuntimeSelfTest {
 
         let validatedBundle = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)
         check(validatedBundle != nil, "active wallpaper bundle must pass catalog validation")
+        let capabilitySummary = runtime.runtimeCapabilitiesSummary()
+        check(
+            capabilitySummary.contains("runtime capabilities"),
+            "runtime capabilities summary must expose a stable CLI header"
+        )
+        check(
+            capabilitySummary.contains("columns: category\tname\tstatus\tdetail"),
+            "runtime capabilities summary must expose tabular columns"
+        )
+        check(
+            capabilitySummary.contains("interaction\tpointerMove/lookDirection"),
+            "runtime capabilities summary must report pointer movement support"
+        )
+        check(
+            capabilitySummary.contains("spine\tattachments"),
+            "runtime capabilities summary must report Spine attachment compatibility"
+        )
         if let metadata = manifest.metadata {
             if let id = metadata.id {
                 check(validatedBundle?.id == id, "bundle catalog id must prefer manifest metadata.id")
@@ -398,6 +415,7 @@ enum RuntimeSelfTest {
         check(videoOnlyRuntime.assetCatalog.spineAsset == nil, "video-only bundle must not require a Spine asset", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.manifest.layers.count == 1, "video-only bundle must preserve its single video layer", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.validationSummary().contains("spine json: none"), "video-only validation summary must report no Spine asset", failures: &failures, checks: &checks)
+        check(videoOnlyRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeRenderer\tnot-used"), "video-only capability summary must mark Spine renderer unused", failures: &failures, checks: &checks)
         check(
             DisplayPlanner.role(isPrimary: false, displayMode: .primaryAnimated, manifest: videoOnlyRuntime.manifest)?.policy == .static,
             "video-only bundle must support static secondary display policy",
@@ -522,6 +540,7 @@ enum RuntimeSelfTest {
         check(staticRuntime.assetCatalog.spineAsset == nil, "static image bundle must not require a Spine asset", failures: &failures, checks: &checks)
         check(staticRuntime.manifest.layers.first?.type == .staticImage, "static image bundle must preserve static_image layer type", failures: &failures, checks: &checks)
         check(staticRuntime.validationSummary().contains("static image: \(fixtureImage.path)"), "static image validation summary must report the image asset", failures: &failures, checks: &checks)
+        check(staticRuntime.runtimeCapabilitiesSummary().contains("layer\tstatic_image\tsupported"), "static image capability summary must report static_image support", failures: &failures, checks: &checks)
         let staticSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(staticSummary.previewURL?.lastPathComponent == "poster.jpg", "static image bundle catalog preview must fall back to staticImage asset", failures: &failures, checks: &checks)
     }

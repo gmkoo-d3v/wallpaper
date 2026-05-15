@@ -50,4 +50,8 @@ final class NativeRuntimeCore {
     func performanceSummary() -> String {
         performancePlan.summary()
     }
+
+    func runtimeCapabilitiesSummary() -> String {
+        RuntimeCapabilities.summary(runtime: self)
+    }
 }

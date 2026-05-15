@@ -62,6 +62,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.runtimeCapabilitiesOnly {
+        print(runtime.runtimeCapabilitiesSummary())
+        exit(EXIT_SUCCESS)
+    }
+
     if config.selfTestOnly {
         print(try RuntimeSelfTest.run(runtime: runtime))
         exit(EXIT_SUCCESS)
