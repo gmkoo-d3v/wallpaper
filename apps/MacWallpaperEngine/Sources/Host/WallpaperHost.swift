@@ -21,10 +21,7 @@ final class WallpaperHost: NSObject {
 
     func stop() {
         NotificationCenter.default.removeObserver(self)
-        for window in windows {
-            window.orderOut(nil)
-            window.close()
-        }
+        close(windows: windows)
         windows.removeAll()
     }
 
@@ -33,96 +30,127 @@ final class WallpaperHost: NSObject {
             try rebuildWindows()
         } catch {
             fputs("Display rebuild failed: \(error.localizedDescription)\n", stderr)
-            stop()
         }
     }
 
     private func rebuildWindows() throws {
-        for window in windows {
+        let replacementWindows = try makeReplacementWindows()
+        replaceWindows(with: replacementWindows)
+    }
+
+    private func makeReplacementWindows() throws -> [NSWindow] {
+        var replacementWindows: [NSWindow] = []
+        do {
+            let screens = NSScreen.screens
+            guard let primary = screens.first else { return [] }
+
+            for screen in screens {
+                guard let role = DisplayPlanner.role(for: screen, primary: primary, runtime: runtime) else { continue }
+                let window = try makeWindow(for: screen, role: role)
+                replacementWindows.append(window)
+            }
+            return replacementWindows
+        } catch {
+            close(windows: replacementWindows)
+            throw error
+        }
+    }
+
+    private func replaceWindows(with replacementWindows: [NSWindow]) {
+        let oldWindows = windows
+        windows = replacementWindows
+        close(windows: oldWindows)
+        show(windows: replacementWindows)
+    }
+
+    private func close(windows targetWindows: [NSWindow]) {
+        for window in targetWindows {
             window.orderOut(nil)
             window.close()
         }
-        windows.removeAll()
+    }
 
-        let screens = NSScreen.screens
-        guard let primary = screens.first else { return }
-
-        for screen in screens {
-            guard let role = DisplayPlanner.role(for: screen, primary: primary, runtime: runtime) else { continue }
-            do {
-                let view: NSView = if runtime.config.metalEnabled {
-                    try WallpaperMetalView(runtime: runtime, displayRole: role)
-                } else {
-                    PlainWallpaperView()
-                }
-                view.frame = CGRect(origin: .zero, size: screen.frame.size)
-                view.autoresizingMask = [.width, .height]
-
-                let styleMask: NSWindow.StyleMask = runtime.config.plainWindowStyle
-                    ? [.titled, .closable, .miniaturizable, .resizable]
-                    : [.borderless]
-
-                let contentRect = runtime.config.plainWindowStyle
-                    ? CGRect(x: screen.frame.midX - 400, y: screen.frame.midY - 225, width: 800, height: 450)
-                    : screen.frame
-
-                let window: NSWindow
-                if runtime.config.plainWindowStyle {
-                    window = NSWindow(
-                        contentRect: contentRect,
-                        styleMask: styleMask,
-                        backing: .buffered,
-                        defer: false
-                    )
-                } else {
-                    window = NSWindow(
-                        contentRect: contentRect,
-                        styleMask: styleMask,
-                        backing: .buffered,
-                        defer: false,
-                        screen: screen
-                    )
-                }
-                window.title = "Mac Wallpaper Engine Diagnostic"
-                window.isReleasedWhenClosed = false
-                window.contentView = view
-                view.frame = window.contentView?.bounds ?? CGRect(origin: .zero, size: contentRect.size)
-                window.level = runtime.config.plainWindowStyle ? .normal : runtime.config.level.windowLevel
-                window.backgroundColor = .black
-                window.isOpaque = true
-                window.hasShadow = runtime.config.plainWindowStyle
-                window.animationBehavior = .none
-                window.ignoresMouseEvents = runtime.config.plainWindowStyle == false
-                if runtime.config.plainWindowStyle == false {
-                    window.collectionBehavior = [
-                        .canJoinAllSpaces,
-                        .stationary,
-                        .ignoresCycle,
-                        .fullScreenAuxiliary
-                    ]
-                }
-                if runtime.config.plainWindowStyle == false {
-                    window.setFrame(screen.frame, display: true)
-                    view.frame = window.contentView?.bounds ?? CGRect(origin: .zero, size: screen.frame.size)
-                }
-
-                if runtime.config.startHidden {
-                    window.orderOut(nil)
-                } else if runtime.config.plainWindowStyle {
-                    window.makeKeyAndOrderFront(nil)
-                } else {
-                    window.orderFrontRegardless()
-                }
-                windows.append(window)
-            } catch {
-                throw EngineError.renderer("display \(screen.localizedName) renderer failed: \(error.localizedDescription)")
+    private func show(windows targetWindows: [NSWindow]) {
+        for window in targetWindows {
+            if runtime.config.startHidden {
+                window.orderOut(nil)
+            } else if runtime.config.plainWindowStyle {
+                window.makeKeyAndOrderFront(nil)
+            } else {
+                window.orderFrontRegardless()
             }
+        }
+    }
+
+    private func makeWindow(for screen: NSScreen, role: RenderDisplayRole) throws -> NSWindow {
+        do {
+            let view: NSView = if runtime.config.metalEnabled {
+                try WallpaperMetalView(runtime: runtime, displayRole: role)
+            } else {
+                PlainWallpaperView()
+            }
+            view.frame = CGRect(origin: .zero, size: screen.frame.size)
+            view.autoresizingMask = [.width, .height]
+
+            let styleMask: NSWindow.StyleMask = runtime.config.plainWindowStyle
+                ? [.titled, .closable, .miniaturizable, .resizable]
+                : [.borderless]
+
+            let contentRect = runtime.config.plainWindowStyle
+                ? CGRect(x: screen.frame.midX - 400, y: screen.frame.midY - 225, width: 800, height: 450)
+                : screen.frame
+
+            let window: NSWindow
+            if runtime.config.plainWindowStyle {
+                window = NSWindow(
+                    contentRect: contentRect,
+                    styleMask: styleMask,
+                    backing: .buffered,
+                    defer: false
+                )
+            } else {
+                window = NSWindow(
+                    contentRect: contentRect,
+                    styleMask: styleMask,
+                    backing: .buffered,
+                    defer: false,
+                    screen: screen
+                )
+            }
+            window.title = "Mac Wallpaper Engine Diagnostic"
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            view.frame = window.contentView?.bounds ?? CGRect(origin: .zero, size: contentRect.size)
+            window.level = runtime.config.plainWindowStyle ? .normal : runtime.config.level.windowLevel
+            window.backgroundColor = .black
+            window.isOpaque = true
+            window.hasShadow = runtime.config.plainWindowStyle
+            window.animationBehavior = .none
+            window.ignoresMouseEvents = runtime.config.plainWindowStyle == false
+            if runtime.config.plainWindowStyle == false {
+                window.collectionBehavior = [
+                    .canJoinAllSpaces,
+                    .stationary,
+                    .ignoresCycle,
+                    .fullScreenAuxiliary
+                ]
+            }
+            if runtime.config.plainWindowStyle == false {
+                window.setFrame(screen.frame, display: true)
+                view.frame = window.contentView?.bounds ?? CGRect(origin: .zero, size: screen.frame.size)
+            }
+
+            return window
+        } catch {
+            throw EngineError.renderer("display \(screen.localizedName) renderer failed: \(error.localizedDescription)")
         }
     }
 
 }
 
 enum DisplayPlanner {
+    static let rebuildPolicy = "atomic-rollback"
+
     static func role(for screen: NSScreen, primary: NSScreen, runtime: NativeRuntimeCore) -> RenderDisplayRole? {
         role(isPrimary: screen === primary, displayMode: runtime.config.displayMode, manifest: runtime.manifest)
     }
@@ -168,6 +196,7 @@ enum DisplayPlanner {
         return """
         display plan OK
         displayMode: \(runtime.config.displayMode.rawValue)
+        rebuildPolicy: \(rebuildPolicy)
         manifest primary: \(runtime.manifest.displayPolicy.primary.rawValue)
         manifest secondary: \(runtime.manifest.displayPolicy.secondary.rawValue)
         occluded: \(runtime.manifest.displayPolicy.occluded.rawValue)

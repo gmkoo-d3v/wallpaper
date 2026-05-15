@@ -39,6 +39,7 @@ enum RuntimeSelfTest {
             highPlan.summary().contains("exhaustedBudgetFallback: video-only when available"),
             "performance plan must document exhausted-budget video-only fallback"
         )
+        check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
 
         let primaryRole = DisplayPlanner.role(
             isPrimary: true,

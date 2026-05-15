@@ -37,6 +37,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
 - Resource-budget fallback from native Spine to composite video when the
   downgrade ladder is exhausted and a composite asset exists.
+- Atomic display rebuild policy keeps the previous wallpaper windows alive if
+  a hot-plug/display rebuild fails partway through.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
 - Control panel foreground switch:
