@@ -207,6 +207,11 @@ enum DesktopInteractionGate {
         AXIsProcessTrusted()
     }
 
+    static func requestAccessibilityTrustPrompt() -> Bool {
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        return AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
+    }
+
     static func isCoveredByApplicationWindow(screenPoint: CGPoint) -> Bool {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
             return true

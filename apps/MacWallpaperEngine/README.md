@@ -74,8 +74,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Frame/drop telemetry snapshot for submitted frames, skipped frames, last skip
   reason, actual FPS, and p95 frame time.
 - Runtime telemetry is aggregated per display and surfaced in the control panel.
-- Resource-budget fallback from native Spine to composite video when the
-  downgrade ladder is exhausted and a composite asset exists.
+- Resource-budget pressure lowers FPS without silently replacing native Spine
+  with composite video, preserving the selected foreground renderer.
 - Native Spine compatibility gate falls back to `compositeVideo` when a bundle
   uses Spine feature classes the native renderer does not implement yet.
 - Manifest/package validation rejects unsupported native Spine bundles that do
@@ -96,6 +96,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Desktop icon hit-testing fails closed without Accessibility trust when
   `blockDesktopItems` is enabled, instead of letting wallpaper reactions leak
   over Finder desktop items.
+- When desktop-item hit-testing needs Accessibility trust, the runtime requests
+  the macOS Accessibility permission prompt and exposes the current trust state
+  in capability diagnostics.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.
@@ -119,12 +122,15 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Renderer Parity Priority
 
 - Treat `~/project/wall-paper/archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported` as the original Unity package source of truth.
-- Keep `Auto` as the default user-visible path: prefer native Spine, then use
-  `Composite` as the fallback while native parity is incomplete.
-- Keep `Native Spine` as the renderer parity track until the character no longer tears.
+- Keep `Auto` as the default user-visible path: prefer native Spine when the
+  selected bundle is compatible, then use `Composite` only when native Spine is
+  unsupported for that bundle.
+- Keep `Native Spine` isolated from video/composite renderer policy: use the
+  original Spine JSON, atlas UVs, placement, timeline, and constraint data as
+  the source of truth for image assembly.
 - Complete Swift renderer reproduction before tuning click action duration:
-  remaining profiler-backed runtime parity checks and wider wallpaper fixture
-  coverage.
+  remaining profiler-backed runtime parity checks, calibrated interaction
+  curves, and wider wallpaper fixture coverage.
 
 ## Run
 

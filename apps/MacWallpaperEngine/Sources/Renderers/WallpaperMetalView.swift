@@ -9,6 +9,7 @@ final class WallpaperMetalView: MTKView {
     private let displayRole: RenderDisplayRole
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
+    private var didRequestAccessibilityTrust = false
 
     init(runtime: NativeRuntimeCore, displayRole: RenderDisplayRole, displayName: String) throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
@@ -149,15 +150,30 @@ final class WallpaperMetalView: MTKView {
             isVisible: isVisible,
             displayPolicy: displayPolicy
         )
+        let accessibilityTrusted = accessibilityTrustForInteraction()
         let shouldEnableInteraction = RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
             isVisible: isVisible,
             displayRole: displayRole,
             interactionPolicy: interactionPolicy,
-            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
+            accessibilityTrusted: accessibilityTrusted
         )
         isPaused = shouldPause
         compositor.setPausedByHost(shouldPause)
         setMouseMonitorActive(shouldEnableInteraction)
+    }
+
+    private func accessibilityTrustForInteraction() -> Bool {
+        guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(interactionPolicy) else {
+            return true
+        }
+        guard DesktopInteractionGate.hasAccessibilityTrust() == false else {
+            return true
+        }
+        guard didRequestAccessibilityTrust == false else {
+            return false
+        }
+        didRequestAccessibilityTrust = true
+        return DesktopInteractionGate.requestAccessibilityTrustPrompt()
     }
 
     private func setMouseMonitorActive(_ active: Bool) {

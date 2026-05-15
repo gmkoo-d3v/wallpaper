@@ -263,9 +263,12 @@ enum RuntimeCapabilities {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
-        return RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(effectivePolicy)
-            ? "requires-accessibility-trust"
-            : "not-required"
+        guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(effectivePolicy) else {
+            return "not-required"
+        }
+        return DesktopInteractionGate.hasAccessibilityTrust()
+            ? "requires-accessibility-trust(current=trusted)"
+            : "requires-accessibility-trust(current=missing)"
     }
 
     private static func spineRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {
