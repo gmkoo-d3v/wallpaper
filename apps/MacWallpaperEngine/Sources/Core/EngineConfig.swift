@@ -314,7 +314,7 @@ struct EngineConfig {
     Options:
       --wallpaper-root <path>   Wallpaper bundle root. Defaults to the first valid bundle under wallpapers/.
       --manifest <path>         Native manifest path. Defaults to wallpaper.native.json under root.
-      --display-mode <mode>     all | primaryAnimated | primaryOnly. Default: primaryAnimated.
+      --display-mode <mode>     all | primaryAnimated | primaryOnly. primaryAnimated keeps secondary displays on manifest policy.
       --level <level>           normal | desktop | desktopMinusOne | desktopPlusOne | backstop. Default: desktop.
       --duration <seconds>      Auto-quit after a short smoke run.
       --fps <value>             Render FPS: 30 | 60 | 120. Defaults to manifest targetFps.

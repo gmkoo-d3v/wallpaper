@@ -47,6 +47,10 @@ enum RuntimeSelfTest {
             "window visibility pause policy must be explicit"
         )
         check(
+            ControlPanelWindowController.displayModeLabels == ["Primary+Policy", "All Full", "Primary Only"],
+            "control panel display mode labels must distinguish secondary policy from primary-only"
+        )
+        check(
             RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: true),
             "startup host failures must surface in the control panel when UI is available"
         )

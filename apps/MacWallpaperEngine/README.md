@@ -59,6 +59,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   a hot-plug/display rebuild fails partway through.
 - Window visibility loss from occlusion or fullscreen-obscured states pauses
   rendering when the manifest display policy requests `pause`.
+- Display mode labels distinguish `Primary+Policy` from `Primary Only` so
+  secondary-display background behavior is not hidden behind an ambiguous
+  "primary" label.
 - Startup host failures keep the control panel open when UI is available so
   users can choose another bundle instead of watching the app silently exit.
 - Pass-through mode for desktop click safety.

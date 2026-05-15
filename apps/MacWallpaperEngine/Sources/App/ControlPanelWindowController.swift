@@ -37,6 +37,8 @@ protocol ControlPanelDelegate: AnyObject {
 }
 
 final class ControlPanelWindowController: NSWindowController {
+    static let displayModeLabels = ["Primary+Policy", "All Full", "Primary Only"]
+
     weak var delegate: ControlPanelDelegate?
 
     private let statusValue = NSTextField(labelWithString: "")
@@ -46,7 +48,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let telemetryValue = NSTextField(labelWithString: "")
     private let previewImageView = NSImageView(frame: .zero)
     private let displayModeControl = NSSegmentedControl(
-        labels: ["Primary", "All", "Only"],
+        labels: ControlPanelWindowController.displayModeLabels,
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -353,6 +355,9 @@ final class ControlPanelWindowController: NSWindowController {
 
         interactionToggle.font = .systemFont(ofSize: 13, weight: .regular)
         displayModeControl.segmentStyle = .texturedSquare
+        displayModeControl.setToolTip("Primary display is full; secondary displays follow the manifest secondary policy.", forSegment: 0)
+        displayModeControl.setToolTip("All displays render the full wallpaper; secondary displays remain passive.", forSegment: 1)
+        displayModeControl.setToolTip("Only the primary display gets a wallpaper window.", forSegment: 2)
 
         row.addArrangedSubview(caption)
         row.addArrangedSubview(displayModeControl)
