@@ -286,16 +286,57 @@ enum ManifestLoader {
     }
 
     private static func validateVideoDimensions(_ url: URL, maxDimension: Int) throws {
-        let asset = AVURLAsset(url: url)
-        guard let track = asset.tracks(withMediaType: .video).first else {
-            throw EngineError.asset("video asset has no video track: \(url.path)")
-        }
-        let transformedSize = track.naturalSize.applying(track.preferredTransform)
+        let transformedSize = try loadVideoPresentationSize(url)
         let width = Int(abs(transformedSize.width))
         let height = Int(abs(transformedSize.height))
         guard width <= maxDimension, height <= maxDimension else {
             throw EngineError.asset("video exceeds max dimension \(maxDimension): \(url.path)")
         }
+    }
+
+    private static func loadVideoPresentationSize(_ url: URL) throws -> CGSize {
+        final class MetadataResultBox {
+            private let lock = NSLock()
+            private var result: Result<CGSize, Error>?
+
+            func set(_ result: Result<CGSize, Error>) {
+                lock.lock()
+                self.result = result
+                lock.unlock()
+            }
+
+            func get() -> Result<CGSize, Error>? {
+                lock.lock()
+                defer { lock.unlock() }
+                return result
+            }
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = MetadataResultBox()
+
+        Task {
+            do {
+                let asset = AVURLAsset(url: url)
+                guard let track = try await asset.loadTracks(withMediaType: .video).first else {
+                    throw EngineError.asset("video asset has no video track: \(url.path)")
+                }
+                let naturalSize = try await track.load(.naturalSize)
+                let preferredTransform = try await track.load(.preferredTransform)
+                box.set(.success(naturalSize.applying(preferredTransform)))
+            } catch {
+                box.set(.failure(error))
+            }
+            semaphore.signal()
+        }
+
+        guard semaphore.wait(timeout: .now() + 10) == .success else {
+            throw EngineError.asset("timed out while reading video dimensions: \(url.path)")
+        }
+        guard let result = box.get() else {
+            throw EngineError.asset("could not read video dimensions: \(url.path)")
+        }
+        return try result.get()
     }
 
     private static func validateSpineJSON(_ url: URL, requiredVersion: String, referencedActions: Set<String>) throws {
