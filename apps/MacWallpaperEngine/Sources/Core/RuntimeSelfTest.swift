@@ -126,6 +126,45 @@ enum RuntimeSelfTest {
             RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported,
             "active bundle must pass native Spine compatibility gate"
         )
+        let syntheticDisplay = DisplayIdentityDescriptor(
+            name: "LG ULTRAFINE",
+            displayID: 42,
+            fingerprint: "abc123",
+            arrangement: "arr789"
+        )
+        check(
+            DisplayPlanner.primarySelectorMatches("displayID:42", descriptor: syntheticDisplay),
+            "primary display selector must match explicit displayID"
+        )
+        check(
+            DisplayPlanner.primarySelectorMatches("42", descriptor: syntheticDisplay),
+            "primary display selector must match raw displayID"
+        )
+        check(
+            DisplayPlanner.primarySelectorMatches("fingerprint:abc123", descriptor: syntheticDisplay),
+            "primary display selector must match explicit fallback fingerprint"
+        )
+        check(
+            DisplayPlanner.primarySelectorMatches("arrangement:arr789", descriptor: syntheticDisplay),
+            "primary display selector must match explicit arrangement hash"
+        )
+        check(
+            DisplayPlanner.primarySelectorMatches("name:lg ultrafine", descriptor: syntheticDisplay),
+            "primary display selector must match explicit display name"
+        )
+        check(
+            DisplayPlanner.primarySelectorMatches("displayID:7", descriptor: syntheticDisplay) == false,
+            "primary display selector must reject non-matching displayID"
+        )
+        let parsedPrimaryOverride = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--primary-display", "fingerprint:abc123",
+            "--validate-only"
+        ])
+        check(
+            parsedPrimaryOverride.primaryDisplaySelector == "fingerprint:abc123",
+            "EngineConfig must parse --primary-display selector"
+        )
         let nativeRuntime = try NativeRuntimeCore(
             config: runtime.config.replacing(foregroundMode: .nativeSpine, clearDuration: true)
         )

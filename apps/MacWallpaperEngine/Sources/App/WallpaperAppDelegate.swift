@@ -393,6 +393,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             manifestURL: manifestURL,
             level: .desktop,
             displayMode: .primaryAnimated,
+            primaryDisplaySelector: nil,
             duration: nil,
             renderFps: 60,
             playbackRateOverride: 1.0,

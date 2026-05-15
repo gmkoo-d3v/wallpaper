@@ -21,6 +21,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Display/render plans include a macOS display id plus a hashed fallback
   fingerprint and arrangement hash so reconnect or display-order drift can be
   diagnosed.
+- `--primary-display` can pin the runtime's primary display using a display id,
+  fallback fingerprint, arrangement hash, or display name selector.
 - Control panel library diagnostics show invalid wallpaper folders without
   hiding valid bundles.
 - Control panel bundle library shows selected bundle metadata and preview art
@@ -110,6 +112,7 @@ cd ~/project/wall-paper/apps/MacWallpaperEngine
 swift run MacWallpaperEngine --validate-only
 swift run MacWallpaperEngine --runtime-capabilities
 swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode all
+swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain

@@ -42,7 +42,7 @@ final class WallpaperHost: NSObject {
         var replacementWindows: [NSWindow] = []
         do {
             let screens = NSScreen.screens
-            guard let primary = screens.first else { return [] }
+            guard let primary = DisplayPlanner.primaryScreen(in: screens, runtime: runtime) else { return [] }
 
             for screen in screens {
                 guard let role = DisplayPlanner.role(for: screen, primary: primary, runtime: runtime) else { continue }
@@ -151,6 +151,39 @@ final class WallpaperHost: NSObject {
 enum DisplayPlanner {
     static let rebuildPolicy = "atomic-rollback"
 
+    static func primaryScreen(in screens: [NSScreen], runtime: NativeRuntimeCore) -> NSScreen? {
+        guard let first = screens.first else { return nil }
+        guard let selector = runtime.config.primaryDisplaySelector?.trimmingCharacters(in: .whitespacesAndNewlines),
+              selector.isEmpty == false else {
+            return first
+        }
+        return screens.first { primarySelectorMatches(selector, descriptor: displayDescriptor(for: $0)) } ?? first
+    }
+
+    static func primarySelectorMatches(_ selector: String, descriptor: DisplayIdentityDescriptor) -> Bool {
+        let normalized = selector.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.isEmpty == false else { return false }
+
+        let displayID = descriptor.displayID.map(String.init)
+        let candidatePairs: [(prefix: String, value: String?)] = [
+            ("displayid:", displayID),
+            ("id:", displayID),
+            ("fingerprint:", descriptor.fingerprint),
+            ("arrangement:", descriptor.arrangement),
+            ("name:", descriptor.name.lowercased())
+        ]
+
+        for pair in candidatePairs where normalized.hasPrefix(pair.prefix) {
+            let value = String(normalized.dropFirst(pair.prefix.count))
+            return pair.value?.lowercased() == value
+        }
+
+        return displayID == normalized
+            || descriptor.fingerprint.lowercased() == normalized
+            || descriptor.arrangement.lowercased() == normalized
+            || descriptor.name.lowercased() == normalized
+    }
+
     static func role(for screen: NSScreen, primary: NSScreen, runtime: NativeRuntimeCore) -> RenderDisplayRole? {
         role(isPrimary: screen === primary, displayMode: runtime.config.displayMode, manifest: runtime.manifest)
     }
@@ -180,7 +213,7 @@ enum DisplayPlanner {
 
     static func summary(runtime: NativeRuntimeCore) -> String {
         let screens = NSScreen.screens
-        guard let primary = screens.first else {
+        guard let primary = primaryScreen(in: screens, runtime: runtime) else {
             return "display plan: no screens detected"
         }
 
@@ -196,6 +229,7 @@ enum DisplayPlanner {
         return """
         display plan OK
         displayMode: \(runtime.config.displayMode.rawValue)
+        primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         rebuildPolicy: \(rebuildPolicy)
         manifest primary: \(runtime.manifest.displayPolicy.primary.rawValue)
         manifest secondary: \(runtime.manifest.displayPolicy.secondary.rawValue)
@@ -207,7 +241,7 @@ enum DisplayPlanner {
 
     static func renderSummary(runtime: NativeRuntimeCore) -> String {
         let screens = NSScreen.screens
-        guard let primary = screens.first else {
+        guard let primary = primaryScreen(in: screens, runtime: runtime) else {
             return "render plan: no screens detected"
         }
 
@@ -224,6 +258,7 @@ enum DisplayPlanner {
         render plan OK
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
         displayMode: \(runtime.config.displayMode.rawValue)
+        primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
         \(lines.joined(separator: "\n"))
         """
@@ -350,9 +385,28 @@ enum DisplayPlanner {
     }
 
     private static func displayIdentity(_ screen: NSScreen) -> String {
+        displayDescriptor(for: screen).summary
+    }
+
+    private static func primarySelectionSummary(primary: NSScreen, runtime: NativeRuntimeCore) -> String {
+        let descriptor = displayDescriptor(for: primary)
+        guard let selector = runtime.config.primaryDisplaySelector?.trimmingCharacters(in: .whitespacesAndNewlines),
+              selector.isEmpty == false else {
+            return "appkit-default \(descriptor.shortSummary)"
+        }
+
+        let status = primarySelectorMatches(selector, descriptor: descriptor) ? "matched" : "unmatched-fallback"
+        return "\(status) selector=\(selector) effective=\(descriptor.shortSummary)"
+    }
+
+    private static func displayDescriptor(for screen: NSScreen) -> DisplayIdentityDescriptor {
         let displayID = screen.displayID
-        let stableIdentity = displayID.map { "displayID:\($0)" } ?? "displayID:unknown"
-        return "identity=\(stableIdentity) fingerprint=\(fallbackFingerprint(for: screen, displayID: displayID)) arrangement=\(arrangementFingerprint(for: screen))"
+        return DisplayIdentityDescriptor(
+            name: screen.localizedName,
+            displayID: displayID.map { UInt32($0) },
+            fingerprint: fallbackFingerprint(for: screen, displayID: displayID),
+            arrangement: arrangementFingerprint(for: screen)
+        )
     }
 
     private static func fallbackFingerprint(for screen: NSScreen, displayID: CGDirectDisplayID?) -> String {
@@ -395,6 +449,25 @@ enum DisplayPlanner {
 
     private static func format(_ value: CGFloat) -> String {
         String(format: "%.2f", Double(value))
+    }
+}
+
+struct DisplayIdentityDescriptor {
+    let name: String
+    let displayID: UInt32?
+    let fingerprint: String
+    let arrangement: String
+
+    var summary: String {
+        "identity=\(identityLabel) fingerprint=\(fingerprint) arrangement=\(arrangement)"
+    }
+
+    var shortSummary: String {
+        "\(identityLabel) fingerprint=\(fingerprint)"
+    }
+
+    private var identityLabel: String {
+        displayID.map { "displayID:\($0)" } ?? "displayID:unknown"
     }
 }
 

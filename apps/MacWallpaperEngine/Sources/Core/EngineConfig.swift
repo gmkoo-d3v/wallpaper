@@ -58,6 +58,7 @@ struct EngineConfig {
     let manifestURL: URL
     let level: WallpaperLevel
     let displayMode: DisplayMode
+    let primaryDisplaySelector: String?
     let duration: TimeInterval?
     let renderFps: Int?
     let playbackRateOverride: Float?
@@ -81,6 +82,7 @@ struct EngineConfig {
         wallpaperRoot: URL? = nil,
         manifestURL: URL? = nil,
         displayMode: DisplayMode? = nil,
+        primaryDisplaySelector: String? = nil,
         interactive: Bool? = nil,
         renderFps: Int? = nil,
         playbackRateOverride: Float? = nil,
@@ -106,6 +108,7 @@ struct EngineConfig {
             manifestURL: manifestURL ?? self.manifestURL,
             level: level,
             displayMode: displayMode ?? self.displayMode,
+            primaryDisplaySelector: primaryDisplaySelector ?? self.primaryDisplaySelector,
             duration: clearDuration ? nil : (duration ?? self.duration),
             renderFps: renderFps ?? self.renderFps,
             playbackRateOverride: playbackRateOverride ?? self.playbackRateOverride,
@@ -132,6 +135,7 @@ struct EngineConfig {
         var manifestURL: URL?
         var level = WallpaperLevel.desktop
         var displayMode = DisplayMode.primaryAnimated
+        var primaryDisplaySelector: String?
         var duration: TimeInterval?
         var renderFps: Int?
         var playbackRateOverride: Float?
@@ -175,6 +179,14 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("Unknown --display-mode: \(raw)")
                 }
                 displayMode = parsed
+            case "--primary-display":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.isEmpty == false else {
+                    throw EngineError.invalidArgument("--primary-display cannot be empty")
+                }
+                primaryDisplaySelector = trimmed
             case "--duration":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -283,6 +295,7 @@ struct EngineConfig {
             manifestURL: resolvedManifest,
             level: level,
             displayMode: displayMode,
+            primaryDisplaySelector: primaryDisplaySelector,
             duration: duration,
             renderFps: renderFps,
             playbackRateOverride: playbackRateOverride,
@@ -322,6 +335,7 @@ struct EngineConfig {
       --wallpaper-root <path>   Wallpaper bundle root. Defaults to the first valid bundle under wallpapers/.
       --manifest <path>         Native manifest path. Defaults to wallpaper.native.json under root.
       --display-mode <mode>     all | primaryAnimated | primaryOnly. primaryAnimated keeps secondary displays on manifest policy.
+      --primary-display <sel>   Treat a matching display as primary. Accepts displayID:<id>, fingerprint:<hash>, arrangement:<hash>, name:<name>, or raw id/hash/name.
       --level <level>           normal | desktop | desktopMinusOne | desktopPlusOne | backstop. Default: desktop.
       --duration <seconds>      Auto-quit after a short smoke run.
       --fps <value>             Render FPS: 30 | 60 | 120. Defaults to manifest targetFps.
