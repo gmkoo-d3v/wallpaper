@@ -78,6 +78,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   with composite video, preserving the selected foreground renderer.
 - Native Spine compatibility gate falls back to `compositeVideo` when a bundle
   uses Spine feature classes the native renderer does not implement yet.
+- Runtime capability diagnostics report video/composite size, duration,
+  playback rate, and effective FPS; low-FPS composite fallback is flagged so it
+  can be regenerated at 60/120fps+ instead of being mistaken for a renderer bug.
 - Manifest/package validation rejects unsupported native Spine bundles that do
   not provide a `compositeVideo` fallback.
 - Atomic display rebuild policy keeps the previous wallpaper windows alive if

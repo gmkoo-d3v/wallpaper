@@ -59,8 +59,20 @@ enum RuntimeCapabilities {
         var rows: [RuntimeCapabilityRow] = []
 
         rows.append(assetRow(name: "staticImage", isPresent: manifest.assets.staticImage != nil, detail: manifest.assets.staticImage?.path))
-        rows.append(assetRow(name: "video", isPresent: manifest.assets.video != nil, detail: manifest.assets.video?.path))
-        rows.append(assetRow(name: "compositeVideo", isPresent: manifest.assets.compositeVideo != nil, detail: manifest.assets.compositeVideo?.path))
+        rows.append(videoAssetRow(
+            name: "video",
+            config: manifest.assets.video,
+            asset: runtime.assetCatalog.videoAsset,
+            targetFps: runtime.renderTargetFps,
+            warnWhenBelowTarget: false
+        ))
+        rows.append(videoAssetRow(
+            name: "compositeVideo",
+            config: manifest.assets.compositeVideo,
+            asset: runtime.assetCatalog.compositeVideoAsset,
+            targetFps: runtime.renderTargetFps,
+            warnWhenBelowTarget: true
+        ))
         rows.append(assetRow(name: "spine", isPresent: manifest.assets.spine != nil, detail: manifest.assets.spine?.json))
 
         for layer in manifest.layers {
@@ -168,6 +180,64 @@ enum RuntimeCapabilities {
             status: isPresent ? "supported" : "not-used",
             detail: detail ?? "none"
         )
+    }
+
+    private static func videoAssetRow(
+        name: String,
+        config: VideoAssetConfig?,
+        asset: VideoAsset?,
+        targetFps: Int,
+        warnWhenBelowTarget: Bool
+    ) -> RuntimeCapabilityRow {
+        guard let config, let asset else {
+            return assetRow(name: name, isPresent: false, detail: nil)
+        }
+
+        do {
+            let metadata = try VideoMetadataInspector.inspect(url: asset.url)
+            let effectiveFps = metadata.effectiveFrameRate(playbackRate: asset.playbackRate)
+            let belowTarget = warnWhenBelowTarget
+                && (effectiveFps ?? 0) + 0.5 < Double(targetFps)
+            let status = belowTarget ? "warning" : "supported"
+            let warning = belowTarget
+                ? " below target=\(targetFps); regenerate 60/120fps+ fallback for smooth composite playback"
+                : ""
+            return RuntimeCapabilityRow(
+                category: "asset",
+                name: name,
+                status: status,
+                detail: "\(config.path) \(videoMetadataDetail(metadata, playbackRate: asset.playbackRate, effectiveFps: effectiveFps))\(warning)"
+            )
+        } catch {
+            return RuntimeCapabilityRow(
+                category: "asset",
+                name: name,
+                status: "warning",
+                detail: "\(config.path) metadata=unreadable(\(error.localizedDescription))"
+            )
+        }
+    }
+
+    private static func videoMetadataDetail(
+        _ metadata: VideoMetadata,
+        playbackRate: Float,
+        effectiveFps: Double?
+    ) -> String {
+        let width = Int(abs(metadata.presentationSize.width).rounded())
+        let height = Int(abs(metadata.presentationSize.height).rounded())
+        let duration = metadata.durationSeconds.map { "\(formatNumber($0))s" } ?? "unknown"
+        return "fps=\(formatNumber(Double(metadata.nominalFrameRate))) effectiveFps=\(formatNumber(effectiveFps)) playbackRate=\(formatNumber(Double(playbackRate)))x size=\(width)x\(height) duration=\(duration)"
+    }
+
+    private static func formatNumber(_ value: Double?) -> String {
+        guard let value, value.isFinite else {
+            return "unknown"
+        }
+        let rounded = value.rounded()
+        if abs(value - rounded) < 0.005 {
+            return "\(Int(rounded))"
+        }
+        return String(format: "%.2f", value)
     }
 
     private static func layerStatus(_ layer: LayerConfig) -> String {

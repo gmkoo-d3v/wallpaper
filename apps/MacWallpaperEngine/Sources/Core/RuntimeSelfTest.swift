@@ -135,6 +135,24 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("desktopItemGate=requires-accessibility-trust"),
             "runtime capabilities summary must disclose desktop item Accessibility trust requirement"
         )
+        if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
+            check(
+                capabilitySummary.contains("asset\tcompositeVideo\t"),
+                "runtime capabilities summary must report compositeVideo asset diagnostics"
+            )
+            check(
+                capabilitySummary.contains("effectiveFps="),
+                "video capability diagnostics must expose effective playback FPS"
+            )
+            if let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
+               let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),
+               effectiveFps + 0.5 < Double(runtime.renderTargetFps) {
+                check(
+                    capabilitySummary.contains("asset\tcompositeVideo\twarning"),
+                    "low-FPS composite fallback must be reported as a runtime capability warning"
+                )
+            }
+        }
         if runtime.assetCatalog.spineAsset == nil {
             check(
                 capabilitySummary.contains("spine\tnativeRenderer\tnot-used"),
