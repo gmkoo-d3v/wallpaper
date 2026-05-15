@@ -114,6 +114,18 @@ enum WallpaperBundleCatalog {
         )
     }
 
+    static func invalidDiagnosticsSummary(for diagnostics: [WallpaperBundleDiagnostic]) -> String {
+        let invalidDiagnostics = diagnostics.filter { $0.status == .invalid }
+        guard invalidDiagnostics.isEmpty == false else { return "" }
+
+        let shown = invalidDiagnostics.prefix(2).map {
+            "\($0.root.lastPathComponent): \($0.errorMessage ?? "invalid bundle")"
+        }
+        let remaining = invalidDiagnostics.count - shown.count
+        let suffix = remaining > 0 ? " (+\(remaining) more)" : ""
+        return "Invalid bundles: " + shown.joined(separator: " / ") + suffix
+    }
+
     private static func candidateBundleDirectories(in wallpapersDirectory: URL) -> [URL] {
         let directory = wallpapersDirectory.standardizedFileURL
         guard ProjectPaths.directoryExists(directory),
@@ -130,7 +142,7 @@ enum WallpaperBundleCatalog {
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
-    private static func diagnoseBundle(_ url: URL) -> WallpaperBundleDiagnostic {
+    static func diagnoseBundle(_ url: URL) -> WallpaperBundleDiagnostic {
         let root = url.standardizedFileURL
         do {
             let bundle = try requireValidBundle(root)

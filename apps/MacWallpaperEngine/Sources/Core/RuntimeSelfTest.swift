@@ -148,6 +148,13 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let invalidSummary = WallpaperBundleCatalog.invalidDiagnosticsSummary(for: diagnostics)
+        check(
+            invalidSummary.contains("Invalid bundles: missing_manifest_bundle"),
+            "bundle diagnostics summary must name invalid folders for UI recovery",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             WallpaperBundleCatalog.discover(in: fixtureParent).isEmpty,
             "bundle discovery must exclude invalid diagnostics",

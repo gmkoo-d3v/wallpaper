@@ -12,6 +12,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   Application Support wallpaper library.
 - `--list-bundles --include-invalid` diagnostics for unsupported or malformed
   wallpaper folders.
+- Control panel library diagnostics show invalid wallpaper folders without
+  hiding valid bundles.
 - Bundle import into the user Application Support wallpaper library with
   manifest validation and symlink rejection.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime

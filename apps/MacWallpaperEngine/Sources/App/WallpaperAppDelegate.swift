@@ -215,6 +215,8 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
 
 extension WallpaperAppDelegate: ControlPanelDelegate {
     var controlPanelState: ControlPanelState {
+        let libraryState = wallpaperBundleLibraryState()
+
         guard let runtime else {
             return ControlPanelState(
                 isRunning: false,
@@ -226,7 +228,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 foregroundMode: .compositeVideo,
                 wallpaperRoot: nil,
                 wallpaperPath: "No wallpaper bundle selected",
-                availableBundles: availableWallpaperBundles(),
+                availableBundles: libraryState.bundles,
+                bundleDiagnosticsText: libraryState.diagnosticsText,
                 statusText: lastError.map { "ERROR / \($0)" } ?? "NO BUNDLE SELECTED"
             )
         }
@@ -247,7 +250,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             foregroundMode: runtime.config.foregroundMode,
             wallpaperRoot: runtime.config.wallpaperRoot,
             wallpaperPath: runtime.config.wallpaperRoot.path,
-            availableBundles: availableWallpaperBundles(),
+            availableBundles: libraryState.bundles,
+            bundleDiagnosticsText: libraryState.diagnosticsText,
             statusText: status
         )
     }
@@ -395,23 +399,29 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         )
     }
 
-    private func availableWallpaperBundles() -> [WallpaperBundleSummary] {
+    private func wallpaperBundleLibraryState() -> (bundles: [WallpaperBundleSummary], diagnosticsText: String) {
         let projectRoot = runtime?.config.projectRoot ?? (try? ProjectPaths.findProjectRoot())
-        var bundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: projectRoot)
+        var diagnostics = WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
 
         if let currentRoot = runtime?.config.wallpaperRoot {
             let currentPath = currentRoot.standardizedFileURL.resolvingSymlinksInPath().path
-            let isAlreadyListed = bundles.contains {
+            let isAlreadyListed = diagnostics.contains {
                 $0.root.standardizedFileURL.resolvingSymlinksInPath().path == currentPath
             }
-            if !isAlreadyListed, let currentBundle = WallpaperBundleCatalog.validateBundle(currentRoot) {
-                bundles.append(currentBundle)
-                bundles.sort {
-                    $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
-                }
+            if !isAlreadyListed {
+                diagnostics.append(WallpaperBundleCatalog.diagnoseBundle(currentRoot))
             }
         }
 
-        return bundles
+        diagnostics.sort {
+            let nameOrder = $0.displayName.localizedStandardCompare($1.displayName)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+            return $0.root.path.localizedStandardCompare($1.root.path) == .orderedAscending
+        }
+
+        let bundles = diagnostics.compactMap(\.bundle)
+        return (bundles, WallpaperBundleCatalog.invalidDiagnosticsSummary(for: diagnostics))
     }
 }

@@ -11,6 +11,7 @@ struct ControlPanelState {
     let wallpaperRoot: URL?
     let wallpaperPath: String
     let availableBundles: [WallpaperBundleSummary]
+    let bundleDiagnosticsText: String
     let statusText: String
 }
 
@@ -36,6 +37,7 @@ final class ControlPanelWindowController: NSWindowController {
 
     private let statusValue = NSTextField(labelWithString: "")
     private let pathValue = NSTextField(labelWithString: "")
+    private let bundleDiagnosticsValue = NSTextField(labelWithString: "")
     private let displayModeControl = NSSegmentedControl(
         labels: ["Primary", "All", "Only"],
         trackingMode: .selectOne,
@@ -109,6 +111,8 @@ final class ControlPanelWindowController: NSWindowController {
         guard let state = delegate?.controlPanelState else { return }
         statusValue.stringValue = state.statusText
         pathValue.stringValue = state.wallpaperPath
+        bundleDiagnosticsValue.stringValue = state.bundleDiagnosticsText
+        bundleDiagnosticsValue.isHidden = state.bundleDiagnosticsText.isEmpty
         availableBundles = state.availableBundles
         reloadBundlePopup(currentRoot: state.wallpaperRoot)
         displayModeControl.selectedSegment = segment(for: state.displayMode)
@@ -250,6 +254,10 @@ final class ControlPanelWindowController: NSWindowController {
         pathValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
         pathValue.lineBreakMode = .byTruncatingMiddle
         pathValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        bundleDiagnosticsValue.font = .systemFont(ofSize: 12, weight: .light)
+        bundleDiagnosticsValue.textColor = NSColor(red: 0.65, green: 0.12, blue: 0.12, alpha: 1)
+        bundleDiagnosticsValue.lineBreakMode = .byTruncatingMiddle
+        bundleDiagnosticsValue.maximumNumberOfLines = 2
         bundlePopup.widthAnchor.constraint(equalToConstant: 220).isActive = true
         chooseBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
         importBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
@@ -260,6 +268,7 @@ final class ControlPanelWindowController: NSWindowController {
         line.addArrangedSubview(importBundleButton)
         row.addArrangedSubview(caption)
         row.addArrangedSubview(line)
+        row.addArrangedSubview(bundleDiagnosticsValue)
         return row
     }
 
