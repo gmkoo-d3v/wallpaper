@@ -283,11 +283,14 @@ enum DisplayPlanner {
 
     static func renderPathSummary(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> String {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let foregroundPlan = ForegroundRenderPlan.make(
+            runtime: runtime,
+            role: role,
+            compatibility: compatibility
+        )
         let background = plannedBackground(runtime: runtime, role: role, compatibility: compatibility)
-        let foreground = plannedForeground(runtime: runtime, role: role, compatibility: compatibility)
-        let fallback = plannedFallback(runtime: runtime, role: role, compatibility: compatibility)
         let interaction = plannedInteraction(runtime: runtime, role: role)
-        return "background=\(background)\tforeground=\(foreground)\tfallback=\(fallback)\tinteraction=\(interaction)"
+        return "background=\(background)\tforeground=\(foregroundPlan.foregroundLabel)\tfallback=\(foregroundPlan.fallbackLabel)\tinteraction=\(interaction)"
     }
 
     private static func plannedBackground(
@@ -295,8 +298,13 @@ enum DisplayPlanner {
         role: RenderDisplayRole,
         compatibility: NativeSpineCompatibility
     ) -> String {
+        let foregroundPlan = ForegroundRenderPlan.make(
+            runtime: runtime,
+            role: role,
+            compatibility: compatibility
+        )
         if runtime.config.videoEnabled, role.playsVideo {
-            if shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility),
+            if foregroundPlan.usesCompositeVideo,
                let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
                 return assetLabel("compositeVideo", compositeVideo.url)
             }
@@ -318,118 +326,11 @@ enum DisplayPlanner {
         return "none(no-asset)"
     }
 
-    private static func plannedForeground(
-        runtime: NativeRuntimeCore,
-        role: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> String {
-        guard role.rendersForeground else { return "none(display-policy)" }
-
-        switch runtime.config.foregroundMode {
-        case .automatic:
-            if shouldUseNativeSpine(runtime: runtime, role: role, compatibility: compatibility) {
-                return "nativeSpine(auto)"
-            }
-            guard shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility) else {
-                return "none(no-foreground-asset)"
-            }
-            return "compositeVideo(auto)"
-        case .compositeVideo:
-            guard shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility) else {
-                return "none(no-compositeVideo)"
-            }
-            return "compositeVideo"
-        case .nativeSpine:
-            if compatibility.isSupported == false {
-                return runtime.assetCatalog.compositeVideoAsset == nil
-                    ? "blocked(native-unsupported)"
-                    : "compositeFallback(native-unsupported)"
-            }
-            return runtime.assetCatalog.spineAsset == nil ? "none(no-spine)" : "nativeSpine"
-        }
-    }
-
-    private static func plannedFallback(
-        runtime: NativeRuntimeCore,
-        role: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> String {
-        guard role.rendersForeground else {
-            return "none"
-        }
-
-        if runtime.config.foregroundMode == .automatic {
-            if shouldUseNativeSpine(runtime: runtime, role: role, compatibility: compatibility) {
-                return runtime.assetCatalog.compositeVideoAsset == nil ? "none" : "resourceBudget->compositeVideo"
-            }
-            return shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility)
-                ? "auto->compositeVideo"
-                : "none"
-        }
-
-        guard runtime.config.foregroundMode == .nativeSpine else {
-            return "none"
-        }
-
-        if compatibility.isSupported == false {
-            return runtime.assetCatalog.compositeVideoAsset == nil
-                ? "blocked(no-compositeVideo)"
-                : "nativeCompatibility->compositeVideo"
-        }
-
-        return runtime.assetCatalog.compositeVideoAsset == nil
-            ? "none"
-            : "resourceBudget->compositeVideo"
-    }
-
     private static func plannedInteraction(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> String {
         guard runtime.config.interactive else { return "passive(config-disabled)" }
         guard role.allowsInteraction else { return "passive(display-role)" }
         let mode = runtime.manifest.interactionPolicy?.mode ?? .desktopEmptyOnly
         return mode == .disabled ? "passive(policy-disabled)" : mode.rawValue
-    }
-
-    private static func shouldUseCompositeVideo(
-        runtime: NativeRuntimeCore,
-        role: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> Bool {
-        guard role.prefersCompositeVideo,
-              runtime.assetCatalog.compositeVideoAsset != nil else {
-            return false
-        }
-        switch runtime.config.foregroundMode {
-        case .automatic:
-            return shouldUseNativeSpine(runtime: runtime, role: role, compatibility: compatibility) == false
-        case .compositeVideo:
-            return true
-        case .nativeSpine:
-            return shouldFallbackNativeSpineToComposite(runtime: runtime, role: role, compatibility: compatibility)
-        }
-    }
-
-    private static func shouldUseNativeSpine(
-        runtime: NativeRuntimeCore,
-        role: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> Bool {
-        guard role.rendersForeground,
-              runtime.assetCatalog.spineAsset != nil,
-              compatibility.isSupported else {
-            return false
-        }
-        return runtime.config.foregroundMode == .nativeSpine || runtime.config.foregroundMode == .automatic
-    }
-
-    private static func shouldFallbackNativeSpineToComposite(
-        runtime: NativeRuntimeCore,
-        role: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> Bool {
-        runtime.config.foregroundMode == .nativeSpine
-            && role.rendersForeground
-            && compatibility.isSupported == false
-            && runtime.assetCatalog.compositeVideoAsset != nil
     }
 
     private static func assetLabel(_ kind: String, _ url: URL) -> String {

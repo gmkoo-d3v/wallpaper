@@ -87,6 +87,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.
   - `Native Spine`: background video plus native Spine mesh/timeline foreground.
+- Foreground renderer selection is centralized so render diagnostics and the
+  Metal compositor use the same native/composite/fallback decision.
 
 ## Not Yet Implemented
 

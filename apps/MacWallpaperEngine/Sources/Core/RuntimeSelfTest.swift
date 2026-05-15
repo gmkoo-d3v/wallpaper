@@ -193,6 +193,15 @@ enum RuntimeSelfTest {
             autoPrimaryRenderPath.contains("foreground=nativeSpine(auto)"),
             "auto render plan must prefer native Spine when the bundle supports it"
         )
+        let autoForegroundPlan = ForegroundRenderPlan.make(
+            runtime: autoRuntime,
+            role: RenderDisplayRole(kind: .primary, policy: .full),
+            compatibility: RuntimeCapabilities.nativeSpineCompatibility(runtime: autoRuntime)
+        )
+        check(
+            autoForegroundPlan.usesNativeSpine && autoForegroundPlan.foregroundLabel == "nativeSpine(auto)",
+            "shared foreground render plan must match auto native render summary"
+        )
         let nativeRuntime = try NativeRuntimeCore(
             config: runtime.config.replacing(foregroundMode: .nativeSpine, clearDuration: true)
         )
@@ -953,6 +962,23 @@ enum RuntimeSelfTest {
         let unsupportedSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(unsupportedSummary.capabilities.nativeSpineStatus == "unsupported", "catalog must surface unsupported native Spine status", failures: &failures, checks: &checks)
         check(unsupportedSummary.capabilities.fallbackStatus == "composite", "catalog must surface composite fallback for unsupported native Spine", failures: &failures, checks: &checks)
+        let unsupportedAutoRuntime = try NativeRuntimeCore(config: unsupportedRuntime.config.replacing(
+            foregroundMode: .automatic,
+            clearDuration: true
+        ))
+        let unsupportedAutoPlan = ForegroundRenderPlan.make(
+            runtime: unsupportedAutoRuntime,
+            role: RenderDisplayRole(kind: .primary, policy: .full),
+            compatibility: RuntimeCapabilities.nativeSpineCompatibility(runtime: unsupportedAutoRuntime)
+        )
+        check(
+            unsupportedAutoPlan.usesCompositeVideo
+                && unsupportedAutoPlan.foregroundLabel == "compositeVideo(auto)"
+                && unsupportedAutoPlan.fallbackLabel == "auto->compositeVideo",
+            "auto foreground render plan must fall back to composite for unsupported native Spine bundles",
+            failures: &failures,
+            checks: &checks
+        )
 
         let noFallbackManifestJSON = manifestJSON.replacingOccurrences(of: """
             "compositeVideo": {

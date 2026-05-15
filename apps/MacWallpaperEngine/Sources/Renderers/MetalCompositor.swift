@@ -50,25 +50,17 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         super.init()
 
         let nativeSpineCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
-        let shouldUseNativeSpine = Self.shouldUseNativeSpine(
+        let foregroundPlan = ForegroundRenderPlan.make(
             runtime: runtime,
-            displayRole: displayRole,
+            role: displayRole,
             compatibility: nativeSpineCompatibility
         )
-        let shouldFallbackNativeSpineToComposite = Self.shouldFallbackNativeSpineToComposite(
-            runtime: runtime,
-            displayRole: displayRole,
-            compatibility: nativeSpineCompatibility
-        )
-        if runtime.config.foregroundMode == .nativeSpine,
-           displayRole.rendersForeground,
-           nativeSpineCompatibility.isSupported == false,
-           runtime.assetCatalog.compositeVideoAsset == nil {
+        if foregroundPlan.isBlocked {
             throw EngineError.renderer(
                 "Native Spine renderer cannot safely play this bundle and no compositeVideo fallback exists: \(nativeSpineCompatibility.reasonText)"
             )
         }
-        if shouldFallbackNativeSpineToComposite {
+        if foregroundPlan.isNativeUnsupportedFallback {
             fputs(
                 "Native Spine renderer unsupported for this bundle; using compositeVideo fallback: \(nativeSpineCompatibility.reasonText)\n",
                 stderr
@@ -76,14 +68,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
 
         let selectedVideo: VideoAsset?
-        let shouldUseCompositeVideo = Self.shouldUseCompositeVideo(
-            runtime: runtime,
-            displayRole: displayRole,
-            compatibility: nativeSpineCompatibility
-        )
         if runtime.config.videoEnabled == false || displayRole.playsVideo == false {
             selectedVideo = nil
-        } else if shouldUseCompositeVideo, let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
+        } else if foregroundPlan.usesCompositeVideo, let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
             selectedVideo = compositeVideo
             usingCompositeVideo = true
         } else {
@@ -98,7 +85,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             )
         }
         if runtime.config.videoEnabled,
-           shouldUseNativeSpine,
+           foregroundPlan.usesNativeSpine,
            displayRole.rendersForeground,
            let backgroundVideo = runtime.assetCatalog.videoAsset,
            selectedVideo?.url != backgroundVideo.url {
@@ -109,7 +96,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             )
         }
         if runtime.config.videoEnabled,
-           shouldUseNativeSpine,
+           foregroundPlan.usesNativeSpine,
            displayRole.rendersForeground,
            usingCompositeVideo == false,
            let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
@@ -130,7 +117,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             options: [.SRGB: false]
         )
 
-        if shouldUseNativeSpine,
+        if foregroundPlan.usesNativeSpine,
            usingCompositeVideo == false,
            displayRole.rendersForeground,
            let spineAsset = runtime.assetCatalog.spineAsset {
@@ -146,49 +133,6 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 print("spine setup mesh OK: batches=\(spineRenderer.batchCount) vertices=\(spineRenderer.triangleVertexCount)")
             }
         }
-    }
-
-    private static func shouldUseNativeSpine(
-        runtime: NativeRuntimeCore,
-        displayRole: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> Bool {
-        guard displayRole.rendersForeground,
-              runtime.assetCatalog.spineAsset != nil,
-              compatibility.isSupported else {
-            return false
-        }
-        return runtime.config.foregroundMode == .nativeSpine || runtime.config.foregroundMode == .automatic
-    }
-
-    private static func shouldUseCompositeVideo(
-        runtime: NativeRuntimeCore,
-        displayRole: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> Bool {
-        guard displayRole.prefersCompositeVideo,
-              runtime.assetCatalog.compositeVideoAsset != nil else {
-            return false
-        }
-        switch runtime.config.foregroundMode {
-        case .automatic:
-            return shouldUseNativeSpine(runtime: runtime, displayRole: displayRole, compatibility: compatibility) == false
-        case .compositeVideo:
-            return true
-        case .nativeSpine:
-            return shouldFallbackNativeSpineToComposite(runtime: runtime, displayRole: displayRole, compatibility: compatibility)
-        }
-    }
-
-    private static func shouldFallbackNativeSpineToComposite(
-        runtime: NativeRuntimeCore,
-        displayRole: RenderDisplayRole,
-        compatibility: NativeSpineCompatibility
-    ) -> Bool {
-        runtime.config.foregroundMode == .nativeSpine
-            && displayRole.rendersForeground
-            && compatibility.isSupported == false
-            && runtime.assetCatalog.compositeVideoAsset != nil
     }
 
     private static func loopingAnimationNames(from manifest: WallpaperNativeManifest) -> Set<String> {
