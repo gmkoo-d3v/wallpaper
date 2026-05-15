@@ -152,7 +152,8 @@ final class WallpaperMetalView: MTKView {
         let shouldEnableInteraction = RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
             isVisible: isVisible,
             displayRole: displayRole,
-            interactionPolicy: interactionPolicy
+            interactionPolicy: interactionPolicy,
+            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
         )
         isPaused = shouldPause
         compositor.setPausedByHost(shouldPause)

@@ -85,6 +85,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   users can choose another bundle instead of watching the app silently exit.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
+- Desktop icon hit-testing fails closed without Accessibility trust when
+  `blockDesktopItems` is enabled, instead of letting wallpaper reactions leak
+  over Finder desktop items.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.
@@ -102,7 +105,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Runtime-calibrated region/mesh attachment parity for every action.
 - Calibrated Imported hit zones.
 - Production-grade frame cache and profiler-backed native Spine optimization.
-- Exact Finder desktop icon hit-testing without Accessibility trust.
+- Exact Finder desktop icon hit-testing without disabling interaction when
+  Accessibility trust is unavailable.
 
 ## Renderer Parity Priority
 

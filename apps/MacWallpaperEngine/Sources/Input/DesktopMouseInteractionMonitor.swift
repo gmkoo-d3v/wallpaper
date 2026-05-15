@@ -156,7 +156,10 @@ final class DesktopMouseInteractionMonitor {
             }
 
             let eligible: Bool
-            if policy.blockApplicationWindows,
+            if policy.blockDesktopItems,
+               DesktopInteractionGate.hasAccessibilityTrust() == false {
+                eligible = false
+            } else if policy.blockApplicationWindows,
                DesktopInteractionGate.isCoveredByApplicationWindow(screenPoint: screenPoint) {
                 eligible = false
             } else if policy.blockDesktopItems,
@@ -200,6 +203,10 @@ final class DesktopMouseInteractionMonitor {
 }
 
 enum DesktopInteractionGate {
+    static func hasAccessibilityTrust() -> Bool {
+        AXIsProcessTrusted()
+    }
+
     static func isCoveredByApplicationWindow(screenPoint: CGPoint) -> Bool {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
             return true

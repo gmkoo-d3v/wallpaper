@@ -48,6 +48,10 @@ enum RuntimeSelfTest {
             "window visibility pause policy must be explicit"
         )
         check(
+            RuntimeLifecyclePolicy.desktopItemTrustPolicy == "fail-closed-without-accessibility-trust",
+            "desktop item interaction policy must fail closed without Accessibility trust"
+        )
+        check(
             ControlPanelWindowController.displayModeLabels == ["Primary+Policy", "All Full", "Primary Only"],
             "control panel display mode labels must distinguish secondary policy from primary-only"
         )
@@ -114,6 +118,10 @@ enum RuntimeSelfTest {
         check(
             capabilitySummary.contains("interaction\tpointerMove/lookDirection"),
             "runtime capabilities summary must report pointer movement support"
+        )
+        check(
+            capabilitySummary.contains("desktopItemGate=requires-accessibility-trust"),
+            "runtime capabilities summary must disclose desktop item Accessibility trust requirement"
         )
         check(
             capabilitySummary.contains("head:act trigger=tap buttons=left"),
@@ -453,9 +461,21 @@ enum RuntimeSelfTest {
             RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
                 isVisible: true,
                 displayRole: primaryRole,
-                interactionPolicy: interactivePolicy
+                interactionPolicy: interactivePolicy,
+                accessibilityTrusted: true
             ),
             "visible primary full wallpaper must enable desktop interaction monitor",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
+                isVisible: true,
+                displayRole: primaryRole,
+                interactionPolicy: interactivePolicy,
+                accessibilityTrusted: false
+            ) == false,
+            "desktop-empty interaction with desktop item blocking must fail closed without Accessibility trust",
             failures: &failures,
             checks: &checks
         )
@@ -466,6 +486,27 @@ enum RuntimeSelfTest {
                 interactionPolicy: interactivePolicy
             ) == false,
             "invisible wallpaper must suspend desktop interaction monitor",
+            failures: &failures,
+            checks: &checks
+        )
+        let noDesktopItemBlockPolicy = InteractionPolicy(
+            mode: .desktopEmptyOnly,
+            blockApplicationWindows: true,
+            blockDesktopItems: false,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
+                isVisible: true,
+                displayRole: primaryRole,
+                interactionPolicy: noDesktopItemBlockPolicy,
+                accessibilityTrusted: false
+            ),
+            "desktop-empty interaction may run without Accessibility trust when desktop item blocking is disabled",
             failures: &failures,
             checks: &checks
         )

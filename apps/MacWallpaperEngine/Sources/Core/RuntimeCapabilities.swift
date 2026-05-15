@@ -210,7 +210,7 @@ enum RuntimeCapabilities {
             category: "interaction",
             name: "policy",
             status: policy?.mode == .disabled ? "not-used" : "supported",
-            detail: "mode=\(policyMode) blockAppWindows=\(policy?.blockApplicationWindows ?? true) blockDesktopItems=\(policy?.blockDesktopItems ?? true)"
+            detail: "mode=\(policyMode) blockAppWindows=\(policy?.blockApplicationWindows ?? true) blockDesktopItems=\(policy?.blockDesktopItems ?? true) desktopItemGate=\(desktopItemGate(policy: policy))"
         ))
 
         let pointerMove = interactions.filter { $0.event == .pointerMove }
@@ -248,6 +248,24 @@ enum RuntimeCapabilities {
             kinds.append("pointerDown")
         }
         return kinds.isEmpty ? ["none"] : kinds
+    }
+
+    private static func desktopItemGate(policy: InteractionPolicy?) -> String {
+        let mode = policy?.mode ?? .desktopEmptyOnly
+        let blocksDesktopItems = policy?.blockDesktopItems ?? true
+        let effectivePolicy = InteractionPolicy(
+            mode: mode,
+            blockApplicationWindows: policy?.blockApplicationWindows ?? true,
+            blockDesktopItems: blocksDesktopItems,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        return RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(effectivePolicy)
+            ? "requires-accessibility-trust"
+            : "not-required"
     }
 
     private static func spineRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {
