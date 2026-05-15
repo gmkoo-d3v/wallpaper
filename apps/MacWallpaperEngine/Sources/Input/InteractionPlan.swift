@@ -12,14 +12,14 @@ struct InteractionHitZoneSummary {
     let id: String
     let action: String
     let trigger: HitZoneTrigger
-    let tailSeconds: CFTimeInterval?
+    let tailSeconds: CFTimeInterval
     let buttons: [PointerButton]
     let rect: [Double]
 
     var detailText: String {
         let buttonText = buttons.map(\.rawValue).joined(separator: "+")
         let rectText = rect.map { String(format: "%.3f", $0) }.joined(separator: ",")
-        let tailText = tailSeconds.map { String(format: "%.2fs", $0) } ?? "default"
+        let tailText = String(format: "%.2fs", tailSeconds)
         return "\(id):\(action) trigger=\(trigger.rawValue) buttons=\(buttonText) rect=[\(rectText)] tail=\(tailText)"
     }
 }
@@ -30,13 +30,19 @@ struct InteractionPlan {
     private let idleDeadZone: CGFloat
     private let directionSwitchMargin: CGFloat
     private let defaultClickTailDuration: CFTimeInterval
+    private let actionTailDurations: [String: CFTimeInterval]
 
-    init(interactions: [InteractionConfig], policy: InteractionPolicy?) {
+    init(
+        interactions: [InteractionConfig],
+        policy: InteractionPolicy?,
+        actionTailDurations: [String: CFTimeInterval] = [:]
+    ) {
         self.interactions = interactions
         self.pointerSmoothing = CGFloat(policy?.pointerSmoothing ?? 0.18)
         self.idleDeadZone = CGFloat(policy?.idleDeadZone ?? 0.18)
         self.directionSwitchMargin = CGFloat(policy?.directionSwitchMargin ?? 0.10)
         self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
+        self.actionTailDurations = actionTailDurations
     }
 
     func smooth(current: CGPoint, target: CGPoint) -> CGPoint {
@@ -83,7 +89,7 @@ struct InteractionPlan {
                 zoneID: hitZone.id,
                 action: hitZone.action,
                 trigger: hitZone.trigger ?? .tap,
-                tailSeconds: hitZone.tailSeconds ?? defaultClickTailDuration
+                tailSeconds: resolvedTailSeconds(for: hitZone)
             )
         }
         return nil
@@ -100,7 +106,7 @@ struct InteractionPlan {
                 id: hitZone.id,
                 action: hitZone.action,
                 trigger: hitZone.trigger ?? .tap,
-                tailSeconds: hitZone.tailSeconds,
+                tailSeconds: resolvedTailSeconds(for: hitZone),
                 buttons: hitZone.buttons ?? interactionButtons,
                 rect: hitZone.rect
             )
@@ -110,9 +116,14 @@ struct InteractionPlan {
     static func diagnosticSummary(
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
-        runtimeInteractive: Bool
+        runtimeInteractive: Bool,
+        actionTailDurations: [String: CFTimeInterval] = [:]
     ) -> String {
-        let plan = InteractionPlan(interactions: interactions, policy: policy)
+        let plan = InteractionPlan(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations
+        )
         let mode = policy?.mode.rawValue ?? (runtimeInteractive ? "desktop-empty-only(default)" : "disabled(default)")
         let moveConfig = interactions.first { $0.event == .pointerMove }
         let clickConfig = interactions.first { $0.event == .pointerDown }
@@ -185,6 +196,17 @@ struct InteractionPlan {
             && Double(point.x) <= rect[2]
             && Double(point.y) >= rect[1]
             && Double(point.y) <= rect[3]
+    }
+
+    private func resolvedTailSeconds(for hitZone: HitZone) -> CFTimeInterval {
+        let declaredTail = hitZone.tailSeconds ?? defaultClickTailDuration
+        guard (hitZone.trigger ?? .tap) == .tap,
+              let animationTail = actionTailDurations[hitZone.action],
+              animationTail.isFinite,
+              animationTail > 0 else {
+            return declaredTail
+        }
+        return max(declaredTail, animationTail)
     }
 }
 

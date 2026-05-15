@@ -26,11 +26,19 @@ final class InteractionController {
     private var pressStartedAt: CFTimeInterval = 0
     private let plan: InteractionPlan
 
-    init(interactions: [InteractionConfig], policy: InteractionPolicy?) {
+    init(
+        interactions: [InteractionConfig],
+        policy: InteractionPolicy?,
+        actionTailDurations: [String: CFTimeInterval] = [:]
+    ) {
         self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
         self.releaseFadeDuration = policy?.releaseFadeSeconds ?? 0.20
         self.activeClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
-        self.plan = InteractionPlan(interactions: interactions, policy: policy)
+        self.plan = InteractionPlan(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations
+        )
     }
 
     func snapshot() -> InteractionSnapshot {

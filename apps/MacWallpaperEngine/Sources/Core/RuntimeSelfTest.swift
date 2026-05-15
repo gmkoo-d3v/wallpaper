@@ -235,9 +235,11 @@ enum RuntimeSelfTest {
                 "Spine active bundles must expose the native Spine compatibility gate"
             )
         }
+        let tapActionDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
         let interactionPlan = InteractionPlan(
             interactions: manifest.interactions,
-            policy: manifest.interactionPolicy
+            policy: manifest.interactionPolicy,
+            actionTailDurations: tapActionDurations
         )
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"
@@ -253,7 +255,8 @@ enum RuntimeSelfTest {
             )
             let interactionController = InteractionController(
                 interactions: manifest.interactions,
-                policy: manifest.interactionPolicy
+                policy: manifest.interactionPolicy,
+                actionTailDurations: tapActionDurations
             )
             interactionController.pointerMoved(to: CGPoint(x: 0.10, y: 0.50))
             var smoothedCommand = interactionController.snapshot().command
@@ -274,7 +277,8 @@ enum RuntimeSelfTest {
         let interactionSummary = InteractionPlan.diagnosticSummary(
             interactions: manifest.interactions,
             policy: manifest.interactionPolicy,
-            runtimeInteractive: runtime.config.interactive
+            runtimeInteractive: runtime.config.interactive,
+            actionTailDurations: tapActionDurations
         )
         check(
             interactionSummary.contains("interaction plan OK")
@@ -316,6 +320,12 @@ enum RuntimeSelfTest {
                 hit?.zoneID == hitZone.id && hit?.action == hitZone.action && hit?.trigger == hitZone.trigger,
                 "interaction plan must resolve declared pointerDown hit zones"
             )
+            if hitZone.trigger == .tap, let animationTail = tapActionDurations[hitZone.action] {
+                check(
+                    hit?.tailSeconds ?? 0 >= animationTail,
+                    "tap hit-zone \(hitZone.id) tail must cover its Spine animation duration"
+                )
+            }
             let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
                 .right
             } else if hitZone.buttons.contains(.right), hitZone.buttons.contains(.left) == false {

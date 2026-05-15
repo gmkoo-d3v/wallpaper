@@ -74,10 +74,12 @@ do {
     }
 
     if config.interactionPlanOnly {
+        let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
         print(InteractionPlan.diagnosticSummary(
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy,
-            runtimeInteractive: runtime.config.interactive
+            runtimeInteractive: runtime.config.interactive,
+            actionTailDurations: actionTailDurations
         ))
         exit(EXIT_SUCCESS)
     }

@@ -40,8 +40,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   foreground, fallback, interaction, FPS, and display-refresh path exposed by
   `--render-plan`.
 - `--interaction-plan` reports pointer movement commands, accepted click
-  buttons, hit zones, tail timing, and left/right click probes from the same
-  interaction planner used by the renderer.
+  buttons, hit zones, effective animation-synchronized tail timing, and
+  left/right click probes from the same interaction planner used by the
+  renderer.
 - `--spine-animation-plan` reports Spine animation duration, timeline coverage,
   and whether every manifest interaction action resolves to a real animation.
 - Control panel display settings expose the same primary display selector used

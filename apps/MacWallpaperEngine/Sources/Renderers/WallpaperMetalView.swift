@@ -43,7 +43,12 @@ final class WallpaperMetalView: MTKView {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
-        self.interaction = InteractionController(interactions: runtime.manifest.interactions, policy: manifestInteractionPolicy)
+        let actionTailDurations = (try? SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)) ?? [:]
+        self.interaction = InteractionController(
+            interactions: runtime.manifest.interactions,
+            policy: manifestInteractionPolicy,
+            actionTailDurations: actionTailDurations
+        )
         self.compositor = try MetalCompositor(
             device: device,
             runtime: runtime,

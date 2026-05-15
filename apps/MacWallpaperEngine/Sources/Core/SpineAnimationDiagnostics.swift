@@ -27,6 +27,27 @@ struct SpineAnimationDiagnostics {
         let use: String
     }
 
+    static func tapActionDurations(runtime: NativeRuntimeCore) throws -> [String: TimeInterval] {
+        let tapActions = Set(runtime.manifest.interactions.flatMap { interaction -> [String] in
+            guard interaction.event == .pointerDown else { return [] }
+            return (interaction.hitZones ?? [])
+                .filter { ($0.trigger ?? .tap) == .tap }
+                .map(\.action)
+        })
+        guard tapActions.isEmpty == false, let spineAsset = runtime.assetCatalog.spineAsset else {
+            return [:]
+        }
+
+        let summaries = try animationSummaries(from: spineAsset.json)
+        let summaryByName = Dictionary(uniqueKeysWithValues: summaries.map { ($0.name, $0) })
+        var result: [String: TimeInterval] = [:]
+        for action in tapActions.sorted() {
+            guard let duration = summaryByName[action]?.duration, duration > 0 else { continue }
+            result[action] = duration
+        }
+        return result
+    }
+
     static func make(runtime: NativeRuntimeCore) throws -> String {
         let actionReferences = manifestActionReferences(runtime.manifest.interactions)
         let actionNames = uniqueSorted(actionReferences.map(\.action))
