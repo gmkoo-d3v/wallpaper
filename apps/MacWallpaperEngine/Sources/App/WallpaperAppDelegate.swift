@@ -114,6 +114,14 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         controlPanel?.refresh()
     }
 
+    private func persistSettings(for config: EngineConfig) {
+        do {
+            try RuntimeSettingsStore.save(config: config)
+        } catch {
+            fputs("Failed to save runtime settings: \(error.localizedDescription)\n", stderr)
+        }
+    }
+
     private func restartHost(
         displayMode: DisplayMode,
         primaryDisplaySelector: String?,
@@ -151,6 +159,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 do {
                     try startHost()
                     lastError = nil
+                    persistSettings(for: nextRuntime.config)
                 } catch let restartError {
                     runtime = currentRuntime
                     do {
@@ -170,6 +179,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 runtime = nextRuntime
                 lastError = nil
+                persistSettings(for: nextRuntime.config)
             }
         } catch {
             if wasRunning && host != nil {
@@ -336,6 +346,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 do {
                     try startHost()
                     lastError = nil
+                    persistSettings(for: nextRuntime.config)
                 } catch let newBundleError {
                     runtime = oldRuntime
                     do {
@@ -356,6 +367,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             } else {
                 runtime = nextRuntime
                 lastError = nil
+                persistSettings(for: nextRuntime.config)
             }
         } catch {
             if !wasRunning || host == nil {

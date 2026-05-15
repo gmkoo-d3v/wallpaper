@@ -54,12 +54,12 @@ do {
     let runtime = try NativeRuntimeCore(config: config)
 
     if config.displayPlanOnly {
-        print(DisplayPlanner.summary(runtime: runtime))
+        print(DisplayPlanner.headlessSummary(runtime: runtime))
         exit(EXIT_SUCCESS)
     }
 
     if config.renderPlanOnly {
-        print(DisplayPlanner.renderSummary(runtime: runtime))
+        print(DisplayPlanner.headlessRenderSummary(runtime: runtime))
         exit(EXIT_SUCCESS)
     }
 

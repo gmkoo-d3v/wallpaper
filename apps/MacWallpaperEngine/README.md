@@ -18,6 +18,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   feature classes.
 - `--render-plan` reports the effective per-display background video,
   foreground renderer, fallback, and interaction path before launching windows.
+- CLI display/render plan diagnostics use a headless-safe display snapshot so
+  validation commands do not trigger AppKit application registration.
 - Display/render plans include a macOS display id plus a hashed fallback
   fingerprint and arrangement hash so reconnect or display-order drift can be
   diagnosed.
@@ -34,6 +36,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
+- Control panel bundle, display, interaction, FPS, playback, fit, and foreground
+  renderer selections persist under Application Support and are restored on the
+  next normal app launch unless an explicit CLI flag overrides them.
 - Bundle import into the user Application Support wallpaper library with
   manifest validation and symlink rejection.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime

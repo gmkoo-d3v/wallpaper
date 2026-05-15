@@ -256,6 +256,29 @@ enum DisplayPlanner {
         """
     }
 
+    static func headlessSummary(runtime: NativeRuntimeCore) -> String {
+        let display = diagnosticDisplaySnapshot()
+        let role = role(for: display, primary: display, runtime: runtime)
+        let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
+        let foreground = role?.rendersForeground == true ? "foreground" : "no-foreground"
+        let video = role?.playsVideo == true ? "video" : "static"
+        let interaction = role?.allowsInteraction == true ? "interactive" : "passive"
+        let line = "#0 \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
+
+        return """
+        display plan OK
+        displayProbe: skipped(cli-safe)
+        displayMode: \(runtime.config.displayMode.rawValue)
+        primarySelection: \(primarySelectionSummary(primary: display, runtime: runtime))
+        rebuildPolicy: \(rebuildPolicy)
+        manifest primary: \(runtime.manifest.displayPolicy.primary.rawValue)
+        manifest secondary: \(runtime.manifest.displayPolicy.secondary.rawValue)
+        occluded: \(runtime.manifest.displayPolicy.occluded.rawValue)
+        fullscreenObscured: \(runtime.manifest.displayPolicy.fullscreenObscured.rawValue)
+        \(line)
+        """
+    }
+
     static func renderSummary(runtime: NativeRuntimeCore) -> String {
         let displays = currentDisplaySnapshots()
         guard let primary = primaryDisplay(in: displays, runtime: runtime) else {
@@ -278,6 +301,26 @@ enum DisplayPlanner {
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
         \(lines.joined(separator: "\n"))
+        """
+    }
+
+    static func headlessRenderSummary(runtime: NativeRuntimeCore) -> String {
+        let display = diagnosticDisplaySnapshot()
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let role = role(for: display, primary: display, runtime: runtime)
+        let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
+        let path = role.map { renderPathSummary(runtime: runtime, role: $0) }
+            ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive"
+        let line = "#0 \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(path)"
+
+        return """
+        render plan OK
+        displayProbe: skipped(cli-safe)
+        foregroundMode: \(runtime.config.foregroundMode.rawValue)
+        displayMode: \(runtime.config.displayMode.rawValue)
+        primarySelection: \(primarySelectionSummary(primary: display, runtime: runtime))
+        nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
+        \(line)
         """
     }
 
@@ -367,6 +410,20 @@ enum DisplayPlanner {
                 serial: CGDisplaySerialNumber(displayID)
             )
         }
+    }
+
+    private static func diagnosticDisplaySnapshot() -> DisplaySnapshot {
+        DisplaySnapshot(
+            name: "Diagnostic Primary Display",
+            displayID: 0,
+            frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            backingScaleFactor: 1,
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            vendor: 0,
+            model: 0,
+            serial: 0
+        )
     }
 
     private static func primaryDisplay(in displays: [DisplaySnapshot], runtime: NativeRuntimeCore) -> DisplaySnapshot? {

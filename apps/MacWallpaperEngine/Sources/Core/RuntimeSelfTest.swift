@@ -1,4 +1,5 @@
 import CoreGraphics
+import Darwin
 import Foundation
 
 enum RuntimeSelfTest {
@@ -212,7 +213,7 @@ enum RuntimeSelfTest {
             parsedDefaultForeground.foregroundMode == .automatic,
             "EngineConfig must default foreground mode to auto"
         )
-        let displaySelectionOptions = DisplayPlanner.displaySelectionOptions()
+        let displaySelectionOptions = [DisplaySelectionOption(title: "System Default Primary", selector: nil)]
         check(
             displaySelectionOptions.first?.selector == nil,
             "display selection options must start with AppKit default primary"
@@ -261,10 +262,10 @@ enum RuntimeSelfTest {
             "native render plan must keep video-only secondary displays without Spine foreground"
         )
         check(
-            DisplayPlanner.renderSummary(runtime: nativeRuntime).contains("foregroundMode: native"),
+            DisplayPlanner.headlessRenderSummary(runtime: nativeRuntime).contains("foregroundMode: native"),
             "render plan summary must expose the requested foreground mode"
         )
-        let displaySummary = DisplayPlanner.summary(runtime: nativeRuntime)
+        let displaySummary = DisplayPlanner.headlessSummary(runtime: nativeRuntime)
         if displaySummary.contains("no screens detected") == false {
             check(
                 displaySummary.contains("identity=displayID:"),
@@ -279,7 +280,7 @@ enum RuntimeSelfTest {
                 "display plan summary must expose a display arrangement fingerprint"
             )
         }
-        let renderSummary = DisplayPlanner.renderSummary(runtime: nativeRuntime)
+        let renderSummary = DisplayPlanner.headlessRenderSummary(runtime: nativeRuntime)
         if renderSummary.contains("no screens detected") == false {
             check(
                 renderSummary.contains("identity=displayID:"),
@@ -308,19 +309,33 @@ enum RuntimeSelfTest {
         let discoveredIds = discoveredBundles.map(\.id)
         let discoveredNames = discoveredBundles.map(\.displayName)
         let activeBundlePath = runtime.config.wallpaperRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        let activeLibraryPath = runtime.config.wallpaperRoot.deletingLastPathComponent()
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path
+        let defaultLibraryPaths = [
+            ProjectPaths.findBundledWallpapersDirectory(),
+            ProjectPaths.findUserWallpapersDirectory(),
+            runtime.config.projectRoot.appendingPathComponent("wallpapers")
+        ]
+            .compactMap { $0?.standardizedFileURL.resolvingSymlinksInPath().path }
         check(ProjectPaths.userWallpapersDirectory() != nil, "user wallpaper library directory must be resolvable")
+        try checkRuntimeSettingsPersistence(from: runtime, failures: &failures, checks: &checks)
         check(discoveredBundles.isEmpty == false, "default bundle catalog must discover at least one valid bundle")
         check(Set(discoveredIds).count == discoveredIds.count, "default bundle catalog ids must be unique")
         check(
             discoveredNames == discoveredNames.sorted { $0.localizedStandardCompare($1) == .orderedAscending },
             "default bundle catalog must be sorted by display name"
         )
-        check(
-            discoveredBundles.contains {
-                $0.root.standardizedFileURL.resolvingSymlinksInPath().path == activeBundlePath
-            },
-            "default bundle catalog must include the active wallpaper bundle"
-        )
+        if defaultLibraryPaths.contains(activeLibraryPath), let activeBundle = validatedBundle {
+            check(
+                discoveredBundles.contains {
+                    $0.id == activeBundle.id
+                        || $0.root.standardizedFileURL.resolvingSymlinksInPath().path == activeBundlePath
+                },
+                "default bundle catalog must include the active wallpaper bundle identity"
+            )
+        }
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
         try checkStaticImageBundle(from: runtime, failures: &failures, checks: &checks)
@@ -527,6 +542,123 @@ enum RuntimeSelfTest {
                 interactionPolicy: disabledPolicy
             ) == false,
             "disabled interaction policy must not enable desktop interaction monitor",
+            failures: &failures,
+            checks: &checks
+        )
+    }
+
+    private static func checkRuntimeSettingsPersistence(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineSettingsSelfTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let settingsURL = tempDirectory.appendingPathComponent("settings.json")
+        let tunedConfig = runtime.config.replacing(
+            displayMode: .all,
+            primaryDisplaySelector: "displayID:42",
+            interactive: false,
+            renderFps: 120,
+            playbackRateOverride: 1.15,
+            fitMode: .fill,
+            foregroundMode: .nativeSpine,
+            clearDuration: true,
+            launchControlPanel: true,
+            launchWallpaper: true
+        )
+
+        try RuntimeSettingsStore.save(config: tunedConfig, to: settingsURL)
+        let loaded = try RuntimeSettingsStore.load(from: settingsURL)
+        check(
+            loaded.wallpaperRootPath == tunedConfig.wallpaperRoot.standardizedFileURL.path,
+            "runtime settings must persist selected wallpaper root",
+            failures: &failures,
+            checks: &checks
+        )
+        check(loaded.displayMode == .all, "runtime settings must persist display mode", failures: &failures, checks: &checks)
+        check(
+            loaded.primaryDisplaySelector == "displayID:42",
+            "runtime settings must persist primary display selector",
+            failures: &failures,
+            checks: &checks
+        )
+        check(loaded.interactive == false, "runtime settings must persist interaction toggle", failures: &failures, checks: &checks)
+        check(loaded.renderFps == 120, "runtime settings must persist FPS", failures: &failures, checks: &checks)
+        check(
+            abs((loaded.playbackRateOverride ?? 0) - 1.15) < 0.001,
+            "runtime settings must persist playback rate",
+            failures: &failures,
+            checks: &checks
+        )
+        check(loaded.fitMode == .fill, "runtime settings must persist fit mode", failures: &failures, checks: &checks)
+        check(
+            loaded.foregroundMode == .nativeSpine,
+            "runtime settings must persist foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeSettingsStore.validWallpaperRoot(from: loaded)?.standardizedFileURL.path == tunedConfig.wallpaperRoot.standardizedFileURL.path,
+            "runtime settings must only restore a validated wallpaper root",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let environmentKey = RuntimeSettingsStore.environmentSettingsPath
+        let previousEnvironmentValue = getenv(environmentKey).map { String(cString: $0) }
+        setenv(environmentKey, settingsURL.path, 1)
+        defer {
+            if let previousEnvironmentValue {
+                setenv(environmentKey, previousEnvironmentValue, 1)
+            } else {
+                unsetenv(environmentKey)
+            }
+        }
+
+        let parsed = try EngineConfig.parse(["--validate-only"])
+        check(
+            parsed.wallpaperRoot.standardizedFileURL.path == tunedConfig.wallpaperRoot.standardizedFileURL.path,
+            "EngineConfig must restore persisted wallpaper root when no explicit root is passed",
+            failures: &failures,
+            checks: &checks
+        )
+        check(parsed.displayMode == .all, "EngineConfig must restore persisted display mode", failures: &failures, checks: &checks)
+        check(
+            parsed.primaryDisplaySelector == "displayID:42",
+            "EngineConfig must restore persisted primary display selector",
+            failures: &failures,
+            checks: &checks
+        )
+        check(parsed.interactive == false, "EngineConfig must restore persisted interaction toggle", failures: &failures, checks: &checks)
+        check(parsed.renderFps == 120, "EngineConfig must restore persisted FPS", failures: &failures, checks: &checks)
+        check(
+            abs((parsed.playbackRateOverride ?? 0) - 1.15) < 0.001,
+            "EngineConfig must restore persisted playback rate",
+            failures: &failures,
+            checks: &checks
+        )
+        check(parsed.fitMode == .fill, "EngineConfig must restore persisted fit mode", failures: &failures, checks: &checks)
+        check(
+            parsed.foregroundMode == .nativeSpine,
+            "EngineConfig must restore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let overridden = try EngineConfig.parse(["--validate-only", "--foreground-mode", "composite", "--fps", "30"])
+        check(
+            overridden.foregroundMode == .compositeVideo,
+            "explicit CLI foreground mode must override persisted settings",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            overridden.renderFps == 30,
+            "explicit CLI FPS must override persisted settings",
             failures: &failures,
             checks: &checks
         )

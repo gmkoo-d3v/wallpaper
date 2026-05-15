@@ -36,18 +36,18 @@ enum WallpaperLevel: String {
     }
 }
 
-enum DisplayMode: String {
+enum DisplayMode: String, Codable {
     case all
     case primaryAnimated
     case primaryOnly
 }
 
-enum RenderFitMode: String {
+enum RenderFitMode: String, Codable {
     case contain
     case fill
 }
 
-enum ForegroundRenderMode: String {
+enum ForegroundRenderMode: String, Codable {
     case automatic = "auto"
     case compositeVideo = "composite"
     case nativeSpine = "native"
@@ -142,6 +142,15 @@ struct EngineConfig {
         var playbackRateOverride: Float?
         var fitMode = RenderFitMode.contain
         var foregroundMode = ForegroundRenderMode.automatic
+        var explicitWallpaperRoot = false
+        var explicitManifestURL = false
+        var explicitDisplayMode = false
+        var explicitPrimaryDisplaySelector = false
+        var explicitInteractive = false
+        var explicitRenderFps = false
+        var explicitPlaybackRateOverride = false
+        var explicitFitMode = false
+        var explicitForegroundMode = false
         var validateOnly = false
         var displayPlanOnly = false
         var renderPlanOnly = false
@@ -163,9 +172,11 @@ struct EngineConfig {
             case "--wallpaper-root":
                 index += 1
                 wallpaperRoot = try valueURL(arguments, index, option: argument)
+                explicitWallpaperRoot = true
             case "--manifest":
                 index += 1
                 manifestURL = try valueURL(arguments, index, option: argument)
+                explicitManifestURL = true
             case "--level":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -180,6 +191,7 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("Unknown --display-mode: \(raw)")
                 }
                 displayMode = parsed
+                explicitDisplayMode = true
             case "--primary-display":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -188,6 +200,7 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("--primary-display cannot be empty")
                 }
                 primaryDisplaySelector = trimmed
+                explicitPrimaryDisplaySelector = true
             case "--duration":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -202,6 +215,7 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("Invalid --fps: \(raw). Supported values: 30, 60, 120")
                 }
                 renderFps = parsed
+                explicitRenderFps = true
             case "--playback-rate":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -209,6 +223,7 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("Invalid --playback-rate: \(raw)")
                 }
                 playbackRateOverride = parsed
+                explicitPlaybackRateOverride = true
             case "--fit-mode":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -216,6 +231,7 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("Unknown --fit-mode: \(raw)")
                 }
                 fitMode = parsed
+                explicitFitMode = true
             case "--foreground-mode":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -223,6 +239,7 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("Unknown --foreground-mode: \(raw)")
                 }
                 foregroundMode = parsed
+                explicitForegroundMode = true
             case "--validate-only":
                 validateOnly = true
             case "--display-plan":
@@ -239,6 +256,7 @@ struct EngineConfig {
                 startHidden = true
             case "--pass-through":
                 interactive = false
+                explicitInteractive = true
             case "--no-control-panel":
                 launchControlPanel = false
             case "--control-panel-only":
@@ -264,6 +282,31 @@ struct EngineConfig {
             index += 1
         }
 
+        let persistedSettings = RuntimeSettingsStore.load()
+        if let persistedSettings {
+            if !explicitDisplayMode, let persisted = persistedSettings.displayMode {
+                displayMode = persisted
+            }
+            if !explicitPrimaryDisplaySelector {
+                primaryDisplaySelector = persistedSettings.primaryDisplaySelector
+            }
+            if !explicitInteractive, let persisted = persistedSettings.interactive {
+                interactive = persisted
+            }
+            if !explicitRenderFps, let persisted = persistedSettings.renderFps {
+                renderFps = persisted
+            }
+            if !explicitPlaybackRateOverride {
+                playbackRateOverride = persistedSettings.playbackRateOverride
+            }
+            if !explicitFitMode, let persisted = persistedSettings.fitMode {
+                fitMode = persisted
+            }
+            if !explicitForegroundMode, let persisted = persistedSettings.foregroundMode {
+                foregroundMode = persisted
+            }
+        }
+
         let detectedRoot = try? ProjectPaths.findProjectRoot()
         let bundledWallpaperRoot = ProjectPaths.findBundledWallpaperRoot()
         let userWallpaperRoot = ProjectPaths.findUserWallpaperRoot()
@@ -272,6 +315,10 @@ struct EngineConfig {
             resolvedWallpaperRoot = wallpaperRoot.standardizedFileURL
         } else if let manifestURL {
             resolvedWallpaperRoot = manifestURL.deletingLastPathComponent().standardizedFileURL
+        } else if !explicitWallpaperRoot,
+                  !explicitManifestURL,
+                  let persistedRoot = RuntimeSettingsStore.validWallpaperRoot(from: persistedSettings) {
+            resolvedWallpaperRoot = persistedRoot
         } else if let bundledWallpaperRoot {
             resolvedWallpaperRoot = bundledWallpaperRoot
         } else if let userWallpaperRoot {
@@ -367,7 +414,7 @@ struct EngineConfig {
 }
 
 enum ProjectPaths {
-    private static let applicationSupportDirectoryName = "MacWallpaperEngine"
+    static let applicationSupportDirectoryName = "MacWallpaperEngine"
 
     static func findBundledWallpapersDirectory() -> URL? {
         guard let resourceURL = Bundle.main.resourceURL else { return nil }
@@ -381,9 +428,13 @@ enum ProjectPaths {
     }
 
     static func userWallpapersDirectory() -> URL? {
+        applicationSupportDirectory()?
+            .appendingPathComponent("wallpapers", isDirectory: true)
+    }
+
+    static func applicationSupportDirectory() -> URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent(applicationSupportDirectoryName, isDirectory: true)
-            .appendingPathComponent("wallpapers", isDirectory: true)
     }
 
     static func findUserWallpapersDirectory() -> URL? {
