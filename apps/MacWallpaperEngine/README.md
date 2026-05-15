@@ -49,8 +49,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Keep `Composite` as the user-visible fallback while native parity is incomplete.
 - Keep `Native WIP` isolated for renderer work until the character no longer tears.
 - Complete Swift renderer reproduction before tuning click action duration:
-  remaining draw order, clipping, action continuity, and profiler-backed runtime
-  parity checks.
+  remaining action continuity, profiler-backed runtime parity checks, and wider
+  wallpaper fixture coverage.
 
 ## Run
 

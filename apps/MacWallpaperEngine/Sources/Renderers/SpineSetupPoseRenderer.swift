@@ -257,6 +257,14 @@ final class SpineSetupPoseRenderer {
         let constantSpeed: Bool
     }
 
+    private struct ClippingAttachment {
+        let name: String
+        let slotName: String
+        let endSlotName: String
+        let vertexCount: Int
+        let vertices: [Double]
+    }
+
     private struct PathCurve {
         let x1: Double
         let y1: Double
@@ -313,6 +321,7 @@ final class SpineSetupPoseRenderer {
     private let slotSetupByName: [String: Slot]
     private let attachments: [String: [String: Attachment]]
     private let pathAttachments: [String: [String: PathAttachment]]
+    private let clippingAttachments: [String: [String: ClippingAttachment]]
     private let animations: [String: SpineAnimation]
     private let poseConstraints: [PoseConstraint]
     private let skeletonBounds: CGRect
@@ -361,6 +370,7 @@ final class SpineSetupPoseRenderer {
         let poseConstraints = try Self.parsePoseConstraints(root: root, boneIndexByName: boneIndexByName)
         let attachments = try Self.parseAttachments(root: root)
         let pathAttachments = try Self.parsePathAttachments(root: root)
+        let clippingAttachments = try Self.parseClippingAttachments(root: root)
         let animations = try Self.parseAnimations(root: root)
         let boneWorld = Self.computeBoneWorld(
             bones,
@@ -373,6 +383,7 @@ final class SpineSetupPoseRenderer {
         let builtBatches = try Self.buildBatches(
             slots: slots,
             attachments: attachments,
+            clippingAttachments: clippingAttachments,
             bones: boneWorld,
             boneIndexByName: boneIndexByName,
             atlas: atlas,
@@ -389,6 +400,7 @@ final class SpineSetupPoseRenderer {
         self.slotSetupByName = slotSetupByName
         self.attachments = attachments
         self.pathAttachments = pathAttachments
+        self.clippingAttachments = clippingAttachments
         self.animations = animations
         self.poseConstraints = poseConstraints
         self.playbackRate = max(0.01, Double(playbackRate))
@@ -485,6 +497,7 @@ final class SpineSetupPoseRenderer {
             let vertexBatches = try Self.buildVertexBatches(
                 slots: pose.slots,
                 attachments: attachments,
+                clippingAttachments: clippingAttachments,
                 bones: pose.boneWorld,
                 deforms: pose.deforms,
                 boneIndexByName: boneIndexByName,
@@ -2790,9 +2803,47 @@ final class SpineSetupPoseRenderer {
         return bySlot
     }
 
+    private static func parseClippingAttachments(root: [String: Any]) throws -> [String: [String: ClippingAttachment]] {
+        guard let skins = root["skins"] as? [[String: Any]],
+              let firstSkin = skins.first,
+              let rawAttachments = firstSkin["attachments"] as? [String: Any] else {
+            throw EngineError.asset("Spine JSON missing skin attachments")
+        }
+
+        var bySlot: [String: [String: ClippingAttachment]] = [:]
+        for (slotName, slotValue) in rawAttachments {
+            guard let slotAttachments = slotValue as? [String: Any] else { continue }
+            for (attachmentName, attachmentValue) in slotAttachments {
+                guard let raw = attachmentValue as? [String: Any] else { continue }
+                let type = raw["type"] as? String ?? "region"
+                guard type == "clipping" else {
+                    continue
+                }
+                guard let vertices = raw["vertices"] as? [Double] else {
+                    throw EngineError.asset("Spine clipping attachment \(slotName)/\(attachmentName) missing vertices")
+                }
+                guard let endSlotName = raw["end"] as? String, endSlotName.isEmpty == false else {
+                    throw EngineError.asset("Spine clipping attachment \(slotName)/\(attachmentName) missing end slot")
+                }
+                let rawVertexCount = Int(number(raw["vertexCount"], default: 0))
+                let vertexCount = rawVertexCount > 0 ? rawVertexCount : vertices.count / 2
+                let clipping = ClippingAttachment(
+                    name: attachmentName,
+                    slotName: slotName,
+                    endSlotName: endSlotName,
+                    vertexCount: vertexCount,
+                    vertices: vertices
+                )
+                bySlot[slotName, default: [:]][attachmentName] = clipping
+            }
+        }
+        return bySlot
+    }
+
     private static func buildBatches(
         slots: [Slot],
         attachments: [String: [String: Attachment]],
+        clippingAttachments: [String: [String: ClippingAttachment]],
         bones: [BoneWorld],
         deforms: [String: [String: [Double]]] = [:],
         boneIndexByName: [String: Int],
@@ -2804,6 +2855,7 @@ final class SpineSetupPoseRenderer {
         let vertexBatches = try buildVertexBatches(
             slots: slots,
             attachments: attachments,
+            clippingAttachments: clippingAttachments,
             bones: bones,
             deforms: deforms,
             boneIndexByName: boneIndexByName,
@@ -2817,6 +2869,7 @@ final class SpineSetupPoseRenderer {
     private static func buildVertexBatches(
         slots: [Slot],
         attachments: [String: [String: Attachment]],
+        clippingAttachments: [String: [String: ClippingAttachment]],
         bones: [BoneWorld],
         deforms: [String: [String: [Double]]] = [:],
         boneIndexByName: [String: Int],
@@ -2825,17 +2878,16 @@ final class SpineSetupPoseRenderer {
         placement: SpinePlacement
     ) throws -> [VertexBatch] {
         var orderedBatches: [(pageName: String, blendMode: RenderBlendMode, texture: MTLTexture, vertices: [RenderVertex])] = []
+        var activeClipPolygons: [[SIMD2<Float>]] = []
+        var activeClipEndSlotName: String?
 
         for slot in slots {
-            guard let attachmentName = slot.attachment,
-                  let attachment = attachments[slot.name]?[attachmentName] else {
+            guard let attachmentName = slot.attachment else {
+                if slot.name == activeClipEndSlotName {
+                    activeClipPolygons.removeAll()
+                    activeClipEndSlotName = nil
+                }
                 continue
-            }
-            guard let region = atlas.regions[attachment.name] else {
-                throw EngineError.asset("Spine attachment \(attachment.slotName)/\(attachment.name) missing atlas region")
-            }
-            guard let page = atlas.pages[region.pageName] else {
-                throw EngineError.asset("Spine atlas region \(region.name) references missing page \(region.pageName)")
             }
 
             let slotBone: BoneWorld?
@@ -2847,6 +2899,42 @@ final class SpineSetupPoseRenderer {
             } else {
                 slotBone = nil
             }
+
+            if let clipping = clippingAttachments[slot.name]?[attachmentName] {
+                let worldVertices = clippingWorldVertices(
+                    attachment: clipping,
+                    bones: bones,
+                    slotBone: slotBone
+                )
+                guard worldVertices.count == clipping.vertexCount, worldVertices.count >= 3 else {
+                    throw EngineError.asset("Spine clipping attachment \(clipping.slotName)/\(clipping.name) produced invalid polygon")
+                }
+                let clipPolygon = worldVertices.map {
+                    project(point: $0, skeletonBounds: skeletonBounds, placement: placement)
+                }
+                activeClipPolygons = clippingPolygons(from: clipPolygon)
+                activeClipEndSlotName = clipping.endSlotName
+                if slot.name == activeClipEndSlotName {
+                    activeClipPolygons.removeAll()
+                    activeClipEndSlotName = nil
+                }
+                continue
+            }
+
+            guard let attachment = attachments[slot.name]?[attachmentName] else {
+                if slot.name == activeClipEndSlotName {
+                    activeClipPolygons.removeAll()
+                    activeClipEndSlotName = nil
+                }
+                continue
+            }
+            guard let region = atlas.regions[attachment.name] else {
+                throw EngineError.asset("Spine attachment \(attachment.slotName)/\(attachment.name) missing atlas region")
+            }
+            guard let page = atlas.pages[region.pageName] else {
+                throw EngineError.asset("Spine atlas region \(region.name) references missing page \(region.pageName)")
+            }
+
             let worldVertices = meshWorldVertices(
                 attachment: attachment,
                 bones: bones,
@@ -2859,19 +2947,33 @@ final class SpineSetupPoseRenderer {
 
             var expanded: [RenderVertex] = []
             expanded.reserveCapacity(attachment.triangles.count)
-            for triangleIndex in attachment.triangles {
-                guard triangleIndex >= 0, triangleIndex < worldVertices.count else {
-                    throw EngineError.asset("Spine attachment \(attachment.slotName)/\(attachment.name) triangle index \(triangleIndex) is out of bounds")
+            for triangleStart in stride(from: 0, to: attachment.triangles.count, by: 3) {
+                guard triangleStart + 2 < attachment.triangles.count else {
+                    throw EngineError.asset("Spine attachment \(attachment.slotName)/\(attachment.name) has incomplete triangle data")
                 }
-                let position = project(point: worldVertices[triangleIndex], skeletonBounds: skeletonBounds, placement: placement)
-                let uvIndex = triangleIndex * 2
-                let localU = attachment.uvs[uvIndex]
-                let localV = attachment.uvs[uvIndex + 1]
-                let texCoord = atlasTexCoord(localU: localU, localV: localV, region: region, page: page)
-                expanded.append(RenderVertex(position: position, texCoord: texCoord, color: slot.color))
+                let triangle = try (0..<3).map { vertexOffset in
+                    let triangleIndex = attachment.triangles[triangleStart + vertexOffset]
+                    guard triangleIndex >= 0, triangleIndex < worldVertices.count else {
+                        throw EngineError.asset("Spine attachment \(attachment.slotName)/\(attachment.name) triangle index \(triangleIndex) is out of bounds")
+                    }
+                    let position = project(point: worldVertices[triangleIndex], skeletonBounds: skeletonBounds, placement: placement)
+                    let uvIndex = triangleIndex * 2
+                    let localU = attachment.uvs[uvIndex]
+                    let localV = attachment.uvs[uvIndex + 1]
+                    let texCoord = atlasTexCoord(localU: localU, localV: localV, region: region, page: page)
+                    return RenderVertex(position: position, texCoord: texCoord, color: slot.color)
+                }
+                appendTriangle(triangle, clippingPolygons: activeClipPolygons, into: &expanded)
             }
 
-            guard expanded.isEmpty == false else { continue }
+            let shouldEndActiveClip = slot.name == activeClipEndSlotName
+            guard expanded.isEmpty == false else {
+                if shouldEndActiveClip {
+                    activeClipPolygons.removeAll()
+                    activeClipEndSlotName = nil
+                }
+                continue
+            }
             if let lastIndex = orderedBatches.indices.last,
                orderedBatches[lastIndex].pageName == region.pageName,
                orderedBatches[lastIndex].blendMode == slot.blendMode {
@@ -2879,11 +2981,206 @@ final class SpineSetupPoseRenderer {
             } else {
                 orderedBatches.append((region.pageName, slot.blendMode, page.texture, expanded))
             }
+
+            if shouldEndActiveClip {
+                activeClipPolygons.removeAll()
+                activeClipEndSlotName = nil
+            }
         }
 
         return orderedBatches
             .filter { $0.vertices.isEmpty == false }
             .map { VertexBatch(texture: $0.texture, blendMode: $0.blendMode, vertices: $0.vertices) }
+    }
+
+    private static func appendTriangle(
+        _ triangle: [RenderVertex],
+        clippingPolygons: [[SIMD2<Float>]],
+        into expanded: inout [RenderVertex]
+    ) {
+        guard clippingPolygons.isEmpty == false else {
+            expanded.append(contentsOf: triangle)
+            return
+        }
+
+        for clipPolygon in clippingPolygons {
+            let clipped = clipPolygonVertices(triangle, to: clipPolygon)
+            guard clipped.count >= 3 else { continue }
+            for index in 1..<(clipped.count - 1) {
+                expanded.append(clipped[0])
+                expanded.append(clipped[index])
+                expanded.append(clipped[index + 1])
+            }
+        }
+    }
+
+    private static func clippingPolygons(from polygon: [SIMD2<Float>]) -> [[SIMD2<Float>]] {
+        let cleaned = polygon.filter { point in
+            point.x.isFinite && point.y.isFinite
+        }
+        guard cleaned.count >= 3 else { return [] }
+        if isConvexPolygon(cleaned) {
+            return [cleaned]
+        }
+        let triangles = triangulatePolygon(cleaned)
+        return triangles.isEmpty ? [cleaned] : triangles
+    }
+
+    private static func isConvexPolygon(_ polygon: [SIMD2<Float>]) -> Bool {
+        guard polygon.count > 3 else { return true }
+        let orientation = signedArea(polygon) >= 0 ? Float(1) : Float(-1)
+        for index in polygon.indices {
+            let previous = polygon[(index + polygon.count - 1) % polygon.count]
+            let current = polygon[index]
+            let next = polygon[(index + 1) % polygon.count]
+            if orientation * cross(current - previous, next - current) < -0.0001 {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func triangulatePolygon(_ polygon: [SIMD2<Float>]) -> [[SIMD2<Float>]] {
+        guard polygon.count >= 3 else { return [] }
+        let orientation = signedArea(polygon) >= 0 ? Float(1) : Float(-1)
+        var remaining = Array(polygon.indices)
+        var triangles: [[SIMD2<Float>]] = []
+        var guardCounter = 0
+
+        while remaining.count > 3, guardCounter < polygon.count * polygon.count {
+            guardCounter += 1
+            var removedEar = false
+            for remainingIndex in remaining.indices {
+                let previousIndex = remaining[(remainingIndex + remaining.count - 1) % remaining.count]
+                let currentIndex = remaining[remainingIndex]
+                let nextIndex = remaining[(remainingIndex + 1) % remaining.count]
+                let previous = polygon[previousIndex]
+                let current = polygon[currentIndex]
+                let next = polygon[nextIndex]
+                let turn = orientation * cross(current - previous, next - current)
+                guard turn > 0.0001 else { continue }
+
+                let containsPoint = remaining.contains { candidateIndex in
+                    guard candidateIndex != previousIndex,
+                          candidateIndex != currentIndex,
+                          candidateIndex != nextIndex else {
+                        return false
+                    }
+                    return pointInTriangle(polygon[candidateIndex], previous, current, next)
+                }
+                guard containsPoint == false else { continue }
+
+                triangles.append([previous, current, next])
+                remaining.remove(at: remainingIndex)
+                removedEar = true
+                break
+            }
+            if removedEar == false {
+                return []
+            }
+        }
+
+        if remaining.count == 3 {
+            triangles.append(remaining.map { polygon[$0] })
+        }
+        return triangles
+    }
+
+    private static func clipPolygonVertices(
+        _ subject: [RenderVertex],
+        to clipPolygon: [SIMD2<Float>]
+    ) -> [RenderVertex] {
+        guard subject.count >= 3, clipPolygon.count >= 3 else { return [] }
+        let orientation = signedArea(clipPolygon) >= 0 ? Float(1) : Float(-1)
+        var output = subject
+
+        for index in clipPolygon.indices {
+            let edgeStart = clipPolygon[index]
+            let edgeEnd = clipPolygon[(index + 1) % clipPolygon.count]
+            let input = output
+            output.removeAll(keepingCapacity: true)
+            guard let lastInput = input.last else { break }
+            var previous = lastInput
+            var previousInside = isInside(previous.position, edgeStart: edgeStart, edgeEnd: edgeEnd, orientation: orientation)
+
+            for current in input {
+                let currentInside = isInside(current.position, edgeStart: edgeStart, edgeEnd: edgeEnd, orientation: orientation)
+                if currentInside {
+                    if previousInside == false {
+                        output.append(intersection(previous, current, edgeStart: edgeStart, edgeEnd: edgeEnd))
+                    }
+                    output.append(current)
+                } else if previousInside {
+                    output.append(intersection(previous, current, edgeStart: edgeStart, edgeEnd: edgeEnd))
+                }
+                previous = current
+                previousInside = currentInside
+            }
+        }
+        return output
+    }
+
+    private static func isInside(
+        _ point: SIMD2<Float>,
+        edgeStart: SIMD2<Float>,
+        edgeEnd: SIMD2<Float>,
+        orientation: Float
+    ) -> Bool {
+        orientation * cross(edgeEnd - edgeStart, point - edgeStart) >= -0.0001
+    }
+
+    private static func intersection(
+        _ first: RenderVertex,
+        _ second: RenderVertex,
+        edgeStart: SIMD2<Float>,
+        edgeEnd: SIMD2<Float>
+    ) -> RenderVertex {
+        let ray = second.position - first.position
+        let edge = edgeEnd - edgeStart
+        let denominator = cross(ray, edge)
+        guard abs(denominator) > 0.000001 else {
+            return second
+        }
+        let unclamped = cross(edgeStart - first.position, edge) / denominator
+        let t = min(max(unclamped, 0), 1)
+        return interpolate(first, second, t: t)
+    }
+
+    private static func interpolate(_ first: RenderVertex, _ second: RenderVertex, t: Float) -> RenderVertex {
+        RenderVertex(
+            position: first.position + ((second.position - first.position) * t),
+            texCoord: first.texCoord + ((second.texCoord - first.texCoord) * t),
+            color: first.color + ((second.color - first.color) * t)
+        )
+    }
+
+    private static func pointInTriangle(
+        _ point: SIMD2<Float>,
+        _ first: SIMD2<Float>,
+        _ second: SIMD2<Float>,
+        _ third: SIMD2<Float>
+    ) -> Bool {
+        let area1 = cross(second - first, point - first)
+        let area2 = cross(third - second, point - second)
+        let area3 = cross(first - third, point - third)
+        let hasNegative = area1 < -0.0001 || area2 < -0.0001 || area3 < -0.0001
+        let hasPositive = area1 > 0.0001 || area2 > 0.0001 || area3 > 0.0001
+        return !(hasNegative && hasPositive)
+    }
+
+    private static func signedArea(_ polygon: [SIMD2<Float>]) -> Float {
+        guard polygon.count >= 3 else { return 0 }
+        var sum: Float = 0
+        for index in polygon.indices {
+            let current = polygon[index]
+            let next = polygon[(index + 1) % polygon.count]
+            sum += (current.x * next.y) - (next.x * current.y)
+        }
+        return sum * 0.5
+    }
+
+    private static func cross(_ first: SIMD2<Float>, _ second: SIMD2<Float>) -> Float {
+        (first.x * second.y) - (first.y * second.x)
     }
 
     private static func makeBatches(from vertexBatches: [VertexBatch], device: MTLDevice) throws -> [Batch] {
@@ -2990,6 +3287,55 @@ final class SpineSetupPoseRenderer {
                 deformIndex += 2
 
                 guard boneIndex < bones.count else { continue }
+                let transformed = bones[boneIndex].transform(x: localX, y: localY)
+                x += transformed.x * weight
+                y += transformed.y * weight
+            }
+            output.append(CGPoint(x: x, y: y))
+        }
+        guard output.count == vertexCount, index == attachment.vertices.count else {
+            return []
+        }
+        return output
+    }
+
+    private static func clippingWorldVertices(
+        attachment: ClippingAttachment,
+        bones: [BoneWorld],
+        slotBone: BoneWorld?
+    ) -> [CGPoint] {
+        let vertexCount = attachment.vertexCount
+        guard vertexCount > 0 else { return [] }
+        if attachment.vertices.count == vertexCount * 2 {
+            return stride(from: 0, to: attachment.vertices.count, by: 2).map {
+                let localX = attachment.vertices[$0]
+                let localY = attachment.vertices[$0 + 1]
+                if let slotBone {
+                    return slotBone.transform(x: localX, y: localY)
+                }
+                return CGPoint(x: localX, y: localY)
+            }
+        }
+
+        var output: [CGPoint] = []
+        output.reserveCapacity(vertexCount)
+        var index = 0
+        for _ in 0..<vertexCount {
+            guard index < attachment.vertices.count else { break }
+            let influenceCount = Int(attachment.vertices[index])
+            index += 1
+
+            var x = 0.0
+            var y = 0.0
+            for _ in 0..<influenceCount {
+                guard index + 3 < attachment.vertices.count else { break }
+                let boneIndex = Int(attachment.vertices[index])
+                let localX = attachment.vertices[index + 1]
+                let localY = attachment.vertices[index + 2]
+                let weight = attachment.vertices[index + 3]
+                index += 4
+
+                guard boneIndex >= 0, boneIndex < bones.count else { continue }
                 let transformed = bones[boneIndex].transform(x: localX, y: localY)
                 x += transformed.x * weight
                 y += transformed.y * weight
