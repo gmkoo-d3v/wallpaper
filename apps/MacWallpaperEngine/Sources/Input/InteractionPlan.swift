@@ -1,0 +1,124 @@
+import CoreGraphics
+import Foundation
+
+struct InteractionHitResult {
+    let zoneID: String
+    let action: String
+    let trigger: HitZoneTrigger
+    let tailSeconds: CFTimeInterval
+}
+
+struct InteractionHitZoneSummary {
+    let id: String
+    let action: String
+    let trigger: HitZoneTrigger
+    let tailSeconds: CFTimeInterval?
+    let buttons: [PointerButton]
+    let rect: [Double]
+
+    var detailText: String {
+        let buttonText = buttons.map(\.rawValue).joined(separator: "+")
+        let rectText = rect.map { String(format: "%.3f", $0) }.joined(separator: ",")
+        let tailText = tailSeconds.map { String(format: "%.2fs", $0) } ?? "default"
+        return "\(id):\(action) trigger=\(trigger.rawValue) buttons=\(buttonText) rect=[\(rectText)] tail=\(tailText)"
+    }
+}
+
+struct InteractionPlan {
+    private let interactions: [InteractionConfig]
+    private let pointerSmoothing: CGFloat
+    private let idleDeadZone: CGFloat
+    private let directionSwitchMargin: CGFloat
+    private let defaultClickTailDuration: CFTimeInterval
+
+    init(interactions: [InteractionConfig], policy: InteractionPolicy?) {
+        self.interactions = interactions
+        self.pointerSmoothing = CGFloat(policy?.pointerSmoothing ?? 0.18)
+        self.idleDeadZone = CGFloat(policy?.idleDeadZone ?? 0.18)
+        self.directionSwitchMargin = CGFloat(policy?.directionSwitchMargin ?? 0.10)
+        self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
+    }
+
+    func smooth(current: CGPoint, target: CGPoint) -> CGPoint {
+        let clampedTarget = clamp(target)
+        return CGPoint(
+            x: current.x + (clampedTarget.x - current.x) * pointerSmoothing,
+            y: current.y + (clampedTarget.y - current.y) * pointerSmoothing
+        )
+    }
+
+    func command(for point: CGPoint, previousCommand: String = "idle") -> String {
+        let pointer = clamp(point)
+        guard let config = interactions.first(where: { $0.event == .pointerMove }),
+              config.mapping == "lookDirection",
+              let actions = config.actions else {
+            return "idle"
+        }
+        let dx = pointer.x - 0.5
+        let dy = pointer.y - 0.5
+        if abs(dx) < idleDeadZone, abs(dy) < idleDeadZone {
+            return actions["idle"] ?? "idle"
+        }
+        if abs(dx) > abs(dy) + directionSwitchMargin {
+            return dx < 0 ? (actions["left"] ?? "Left") : (actions["right"] ?? "Right")
+        }
+        if abs(dy) > abs(dx) + directionSwitchMargin {
+            return dy < 0 ? (actions["up"] ?? "Up") : (actions["down"] ?? "Down")
+        }
+        return previousCommand
+    }
+
+    func hitTest(point: CGPoint, button: PointerButton) -> InteractionHitResult? {
+        let pointer = clamp(point)
+        guard let config = interactions.first(where: { $0.event == .pointerDown }),
+              let hitZones = config.hitZones else {
+            return nil
+        }
+        let interactionButtons = config.buttons ?? [.left]
+        guard interactionButtons.contains(button) else { return nil }
+        for hitZone in hitZones {
+            let zoneButtons = hitZone.buttons ?? interactionButtons
+            guard zoneButtons.contains(button), contains(point: pointer, in: hitZone.rect) else { continue }
+            return InteractionHitResult(
+                zoneID: hitZone.id,
+                action: hitZone.action,
+                trigger: hitZone.trigger ?? .tap,
+                tailSeconds: hitZone.tailSeconds ?? defaultClickTailDuration
+            )
+        }
+        return nil
+    }
+
+    func hitZoneSummaries() -> [InteractionHitZoneSummary] {
+        guard let config = interactions.first(where: { $0.event == .pointerDown }),
+              let hitZones = config.hitZones else {
+            return []
+        }
+        let interactionButtons = config.buttons ?? [.left]
+        return hitZones.map { hitZone in
+            InteractionHitZoneSummary(
+                id: hitZone.id,
+                action: hitZone.action,
+                trigger: hitZone.trigger ?? .tap,
+                tailSeconds: hitZone.tailSeconds,
+                buttons: hitZone.buttons ?? interactionButtons,
+                rect: hitZone.rect
+            )
+        }
+    }
+
+    func clamp(_ point: CGPoint) -> CGPoint {
+        CGPoint(
+            x: min(max(point.x, 0.0), 1.0),
+            y: min(max(point.y, 0.0), 1.0)
+        )
+    }
+
+    private func contains(point: CGPoint, in rect: [Double]) -> Bool {
+        guard rect.count == 4 else { return false }
+        return Double(point.x) >= rect[0]
+            && Double(point.x) <= rect[2]
+            && Double(point.y) >= rect[1]
+            && Double(point.y) <= rect[3]
+    }
+}

@@ -224,12 +224,16 @@ enum RuntimeCapabilities {
         ))
 
         let hitZoneCount = pointerDown.reduce(0) { $0 + ($1.hitZones?.count ?? 0) }
-        let buttons = Set(pointerDown.flatMap { $0.buttons ?? [.left] }.map(\.rawValue)).sorted().joined(separator: ",")
+        let hitZoneSummaries = InteractionPlan(interactions: interactions, policy: policy).hitZoneSummaries()
+        let buttons = Set(hitZoneSummaries.flatMap { $0.buttons.map(\.rawValue) }).sorted().joined(separator: ",")
+        let hitZoneDetails = hitZoneSummaries.map(\.detailText).joined(separator: "; ")
         rows.append(RuntimeCapabilityRow(
             category: "interaction",
             name: "pointerDown/hitZones",
             status: hitZoneCount == 0 ? "not-used" : "supported",
-            detail: hitZoneCount == 0 ? "none" : "\(hitZoneCount) zone(s) buttons=\(buttons.isEmpty ? "left(default)" : buttons)"
+            detail: hitZoneCount == 0
+                ? "none"
+                : "\(hitZoneCount) zone(s) buttons=\(buttons.isEmpty ? "left(default)" : buttons) \(hitZoneDetails)"
         ))
 
         return rows

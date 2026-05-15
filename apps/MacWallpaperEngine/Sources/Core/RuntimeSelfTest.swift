@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 enum RuntimeSelfTest {
@@ -115,6 +116,10 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must report pointer movement support"
         )
         check(
+            capabilitySummary.contains("head:act trigger=tap buttons=left"),
+            "runtime capabilities summary must expose pointerDown hit-zone actions and buttons"
+        )
+        check(
             capabilitySummary.contains("spine\tattachments"),
             "runtime capabilities summary must report Spine attachment compatibility"
         )
@@ -125,6 +130,32 @@ enum RuntimeSelfTest {
         check(
             RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported,
             "active bundle must pass native Spine compatibility gate"
+        )
+        let interactionPlan = InteractionPlan(
+            interactions: manifest.interactions,
+            policy: manifest.interactionPolicy
+        )
+        check(
+            interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") == "Left",
+            "interaction plan must resolve left pointer movement"
+        )
+        check(
+            interactionPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right") == "idle",
+            "interaction plan must honor idle dead zone"
+        )
+        let headHit = interactionPlan.hitTest(point: CGPoint(x: 0.50, y: 0.30), button: .left)
+        check(
+            headHit?.zoneID == "head" && headHit?.action == "act" && headHit?.trigger == .tap,
+            "interaction plan must resolve Imported head left-click tap action"
+        )
+        let bodyHit = interactionPlan.hitTest(point: CGPoint(x: 0.50, y: 0.70), button: .left)
+        check(
+            bodyHit?.zoneID == "body" && bodyHit?.action == "boll" && bodyHit?.trigger == .hold,
+            "interaction plan must resolve Imported body left-click hold action"
+        )
+        check(
+            interactionPlan.hitTest(point: CGPoint(x: 0.50, y: 0.30), button: .right) == nil,
+            "interaction plan must reject right-click when the manifest declares left-click hit zones"
         )
         let syntheticDisplay = DisplayIdentityDescriptor(
             name: "LG ULTRAFINE",

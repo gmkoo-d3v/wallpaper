@@ -58,6 +58,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Reusable native Spine mesh buffers when batch structure is stable.
 - Pointer movement and click command mapping.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
+- Shared interaction plan for deterministic hit-zone, button, and
+  look-direction diagnostics.
 - Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
 - Low Power Mode and battery-power detection clamp rendering to the manifest
   fallback FPS and expose the active policy in runtime telemetry.
