@@ -1,7 +1,11 @@
+import Foundation
+
 enum RuntimeLifecyclePolicy {
     static let startupFailurePolicy = "control-panel-recovery"
     static let visibilityPausePolicy = "pause-when-occluded-or-fullscreen-obscured"
     static let desktopItemTrustPolicy = "fail-closed-without-accessibility-trust"
+    static let displayRebuildPolicy = "debounced-atomic-rollback"
+    static let displayRebuildDebounceSeconds: TimeInterval = 0.25
 
     static func shouldRecoverStartupFailureInControlPanel(launchControlPanel: Bool) -> Bool {
         launchControlPanel

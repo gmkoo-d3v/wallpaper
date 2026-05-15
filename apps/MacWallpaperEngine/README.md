@@ -101,8 +101,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   composite fallbacks.
 - Manifest/package validation rejects unsupported native Spine bundles that do
   not provide a `compositeVideo` fallback.
-- Atomic display rebuild policy keeps the previous wallpaper windows alive if
-  a hot-plug/display rebuild fails partway through.
+- Debounced atomic display rebuild policy absorbs hot-plug notification bursts
+  and keeps the previous wallpaper windows alive if a rebuild fails partway
+  through.
 - Window visibility loss from occlusion or fullscreen-obscured states pauses
   rendering when the manifest display policy requests `pause`.
 - Desktop interaction monitors are suspended whenever the wallpaper window is

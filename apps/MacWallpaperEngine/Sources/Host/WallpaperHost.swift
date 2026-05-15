@@ -3,6 +3,8 @@ import AppKit
 final class WallpaperHost: NSObject {
     private let runtime: NativeRuntimeCore
     private var windows: [NSWindow] = []
+    private var pendingDisplayRebuild: DispatchWorkItem?
+    private var isRunning = false
 
     init(runtime: NativeRuntimeCore) throws {
         self.runtime = runtime
@@ -10,6 +12,7 @@ final class WallpaperHost: NSObject {
     }
 
     func start() throws {
+        guard isRunning == false else { return }
         try rebuildWindows()
         NotificationCenter.default.addObserver(
             self,
@@ -17,15 +20,38 @@ final class WallpaperHost: NSObject {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        isRunning = true
     }
 
     func stop() {
+        isRunning = false
+        pendingDisplayRebuild?.cancel()
+        pendingDisplayRebuild = nil
         NotificationCenter.default.removeObserver(self)
         close(windows: windows)
         windows.removeAll()
     }
 
+    deinit {
+        stop()
+    }
+
     @objc private func screenParametersChanged() {
+        guard isRunning else { return }
+        pendingDisplayRebuild?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.performDisplayRebuild()
+        }
+        pendingDisplayRebuild = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + RuntimeLifecyclePolicy.displayRebuildDebounceSeconds,
+            execute: work
+        )
+    }
+
+    private func performDisplayRebuild() {
+        pendingDisplayRebuild = nil
+        guard isRunning else { return }
         do {
             try rebuildWindows()
         } catch {
@@ -154,7 +180,7 @@ final class WallpaperHost: NSObject {
 }
 
 enum DisplayPlanner {
-    static let rebuildPolicy = "atomic-rollback"
+    static let rebuildPolicy = RuntimeLifecyclePolicy.displayRebuildPolicy
 
     static func displaySelectionOptions() -> [DisplaySelectionOption] {
         var options = [

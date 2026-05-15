@@ -62,7 +62,15 @@ enum RuntimeSelfTest {
                 && displayRefreshPlan.contains("fps=60"),
             "render plan must expose effective display-refresh FPS for diagnostic displays"
         )
-        check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
+        check(
+            DisplayPlanner.rebuildPolicy == "debounced-atomic-rollback",
+            "display rebuild policy must debounce screen changes and preserve old windows until replacement succeeds"
+        )
+        check(
+            RuntimeLifecyclePolicy.displayRebuildDebounceSeconds > 0
+                && RuntimeLifecyclePolicy.displayRebuildDebounceSeconds <= 1,
+            "display rebuild debounce must absorb notification bursts without feeling stale"
+        )
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(
             RuntimeLifecyclePolicy.visibilityPausePolicy == "pause-when-occluded-or-fullscreen-obscured",
