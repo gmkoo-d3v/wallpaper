@@ -770,6 +770,27 @@ enum RuntimeSelfTest {
         let unsupportedSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(unsupportedSummary.capabilities.nativeSpineStatus == "unsupported", "catalog must surface unsupported native Spine status", failures: &failures, checks: &checks)
         check(unsupportedSummary.capabilities.fallbackStatus == "composite", "catalog must surface composite fallback for unsupported native Spine", failures: &failures, checks: &checks)
+
+        let noFallbackManifestJSON = manifestJSON.replacingOccurrences(of: """
+            "compositeVideo": {
+              "id": "compositeVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+
+        """, with: "")
+        try Data(noFallbackManifestJSON.utf8).write(to: manifestURL, options: .atomic)
+        do {
+            _ = try NativeRuntimeCore(config: unsupportedRuntime.config)
+            failures.append("unsupported native Spine bundle without composite fallback must fail manifest validation")
+        } catch {
+            check(
+                error.localizedDescription.contains("no compositeVideo fallback exists"),
+                "unsupported native Spine validation must explain missing composite fallback",
+                failures: &failures,
+                checks: &checks
+            )
+        }
     }
 
     private static func check(

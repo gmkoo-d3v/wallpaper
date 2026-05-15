@@ -132,6 +132,23 @@ enum ManifestLoader {
                 requiredVersion: manifest.validation.requireSpineVersion,
                 referencedActions: referencedAnimationActions(in: manifest.interactions)
             )
+            try validateNativeSpineFallbackReadiness(manifest, bundleRoot: bundleRoot)
+        }
+    }
+
+    private static func validateNativeSpineFallbackReadiness(
+        _ manifest: WallpaperNativeManifest,
+        bundleRoot: URL
+    ) throws {
+        guard manifest.layers.contains(where: { $0.type == .spine }) else { return }
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: manifest,
+            bundleRoot: bundleRoot
+        )
+        guard compatibility.isSupported || manifest.assets.compositeVideo != nil else {
+            throw EngineError.manifest(
+                "native Spine renderer cannot safely play this bundle and no compositeVideo fallback exists: \(compatibility.reasonText)"
+            )
         }
     }
 
