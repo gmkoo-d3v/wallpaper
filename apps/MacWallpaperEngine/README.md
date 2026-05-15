@@ -13,6 +13,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Spine animation slice for bone `rotate`, `translate`, `translatex`,
   `translatey`, `scale`, `shear`, slot `rgba` and `attachment` timelines.
 - Bezier/stepped curve sampling for Spine timelines.
+- Spine draw order timeline application.
 - Weighted mesh deform timeline application for rendered mesh attachments.
 - Basic Spine bone inherit handling for `noScale`, `noScaleOrReflection`, and
   `onlyTranslation`.
@@ -29,8 +30,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Draw order, clipping attachments, events/audio, sequence attachments, and
-  non-region non-mesh attachment paths. The current Imported asset uses mesh/path only.
+- Clipping attachments, events/audio, sequence attachments, and non-region
+  non-mesh attachment paths. The current Imported asset uses mesh/path only.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Runtime-calibrated region/mesh attachment parity for every action.

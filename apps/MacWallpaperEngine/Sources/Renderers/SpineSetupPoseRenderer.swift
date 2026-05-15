@@ -184,6 +184,16 @@ final class SpineSetupPoseRenderer {
         let curve: [Double]?
     }
 
+    private struct DrawOrderOffset {
+        let slotName: String
+        let offset: Int
+    }
+
+    private struct DrawOrderFrame {
+        let time: Double
+        let offsets: [DrawOrderOffset]?
+    }
+
     private struct BoneTimelines {
         var rotate: [TimelineFrame] = []
         var translate: [TimelineFrame] = []
@@ -226,6 +236,7 @@ final class SpineSetupPoseRenderer {
         let boneTimelines: [String: BoneTimelines]
         let slotTimelines: [String: SlotTimelines]
         let attachmentTimelines: [String: [String: AttachmentTimelines]]
+        let drawOrder: [DrawOrderFrame]
     }
 
     private struct Attachment {
@@ -298,6 +309,8 @@ final class SpineSetupPoseRenderer {
     private let bones: [Bone]
     private let boneIndexByName: [String: Int]
     private let slots: [Slot]
+    private let slotIndexByName: [String: Int]
+    private let slotSetupByName: [String: Slot]
     private let attachments: [String: [String: Attachment]]
     private let pathAttachments: [String: [String: PathAttachment]]
     private let animations: [String: SpineAnimation]
@@ -343,6 +356,8 @@ final class SpineSetupPoseRenderer {
         let bones = try Self.parseBones(root: root)
         let boneIndexByName = Dictionary(uniqueKeysWithValues: bones.enumerated().map { ($0.element.name, $0.offset) })
         let slots = try Self.parseSlots(root: root)
+        let slotIndexByName = Dictionary(uniqueKeysWithValues: slots.enumerated().map { ($0.element.name, $0.offset) })
+        let slotSetupByName = Dictionary(uniqueKeysWithValues: slots.map { ($0.name, $0) })
         let poseConstraints = try Self.parsePoseConstraints(root: root, boneIndexByName: boneIndexByName)
         let attachments = try Self.parseAttachments(root: root)
         let pathAttachments = try Self.parsePathAttachments(root: root)
@@ -370,6 +385,8 @@ final class SpineSetupPoseRenderer {
         self.bones = bones
         self.boneIndexByName = boneIndexByName
         self.slots = slots
+        self.slotIndexByName = slotIndexByName
+        self.slotSetupByName = slotSetupByName
         self.attachments = attachments
         self.pathAttachments = pathAttachments
         self.animations = animations
@@ -566,6 +583,17 @@ final class SpineSetupPoseRenderer {
         if let overlayAnimation, overlayMix > 0 {
             apply(animation: overlayAnimation, time: overlayTime, alpha: overlayMix, to: &posedBones, slots: &posedSlots, deforms: &deforms)
         }
+        applyDrawOrder(
+            baseAnimation: baseAnimation,
+            baseTime: baseTime,
+            previousOverlayAnimation: previousOverlayAnimation,
+            previousOverlayTime: previousOverlayTime,
+            previousOverlayMix: previousOverlayMix,
+            overlayAnimation: overlayAnimation,
+            overlayTime: overlayTime,
+            overlayMix: overlayMix,
+            slots: &posedSlots
+        )
 
         return (Self.computeBoneWorld(
             posedBones,
@@ -627,11 +655,12 @@ final class SpineSetupPoseRenderer {
         for slotIndex in posedSlots.indices {
             let slotName = posedSlots[slotIndex].name
             guard let timelines = animation.slotTimelines[slotName] else { continue }
-            if let color = sampleColor(timelines.rgba, time: time, defaultColor: slots[slotIndex].color) {
+            let setupSlot = slotSetupByName[slotName] ?? posedSlots[slotIndex]
+            if let color = sampleColor(timelines.rgba, time: time, defaultColor: setupSlot.color) {
                 posedSlots[slotIndex].color = blend(posedSlots[slotIndex].color, color, Float(mix))
             }
             if timelines.attachment.isEmpty == false, mix >= 0.5 {
-                posedSlots[slotIndex].attachment = sampleAttachment(timelines.attachment, time: time, defaultAttachment: slots[slotIndex].attachment)
+                posedSlots[slotIndex].attachment = sampleAttachment(timelines.attachment, time: time, defaultAttachment: setupSlot.attachment)
             }
         }
 
@@ -648,6 +677,95 @@ final class SpineSetupPoseRenderer {
                     deforms[slotName, default: [:]][attachmentName] = blend(current, deform, mix)
                 }
             }
+        }
+    }
+
+    private func applyDrawOrder(
+        baseAnimation: SpineAnimation?,
+        baseTime: Double,
+        previousOverlayAnimation: SpineAnimation?,
+        previousOverlayTime: Double,
+        previousOverlayMix: Double,
+        overlayAnimation: SpineAnimation?,
+        overlayTime: Double,
+        overlayMix: Double,
+        slots posedSlots: inout [Slot]
+    ) {
+        if let baseAnimation,
+           let frame = sampleDrawOrder(baseAnimation.drawOrder, time: baseTime) {
+            applyDrawOrder(frame, slots: &posedSlots)
+        }
+        if let previousOverlayAnimation,
+           previousOverlayMix >= 0.5,
+           let frame = sampleDrawOrder(previousOverlayAnimation.drawOrder, time: previousOverlayTime) {
+            applyDrawOrder(frame, slots: &posedSlots)
+        }
+        if let overlayAnimation,
+           overlayMix >= 0.5,
+           let frame = sampleDrawOrder(overlayAnimation.drawOrder, time: overlayTime) {
+            applyDrawOrder(frame, slots: &posedSlots)
+        }
+    }
+
+    private func sampleDrawOrder(_ frames: [DrawOrderFrame], time: Double) -> DrawOrderFrame? {
+        guard frames.isEmpty == false else { return nil }
+        var selected: DrawOrderFrame?
+        for frame in frames {
+            if frame.time <= time {
+                selected = frame
+            } else {
+                break
+            }
+        }
+        return selected
+    }
+
+    private func applyDrawOrder(_ frame: DrawOrderFrame, slots posedSlots: inout [Slot]) {
+        let currentByName = Dictionary(uniqueKeysWithValues: posedSlots.map { ($0.name, $0) })
+        guard let offsets = frame.offsets else {
+            posedSlots = slots.map { currentByName[$0.name] ?? $0 }
+            return
+        }
+
+        var orderedSlots = [Slot?](repeating: nil, count: slots.count)
+        var unchangedSetupIndices: [Int] = []
+        var setupIndex = 0
+
+        let sortedOffsets = offsets.sorted {
+            (slotIndexByName[$0.slotName] ?? Int.max) < (slotIndexByName[$1.slotName] ?? Int.max)
+        }
+        for offset in sortedOffsets {
+            guard let slotIndex = slotIndexByName[offset.slotName] else { continue }
+            while setupIndex < slotIndex {
+                unchangedSetupIndices.append(setupIndex)
+                setupIndex += 1
+            }
+
+            guard setupIndex < slots.count else { continue }
+            let targetIndex = setupIndex + offset.offset
+            guard targetIndex >= 0, targetIndex < orderedSlots.count else { continue }
+            let slotName = slots[setupIndex].name
+            orderedSlots[targetIndex] = currentByName[slotName] ?? slots[setupIndex]
+            setupIndex += 1
+        }
+
+        while setupIndex < slots.count {
+            unchangedSetupIndices.append(setupIndex)
+            setupIndex += 1
+        }
+
+        var unchangedCursor = unchangedSetupIndices.count - 1
+        for index in stride(from: orderedSlots.count - 1, through: 0, by: -1) where orderedSlots[index] == nil {
+            guard unchangedCursor >= 0 else { return }
+            let unchangedSetupIndex = unchangedSetupIndices[unchangedCursor]
+            let slotName = slots[unchangedSetupIndex].name
+            orderedSlots[index] = currentByName[slotName] ?? slots[unchangedSetupIndex]
+            unchangedCursor -= 1
+        }
+
+        let compacted = orderedSlots.compactMap { $0 }
+        if compacted.count == slots.count {
+            posedSlots = compacted
         }
     }
 
@@ -681,6 +799,7 @@ final class SpineSetupPoseRenderer {
             var boneTimelines: [String: BoneTimelines] = [:]
             var slotTimelines: [String: SlotTimelines] = [:]
             var attachmentTimelines: [String: [String: AttachmentTimelines]] = [:]
+            var drawOrder: [DrawOrderFrame] = []
 
             if let rawBones = animationMap["bones"] as? [String: Any] {
                 for (boneName, rawTimelineSet) in rawBones {
@@ -742,16 +861,46 @@ final class SpineSetupPoseRenderer {
                 }
             }
 
+            if let raw = animationMap["drawOrder"] ?? animationMap["draworder"] {
+                drawOrder = parseDrawOrderFrames(raw)
+                duration = max(duration, drawOrder.map(\.time).max() ?? 0)
+            }
+
             result[animationName] = SpineAnimation(
                 name: animationName,
                 duration: duration,
                 boneTimelines: boneTimelines,
                 slotTimelines: slotTimelines,
-                attachmentTimelines: attachmentTimelines
+                attachmentTimelines: attachmentTimelines,
+                drawOrder: drawOrder
             )
         }
 
         return result
+    }
+
+    private static func parseDrawOrderFrames(_ raw: Any) -> [DrawOrderFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.map { frame in
+            let offsets: [DrawOrderOffset]?
+            if let rawOffsets = frame["offsets"] as? [[String: Any]] {
+                offsets = rawOffsets.compactMap { rawOffset in
+                    guard let slotName = rawOffset["slot"] as? String else { return nil }
+                    return DrawOrderOffset(
+                        slotName: slotName,
+                        offset: Int(number(rawOffset["offset"], default: 0))
+                    )
+                }
+            } else {
+                offsets = nil
+            }
+
+            return DrawOrderFrame(
+                time: number(frame["time"], default: 0),
+                offsets: offsets
+            )
+        }
+        .sorted { $0.time < $1.time }
     }
 
     private static func parseFrames(
