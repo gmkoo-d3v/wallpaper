@@ -69,6 +69,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - First-pass IK, transform, path, and asset-used physics constraint evaluation.
 - Reusable native Spine mesh buffers when batch structure is stable.
 - Pointer movement and click command mapping.
+- Pointer smoothing advances on render snapshots, not only on macOS mouse
+  events, so look-direction commands keep converging after the cursor stops.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Shared interaction plan for deterministic hit-zone, button, and
   look-direction diagnostics.

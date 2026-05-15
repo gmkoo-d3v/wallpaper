@@ -239,6 +239,19 @@ enum RuntimeSelfTest {
                 interactionPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right") == "idle",
                 "look-direction interaction plan must honor idle dead zone"
             )
+            let interactionController = InteractionController(
+                interactions: manifest.interactions,
+                policy: manifest.interactionPolicy
+            )
+            interactionController.pointerMoved(to: CGPoint(x: 0.10, y: 0.50))
+            var smoothedCommand = interactionController.snapshot().command
+            for _ in 0..<12 {
+                smoothedCommand = interactionController.snapshot().command
+            }
+            check(
+                smoothedCommand != "idle",
+                "interaction controller must continue smoothing toward the latest pointer target between mouse events"
+            )
         } else {
             check(
                 interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") == "idle",

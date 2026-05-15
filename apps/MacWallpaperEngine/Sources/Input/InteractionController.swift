@@ -37,6 +37,7 @@ final class InteractionController {
         lock.lock()
         defer { lock.unlock() }
 
+        advanceSmoothedPointerLocked()
         let now = CACurrentMediaTime()
         if let pressedHitAction, pressedHitTrigger == .hold {
             clickCommandState = pressedHitAction
@@ -47,7 +48,7 @@ final class InteractionController {
             let fadeDuration = clickCommandHeld ? releaseFadeDuration : max(activeClickTailDuration, 0.001)
             let pulse = clickCommandHeld ? 1.0 : CGFloat((clickCommandExpiresAt - now) / fadeDuration)
             return InteractionSnapshot(
-                pointer: pointerState,
+                pointer: smoothedPointerState,
                 command: clickCommandState,
                 clickPulse: min(max(pulse, 0.0), 1.0)
             )
@@ -55,7 +56,7 @@ final class InteractionController {
 
         clickCommandState = nil
         return InteractionSnapshot(
-            pointer: pointerState,
+            pointer: smoothedPointerState,
             command: moveCommandState,
             clickPulse: 0.0
         )
@@ -65,10 +66,7 @@ final class InteractionController {
         let pointer = clamp(normalizedPoint)
 
         lock.lock()
-        let smoothedPointer = plan.smooth(current: smoothedPointerState, target: pointer)
         pointerState = pointer
-        smoothedPointerState = smoothedPointer
-        moveCommandState = plan.command(for: smoothedPointer, previousCommand: moveCommandState)
         lock.unlock()
     }
 
@@ -153,5 +151,10 @@ final class InteractionController {
 
     private func clamp(_ point: CGPoint) -> CGPoint {
         plan.clamp(point)
+    }
+
+    private func advanceSmoothedPointerLocked() {
+        smoothedPointerState = plan.smooth(current: smoothedPointerState, target: pointerState)
+        moveCommandState = plan.command(for: smoothedPointerState, previousCommand: moveCommandState)
     }
 }
