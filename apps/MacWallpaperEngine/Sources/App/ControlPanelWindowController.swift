@@ -14,6 +14,7 @@ struct ControlPanelState {
     let bundlePreviewURL: URL?
     let availableBundles: [WallpaperBundleSummary]
     let bundleDiagnosticsText: String
+    let renderPlanText: String
     let telemetryText: String
     let statusText: String
 }
@@ -45,6 +46,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let pathValue = NSTextField(labelWithString: "")
     private let bundleInfoValue = NSTextField(labelWithString: "")
     private let bundleDiagnosticsValue = NSTextField(labelWithString: "")
+    private let renderPlanValue = NSTextField(labelWithString: "")
     private let telemetryValue = NSTextField(labelWithString: "")
     private let previewImageView = NSImageView(frame: .zero)
     private let displayModeControl = NSSegmentedControl(
@@ -91,7 +93,7 @@ final class ControlPanelWindowController: NSWindowController {
     init(delegate: ControlPanelDelegate) {
         self.delegate = delegate
         let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 820, height: 600),
+            contentRect: CGRect(x: 0, y: 0, width: 860, height: 700),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -131,6 +133,7 @@ final class ControlPanelWindowController: NSWindowController {
         updatePreviewImage(state.bundlePreviewURL)
         bundleDiagnosticsValue.stringValue = state.bundleDiagnosticsText
         bundleDiagnosticsValue.isHidden = state.bundleDiagnosticsText.isEmpty
+        renderPlanValue.stringValue = state.renderPlanText
         telemetryValue.stringValue = state.telemetryText
         availableBundles = state.availableBundles
         reloadBundlePopup(currentRoot: state.wallpaperRoot)
@@ -242,6 +245,7 @@ final class ControlPanelWindowController: NSWindowController {
         stack.addArrangedSubview(infoRow(label: "STATUS", value: statusValue))
         stack.addArrangedSubview(bundleRow())
         stack.addArrangedSubview(bundlePreviewRow())
+        stack.addArrangedSubview(renderPlanRow())
         stack.addArrangedSubview(infoRow(label: "TELEMETRY", value: telemetryValue))
         stack.addArrangedSubview(modeRow())
         stack.addArrangedSubview(foregroundRow())
@@ -340,6 +344,22 @@ final class ControlPanelWindowController: NSWindowController {
 
         row.addArrangedSubview(previewImageView)
         row.addArrangedSubview(infoStack)
+        return row
+    }
+
+    private func renderPlanRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .vertical
+        row.spacing = 8
+
+        let caption = self.caption("RENDER PLAN")
+        renderPlanValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        renderPlanValue.textColor = NSColor(red: 0.18, green: 0.18, blue: 0.18, alpha: 1)
+        renderPlanValue.lineBreakMode = .byTruncatingTail
+        renderPlanValue.maximumNumberOfLines = 7
+
+        row.addArrangedSubview(caption)
+        row.addArrangedSubview(renderPlanValue)
         return row
     }
 

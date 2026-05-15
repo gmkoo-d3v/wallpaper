@@ -24,6 +24,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   from `preview.jpg` or a declared `staticImage` asset.
 - Control panel bundle library surfaces asset/layer/interaction/native-fallback
   capabilities before the user starts a selected bundle.
+- Control panel render diagnostics show the same per-display background,
+  foreground, fallback, and interaction path exposed by `--render-plan`.
 - Bundle import into the user Application Support wallpaper library with
   manifest validation and symlink rejection.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime

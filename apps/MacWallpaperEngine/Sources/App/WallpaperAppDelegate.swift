@@ -236,6 +236,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 bundlePreviewURL: nil,
                 availableBundles: libraryState.bundles,
                 bundleDiagnosticsText: libraryState.diagnosticsText,
+                renderPlanText: "No render plan until a wallpaper bundle is selected.",
                 telemetryText: "No runtime telemetry yet",
                 statusText: lastError.map { "ERROR / \($0)" } ?? "NO BUNDLE SELECTED"
             )
@@ -262,6 +263,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             bundlePreviewURL: selectedBundle?.previewURL,
             availableBundles: libraryState.bundles,
             bundleDiagnosticsText: libraryState.diagnosticsText,
+            renderPlanText: DisplayPlanner.renderSummary(runtime: runtime),
             telemetryText: controlPanelTelemetryText,
             statusText: status
         )
