@@ -28,14 +28,23 @@ do {
 
     if arguments.contains("--list-bundles") {
         let projectRoot = try? ProjectPaths.findProjectRoot()
-        let bundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: projectRoot)
+        let includeInvalid = arguments.contains("--include-invalid")
+        let diagnostics = WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
+        let bundles = diagnostics.compactMap(\.bundle)
         guard bundles.isEmpty == false else {
             fputs("No valid wallpaper bundles found.\n", stderr)
+            if includeInvalid {
+                printBundleDiagnostics(diagnostics)
+            }
             exit(EXIT_FAILURE)
         }
 
-        for bundle in bundles {
-            print("\(bundle.id)\t\(bundle.displayName)\t\(bundle.root.path)")
+        if includeInvalid {
+            printBundleDiagnostics(diagnostics)
+        } else {
+            for bundle in bundles {
+                print("\(bundle.id)\t\(bundle.displayName)\t\(bundle.root.path)")
+            }
         }
         exit(EXIT_SUCCESS)
     }
@@ -92,4 +101,11 @@ private func value(after option: String, in arguments: [String]) -> String? {
         return nil
     }
     return arguments[index + 1]
+}
+
+private func printBundleDiagnostics(_ diagnostics: [WallpaperBundleDiagnostic]) {
+    for diagnostic in diagnostics {
+        let errorMessage = diagnostic.errorMessage ?? ""
+        print("\(diagnostic.status.rawValue)\t\(diagnostic.id)\t\(diagnostic.displayName)\t\(diagnostic.root.path)\t\(errorMessage)")
+    }
 }

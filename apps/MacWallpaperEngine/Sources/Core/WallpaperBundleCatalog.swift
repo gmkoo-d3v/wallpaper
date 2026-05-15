@@ -7,8 +7,31 @@ struct WallpaperBundleSummary: Equatable {
     let manifestURL: URL
 }
 
+enum WallpaperBundleDiagnosticStatus: String {
+    case valid
+    case invalid
+}
+
+struct WallpaperBundleDiagnostic {
+    let root: URL
+    let status: WallpaperBundleDiagnosticStatus
+    let bundle: WallpaperBundleSummary?
+    let errorMessage: String?
+
+    var id: String {
+        bundle?.id ?? root.lastPathComponent
+    }
+
+    var displayName: String {
+        bundle?.displayName ?? root.lastPathComponent
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .capitalized
+    }
+}
+
 enum WallpaperBundleCatalog {
-    static func discoverDefaultBundles(projectRoot: URL? = try? ProjectPaths.findProjectRoot()) -> [WallpaperBundleSummary] {
+    static func diagnoseDefaultBundles(projectRoot: URL? = try? ProjectPaths.findProjectRoot()) -> [WallpaperBundleDiagnostic] {
         var directories: [URL] = []
         if let bundledDirectory = ProjectPaths.findBundledWallpapersDirectory() {
             directories.append(bundledDirectory)
@@ -19,51 +42,57 @@ enum WallpaperBundleCatalog {
         if let projectRoot {
             directories.append(projectRoot.appendingPathComponent("wallpapers"))
         }
-        return discover(in: directories)
+        return diagnose(in: directories)
+    }
+
+    static func discoverDefaultBundles(projectRoot: URL? = try? ProjectPaths.findProjectRoot()) -> [WallpaperBundleSummary] {
+        diagnoseDefaultBundles(projectRoot: projectRoot).compactMap(\.bundle)
     }
 
     static func discover(in directories: [URL]) -> [WallpaperBundleSummary] {
+        diagnose(in: directories).compactMap(\.bundle)
+    }
+
+    static func diagnose(in directories: [URL]) -> [WallpaperBundleDiagnostic] {
         var seenPaths = Set<String>()
         var seenIds = Set<String>()
-        var bundles: [WallpaperBundleSummary] = []
+        var diagnostics: [WallpaperBundleDiagnostic] = []
 
         for directory in directories {
-            for bundle in discover(in: directory) {
-                let key = bundle.root.standardizedFileURL.resolvingSymlinksInPath().path
+            for diagnostic in diagnose(in: directory) {
+                let key = diagnostic.root.standardizedFileURL.resolvingSymlinksInPath().path
                 guard seenPaths.insert(key).inserted else { continue }
-                guard seenIds.insert(bundle.id).inserted else { continue }
-                bundles.append(bundle)
+                if let bundle = diagnostic.bundle {
+                    guard seenIds.insert(bundle.id).inserted else { continue }
+                }
+                diagnostics.append(diagnostic)
             }
         }
 
-        return bundles.sorted {
-            $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+        return diagnostics.sorted {
+            let nameOrder = $0.displayName.localizedStandardCompare($1.displayName)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+            return $0.root.path.localizedStandardCompare($1.root.path) == .orderedAscending
         }
     }
 
     static func discover(in wallpapersDirectory: URL) -> [WallpaperBundleSummary] {
-        let directory = wallpapersDirectory.standardizedFileURL
-        guard ProjectPaths.directoryExists(directory),
-              let children = try? FileManager.default.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-              ) else {
-            return []
-        }
+        diagnose(in: wallpapersDirectory).compactMap(\.bundle)
+    }
 
-        return children
-            .compactMap(validateBundle)
-            .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    static func diagnose(in wallpapersDirectory: URL) -> [WallpaperBundleDiagnostic] {
+        candidateBundleDirectories(in: wallpapersDirectory)
+            .map(diagnoseBundle)
     }
 
     static func validateBundle(_ url: URL) -> WallpaperBundleSummary? {
-        do {
-            return try requireValidBundle(url)
-        } catch {
-            fputs("Skipping invalid wallpaper bundle \(url.lastPathComponent): \(error.localizedDescription)\n", stderr)
-            return nil
+        let diagnostic = diagnoseBundle(url)
+        if case .invalid = diagnostic.status, let errorMessage = diagnostic.errorMessage {
+            fputs("Skipping invalid wallpaper bundle \(url.lastPathComponent): \(errorMessage)\n", stderr)
         }
+        return diagnostic.bundle
     }
 
     static func requireValidBundle(_ url: URL) throws -> WallpaperBundleSummary {
@@ -83,6 +112,32 @@ enum WallpaperBundleCatalog {
             root: root,
             manifestURL: manifestURL
         )
+    }
+
+    private static func candidateBundleDirectories(in wallpapersDirectory: URL) -> [URL] {
+        let directory = wallpapersDirectory.standardizedFileURL
+        guard ProjectPaths.directoryExists(directory),
+              let children = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        return children
+            .filter(ProjectPaths.directoryExists)
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+    }
+
+    private static func diagnoseBundle(_ url: URL) -> WallpaperBundleDiagnostic {
+        let root = url.standardizedFileURL
+        do {
+            let bundle = try requireValidBundle(root)
+            return WallpaperBundleDiagnostic(root: bundle.root, status: .valid, bundle: bundle, errorMessage: nil)
+        } catch {
+            return WallpaperBundleDiagnostic(root: root, status: .invalid, bundle: nil, errorMessage: error.localizedDescription)
+        }
     }
 
     private static func displayName(for root: URL) -> String {

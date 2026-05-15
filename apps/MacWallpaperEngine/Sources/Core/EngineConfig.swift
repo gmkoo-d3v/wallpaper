@@ -315,6 +315,7 @@ struct EngineConfig {
       --fit-mode <mode>         contain | fill. Default: contain.
       --foreground-mode <mode>  composite | native. Default: composite.
       --list-bundles           Print validated wallpaper bundles and exit.
+      --include-invalid        With --list-bundles, include invalid bundle diagnostics.
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.

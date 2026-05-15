@@ -10,6 +10,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Manifest `metadata.id` and `metadata.title` for stable library identity.
 - Bundle discovery from packaged resources, project wallpapers, and the user
   Application Support wallpaper library.
+- `--list-bundles --include-invalid` diagnostics for unsupported or malformed
+  wallpaper folders.
 - Bundle import into the user Application Support wallpaper library with
   manifest validation and symlink rejection.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime

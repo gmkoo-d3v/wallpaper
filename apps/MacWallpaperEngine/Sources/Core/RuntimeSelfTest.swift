@@ -107,6 +107,7 @@ enum RuntimeSelfTest {
             },
             "default bundle catalog must include the active wallpaper bundle"
         )
+        try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
         try checkStaticImageBundle(from: runtime, failures: &failures, checks: &checks)
 
@@ -121,6 +122,53 @@ enum RuntimeSelfTest {
         manifest: \(runtime.config.manifestURL.path)
         bundle: \(runtime.config.wallpaperRoot.path)
         """
+    }
+
+    private static func checkBundleDiagnostics(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        let fileManager = FileManager.default
+        let fixtureParent = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineCatalogSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureParent)
+        }
+
+        let invalidBundleRoot = fixtureParent.appendingPathComponent("missing_manifest_bundle", isDirectory: true)
+        try fileManager.createDirectory(at: invalidBundleRoot, withIntermediateDirectories: true)
+
+        let diagnostics = WallpaperBundleCatalog.diagnose(in: fixtureParent)
+        check(diagnostics.count == 1, "bundle diagnostics must report candidate folders", failures: &failures, checks: &checks)
+        check(diagnostics.first?.status == .invalid, "bundle diagnostics must mark missing-manifest folders invalid", failures: &failures, checks: &checks)
+        check(
+            diagnostics.first?.errorMessage?.contains("wallpaper.native.json") == true,
+            "bundle diagnostics must preserve invalid bundle reason",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            WallpaperBundleCatalog.discover(in: fixtureParent).isEmpty,
+            "bundle discovery must exclude invalid diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let combinedDiagnostics = WallpaperBundleCatalog.diagnose(in: [
+            fixtureParent,
+            runtime.config.wallpaperRoot.deletingLastPathComponent()
+        ])
+        let activePath = runtime.config.wallpaperRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        check(
+            combinedDiagnostics.contains {
+                $0.status == .valid
+                    && $0.root.standardizedFileURL.resolvingSymlinksInPath().path == activePath
+            },
+            "bundle diagnostics must include valid bundles alongside invalid ones",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func checkVideoOnlyBundle(
