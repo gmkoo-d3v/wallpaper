@@ -116,6 +116,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
 
     private func restartHost(
         displayMode: DisplayMode,
+        primaryDisplaySelector: String?,
         interactive: Bool,
         renderFps: Int,
         playbackRate: Float,
@@ -134,6 +135,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         do {
             let nextConfig = currentRuntime.config.replacing(
                 displayMode: displayMode,
+                primaryDisplaySelector: primaryDisplaySelector,
                 interactive: interactive,
                 renderFps: renderFps,
                 playbackRateOverride: playbackRate,
@@ -225,16 +227,18 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             return ControlPanelState(
                 isRunning: false,
                 displayMode: .primaryAnimated,
+                primaryDisplaySelector: nil,
                 interactive: true,
                 renderFps: 60,
                 playbackRate: 1.0,
                 fitMode: .contain,
-                foregroundMode: .compositeVideo,
+                foregroundMode: .automatic,
                 wallpaperRoot: nil,
                 wallpaperPath: "No wallpaper bundle selected",
                 bundleInfoText: "No validated wallpaper bundle is selected.",
                 bundlePreviewURL: nil,
                 availableBundles: libraryState.bundles,
+                displaySelectionOptions: DisplayPlanner.displaySelectionOptions(),
                 bundleDiagnosticsText: libraryState.diagnosticsText,
                 renderPlanText: "No render plan until a wallpaper bundle is selected.",
                 telemetryText: "No runtime telemetry yet",
@@ -252,6 +256,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         return ControlPanelState(
             isRunning: host != nil,
             displayMode: runtime.config.displayMode,
+            primaryDisplaySelector: runtime.config.primaryDisplaySelector,
             interactive: runtime.config.interactive,
             renderFps: runtime.renderTargetFps,
             playbackRate: runtime.selectedPlaybackRate,
@@ -262,6 +267,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             bundleInfoText: bundleInfoText(for: selectedBundle),
             bundlePreviewURL: selectedBundle?.previewURL,
             availableBundles: libraryState.bundles,
+            displaySelectionOptions: DisplayPlanner.displaySelectionOptions(),
             bundleDiagnosticsText: libraryState.diagnosticsText,
             renderPlanText: DisplayPlanner.renderSummary(runtime: runtime),
             telemetryText: controlPanelTelemetryText,
@@ -285,6 +291,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
 
     func controlPanelApply(
         displayMode: DisplayMode,
+        primaryDisplaySelector: String?,
         interactive: Bool,
         renderFps: Int,
         playbackRate: Float,
@@ -293,6 +300,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
     ) {
         restartHost(
             displayMode: displayMode,
+            primaryDisplaySelector: primaryDisplaySelector,
             interactive: interactive,
             renderFps: renderFps,
             playbackRate: playbackRate,
@@ -398,7 +406,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             renderFps: 60,
             playbackRateOverride: 1.0,
             fitMode: .contain,
-            foregroundMode: .compositeVideo,
+            foregroundMode: .automatic,
             validateOnly: false,
             displayPlanOnly: false,
             renderPlanOnly: false,

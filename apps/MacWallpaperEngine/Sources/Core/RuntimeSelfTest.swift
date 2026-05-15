@@ -165,6 +165,34 @@ enum RuntimeSelfTest {
             parsedPrimaryOverride.primaryDisplaySelector == "fingerprint:abc123",
             "EngineConfig must parse --primary-display selector"
         )
+        let parsedDefaultForeground = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--validate-only"
+        ])
+        check(
+            parsedDefaultForeground.foregroundMode == .automatic,
+            "EngineConfig must default foreground mode to auto"
+        )
+        let displaySelectionOptions = DisplayPlanner.displaySelectionOptions()
+        check(
+            displaySelectionOptions.first?.selector == nil,
+            "display selection options must start with AppKit default primary"
+        )
+        check(
+            displaySelectionOptions.isEmpty == false,
+            "display selection options must be available for the control panel"
+        )
+        let autoRuntime = try NativeRuntimeCore(
+            config: runtime.config.replacing(foregroundMode: .automatic, clearDuration: true)
+        )
+        let autoPrimaryRenderPath = DisplayPlanner.renderPathSummary(
+            runtime: autoRuntime,
+            role: RenderDisplayRole(kind: .primary, policy: .full)
+        )
+        check(
+            autoPrimaryRenderPath.contains("foreground=nativeSpine(auto)"),
+            "auto render plan must prefer native Spine when the bundle supports it"
+        )
         let nativeRuntime = try NativeRuntimeCore(
             config: runtime.config.replacing(foregroundMode: .nativeSpine, clearDuration: true)
         )

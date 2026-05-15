@@ -31,6 +31,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   capabilities before the user starts a selected bundle.
 - Control panel render diagnostics show the same per-display background,
   foreground, fallback, and interaction path exposed by `--render-plan`.
+- Control panel display settings expose the same primary display selector used
+  by `--primary-display`, preserving configured selectors even when a display is
+  temporarily disconnected.
 - Bundle import into the user Application Support wallpaper library with
   manifest validation and symlink rejection.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime
@@ -81,6 +84,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
 - Control panel foreground switch:
+  - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.
   - `Native Spine`: background video plus native Spine mesh/timeline foreground.
 
@@ -99,7 +103,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Renderer Parity Priority
 
 - Treat `~/project/wall-paper/archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported` as the original Unity package source of truth.
-- Keep `Composite` as the user-visible fallback while native parity is incomplete.
+- Keep `Auto` as the default user-visible path: prefer native Spine, then use
+  `Composite` as the fallback while native parity is incomplete.
 - Keep `Native Spine` as the renderer parity track until the character no longer tears.
 - Complete Swift renderer reproduction before tuning click action duration:
   remaining profiler-backed runtime parity checks and wider wallpaper fixture
@@ -112,6 +117,7 @@ cd ~/project/wall-paper/apps/MacWallpaperEngine
 swift run MacWallpaperEngine --validate-only
 swift run MacWallpaperEngine --runtime-capabilities
 swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode all
+swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode primaryAnimated
 swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated

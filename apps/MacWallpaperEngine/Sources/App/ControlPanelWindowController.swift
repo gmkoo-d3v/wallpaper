@@ -3,6 +3,7 @@ import AppKit
 struct ControlPanelState {
     let isRunning: Bool
     let displayMode: DisplayMode
+    let primaryDisplaySelector: String?
     let interactive: Bool
     let renderFps: Int
     let playbackRate: Float
@@ -13,6 +14,7 @@ struct ControlPanelState {
     let bundleInfoText: String
     let bundlePreviewURL: URL?
     let availableBundles: [WallpaperBundleSummary]
+    let displaySelectionOptions: [DisplaySelectionOption]
     let bundleDiagnosticsText: String
     let renderPlanText: String
     let telemetryText: String
@@ -26,6 +28,7 @@ protocol ControlPanelDelegate: AnyObject {
     func controlPanelStop()
     func controlPanelApply(
         displayMode: DisplayMode,
+        primaryDisplaySelector: String?,
         interactive: Bool,
         renderFps: Int,
         playbackRate: Float,
@@ -55,6 +58,7 @@ final class ControlPanelWindowController: NSWindowController {
         target: nil,
         action: nil
     )
+    private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ["30", "60", "120"],
@@ -75,7 +79,7 @@ final class ControlPanelWindowController: NSWindowController {
         action: nil
     )
     private let foregroundModeControl = NSSegmentedControl(
-        labels: ["Composite", "Native Spine"],
+        labels: ["Auto", "Composite", "Native Spine"],
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -88,6 +92,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let quitButton = NSButton(title: "QUIT", target: nil, action: nil)
     private let bundlePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private var availableBundles: [WallpaperBundleSummary] = []
+    private var displaySelectionOptions: [DisplaySelectionOption] = []
     private var refreshTimer: Timer?
 
     init(delegate: ControlPanelDelegate) {
@@ -136,7 +141,9 @@ final class ControlPanelWindowController: NSWindowController {
         renderPlanValue.stringValue = state.renderPlanText
         telemetryValue.stringValue = state.telemetryText
         availableBundles = state.availableBundles
+        displaySelectionOptions = state.displaySelectionOptions
         reloadBundlePopup(currentRoot: state.wallpaperRoot)
+        reloadPrimaryDisplayPopup(selector: state.primaryDisplaySelector)
         displayModeControl.selectedSegment = segment(for: state.displayMode)
         interactionToggle.state = state.interactive ? .on : .off
         fpsControl.selectedSegment = segment(forFps: state.renderFps)
@@ -378,9 +385,14 @@ final class ControlPanelWindowController: NSWindowController {
         displayModeControl.setToolTip("Primary display is full; secondary displays follow the manifest secondary policy.", forSegment: 0)
         displayModeControl.setToolTip("All displays render the full wallpaper; secondary displays remain passive.", forSegment: 1)
         displayModeControl.setToolTip("Only the primary display gets a wallpaper window.", forSegment: 2)
+        primaryDisplayPopup.widthAnchor.constraint(equalToConstant: 260).isActive = true
+
+        let primaryCaption = self.caption("PRIMARY")
 
         row.addArrangedSubview(caption)
         row.addArrangedSubview(displayModeControl)
+        row.addArrangedSubview(primaryCaption)
+        row.addArrangedSubview(primaryDisplayPopup)
         row.addArrangedSubview(interactionToggle)
         return row
     }
@@ -483,7 +495,14 @@ final class ControlPanelWindowController: NSWindowController {
     }
 
     private func segment(forForegroundMode foregroundMode: ForegroundRenderMode) -> Int {
-        foregroundMode == .nativeSpine ? 1 : 0
+        switch foregroundMode {
+        case .automatic:
+            return 0
+        case .compositeVideo:
+            return 1
+        case .nativeSpine:
+            return 2
+        }
     }
 
     private func reloadBundlePopup(currentRoot: URL?) {
@@ -511,6 +530,38 @@ final class ControlPanelWindowController: NSWindowController {
         }
     }
 
+    private func reloadPrimaryDisplayPopup(selector: String?) {
+        primaryDisplayPopup.removeAllItems()
+        guard displaySelectionOptions.isEmpty == false else {
+            primaryDisplayPopup.addItem(withTitle: "No displays")
+            primaryDisplayPopup.isEnabled = false
+            return
+        }
+
+        primaryDisplayPopup.isEnabled = true
+        for option in displaySelectionOptions {
+            primaryDisplayPopup.addItem(withTitle: option.title)
+            primaryDisplayPopup.lastItem?.representedObject = option.selector
+        }
+
+        let normalizedSelector = selector?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let selectedItem = primaryDisplayPopup.itemArray.first(where: {
+            guard let optionSelector = $0.representedObject as? String else {
+                return normalizedSelector == nil || normalizedSelector?.isEmpty == true
+            }
+            return optionSelector.lowercased() == normalizedSelector
+        }) {
+            primaryDisplayPopup.select(selectedItem)
+        } else if let selector,
+                  selector.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            primaryDisplayPopup.addItem(withTitle: "Configured display unavailable: \(selector)")
+            primaryDisplayPopup.lastItem?.representedObject = selector
+            primaryDisplayPopup.select(primaryDisplayPopup.lastItem)
+        } else {
+            primaryDisplayPopup.selectItem(at: 0)
+        }
+    }
+
     private func updatePreviewImage(_ url: URL?) {
         guard let url, let image = NSImage(contentsOf: url) else {
             previewImageView.image = nil
@@ -528,6 +579,14 @@ final class ControlPanelWindowController: NSWindowController {
         default:
             return .primaryAnimated
         }
+    }
+
+    private func selectedPrimaryDisplaySelector() -> String? {
+        guard let selector = primaryDisplayPopup.selectedItem?.representedObject as? String else {
+            return nil
+        }
+        let trimmed = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func selectedFps() -> Int {
@@ -557,7 +616,14 @@ final class ControlPanelWindowController: NSWindowController {
     }
 
     private func selectedForegroundMode() -> ForegroundRenderMode {
-        foregroundModeControl.selectedSegment == 1 ? .nativeSpine : .compositeVideo
+        switch foregroundModeControl.selectedSegment {
+        case 1:
+            return .compositeVideo
+        case 2:
+            return .nativeSpine
+        default:
+            return .automatic
+        }
     }
 
     private func caption(_ text: String) -> NSTextField {
@@ -580,6 +646,7 @@ final class ControlPanelWindowController: NSWindowController {
     @objc private func applySettings() {
         delegate?.controlPanelApply(
             displayMode: selectedDisplayMode(),
+            primaryDisplaySelector: selectedPrimaryDisplaySelector(),
             interactive: interactionToggle.state == .on,
             renderFps: selectedFps(),
             playbackRate: selectedPlaybackRate(),

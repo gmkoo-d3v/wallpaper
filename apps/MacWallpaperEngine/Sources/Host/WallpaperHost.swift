@@ -151,6 +151,23 @@ final class WallpaperHost: NSObject {
 enum DisplayPlanner {
     static let rebuildPolicy = "atomic-rollback"
 
+    static func displaySelectionOptions() -> [DisplaySelectionOption] {
+        var options = [
+            DisplaySelectionOption(title: "AppKit Default Primary", selector: nil)
+        ]
+
+        for screen in NSScreen.screens {
+            let descriptor = displayDescriptor(for: screen)
+            let selector = descriptor.displayID.map { "displayID:\($0)" } ?? "fingerprint:\(descriptor.fingerprint)"
+            options.append(DisplaySelectionOption(
+                title: "\(screen.localizedName) / \(descriptor.shortSummary)",
+                selector: selector
+            ))
+        }
+
+        return options
+    }
+
     static func primaryScreen(in screens: [NSScreen], runtime: NativeRuntimeCore) -> NSScreen? {
         guard let first = screens.first else { return nil }
         guard let selector = runtime.config.primaryDisplaySelector?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -309,6 +326,14 @@ enum DisplayPlanner {
         guard role.rendersForeground else { return "none(display-policy)" }
 
         switch runtime.config.foregroundMode {
+        case .automatic:
+            if shouldUseNativeSpine(runtime: runtime, role: role, compatibility: compatibility) {
+                return "nativeSpine(auto)"
+            }
+            guard shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility) else {
+                return "none(no-foreground-asset)"
+            }
+            return "compositeVideo(auto)"
         case .compositeVideo:
             guard shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility) else {
                 return "none(no-compositeVideo)"
@@ -329,7 +354,20 @@ enum DisplayPlanner {
         role: RenderDisplayRole,
         compatibility: NativeSpineCompatibility
     ) -> String {
-        guard runtime.config.foregroundMode == .nativeSpine, role.rendersForeground else {
+        guard role.rendersForeground else {
+            return "none"
+        }
+
+        if runtime.config.foregroundMode == .automatic {
+            if shouldUseNativeSpine(runtime: runtime, role: role, compatibility: compatibility) {
+                return runtime.assetCatalog.compositeVideoAsset == nil ? "none" : "resourceBudget->compositeVideo"
+            }
+            return shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility)
+                ? "auto->compositeVideo"
+                : "none"
+        }
+
+        guard runtime.config.foregroundMode == .nativeSpine else {
             return "none"
         }
 
@@ -356,13 +394,31 @@ enum DisplayPlanner {
         role: RenderDisplayRole,
         compatibility: NativeSpineCompatibility
     ) -> Bool {
-        (runtime.config.foregroundMode == .compositeVideo || shouldFallbackNativeSpineToComposite(
-            runtime: runtime,
-            role: role,
-            compatibility: compatibility
-        ))
-            && role.prefersCompositeVideo
-            && runtime.assetCatalog.compositeVideoAsset != nil
+        guard role.prefersCompositeVideo,
+              runtime.assetCatalog.compositeVideoAsset != nil else {
+            return false
+        }
+        switch runtime.config.foregroundMode {
+        case .automatic:
+            return shouldUseNativeSpine(runtime: runtime, role: role, compatibility: compatibility) == false
+        case .compositeVideo:
+            return true
+        case .nativeSpine:
+            return shouldFallbackNativeSpineToComposite(runtime: runtime, role: role, compatibility: compatibility)
+        }
+    }
+
+    private static func shouldUseNativeSpine(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole,
+        compatibility: NativeSpineCompatibility
+    ) -> Bool {
+        guard role.rendersForeground,
+              runtime.assetCatalog.spineAsset != nil,
+              compatibility.isSupported else {
+            return false
+        }
+        return runtime.config.foregroundMode == .nativeSpine || runtime.config.foregroundMode == .automatic
     }
 
     private static func shouldFallbackNativeSpineToComposite(
@@ -450,6 +506,11 @@ enum DisplayPlanner {
     private static func format(_ value: CGFloat) -> String {
         String(format: "%.2f", Double(value))
     }
+}
+
+struct DisplaySelectionOption {
+    let title: String
+    let selector: String?
 }
 
 struct DisplayIdentityDescriptor {

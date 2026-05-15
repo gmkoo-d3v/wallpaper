@@ -14,6 +14,13 @@ final class NativeRuntimeCore {
             return playbackRateOverride
         }
         switch config.foregroundMode {
+        case .automatic:
+            if assetCatalog.spineAsset != nil,
+               RuntimeCapabilities.nativeSpineCompatibility(runtime: self).isSupported,
+               let background = assetCatalog.videoAsset {
+                return background.playbackRate
+            }
+            return assetCatalog.compositeVideoAsset?.playbackRate ?? assetCatalog.videoAsset?.playbackRate ?? 1.0
         case .compositeVideo:
             return assetCatalog.compositeVideoAsset?.playbackRate ?? assetCatalog.videoAsset?.playbackRate ?? 1.0
         case .nativeSpine:

@@ -48,6 +48,7 @@ enum RenderFitMode: String {
 }
 
 enum ForegroundRenderMode: String {
+    case automatic = "auto"
     case compositeVideo = "composite"
     case nativeSpine = "native"
 }
@@ -140,7 +141,7 @@ struct EngineConfig {
         var renderFps: Int?
         var playbackRateOverride: Float?
         var fitMode = RenderFitMode.contain
-        var foregroundMode = ForegroundRenderMode.compositeVideo
+        var foregroundMode = ForegroundRenderMode.automatic
         var validateOnly = false
         var displayPlanOnly = false
         var renderPlanOnly = false
@@ -341,7 +342,7 @@ struct EngineConfig {
       --fps <value>             Render FPS: 30 | 60 | 120. Defaults to manifest targetFps.
       --playback-rate <value>   Video playback rate override. Defaults to manifest asset rate.
       --fit-mode <mode>         contain | fill. Default: contain.
-      --foreground-mode <mode>  composite | native. Default: composite.
+      --foreground-mode <mode>  auto | composite | native. Default: auto.
       --list-bundles           Print validated wallpaper bundles and exit.
       --include-invalid        With --list-bundles, include invalid bundle diagnostics.
       --include-capabilities   With --list-bundles, include asset/layer/native fallback capability summary.
