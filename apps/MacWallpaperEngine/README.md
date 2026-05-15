@@ -44,7 +44,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   left/right click probes from the same interaction planner used by the
   renderer.
 - `--spine-animation-plan` reports Spine animation duration, timeline coverage,
-  and whether every manifest interaction action resolves to a real animation.
+  native timeline compatibility per manifest action, and whether every manifest
+  interaction action resolves to a real animation.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.

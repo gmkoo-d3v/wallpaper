@@ -302,10 +302,18 @@ enum RuntimeSelfTest {
                 spineAnimationPlan.contains("animation\tidle\tavailable"),
                 "Spine animation diagnostics must report idle animation availability"
             )
+            check(
+                spineAnimationPlan.contains("unsupportedActionTimelines: none"),
+                "Spine animation diagnostics must prove manifest actions use supported native timeline families"
+            )
             for actionName in manifestActionNames.sorted() {
                 check(
                     spineAnimationPlan.contains("action\t\(actionName)\tavailable"),
                     "Spine animation diagnostics must link manifest action \(actionName) to an available animation"
+                )
+                check(
+                    spineAnimationPlan.contains("coverage\t\(actionName)\tcompatible"),
+                    "Spine animation diagnostics must mark manifest action \(actionName) native timeline coverage compatible"
                 )
             }
         }

@@ -20,12 +20,41 @@ struct SpineAnimationDiagnostics {
                 .map { "\($0.key)=\($0.value)" }
                 .joined(separator: ",")
         }
+
+        var unsupportedNativeTimelineTypes: [String] {
+            timelineTypes.keys
+                .filter { SpineAnimationDiagnostics.supportedNativeTimelineTypes.contains($0) == false }
+                .sorted()
+        }
+
+        var nativeCoverageStatus: String {
+            unsupportedNativeTimelineTypes.isEmpty ? "compatible" : "unsupported"
+        }
+
+        var unsupportedNativeTimelineTypeText: String {
+            let unsupported = unsupportedNativeTimelineTypes
+            return unsupported.isEmpty ? "unsupported=none" : "unsupported=\(unsupported.joined(separator: ","))"
+        }
     }
 
     private struct ActionReference {
         let action: String
         let use: String
     }
+
+    private static let supportedNativeTimelineTypes: Set<String> = [
+        "bone.rotate",
+        "bone.translate",
+        "bone.translatex",
+        "bone.translatey",
+        "bone.scale",
+        "bone.shear",
+        "slot.rgba",
+        "slot.attachment",
+        "attachment.deform",
+        "drawOrder",
+        "draworder"
+    ]
 
     static func tapActionDurations(runtime: NativeRuntimeCore) throws -> [String: TimeInterval] {
         let tapActions = Set(runtime.manifest.interactions.flatMap { interaction -> [String] in
@@ -60,6 +89,10 @@ struct SpineAnimationDiagnostics {
         let summaryByName = Dictionary(uniqueKeysWithValues: summaries.map { ($0.name, $0) })
         let missingActions = actionNames.filter { summaryByName[$0] == nil }
         let manifestActionText = actionNames.isEmpty ? "none" : actionNames.joined(separator: ",")
+        let unsupportedActionTimelineText = unsupportedActionTimelines(
+            actionNames: actionNames,
+            summaryByName: summaryByName
+        )
 
         var lines = [
             "spine animation plan OK",
@@ -67,6 +100,7 @@ struct SpineAnimationDiagnostics {
             "animations: \(summaries.count)",
             "manifestActions: \(manifestActionText)",
             "missingManifestActions: \(missingActions.isEmpty ? "none" : missingActions.joined(separator: ","))",
+            "unsupportedActionTimelines: \(unsupportedActionTimelineText)",
             "columns: kind\tname\tstatus\tduration\ttimelines\tframes\ttypes\tuses"
         ]
 
@@ -101,6 +135,37 @@ struct SpineAnimationDiagnostics {
             }
         }
 
+        for actionName in actionNames {
+            let uses = actionReferences
+                .filter { $0.action == actionName }
+                .map(\.use)
+                .sorted()
+                .joined(separator: ",")
+            if let summary = summaryByName[actionName] {
+                lines.append([
+                    "coverage",
+                    actionName,
+                    summary.nativeCoverageStatus,
+                    formatSeconds(summary.duration),
+                    "\(summary.timelineCount)",
+                    "\(summary.frameCount)",
+                    summary.unsupportedNativeTimelineTypeText,
+                    uses.isEmpty ? "none" : uses
+                ].joined(separator: "\t"))
+            } else {
+                lines.append([
+                    "coverage",
+                    actionName,
+                    "missing",
+                    "0.000s",
+                    "0",
+                    "0",
+                    "unsupported=missing-animation",
+                    uses.isEmpty ? "none" : uses
+                ].joined(separator: "\t"))
+            }
+        }
+
         for summary in summaries {
             lines.append([
                 "animation",
@@ -124,8 +189,22 @@ struct SpineAnimationDiagnostics {
             "animations: 0",
             "manifestActions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
             "missingManifestActions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "unsupportedActionTimelines: none",
             "columns: kind\tname\tstatus\tduration\ttimelines\tframes\ttypes\tuses"
         ].joined(separator: "\n")
+    }
+
+    private static func unsupportedActionTimelines(
+        actionNames: [String],
+        summaryByName: [String: AnimationSummary]
+    ) -> String {
+        let unsupported = actionNames.compactMap { actionName -> String? in
+            guard let summary = summaryByName[actionName] else { return nil }
+            let types = summary.unsupportedNativeTimelineTypes
+            guard types.isEmpty == false else { return nil }
+            return "\(actionName):\(types.joined(separator: "+"))"
+        }
+        return unsupported.isEmpty ? "none" : unsupported.joined(separator: ",")
     }
 
     private static func animationSummaries(from jsonURL: URL) throws -> [AnimationSummary] {
