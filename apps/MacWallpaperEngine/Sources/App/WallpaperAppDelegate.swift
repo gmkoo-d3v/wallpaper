@@ -34,7 +34,14 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
             }
         } catch {
             fputs("Wallpaper host failed: \(error.localizedDescription)\n", stderr)
-            NSApplication.shared.terminate(nil)
+            lastError = error.localizedDescription
+            if RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(
+                launchControlPanel: runtime.config.launchControlPanel
+            ) {
+                showControlPanel()
+            } else {
+                NSApplication.shared.terminate(nil)
+            }
         }
     }
 

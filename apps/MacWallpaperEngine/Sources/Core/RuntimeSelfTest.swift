@@ -40,6 +40,15 @@ enum RuntimeSelfTest {
             "performance plan must document exhausted-budget video-only fallback"
         )
         check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
+        check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
+        check(
+            RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: true),
+            "startup host failures must surface in the control panel when UI is available"
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: false) == false,
+            "wallpaper-only startup failures must not create recovery UI unexpectedly"
+        )
 
         let primaryRole = DisplayPlanner.role(
             isPrimary: true,
