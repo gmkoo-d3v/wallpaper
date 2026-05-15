@@ -89,6 +89,14 @@ enum RuntimeSelfTest {
 
         let validatedBundle = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)
         check(validatedBundle != nil, "active wallpaper bundle must pass catalog validation")
+        check(
+            validatedBundle?.capabilities.nativeSpineStatus == "supported",
+            "bundle catalog must expose native Spine support status"
+        )
+        check(
+            validatedBundle?.capabilities.briefText.contains("fallback: composite-ready") == true,
+            "bundle catalog must expose composite fallback readiness"
+        )
         let capabilitySummary = runtime.runtimeCapabilitiesSummary()
         check(
             capabilitySummary.contains("runtime capabilities"),
@@ -424,6 +432,8 @@ enum RuntimeSelfTest {
         check(videoOnlyRuntime.assetCatalog.spineAsset == nil, "video-only bundle must not require a Spine asset", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.manifest.layers.count == 1, "video-only bundle must preserve its single video layer", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.validationSummary().contains("spine json: none"), "video-only validation summary must report no Spine asset", failures: &failures, checks: &checks)
+        let videoOnlySummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
+        check(videoOnlySummary.capabilities.nativeSpineStatus == "not-used", "video-only bundle catalog must mark native Spine unused", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeRenderer\tnot-used"), "video-only capability summary must mark Spine renderer unused", failures: &failures, checks: &checks)
         check(
             DisplayPlanner.role(isPrimary: false, displayMode: .primaryAnimated, manifest: videoOnlyRuntime.manifest)?.policy == .static,
@@ -552,6 +562,7 @@ enum RuntimeSelfTest {
         check(staticRuntime.runtimeCapabilitiesSummary().contains("layer\tstatic_image\tsupported"), "static image capability summary must report static_image support", failures: &failures, checks: &checks)
         let staticSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(staticSummary.previewURL?.lastPathComponent == "poster.jpg", "static image bundle catalog preview must fall back to staticImage asset", failures: &failures, checks: &checks)
+        check(staticSummary.capabilities.briefText.contains("assets: static"), "static image bundle catalog must expose static capability", failures: &failures, checks: &checks)
     }
 
     private static func checkUnsupportedSpineCompatibilityBundle(
@@ -752,6 +763,9 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let unsupportedSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
+        check(unsupportedSummary.capabilities.nativeSpineStatus == "unsupported", "catalog must surface unsupported native Spine status", failures: &failures, checks: &checks)
+        check(unsupportedSummary.capabilities.fallbackStatus == "composite", "catalog must surface composite fallback for unsupported native Spine", failures: &failures, checks: &checks)
     }
 
     private static func check(

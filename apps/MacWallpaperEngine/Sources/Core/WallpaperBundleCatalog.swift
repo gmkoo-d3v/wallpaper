@@ -7,6 +7,7 @@ struct WallpaperBundleSummary: Equatable {
     let version: String?
     let description: String?
     let previewURL: URL?
+    let capabilities: WallpaperBundleCapabilityInfo
     let root: URL
     let manifestURL: URL
 }
@@ -117,6 +118,7 @@ enum WallpaperBundleCatalog {
             version: metadataValue(manifest.metadata?.version),
             description: metadataValue(manifest.metadata?.description),
             previewURL: previewURL(for: manifest, root: root),
+            capabilities: RuntimeCapabilities.bundleInfo(manifest: manifest, bundleRoot: root),
             root: root,
             manifestURL: manifestURL
         )

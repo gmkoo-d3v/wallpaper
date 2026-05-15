@@ -20,6 +20,24 @@ struct NativeSpineCompatibility {
     }
 }
 
+struct WallpaperBundleCapabilityInfo: Equatable {
+    let assetKinds: [String]
+    let layerKinds: [String]
+    let interactionKinds: [String]
+    let nativeSpineStatus: String
+    let fallbackStatus: String
+
+    var briefText: String {
+        [
+            "assets: \(assetKinds.joined(separator: "+"))",
+            "layers: \(layerKinds.joined(separator: "+"))",
+            "interactions: \(interactionKinds.joined(separator: "+"))",
+            "native: \(nativeSpineStatus)",
+            "fallback: \(fallbackStatus)"
+        ].joined(separator: " / ")
+    }
+}
+
 enum RuntimeCapabilities {
     static func summary(runtime: NativeRuntimeCore) -> String {
         let rows = makeRows(runtime: runtime)
@@ -79,11 +97,19 @@ enum RuntimeCapabilities {
     }
 
     static func nativeSpineCompatibility(runtime: NativeRuntimeCore) -> NativeSpineCompatibility {
-        guard let spine = runtime.assetCatalog.spineAsset else {
+        nativeSpineCompatibility(manifest: runtime.manifest, bundleRoot: runtime.config.wallpaperRoot)
+    }
+
+    static func nativeSpineCompatibility(
+        manifest: WallpaperNativeManifest,
+        bundleRoot: URL
+    ) -> NativeSpineCompatibility {
+        guard let spine = manifest.assets.spine else {
             return NativeSpineCompatibility(isSupported: true, reasons: [])
         }
 
-        let scan = SpineFeatureScan.scan(url: spine.json)
+        let spineJSON = bundleRoot.appendingPathComponent(spine.json).standardizedFileURL
+        let scan = SpineFeatureScan.scan(url: spineJSON)
         var reasons: [String] = []
         if scan.unsupportedAttachmentTypes.isEmpty == false {
             reasons.append("unsupported attachment types: \(scan.unsupportedAttachmentTypes.listOrNone)")
@@ -96,6 +122,43 @@ enum RuntimeCapabilities {
         }
 
         return NativeSpineCompatibility(isSupported: reasons.isEmpty, reasons: reasons)
+    }
+
+    static func bundleInfo(
+        manifest: WallpaperNativeManifest,
+        bundleRoot: URL
+    ) -> WallpaperBundleCapabilityInfo {
+        var assetKinds: [String] = []
+        if manifest.assets.staticImage != nil { assetKinds.append("static") }
+        if manifest.assets.video != nil { assetKinds.append("video") }
+        if manifest.assets.compositeVideo != nil { assetKinds.append("composite") }
+        if manifest.assets.spine != nil { assetKinds.append("spine") }
+        if assetKinds.isEmpty { assetKinds.append("none") }
+
+        let layerKinds = manifest.layers.map(\.type.rawValue).uniquePreservingOrder
+        let interactionKinds = interactionKinds(for: manifest.interactions)
+        let compatibility = nativeSpineCompatibility(manifest: manifest, bundleRoot: bundleRoot)
+        let nativeSpineStatus: String
+        if manifest.assets.spine == nil {
+            nativeSpineStatus = "not-used"
+        } else {
+            nativeSpineStatus = compatibility.isSupported ? "supported" : "unsupported"
+        }
+
+        let fallbackStatus: String
+        if compatibility.isSupported {
+            fallbackStatus = manifest.assets.compositeVideo == nil ? "not-needed" : "composite-ready"
+        } else {
+            fallbackStatus = manifest.assets.compositeVideo == nil ? "blocked" : "composite"
+        }
+
+        return WallpaperBundleCapabilityInfo(
+            assetKinds: assetKinds,
+            layerKinds: layerKinds.isEmpty ? ["none"] : layerKinds,
+            interactionKinds: interactionKinds,
+            nativeSpineStatus: nativeSpineStatus,
+            fallbackStatus: fallbackStatus
+        )
     }
 
     private static func assetRow(name: String, isPresent: Bool, detail: String?) -> RuntimeCapabilityRow {
@@ -170,6 +233,17 @@ enum RuntimeCapabilities {
         ))
 
         return rows
+    }
+
+    private static func interactionKinds(for interactions: [InteractionConfig]) -> [String] {
+        var kinds: [String] = []
+        if interactions.contains(where: { $0.event == .pointerMove }) {
+            kinds.append("pointerMove")
+        }
+        if interactions.contains(where: { $0.event == .pointerDown }) {
+            kinds.append("pointerDown")
+        }
+        return kinds.isEmpty ? ["none"] : kinds
     }
 
     private static func spineRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {
@@ -373,5 +447,12 @@ private struct SpineFeatureScan {
 private extension Set where Element == String {
     var listOrNone: String {
         isEmpty ? "none" : sorted().joined(separator: ",")
+    }
+}
+
+private extension Array where Element == String {
+    var uniquePreservingOrder: [String] {
+        var seen = Set<String>()
+        return filter { seen.insert($0).inserted }
     }
 }

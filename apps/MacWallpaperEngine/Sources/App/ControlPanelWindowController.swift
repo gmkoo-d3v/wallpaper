@@ -330,7 +330,7 @@ final class ControlPanelWindowController: NSWindowController {
         bundleInfoValue.font = .systemFont(ofSize: 13, weight: .light)
         bundleInfoValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
         bundleInfoValue.lineBreakMode = .byTruncatingTail
-        bundleInfoValue.maximumNumberOfLines = 3
+        bundleInfoValue.maximumNumberOfLines = 4
         bundleInfoValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         infoStack.addArrangedSubview(caption)
@@ -473,7 +473,7 @@ final class ControlPanelWindowController: NSWindowController {
 
         bundlePopup.isEnabled = true
         for bundle in availableBundles {
-            bundlePopup.addItem(withTitle: bundle.displayName)
+            bundlePopup.addItem(withTitle: "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)]")
             bundlePopup.lastItem?.representedObject = bundle.root.path
         }
 

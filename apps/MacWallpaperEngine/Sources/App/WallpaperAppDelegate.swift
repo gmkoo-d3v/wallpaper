@@ -462,9 +462,10 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         }
 
         let metadataLine = fields.joined(separator: " / ")
+        let capabilityLine = "capabilities: \(bundle.capabilities.briefText)"
         guard let description = bundle.description else {
-            return metadataLine
+            return metadataLine + "\n" + capabilityLine
         }
-        return metadataLine + "\n" + description
+        return metadataLine + "\n" + capabilityLine + "\n" + description
     }
 }
