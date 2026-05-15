@@ -12,6 +12,14 @@ MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers"
 WALLPAPER_DEST="$RESOURCES_DIR/wallpapers"
+STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
+
+validation_args=(--validate-only)
+case "$STRICT_COMPOSITE_QUALITY" in
+  1|true|TRUE|yes|YES)
+    validation_args+=(--strict-composite-quality)
+    ;;
+esac
 
 if [ ! -d "$WALLPAPER_SOURCE" ]; then
   echo "Wallpaper source directory is missing: $WALLPAPER_SOURCE" >&2
@@ -37,13 +45,19 @@ for bundle_dir in "$WALLPAPER_SOURCE"/*; do
     continue
   fi
 
-  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only >/dev/null; then
+  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" "${validation_args[@]}" >/dev/null; then
     echo "Invalid wallpaper bundle failed validation: $bundle_name ($bundle_dir)" >&2
     exit 1
   fi
 
   mkdir -p "$WALLPAPER_DEST/$bundle_name"
   rsync -a --exclude ".DS_Store" "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
+
+  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$WALLPAPER_DEST/$bundle_name" "${validation_args[@]}" >/dev/null; then
+    echo "Packaged wallpaper bundle failed validation after copy: $bundle_name ($WALLPAPER_DEST/$bundle_name)" >&2
+    exit 1
+  fi
+
   bundle_count=$((bundle_count + 1))
 done
 

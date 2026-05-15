@@ -96,6 +96,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Composite fallback quality diagnostics can emit a regeneration plan and can
   run as a strict validation gate for release/package workflows that require
   fallback FPS to meet the manifest target.
+- Packaging validates each source bundle and the copied `.app` resource bundle;
+  set `STRICT_COMPOSITE_QUALITY=1` to make package validation reject low-FPS
+  composite fallbacks.
 - Manifest/package validation rejects unsupported native Spine bundles that do
   not provide a `compositeVideo` fallback.
 - Atomic display rebuild policy keeps the previous wallpaper windows alive if
