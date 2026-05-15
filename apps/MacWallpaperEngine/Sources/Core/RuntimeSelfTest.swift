@@ -35,6 +35,10 @@ enum RuntimeSelfTest {
 
         let highPlan = PerformancePlan.make(manifest: manifest, requestedFps: manifest.runtime.maxFps * 2)
         check(highPlan.effectiveTargetFps == highPlan.maxFps, "high requested FPS should clamp to max FPS")
+        check(
+            highPlan.summary().contains("exhaustedBudgetFallback: video-only when available"),
+            "performance plan must document exhausted-budget video-only fallback"
+        )
 
         let primaryRole = DisplayPlanner.role(
             isPrimary: true,
@@ -65,7 +69,25 @@ enum RuntimeSelfTest {
         )
         check(primaryOnlySecondaryRole == nil, "displayMode=primaryOnly must not create secondary display roles")
 
-        check(WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot) != nil, "active wallpaper bundle must pass catalog validation")
+        let validatedBundle = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)
+        check(validatedBundle != nil, "active wallpaper bundle must pass catalog validation")
+
+        let discoveredBundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: runtime.config.projectRoot)
+        let discoveredIds = discoveredBundles.map(\.id)
+        let discoveredNames = discoveredBundles.map(\.displayName)
+        let activeBundlePath = runtime.config.wallpaperRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        check(discoveredBundles.isEmpty == false, "default bundle catalog must discover at least one valid bundle")
+        check(Set(discoveredIds).count == discoveredIds.count, "default bundle catalog ids must be unique")
+        check(
+            discoveredNames == discoveredNames.sorted { $0.localizedStandardCompare($1) == .orderedAscending },
+            "default bundle catalog must be sorted by display name"
+        )
+        check(
+            discoveredBundles.contains {
+                $0.root.standardizedFileURL.resolvingSymlinksInPath().path == activeBundlePath
+            },
+            "default bundle catalog must include the active wallpaper bundle"
+        )
 
         if failures.isEmpty == false {
             let details = failures.map { "- \($0)" }.joined(separator: "\n")
