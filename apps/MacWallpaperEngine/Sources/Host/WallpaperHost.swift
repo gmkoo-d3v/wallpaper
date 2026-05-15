@@ -190,7 +190,7 @@ enum DisplayPlanner {
             let foreground = role?.rendersForeground == true ? "foreground" : "no-foreground"
             let video = role?.playsVideo == true ? "video" : "static"
             let interaction = role?.allowsInteraction == true ? "interactive" : "passive"
-            return "#\(index) \(screen.localizedName)\t\(Int(screen.frame.width))x\(Int(screen.frame.height))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
+            return "#\(index) \(screen.localizedName)\t\(displayGeometry(screen))\t\(displayIdentity(screen))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
         }
 
         return """
@@ -217,7 +217,7 @@ enum DisplayPlanner {
             let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
             let path = role.map { renderPathSummary(runtime: runtime, role: $0) }
                 ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive"
-            return "#\(index) \(screen.localizedName)\t\(Int(screen.frame.width))x\(Int(screen.frame.height))\t\(roleName)\t\(path)"
+            return "#\(index) \(screen.localizedName)\t\(displayGeometry(screen))\t\(displayIdentity(screen))\t\(roleName)\t\(path)"
         }
 
         return """
@@ -344,6 +344,58 @@ enum DisplayPlanner {
     private static func assetLabel(_ kind: String, _ url: URL) -> String {
         "\(kind):\(url.lastPathComponent)"
     }
+
+    private static func displayGeometry(_ screen: NSScreen) -> String {
+        "\(Int(screen.frame.width))x\(Int(screen.frame.height))@\(format(screen.backingScaleFactor)) origin=\(Int(screen.frame.minX)),\(Int(screen.frame.minY))"
+    }
+
+    private static func displayIdentity(_ screen: NSScreen) -> String {
+        let displayID = screen.displayID
+        let stableIdentity = displayID.map { "displayID:\($0)" } ?? "displayID:unknown"
+        return "identity=\(stableIdentity) fingerprint=\(fallbackFingerprint(for: screen, displayID: displayID)) arrangement=\(arrangementFingerprint(for: screen))"
+    }
+
+    private static func fallbackFingerprint(for screen: NSScreen, displayID: CGDirectDisplayID?) -> String {
+        let pixelWidth = displayID.map { CGDisplayPixelsWide($0) } ?? Int(screen.frame.width * screen.backingScaleFactor)
+        let pixelHeight = displayID.map { CGDisplayPixelsHigh($0) } ?? Int(screen.frame.height * screen.backingScaleFactor)
+        let vendor = displayID.map { CGDisplayVendorNumber($0) } ?? 0
+        let model = displayID.map { CGDisplayModelNumber($0) } ?? 0
+        let serial = displayID.map { CGDisplaySerialNumber($0) } ?? 0
+        let colorSpace = screen.colorSpace?.localizedName ?? "unknown"
+        let source = [
+            screen.localizedName,
+            "vendor:\(vendor)",
+            "model:\(model)",
+            "serial:\(serial)",
+            "pixels:\(pixelWidth)x\(pixelHeight)",
+            "scale:\(format(screen.backingScaleFactor))",
+            "fps:\(screen.maximumFramesPerSecond)",
+            "color:\(colorSpace)"
+        ].joined(separator: "|")
+        return stableHash(source)
+    }
+
+    private static func arrangementFingerprint(for screen: NSScreen) -> String {
+        let source = [
+            "origin:\(Int(screen.frame.minX)),\(Int(screen.frame.minY))",
+            "points:\(Int(screen.frame.width))x\(Int(screen.frame.height))",
+            "scale:\(format(screen.backingScaleFactor))"
+        ].joined(separator: "|")
+        return stableHash(source)
+    }
+
+    private static func stableHash(_ value: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return String(format: "%016llx", hash)
+    }
+
+    private static func format(_ value: CGFloat) -> String {
+        String(format: "%.2f", Double(value))
+    }
 }
 
 struct RenderDisplayRole {
@@ -382,6 +434,15 @@ struct RenderDisplayRole {
 
     var isRenderable: Bool {
         policy != .pause
+    }
+}
+
+private extension NSScreen {
+    var displayID: CGDirectDisplayID? {
+        guard let value = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+            return nil
+        }
+        return CGDirectDisplayID(value.uint32Value)
     }
 }
 

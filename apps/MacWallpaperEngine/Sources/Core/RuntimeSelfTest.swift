@@ -149,6 +149,36 @@ enum RuntimeSelfTest {
             DisplayPlanner.renderSummary(runtime: nativeRuntime).contains("foregroundMode: native"),
             "render plan summary must expose the requested foreground mode"
         )
+        let displaySummary = DisplayPlanner.summary(runtime: nativeRuntime)
+        if displaySummary.contains("no screens detected") == false {
+            check(
+                displaySummary.contains("identity=displayID:"),
+                "display plan summary must expose a display identity field"
+            )
+            check(
+                displaySummary.contains("fingerprint="),
+                "display plan summary must expose a fallback display fingerprint"
+            )
+            check(
+                displaySummary.contains("arrangement="),
+                "display plan summary must expose a display arrangement fingerprint"
+            )
+        }
+        let renderSummary = DisplayPlanner.renderSummary(runtime: nativeRuntime)
+        if renderSummary.contains("no screens detected") == false {
+            check(
+                renderSummary.contains("identity=displayID:"),
+                "render plan summary must expose a display identity field"
+            )
+            check(
+                renderSummary.contains("fingerprint="),
+                "render plan summary must expose a fallback display fingerprint"
+            )
+            check(
+                renderSummary.contains("arrangement="),
+                "render plan summary must expose a display arrangement fingerprint"
+            )
+        }
         if let metadata = manifest.metadata {
             if let id = metadata.id {
                 check(validatedBundle?.id == id, "bundle catalog id must prefer manifest metadata.id")

@@ -18,6 +18,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   feature classes.
 - `--render-plan` reports the effective per-display background video,
   foreground renderer, fallback, and interaction path before launching windows.
+- Display/render plans include a macOS display id plus a hashed fallback
+  fingerprint and arrangement hash so reconnect or display-order drift can be
+  diagnosed.
 - Control panel library diagnostics show invalid wallpaper folders without
   hiding valid bundles.
 - Control panel bundle library shows selected bundle metadata and preview art
