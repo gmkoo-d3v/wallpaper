@@ -55,6 +55,13 @@ enum RuntimeSelfTest {
             displayRefreshRuntime.renderTargetFps(displayRefreshFps: 60) == 60,
             "display-refresh FPS mode must preserve 60Hz displays"
         )
+        let displayRefreshPlan = DisplayPlanner.headlessRenderSummary(runtime: displayRefreshRuntime)
+        check(
+            displayRefreshPlan.contains("fpsMode=display")
+                && displayRefreshPlan.contains("displayRefresh=60Hz")
+                && displayRefreshPlan.contains("fps=60"),
+            "render plan must expose effective display-refresh FPS for diagnostic displays"
+        )
         check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(

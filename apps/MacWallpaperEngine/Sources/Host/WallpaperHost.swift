@@ -245,7 +245,8 @@ enum DisplayPlanner {
             let foreground = role?.rendersForeground == true ? "foreground" : "no-foreground"
             let video = role?.playsVideo == true ? "video" : "static"
             let interaction = role?.allowsInteraction == true ? "interactive" : "passive"
-            return "#\(index) \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
+            let fps = plannedFps(runtime: runtime, role: role, displayRefreshFps: display.maximumFramesPerSecond)
+            return "#\(index) \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)\t\(fps)"
         }
 
         return """
@@ -268,7 +269,8 @@ enum DisplayPlanner {
         let foreground = role?.rendersForeground == true ? "foreground" : "no-foreground"
         let video = role?.playsVideo == true ? "video" : "static"
         let interaction = role?.allowsInteraction == true ? "interactive" : "passive"
-        let line = "#0 \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
+        let fps = plannedFps(runtime: runtime, role: role, displayRefreshFps: display.maximumFramesPerSecond)
+        let line = "#0 \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)\t\(fps)"
 
         return """
         display plan OK
@@ -294,8 +296,9 @@ enum DisplayPlanner {
         let lines = displays.enumerated().map { index, display in
             let role = role(for: display, primary: primary, runtime: runtime)
             let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
-            let path = role.map { renderPathSummary(runtime: runtime, role: $0) }
-                ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive"
+            let path = role.map {
+                renderPathSummary(runtime: runtime, role: $0, displayRefreshFps: display.maximumFramesPerSecond)
+            } ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive\t\(plannedFps(runtime: runtime, role: nil, displayRefreshFps: display.maximumFramesPerSecond))"
             return "#\(index) \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(path)"
         }
 
@@ -314,8 +317,9 @@ enum DisplayPlanner {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
         let role = role(for: display, primary: display, runtime: runtime)
         let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
-        let path = role.map { renderPathSummary(runtime: runtime, role: $0) }
-            ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive"
+        let path = role.map {
+            renderPathSummary(runtime: runtime, role: $0, displayRefreshFps: display.maximumFramesPerSecond)
+        } ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive\t\(plannedFps(runtime: runtime, role: nil, displayRefreshFps: display.maximumFramesPerSecond))"
         let line = "#0 \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(path)"
 
         return """
@@ -329,7 +333,11 @@ enum DisplayPlanner {
         """
     }
 
-    static func renderPathSummary(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> String {
+    static func renderPathSummary(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole,
+        displayRefreshFps: Int? = nil
+    ) -> String {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
         let foregroundPlan = ForegroundRenderPlan.make(
             runtime: runtime,
@@ -338,7 +346,8 @@ enum DisplayPlanner {
         )
         let background = plannedBackground(runtime: runtime, role: role, compatibility: compatibility)
         let interaction = plannedInteraction(runtime: runtime, role: role)
-        return "background=\(background)\tforeground=\(foregroundPlan.foregroundLabel)\tfallback=\(foregroundPlan.fallbackLabel)\tinteraction=\(interaction)"
+        let fps = plannedFps(runtime: runtime, role: role, displayRefreshFps: displayRefreshFps)
+        return "background=\(background)\tforeground=\(foregroundPlan.foregroundLabel)\tfallback=\(foregroundPlan.fallbackLabel)\tinteraction=\(interaction)\t\(fps)"
     }
 
     private static func plannedBackground(
@@ -385,6 +394,25 @@ enum DisplayPlanner {
         "\(kind):\(url.lastPathComponent)"
     }
 
+    private static func plannedFps(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole?,
+        displayRefreshFps: Int?
+    ) -> String {
+        let mode = runtime.config.matchDisplayRefresh ? "display" : "fixed"
+        let refresh = displayRefreshLabel(displayRefreshFps)
+        guard role?.isRenderable == true else {
+            return "fps=none\tfpsMode=\(mode)\tdisplayRefresh=\(refresh)"
+        }
+
+        let effectiveFps = runtime.renderTargetFps(displayRefreshFps: displayRefreshFps)
+        return "fps=\(effectiveFps)\tfpsMode=\(mode)\tdisplayRefresh=\(refresh)"
+    }
+
+    private static func displayRefreshLabel(_ fps: Int?) -> String {
+        fps.map { "\($0)Hz" } ?? "unknown"
+    }
+
     private static func currentDisplaySnapshots() -> [DisplaySnapshot] {
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else {
@@ -410,6 +438,7 @@ enum DisplayPlanner {
                 backingScaleFactor: scale,
                 pixelWidth: pixelWidth,
                 pixelHeight: pixelHeight,
+                maximumFramesPerSecond: displayRefreshFps(for: displayID),
                 vendor: CGDisplayVendorNumber(displayID),
                 model: CGDisplayModelNumber(displayID),
                 serial: CGDisplaySerialNumber(displayID)
@@ -425,6 +454,7 @@ enum DisplayPlanner {
             backingScaleFactor: 1,
             pixelWidth: 1920,
             pixelHeight: 1080,
+            maximumFramesPerSecond: 60,
             vendor: 0,
             model: 0,
             serial: 0
@@ -449,11 +479,11 @@ enum DisplayPlanner {
     }
 
     private static func displayGeometry(_ display: DisplaySnapshot) -> String {
-        "\(Int(display.frame.width))x\(Int(display.frame.height))@\(format(display.backingScaleFactor)) origin=\(Int(display.frame.minX)),\(Int(display.frame.minY))"
+        "\(Int(display.frame.width))x\(Int(display.frame.height))@\(format(display.backingScaleFactor)) refresh=\(displayRefreshLabel(display.maximumFramesPerSecond)) origin=\(Int(display.frame.minX)),\(Int(display.frame.minY))"
     }
 
     private static func displayGeometry(_ screen: NSScreen) -> String {
-        "\(Int(screen.frame.width))x\(Int(screen.frame.height))@\(format(screen.backingScaleFactor)) origin=\(Int(screen.frame.minX)),\(Int(screen.frame.minY))"
+        "\(Int(screen.frame.width))x\(Int(screen.frame.height))@\(format(screen.backingScaleFactor)) refresh=\(screen.maximumFramesPerSecond)Hz origin=\(Int(screen.frame.minX)),\(Int(screen.frame.minY))"
     }
 
     private static func displayIdentity(_ display: DisplaySnapshot) -> String {
@@ -565,6 +595,13 @@ enum DisplayPlanner {
         return String(format: "%016llx", hash)
     }
 
+    private static func displayRefreshFps(for displayID: CGDirectDisplayID) -> Int? {
+        guard let mode = CGDisplayCopyDisplayMode(displayID) else { return nil }
+        let refreshRate = mode.refreshRate
+        guard refreshRate.isFinite, refreshRate > 0 else { return nil }
+        return max(1, Int(refreshRate.rounded()))
+    }
+
     private static func format(_ value: CGFloat) -> String {
         String(format: "%.2f", Double(value))
     }
@@ -577,6 +614,7 @@ private struct DisplaySnapshot {
     let backingScaleFactor: CGFloat
     let pixelWidth: Int
     let pixelHeight: Int
+    let maximumFramesPerSecond: Int?
     let vendor: UInt32
     let model: UInt32
     let serial: UInt32

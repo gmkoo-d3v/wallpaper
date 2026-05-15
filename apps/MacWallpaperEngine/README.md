@@ -17,7 +17,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
 - `--render-plan` reports the effective per-display background video,
-  foreground renderer, fallback, and interaction path before launching windows.
+  foreground renderer, fallback, interaction path, FPS mode, display refresh,
+  and planned render FPS before launching windows.
 - CLI display/render plan diagnostics use a headless-safe display snapshot so
   validation commands do not trigger AppKit application registration.
 - Display/render plans include a macOS display id plus a hashed fallback
@@ -34,7 +35,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Bundle library and `--list-bundles --include-capabilities` summaries flag
   low-FPS composite fallback quality before the user selects or starts a bundle.
 - Control panel render diagnostics show the same per-display background,
-  foreground, fallback, and interaction path exposed by `--render-plan`.
+  foreground, fallback, interaction, FPS, and display-refresh path exposed by
+  `--render-plan`.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
