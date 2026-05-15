@@ -107,6 +107,71 @@ struct InteractionPlan {
         }
     }
 
+    static func diagnosticSummary(
+        interactions: [InteractionConfig],
+        policy: InteractionPolicy?,
+        runtimeInteractive: Bool
+    ) -> String {
+        let plan = InteractionPlan(interactions: interactions, policy: policy)
+        let mode = policy?.mode.rawValue ?? (runtimeInteractive ? "desktop-empty-only(default)" : "disabled(default)")
+        let moveConfig = interactions.first { $0.event == .pointerMove }
+        let clickConfig = interactions.first { $0.event == .pointerDown }
+        let moveMapping = moveConfig?.mapping ?? "none"
+        let moveActions = moveConfig?.actions?
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: ",") ?? "none"
+        let clickButtons = (clickConfig?.buttons ?? [.left]).map(\.rawValue).joined(separator: "+")
+        let zones = plan.hitZoneSummaries()
+        let moveProbeText = [
+            "left=\(plan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle"))",
+            "right=\(plan.command(for: CGPoint(x: 0.90, y: 0.50), previousCommand: "idle"))",
+            "up=\(plan.command(for: CGPoint(x: 0.50, y: 0.10), previousCommand: "idle"))",
+            "down=\(plan.command(for: CGPoint(x: 0.50, y: 0.90), previousCommand: "idle"))",
+            "center=\(plan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right"))"
+        ].joined(separator: " ")
+        var lines = [
+            "interaction plan OK",
+            "runtimeInteractive: \(runtimeInteractive ? "enabled" : "disabled")",
+            "policyMode: \(mode)",
+            "blockApplicationWindows: \(policy?.blockApplicationWindows ?? true)",
+            "blockDesktopItems: \(policy?.blockDesktopItems ?? true)",
+            "pointerSmoothing: \(formatInteractionNumber(Double(policy?.pointerSmoothing ?? 0.18)))",
+            "idleDeadZone: \(formatInteractionNumber(Double(policy?.idleDeadZone ?? 0.18)))",
+            "directionSwitchMargin: \(formatInteractionNumber(Double(policy?.directionSwitchMargin ?? 0.10)))",
+            "defaultClickTailSeconds: \(formatInteractionNumber(policy?.defaultClickTailSeconds ?? 1.15))",
+            "releaseFadeSeconds: \(formatInteractionNumber(policy?.releaseFadeSeconds ?? 0.20))",
+            "pointerMove: \(moveMapping)",
+            "pointerMoveActions: \(moveActions)",
+            "pointerMoveProbes: \(moveProbeText)",
+            "pointerDownButtons: \(clickConfig == nil ? "none" : clickButtons)",
+            "hitZones: \(zones.count)"
+        ]
+
+        if zones.isEmpty {
+            lines.append("hitZoneDetails: none")
+        } else {
+            for zone in zones {
+                let center = CGPoint(
+                    x: CGFloat((zone.rect[0] + zone.rect[2]) / 2.0),
+                    y: CGFloat((zone.rect[1] + zone.rect[3]) / 2.0)
+                )
+                let leftHit = plan.hitTest(point: center, button: .left)
+                let rightHit = plan.hitTest(point: center, button: .right)
+                let acceptedButtons = zone.buttons.map(\.rawValue).joined(separator: "+")
+                lines.append("hitZone: \(zone.detailText)")
+                lines.append([
+                    "hitProbe: \(zone.id)",
+                    "center=\(formatPoint(center))",
+                    "accepts=\(acceptedButtons)",
+                    "left=\(leftHit?.action ?? "none")",
+                    "right=\(rightHit?.action ?? "none")"
+                ].joined(separator: " "))
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     func clamp(_ point: CGPoint) -> CGPoint {
         CGPoint(
             x: min(max(point.x, 0.0), 1.0),
@@ -121,4 +186,16 @@ struct InteractionPlan {
             && Double(point.y) >= rect[1]
             && Double(point.y) <= rect[3]
     }
+}
+
+private func formatInteractionNumber(_ value: Double) -> String {
+    let rounded = value.rounded()
+    if abs(value - rounded) < 0.005 {
+        return "\(Int(rounded))"
+    }
+    return String(format: "%.3f", value)
+}
+
+private func formatPoint(_ point: CGPoint) -> String {
+    "\(formatInteractionNumber(Double(point.x))),\(formatInteractionNumber(Double(point.y)))"
 }

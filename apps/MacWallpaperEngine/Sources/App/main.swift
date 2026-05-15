@@ -73,6 +73,15 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.interactionPlanOnly {
+        print(InteractionPlan.diagnosticSummary(
+            interactions: runtime.manifest.interactions,
+            policy: runtime.manifest.interactionPolicy,
+            runtimeInteractive: runtime.config.interactive
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.compositeQualityPlanOnly {
         let report = runtime.compositeQualityReport()
         print(report.text)

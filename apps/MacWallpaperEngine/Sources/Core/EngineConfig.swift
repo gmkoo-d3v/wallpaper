@@ -71,6 +71,7 @@ struct EngineConfig {
     let renderPlanOnly: Bool
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
+    let interactionPlanOnly: Bool
     let compositeQualityPlanOnly: Bool
     let strictCompositeQuality: Bool
     let selfTestOnly: Bool
@@ -105,6 +106,7 @@ struct EngineConfig {
         renderPlanOnly: Bool? = nil,
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
+        interactionPlanOnly: Bool? = nil,
         compositeQualityPlanOnly: Bool? = nil,
         strictCompositeQuality: Bool? = nil,
         selfTestOnly: Bool? = nil
@@ -127,6 +129,7 @@ struct EngineConfig {
             renderPlanOnly: renderPlanOnly ?? self.renderPlanOnly,
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
+            interactionPlanOnly: interactionPlanOnly ?? self.interactionPlanOnly,
             compositeQualityPlanOnly: compositeQualityPlanOnly ?? self.compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
@@ -166,6 +169,7 @@ struct EngineConfig {
         var renderPlanOnly = false
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
+        var interactionPlanOnly = false
         var compositeQualityPlanOnly = false
         var strictCompositeQuality = false
         var selfTestOnly = false
@@ -271,6 +275,8 @@ struct EngineConfig {
                 performancePlanOnly = true
             case "--runtime-capabilities":
                 runtimeCapabilitiesOnly = true
+            case "--interaction-plan":
+                interactionPlanOnly = true
             case "--composite-quality-plan":
                 compositeQualityPlanOnly = true
             case "--strict-composite-quality":
@@ -312,6 +318,7 @@ struct EngineConfig {
             || renderPlanOnly
             || performancePlanOnly
             || runtimeCapabilitiesOnly
+            || interactionPlanOnly
             || compositeQualityPlanOnly
             || selfTestOnly
         let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
@@ -390,6 +397,7 @@ struct EngineConfig {
             renderPlanOnly: renderPlanOnly,
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
+            interactionPlanOnly: interactionPlanOnly,
             compositeQualityPlanOnly: compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality,
             selfTestOnly: selfTestOnly,
@@ -437,6 +445,7 @@ struct EngineConfig {
       --render-plan            Print effective per-display background/foreground renderer path and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
+      --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.
       --composite-quality-plan Print composite fallback FPS/quality and regeneration target, then exit.
       --strict-composite-quality
                               Fail validation/quality-plan when composite fallback FPS is below target.

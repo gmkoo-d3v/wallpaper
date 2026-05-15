@@ -267,6 +267,17 @@ enum RuntimeSelfTest {
             )
         }
         let hitZoneSummaries = interactionPlan.hitZoneSummaries()
+        let interactionSummary = InteractionPlan.diagnosticSummary(
+            interactions: manifest.interactions,
+            policy: manifest.interactionPolicy,
+            runtimeInteractive: runtime.config.interactive
+        )
+        check(
+            interactionSummary.contains("interaction plan OK")
+                && interactionSummary.contains("pointerMoveProbes:")
+                && interactionSummary.contains("pointerDownButtons:"),
+            "interaction diagnostics must expose move probes and click buttons"
+        )
         if let hitZone = hitZoneSummaries.first {
             let center = CGPoint(
                 x: CGFloat((hitZone.rect[0] + hitZone.rect[2]) / 2.0),
@@ -888,6 +899,19 @@ enum RuntimeSelfTest {
         check(
             compositeQualityParse.foregroundMode == .automatic,
             "composite quality diagnostics must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let interactionPlanParse = try EngineConfig.parse(["--interaction-plan"])
+        check(
+            interactionPlanParse.interactionPlanOnly,
+            "EngineConfig must parse interaction plan diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            interactionPlanParse.foregroundMode == .automatic,
+            "interaction diagnostics must ignore persisted foreground mode",
             failures: &failures,
             checks: &checks
         )
