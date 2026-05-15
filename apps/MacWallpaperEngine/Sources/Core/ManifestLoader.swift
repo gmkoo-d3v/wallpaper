@@ -25,6 +25,7 @@ enum ManifestLoader {
         guard manifest.runtime.kind == "native-metal" else {
             throw EngineError.manifest("runtime.kind must be native-metal")
         }
+        try validateMetadata(manifest.metadata)
         guard manifest.runtime.targetFps > 0,
               manifest.runtime.fallbackFps > 0,
               manifest.runtime.maxFps >= manifest.runtime.targetFps,
@@ -114,6 +115,25 @@ enum ManifestLoader {
                 requiredVersion: manifest.validation.requireSpineVersion,
                 referencedActions: referencedAnimationActions(in: manifest.interactions)
             )
+        }
+    }
+
+    private static func validateMetadata(_ metadata: WallpaperMetadata?) throws {
+        guard let metadata else { return }
+        if let id = metadata.id {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false,
+                  trimmed.contains("/") == false,
+                  trimmed.contains("\\") == false,
+                  trimmed != ".",
+                  trimmed != ".." else {
+                throw EngineError.manifest("metadata.id must be non-empty and must not contain path separators")
+            }
+        }
+        if let title = metadata.title {
+            guard title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                throw EngineError.manifest("metadata.title must not be empty")
+            }
         }
     }
 

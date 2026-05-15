@@ -2,6 +2,7 @@ import Foundation
 
 struct WallpaperNativeManifest: Decodable {
     let schemaVersion: String
+    let metadata: WallpaperMetadata?
     let runtime: RuntimeConfig
     let displayPolicy: DisplayPolicy
     let thermalPolicy: ThermalPolicy
@@ -11,6 +12,14 @@ struct WallpaperNativeManifest: Decodable {
     let layers: [LayerConfig]
     let interactions: [InteractionConfig]
     let validation: ValidationConfig
+}
+
+struct WallpaperMetadata: Decodable {
+    let id: String?
+    let title: String?
+    let author: String?
+    let version: String?
+    let description: String?
 }
 
 struct InteractionPolicy: Decodable {

@@ -7,6 +7,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - AppKit desktop-level wallpaper windows.
 - Metal compositor without WebView.
 - Native `wallpaper.native.json` v2 preflight.
+- Manifest `metadata.id` and `metadata.title` for stable library identity.
 - AVFoundation video frames via `AVPlayerItemVideoOutput` and `CVMetalTextureCache`.
 - PMA texture draw path using Metal blending.
 - Spine setup-pose weighted mesh renderer.

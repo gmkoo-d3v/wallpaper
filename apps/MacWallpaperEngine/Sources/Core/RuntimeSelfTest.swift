@@ -71,6 +71,14 @@ enum RuntimeSelfTest {
 
         let validatedBundle = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)
         check(validatedBundle != nil, "active wallpaper bundle must pass catalog validation")
+        if let metadata = manifest.metadata {
+            if let id = metadata.id {
+                check(validatedBundle?.id == id, "bundle catalog id must prefer manifest metadata.id")
+            }
+            if let title = metadata.title {
+                check(validatedBundle?.displayName == title, "bundle catalog displayName must prefer manifest metadata.title")
+            }
+        }
 
         let discoveredBundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: runtime.config.projectRoot)
         let discoveredIds = discoveredBundles.map(\.id)

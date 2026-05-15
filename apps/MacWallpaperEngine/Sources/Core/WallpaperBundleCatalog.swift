@@ -60,10 +60,10 @@ enum WallpaperBundleCatalog {
         guard FileManager.default.fileExists(atPath: manifestURL.path) else { return nil }
 
         do {
-            _ = try ManifestLoader.load(url: manifestURL, bundleRoot: root)
+            let manifest = try ManifestLoader.load(url: manifestURL, bundleRoot: root)
             return WallpaperBundleSummary(
-                id: root.lastPathComponent,
-                displayName: displayName(for: root),
+                id: metadataValue(manifest.metadata?.id) ?? root.lastPathComponent,
+                displayName: metadataValue(manifest.metadata?.title) ?? displayName(for: root),
                 root: root,
                 manifestURL: manifestURL
             )
@@ -78,5 +78,11 @@ enum WallpaperBundleCatalog {
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "-", with: " ")
             .capitalized
+    }
+
+    private static func metadataValue(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
