@@ -28,6 +28,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   fallback fingerprint, arrangement hash, or display name selector.
 - Control panel library diagnostics show invalid wallpaper folders without
   hiding valid bundles.
+- Bundle discovery reports duplicate `metadata.id` entries in diagnostics
+  instead of silently hiding imported or project-local bundles.
 - Control panel bundle library shows selected bundle metadata and preview art
   from `preview.jpg` or a declared `staticImage` asset.
 - Control panel bundle library surfaces asset/layer/interaction/native-fallback

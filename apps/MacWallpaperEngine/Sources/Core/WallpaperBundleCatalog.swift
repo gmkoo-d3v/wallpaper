@@ -60,7 +60,7 @@ enum WallpaperBundleCatalog {
 
     static func diagnose(in directories: [URL]) -> [WallpaperBundleDiagnostic] {
         var seenPaths = Set<String>()
-        var seenIds = Set<String>()
+        var seenIds: [String: WallpaperBundleSummary] = [:]
         var diagnostics: [WallpaperBundleDiagnostic] = []
 
         for directory in directories {
@@ -68,7 +68,16 @@ enum WallpaperBundleCatalog {
                 let key = diagnostic.root.standardizedFileURL.resolvingSymlinksInPath().path
                 guard seenPaths.insert(key).inserted else { continue }
                 if let bundle = diagnostic.bundle {
-                    guard seenIds.insert(bundle.id).inserted else { continue }
+                    if let existingBundle = seenIds[bundle.id] {
+                        diagnostics.append(WallpaperBundleDiagnostic(
+                            root: diagnostic.root,
+                            status: .invalid,
+                            bundle: nil,
+                            errorMessage: "Duplicate wallpaper bundle id \(bundle.id); using \(existingBundle.root.path)"
+                        ))
+                        continue
+                    }
+                    seenIds[bundle.id] = bundle
                 }
                 diagnostics.append(diagnostic)
             }

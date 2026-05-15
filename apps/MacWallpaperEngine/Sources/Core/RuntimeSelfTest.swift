@@ -951,9 +951,18 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let activeBundle = try WallpaperBundleCatalog.requireValidBundle(runtime.config.wallpaperRoot)
+        let duplicateBundleRoot = fixtureParent.appendingPathComponent("duplicate_id_bundle", isDirectory: true)
+        try writeStaticImageBundleFixture(
+            root: duplicateBundleRoot,
+            imageSource: runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg"),
+            id: activeBundle.id,
+            title: "Duplicate ID Bundle"
+        )
+
         let combinedDiagnostics = WallpaperBundleCatalog.diagnose(in: [
-            fixtureParent,
-            runtime.config.wallpaperRoot.deletingLastPathComponent()
+            runtime.config.wallpaperRoot.deletingLastPathComponent(),
+            fixtureParent
         ])
         let activePath = runtime.config.wallpaperRoot.standardizedFileURL.resolvingSymlinksInPath().path
         check(
@@ -962,6 +971,17 @@ enum RuntimeSelfTest {
                     && $0.root.standardizedFileURL.resolvingSymlinksInPath().path == activePath
             },
             "bundle diagnostics must include valid bundles alongside invalid ones",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            combinedDiagnostics.contains {
+                $0.status == .invalid
+                    && $0.root.standardizedFileURL.resolvingSymlinksInPath().path
+                        == duplicateBundleRoot.standardizedFileURL.resolvingSymlinksInPath().path
+                    && ($0.errorMessage?.contains("Duplicate wallpaper bundle id \(activeBundle.id)") == true)
+            },
+            "bundle diagnostics must report duplicate bundle ids instead of silently hiding library entries",
             failures: &failures,
             checks: &checks
         )
@@ -1120,22 +1140,62 @@ enum RuntimeSelfTest {
             try? fileManager.removeItem(at: fixtureRoot)
         }
 
-        let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+        let manifestURL = try writeStaticImageBundleFixture(
+            root: fixtureRoot,
+            imageSource: sourceImage,
+            id: "selftest_static_image",
+            title: "Self Test Static Image"
+        )
+        let fixtureImage = fixtureRoot.appendingPathComponent("assets/poster.jpg")
+
+        let staticRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            displayMode: .primaryAnimated,
+            renderFps: 30,
+            foregroundMode: .compositeVideo,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+
+        check(staticRuntime.assetCatalog.staticImageAssetURL != nil, "static image bundle must load staticImage asset", failures: &failures, checks: &checks)
+        check(staticRuntime.assetCatalog.videoAsset == nil, "static image bundle must not require a video asset", failures: &failures, checks: &checks)
+        check(staticRuntime.assetCatalog.spineAsset == nil, "static image bundle must not require a Spine asset", failures: &failures, checks: &checks)
+        check(staticRuntime.manifest.layers.first?.type == .staticImage, "static image bundle must preserve static_image layer type", failures: &failures, checks: &checks)
+        check(staticRuntime.validationSummary().contains("static image: \(fixtureImage.path)"), "static image validation summary must report the image asset", failures: &failures, checks: &checks)
+        check(staticRuntime.runtimeCapabilitiesSummary().contains("layer\tstatic_image\tsupported"), "static image capability summary must report static_image support", failures: &failures, checks: &checks)
+        let staticSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
+        check(staticSummary.previewURL?.lastPathComponent == "poster.jpg", "static image bundle catalog preview must fall back to staticImage asset", failures: &failures, checks: &checks)
+        check(staticSummary.capabilities.briefText.contains("assets: static"), "static image bundle catalog must expose static capability", failures: &failures, checks: &checks)
+    }
+
+    @discardableResult
+    private static func writeStaticImageBundleFixture(
+        root: URL,
+        imageSource: URL,
+        id: String,
+        title: String
+    ) throws -> URL {
+        let fileManager = FileManager.default
+        let assetsRoot = root.appendingPathComponent("assets", isDirectory: true)
         try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
         let fixtureImage = assetsRoot.appendingPathComponent("poster.jpg")
         do {
-            try fileManager.linkItem(at: sourceImage, to: fixtureImage)
+            try fileManager.linkItem(at: imageSource, to: fixtureImage)
         } catch {
-            try fileManager.copyItem(at: sourceImage, to: fixtureImage)
+            try fileManager.copyItem(at: imageSource, to: fixtureImage)
         }
 
-        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let manifestURL = root.appendingPathComponent("wallpaper.native.json")
+        let idLiteral = try jsonStringLiteral(id)
+        let titleLiteral = try jsonStringLiteral(title)
         let manifestJSON = """
         {
           "schemaVersion": "macos-wallpaper-native.v2",
           "metadata": {
-            "id": "selftest_static_image",
-            "title": "Self Test Static Image"
+            "id": \(idLiteral),
+            "title": \(titleLiteral)
           },
           "runtime": {
             "kind": "native-metal",
@@ -1191,27 +1251,15 @@ enum RuntimeSelfTest {
         }
         """
         try Data(manifestJSON.utf8).write(to: manifestURL, options: .atomic)
+        return manifestURL
+    }
 
-        let staticRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
-            wallpaperRoot: fixtureRoot,
-            manifestURL: manifestURL,
-            displayMode: .primaryAnimated,
-            renderFps: 30,
-            foregroundMode: .compositeVideo,
-            clearDuration: true,
-            launchControlPanel: false,
-            launchWallpaper: false
-        ))
-
-        check(staticRuntime.assetCatalog.staticImageAssetURL != nil, "static image bundle must load staticImage asset", failures: &failures, checks: &checks)
-        check(staticRuntime.assetCatalog.videoAsset == nil, "static image bundle must not require a video asset", failures: &failures, checks: &checks)
-        check(staticRuntime.assetCatalog.spineAsset == nil, "static image bundle must not require a Spine asset", failures: &failures, checks: &checks)
-        check(staticRuntime.manifest.layers.first?.type == .staticImage, "static image bundle must preserve static_image layer type", failures: &failures, checks: &checks)
-        check(staticRuntime.validationSummary().contains("static image: \(fixtureImage.path)"), "static image validation summary must report the image asset", failures: &failures, checks: &checks)
-        check(staticRuntime.runtimeCapabilitiesSummary().contains("layer\tstatic_image\tsupported"), "static image capability summary must report static_image support", failures: &failures, checks: &checks)
-        let staticSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
-        check(staticSummary.previewURL?.lastPathComponent == "poster.jpg", "static image bundle catalog preview must fall back to staticImage asset", failures: &failures, checks: &checks)
-        check(staticSummary.capabilities.briefText.contains("assets: static"), "static image bundle catalog must expose static capability", failures: &failures, checks: &checks)
+    private static func jsonStringLiteral(_ value: String) throws -> String {
+        let data = try JSONEncoder().encode(value)
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw EngineError.manifest("Could not encode fixture JSON string.")
+        }
+        return text
     }
 
     private static func checkUnsupportedSpineCompatibilityBundle(
