@@ -41,6 +41,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Pointer movement and click command mapping.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
+- Low Power Mode and battery-power detection clamp rendering to the manifest
+  fallback FPS and expose the active policy in runtime telemetry.
 - Frame/drop telemetry snapshot for submitted frames, skipped frames, last skip
   reason, actual FPS, and p95 frame time.
 - Runtime telemetry is aggregated per display and surfaced in the control panel.

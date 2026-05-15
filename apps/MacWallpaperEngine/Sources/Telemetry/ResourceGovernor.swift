@@ -1,11 +1,13 @@
 import Darwin
 import Foundation
+import IOKit.ps
 
 struct PerformancePlan {
     let requestedFps: Int
     let effectiveTargetFps: Int
     let maxFps: Int
     let fallbackFps: Int
+    let powerSavingFps: Int
     let downgradeFpsLadder: [Int]
     let seriousThermalFps: Int
     let criticalPauses: Bool
@@ -34,6 +36,7 @@ struct PerformancePlan {
             effectiveTargetFps: effectiveTargetFps,
             maxFps: maxFps,
             fallbackFps: fallbackFps,
+            powerSavingFps: fallbackFps,
             downgradeFpsLadder: ladder,
             seriousThermalFps: max(min(seriousThermalFps, maxFps), 1),
             criticalPauses: criticalPauses,
@@ -53,6 +56,7 @@ struct PerformancePlan {
         effectiveTargetFps: \(effectiveTargetFps)
         maxFps: \(maxFps)
         fallbackFps: \(fallbackFps)
+        powerSavingFps: \(powerSavingFps)
         downgradeFpsLadder: \(downgradeFpsLadder.map(String.init).joined(separator: " -> "))
         seriousThermalFps: \(seriousThermalFps)
         criticalThermal: \(criticalPauses ? "pause" : "throttle")
@@ -63,7 +67,7 @@ struct PerformancePlan {
         cpuDowngradeWindowSeconds: \(cpuDowngradeWindowSeconds)
         rssTargetMb: \(rssTargetMb)
         rssHardMb: \(rssHardMb)
-        telemetryFields: currentFps, actualFps, p95FrameTimeMs, submittedFrames, skippedFrames, lastSkipReason, pauseForThermal, pauseForResourceBudget, videoOnlyFallback
+        telemetryFields: currentFps, actualFps, p95FrameTimeMs, submittedFrames, skippedFrames, lastSkipReason, powerSavingActive, pauseForThermal, pauseForResourceBudget, videoOnlyFallback
         """
     }
 }
@@ -82,16 +86,59 @@ struct ResourceGovernorSnapshot {
     let submittedFrames: Int
     let skippedFrames: Int
     let lastSkipReason: String?
+    let powerSavingActive: Bool
     let pauseForThermal: Bool
     let pauseForResourceBudget: Bool
     let videoOnlyFallback: Bool
 }
 
+struct RuntimePowerState: Equatable {
+    let lowPowerModeEnabled: Bool
+    let onBatteryPower: Bool
+
+    var shouldConservePower: Bool {
+        lowPowerModeEnabled || onBatteryPower
+    }
+}
+
+enum RuntimePowerStateProvider {
+    static func current() -> RuntimePowerState {
+        RuntimePowerState(
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            onBatteryPower: isOnBatteryPower()
+        )
+    }
+
+    private static func isOnBatteryPower() -> Bool {
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let sources = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else {
+            return false
+        }
+
+        let stateKey = kIOPSPowerSourceStateKey as String
+        let batteryValue = kIOPSBatteryPowerValue as String
+        for source in sources {
+            guard let description = IOPSGetPowerSourceDescription(info, source)?
+                .takeUnretainedValue() as? [String: Any],
+                let state = description[stateKey] as? String else {
+                continue
+            }
+            if state == batteryValue {
+                return true
+            }
+        }
+        return false
+    }
+}
+
 final class ResourceGovernor {
     private let plan: PerformancePlan
+    private let powerStateProvider: () -> RuntimePowerState
     private var frameDurations: [TimeInterval] = []
     private var resourceSamples: [ResourceSample] = []
     private var currentFps: Int
+    private var resourceFpsCap: Int
+    private var lastPowerState = RuntimePowerState(lowPowerModeEnabled: false, onBatteryPower: false)
     private var lastFrameTime: TimeInterval?
     private var lastResourceSampleTime: TimeInterval?
     private var pauseForResourceBudget = false
@@ -100,12 +147,19 @@ final class ResourceGovernor {
     private var skippedFrames = 0
     private var lastSkipReason: FrameSkipReason?
 
-    init(manifest: WallpaperNativeManifest, targetFps: Int) {
+    init(
+        manifest: WallpaperNativeManifest,
+        targetFps: Int,
+        powerStateProvider: @escaping () -> RuntimePowerState = RuntimePowerStateProvider.current
+    ) {
         self.plan = PerformancePlan.make(manifest: manifest, requestedFps: targetFps)
+        self.powerStateProvider = powerStateProvider
         self.currentFps = plan.effectiveTargetFps
+        self.resourceFpsCap = plan.effectiveTargetFps
     }
 
     func frameStarted(now: TimeInterval) -> Int {
+        lastPowerState = powerStateProvider()
         sampleResources(now: now)
         if let lastFrameTime {
             let duration = now - lastFrameTime
@@ -155,6 +209,7 @@ final class ResourceGovernor {
             submittedFrames: submittedFrames,
             skippedFrames: skippedFrames,
             lastSkipReason: lastSkipReason?.rawValue,
+            powerSavingActive: lastPowerState.shouldConservePower,
             pauseForThermal: shouldPauseForThermal,
             pauseForResourceBudget: shouldPauseForResourceBudget,
             videoOnlyFallback: shouldUseVideoOnlyFallback
@@ -181,6 +236,7 @@ final class ResourceGovernor {
 
     private func evaluate() {
         pauseForResourceBudget = false
+        applyCurrentFpsCap()
 
         let thermal = ProcessInfo.processInfo.thermalState
         if thermal == .critical {
@@ -231,11 +287,12 @@ final class ResourceGovernor {
     }
 
     private func downgradeOneStep() -> Bool {
-        guard let currentIndex = plan.downgradeFpsLadder.firstIndex(of: currentFps),
+        guard let currentIndex = plan.downgradeFpsLadder.firstIndex(of: resourceFpsCap),
               currentIndex + 1 < plan.downgradeFpsLadder.count else {
             return false
         }
-        currentFps = plan.downgradeFpsLadder[currentIndex + 1]
+        resourceFpsCap = plan.downgradeFpsLadder[currentIndex + 1]
+        applyCurrentFpsCap()
         return true
     }
 
@@ -244,6 +301,11 @@ final class ResourceGovernor {
         if downgradeOneStep() == false {
             videoOnlyForResourceBudget = true
         }
+    }
+
+    private func applyCurrentFpsCap() {
+        let policyCap = lastPowerState.shouldConservePower ? plan.powerSavingFps : plan.effectiveTargetFps
+        currentFps = min(resourceFpsCap, policyCap)
     }
 }
 

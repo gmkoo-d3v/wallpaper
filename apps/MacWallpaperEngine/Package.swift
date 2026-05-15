@@ -13,7 +13,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MacWallpaperEngine",
-            path: "Sources"
+            path: "Sources",
+            linkerSettings: [
+                .linkedFramework("IOKit")
+            ]
         )
     ]
 )

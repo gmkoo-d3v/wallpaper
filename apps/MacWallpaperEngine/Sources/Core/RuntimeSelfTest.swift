@@ -138,6 +138,24 @@ enum RuntimeSelfTest {
         check(initial.currentFps == runtime.renderTargetFps, "resource governor snapshot must expose current FPS", failures: &failures, checks: &checks)
         check(initial.submittedFrames == 0, "resource governor snapshot must start with zero submitted frames", failures: &failures, checks: &checks)
         check(initial.skippedFrames == 0, "resource governor snapshot must start with zero skipped frames", failures: &failures, checks: &checks)
+        check(initial.powerSavingActive == false, "resource governor snapshot must expose inactive power policy by default", failures: &failures, checks: &checks)
+
+        var powerState = RuntimePowerState(lowPowerModeEnabled: true, onBatteryPower: false)
+        let powerGovernor = ResourceGovernor(
+            manifest: runtime.manifest,
+            targetFps: runtime.renderTargetFps,
+            powerStateProvider: { powerState }
+        )
+        let lowPowerFps = powerGovernor.frameStarted(now: 1.0)
+        check(lowPowerFps == runtime.performancePlan.powerSavingFps, "low power mode must clamp rendering to power-saving FPS", failures: &failures, checks: &checks)
+        check(powerGovernor.snapshot.powerSavingActive, "power-saving telemetry must activate for Low Power Mode", failures: &failures, checks: &checks)
+        let lowPowerSnapshot = powerGovernor.snapshot
+        powerState = RuntimePowerState(lowPowerModeEnabled: false, onBatteryPower: true)
+        let batteryFps = powerGovernor.frameStarted(now: 1.5)
+        check(batteryFps == runtime.performancePlan.powerSavingFps, "battery power must clamp rendering to power-saving FPS", failures: &failures, checks: &checks)
+        powerState = RuntimePowerState(lowPowerModeEnabled: false, onBatteryPower: false)
+        let recoveredFps = powerGovernor.frameStarted(now: 2.0)
+        check(recoveredFps == runtime.renderTargetFps, "power-saving FPS clamp must recover when power state clears", failures: &failures, checks: &checks)
 
         governor.recordSkippedFrame(reason: .commandBufferBackpressure)
         governor.recordSubmittedFrame()
@@ -154,6 +172,10 @@ enum RuntimeSelfTest {
         check(summary.contains("Self Test Display primary:"), "runtime telemetry summary must include display role", failures: &failures, checks: &checks)
         check(summary.contains("submitted 1"), "runtime telemetry summary must include submitted frame count", failures: &failures, checks: &checks)
         check(summary.contains("skipped 1"), "runtime telemetry summary must include skipped frame count", failures: &failures, checks: &checks)
+        telemetry.record(displayName: "Self Test Display", role: role, snapshot: lowPowerSnapshot)
+        check(telemetry.summary().contains("power-saving"), "runtime telemetry summary must label active power-saving policy", failures: &failures, checks: &checks)
+        telemetry.record(displayName: "Self Test Display", role: role, snapshot: powerGovernor.snapshot)
+        check(telemetry.summary().contains("power-saving") == false, "runtime telemetry summary must clear power-saving label after recovery", failures: &failures, checks: &checks)
     }
 
     private static func checkBundleDiagnostics(

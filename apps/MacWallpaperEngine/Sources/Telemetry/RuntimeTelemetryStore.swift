@@ -41,7 +41,9 @@ final class RuntimeTelemetryStore {
         return entries.map { entry in
             let data = entry.snapshot
             let skip = data.lastSkipReason.map { " last=\($0)" } ?? ""
+            let power = data.powerSavingActive ? " power-saving" : ""
             return "\(entry.displayName) \(entry.roleName): fps \(format(data.actualFps))/\(data.currentFps), p95 \(format(data.p95FrameTimeMs))ms, submitted \(data.submittedFrames), skipped \(data.skippedFrames)\(skip)"
+                + power
         }
         .joined(separator: " | ")
     }
