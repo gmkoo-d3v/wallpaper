@@ -10,6 +10,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Manifest `metadata.id` and `metadata.title` for stable library identity.
 - Bundle discovery from packaged resources, project wallpapers, and the user
   Application Support wallpaper library.
+- Bundle import into the user Application Support wallpaper library with
+  manifest validation and symlink rejection.
 - AVFoundation video frames via `AVPlayerItemVideoOutput` and `CVMetalTextureCache`.
 - PMA texture draw path using Metal blending.
 - Spine setup-pose weighted mesh renderer.

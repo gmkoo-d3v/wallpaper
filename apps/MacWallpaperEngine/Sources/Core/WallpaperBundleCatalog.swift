@@ -58,23 +58,31 @@ enum WallpaperBundleCatalog {
     }
 
     static func validateBundle(_ url: URL) -> WallpaperBundleSummary? {
-        let root = url.standardizedFileURL
-        guard ProjectPaths.directoryExists(root) else { return nil }
-        let manifestURL = root.appendingPathComponent("wallpaper.native.json")
-        guard FileManager.default.fileExists(atPath: manifestURL.path) else { return nil }
-
         do {
-            let manifest = try ManifestLoader.load(url: manifestURL, bundleRoot: root)
-            return WallpaperBundleSummary(
-                id: metadataValue(manifest.metadata?.id) ?? root.lastPathComponent,
-                displayName: metadataValue(manifest.metadata?.title) ?? displayName(for: root),
-                root: root,
-                manifestURL: manifestURL
-            )
+            return try requireValidBundle(url)
         } catch {
-            fputs("Skipping invalid wallpaper bundle \(root.lastPathComponent): \(error.localizedDescription)\n", stderr)
+            fputs("Skipping invalid wallpaper bundle \(url.lastPathComponent): \(error.localizedDescription)\n", stderr)
             return nil
         }
+    }
+
+    static func requireValidBundle(_ url: URL) throws -> WallpaperBundleSummary {
+        let root = url.standardizedFileURL
+        guard ProjectPaths.directoryExists(root) else {
+            throw EngineError.invalidArgument("Wallpaper bundle is not a directory: \(root.path)")
+        }
+        let manifestURL = root.appendingPathComponent("wallpaper.native.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            throw EngineError.manifest("Wallpaper bundle does not contain wallpaper.native.json: \(root.path)")
+        }
+
+        let manifest = try ManifestLoader.load(url: manifestURL, bundleRoot: root)
+        return WallpaperBundleSummary(
+            id: metadataValue(manifest.metadata?.id) ?? root.lastPathComponent,
+            displayName: metadataValue(manifest.metadata?.title) ?? displayName(for: root),
+            root: root,
+            manifestURL: manifestURL
+        )
     }
 
     private static func displayName(for root: URL) -> String {

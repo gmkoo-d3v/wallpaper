@@ -8,6 +8,24 @@ private enum ApplicationLifetime {
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 do {
+    if let installBundlePath = value(after: "--install-bundle", in: arguments) {
+        let installLibrary = value(after: "--install-library", in: arguments).map {
+            URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL
+        }
+        let installedBundle = try WallpaperBundleInstaller.install(
+            sourceRoot: URL(fileURLWithPath: installBundlePath, relativeTo: nil),
+            libraryDirectory: installLibrary ?? ProjectPaths.userWallpapersDirectory()
+        )
+        print("""
+        installed wallpaper bundle OK
+        id: \(installedBundle.id)
+        title: \(installedBundle.displayName)
+        bundle: \(installedBundle.root.path)
+        manifest: \(installedBundle.manifestURL.path)
+        """)
+        exit(EXIT_SUCCESS)
+    }
+
     if arguments.contains("--list-bundles") {
         let projectRoot = try? ProjectPaths.findProjectRoot()
         let bundles = WallpaperBundleCatalog.discoverDefaultBundles(projectRoot: projectRoot)
@@ -66,4 +84,12 @@ do {
     }
 
     exit(EXIT_FAILURE)
+}
+
+private func value(after option: String, in arguments: [String]) -> String? {
+    guard let index = arguments.firstIndex(of: option),
+          index + 1 < arguments.count else {
+        return nil
+    }
+    return arguments[index + 1]
 }

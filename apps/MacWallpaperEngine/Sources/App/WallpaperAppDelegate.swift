@@ -336,6 +336,19 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         controlPanel?.refresh()
     }
 
+    func controlPanelImportWallpaperBundle(_ url: URL) {
+        do {
+            let installedBundle = try WallpaperBundleInstaller.install(sourceRoot: url)
+            controlPanelChooseWallpaperBundle(installedBundle.root)
+        } catch {
+            if host == nil {
+                lastError = error.localizedDescription
+            }
+            showError(error)
+            controlPanel?.refresh()
+        }
+    }
+
     func controlPanelQuit() {
         NSApplication.shared.terminate(nil)
     }

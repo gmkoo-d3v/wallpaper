@@ -27,6 +27,7 @@ protocol ControlPanelDelegate: AnyObject {
         foregroundMode: ForegroundRenderMode
     )
     func controlPanelChooseWallpaperBundle(_ url: URL)
+    func controlPanelImportWallpaperBundle(_ url: URL)
     func controlPanelQuit()
 }
 
@@ -70,6 +71,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let stopButton = NSButton(title: "STOP", target: nil, action: nil)
     private let applyButton = NSButton(title: "APPLY SETTINGS", target: nil, action: nil)
     private let chooseBundleButton = NSButton(title: "SELECT BUNDLE", target: nil, action: nil)
+    private let importBundleButton = NSButton(title: "IMPORT BUNDLE", target: nil, action: nil)
     private let quitButton = NSButton(title: "QUIT", target: nil, action: nil)
     private let bundlePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private var availableBundles: [WallpaperBundleSummary] = []
@@ -148,13 +150,15 @@ final class ControlPanelWindowController: NSWindowController {
         applyButton.action = #selector(applySettings)
         chooseBundleButton.target = self
         chooseBundleButton.action = #selector(chooseBundle)
+        importBundleButton.target = self
+        importBundleButton.action = #selector(importBundle)
         bundlePopup.target = self
         bundlePopup.action = #selector(selectLibraryBundle)
         quitButton.target = self
         quitButton.action = #selector(quitApp)
 
         [startButton, applyButton].forEach(stylePrimaryButton)
-        [stopButton, chooseBundleButton, quitButton].forEach(styleSecondaryButton)
+        [stopButton, chooseBundleButton, importBundleButton, quitButton].forEach(styleSecondaryButton)
     }
 
     private func heroBand() -> NSView {
@@ -248,10 +252,12 @@ final class ControlPanelWindowController: NSWindowController {
         pathValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         bundlePopup.widthAnchor.constraint(equalToConstant: 220).isActive = true
         chooseBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
+        importBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
 
         line.addArrangedSubview(bundlePopup)
         line.addArrangedSubview(pathValue)
         line.addArrangedSubview(chooseBundleButton)
+        line.addArrangedSubview(importBundleButton)
         row.addArrangedSubview(caption)
         row.addArrangedSubview(line)
         return row
@@ -482,6 +488,20 @@ final class ControlPanelWindowController: NSWindowController {
         panel.canCreateDirectories = false
         if panel.runModal() == .OK, let url = panel.url {
             delegate?.controlPanelChooseWallpaperBundle(url)
+        }
+        refresh()
+    }
+
+    @objc private func importBundle() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Wallpaper Bundle"
+        panel.message = "Choose a bundle to copy into the user wallpaper library"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            delegate?.controlPanelImportWallpaperBundle(url)
         }
         refresh()
     }
