@@ -9,11 +9,13 @@ struct WallpaperBundleSummary: Equatable {
 
 enum WallpaperBundleCatalog {
     static func discoverDefaultBundles(projectRoot: URL? = try? ProjectPaths.findProjectRoot()) -> [WallpaperBundleSummary] {
-        if let bundledDirectory = ProjectPaths.findBundledWallpapersDirectory() {
-            return discover(in: [bundledDirectory])
-        }
-
         var directories: [URL] = []
+        if let bundledDirectory = ProjectPaths.findBundledWallpapersDirectory() {
+            directories.append(bundledDirectory)
+        }
+        if let userDirectory = ProjectPaths.findUserWallpapersDirectory() {
+            directories.append(userDirectory)
+        }
         if let projectRoot {
             directories.append(projectRoot.appendingPathComponent("wallpapers"))
         }
@@ -22,12 +24,14 @@ enum WallpaperBundleCatalog {
 
     static func discover(in directories: [URL]) -> [WallpaperBundleSummary] {
         var seenPaths = Set<String>()
+        var seenIds = Set<String>()
         var bundles: [WallpaperBundleSummary] = []
 
         for directory in directories {
             for bundle in discover(in: directory) {
                 let key = bundle.root.standardizedFileURL.resolvingSymlinksInPath().path
                 guard seenPaths.insert(key).inserted else { continue }
+                guard seenIds.insert(bundle.id).inserted else { continue }
                 bundles.append(bundle)
             }
         }

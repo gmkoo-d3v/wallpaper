@@ -84,6 +84,7 @@ enum RuntimeSelfTest {
         let discoveredIds = discoveredBundles.map(\.id)
         let discoveredNames = discoveredBundles.map(\.displayName)
         let activeBundlePath = runtime.config.wallpaperRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        check(ProjectPaths.userWallpapersDirectory() != nil, "user wallpaper library directory must be resolvable")
         check(discoveredBundles.isEmpty == false, "default bundle catalog must discover at least one valid bundle")
         check(Set(discoveredIds).count == discoveredIds.count, "default bundle catalog ids must be unique")
         check(

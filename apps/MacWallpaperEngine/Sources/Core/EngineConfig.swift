@@ -241,6 +241,7 @@ struct EngineConfig {
 
         let detectedRoot = try? ProjectPaths.findProjectRoot()
         let bundledWallpaperRoot = ProjectPaths.findBundledWallpaperRoot()
+        let userWallpaperRoot = ProjectPaths.findUserWallpaperRoot()
         let resolvedWallpaperRoot: URL
         if let wallpaperRoot {
             resolvedWallpaperRoot = wallpaperRoot.standardizedFileURL
@@ -248,6 +249,8 @@ struct EngineConfig {
             resolvedWallpaperRoot = manifestURL.deletingLastPathComponent().standardizedFileURL
         } else if let bundledWallpaperRoot {
             resolvedWallpaperRoot = bundledWallpaperRoot
+        } else if let userWallpaperRoot {
+            resolvedWallpaperRoot = userWallpaperRoot
         } else if let detectedRoot {
             guard let defaultWallpaperRoot = ProjectPaths.findDefaultWallpaperRoot(
                 in: detectedRoot.appendingPathComponent("wallpapers")
@@ -329,6 +332,8 @@ struct EngineConfig {
 }
 
 enum ProjectPaths {
+    private static let applicationSupportDirectoryName = "MacWallpaperEngine"
+
     static func findBundledWallpapersDirectory() -> URL? {
         guard let resourceURL = Bundle.main.resourceURL else { return nil }
         let directory = resourceURL.appendingPathComponent("wallpapers")
@@ -337,6 +342,22 @@ enum ProjectPaths {
 
     static func findBundledWallpaperRoot() -> URL? {
         guard let directory = findBundledWallpapersDirectory() else { return nil }
+        return findDefaultWallpaperRoot(in: directory)
+    }
+
+    static func userWallpapersDirectory() -> URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(applicationSupportDirectoryName, isDirectory: true)
+            .appendingPathComponent("wallpapers", isDirectory: true)
+    }
+
+    static func findUserWallpapersDirectory() -> URL? {
+        guard let directory = userWallpapersDirectory(), directoryExists(directory) else { return nil }
+        return directory
+    }
+
+    static func findUserWallpaperRoot() -> URL? {
+        guard let directory = findUserWallpapersDirectory() else { return nil }
         return findDefaultWallpaperRoot(in: directory)
     }
 
