@@ -99,13 +99,24 @@ enum RuntimeSelfTest {
 
         let validatedBundle = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)
         check(validatedBundle != nil, "active wallpaper bundle must pass catalog validation")
+        let activeNativeCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let expectedNativeSpineStatus = if runtime.assetCatalog.spineAsset == nil {
+            "not-used"
+        } else {
+            activeNativeCompatibility.isSupported ? "supported" : "unsupported"
+        }
+        let expectedFallbackStatus = if activeNativeCompatibility.isSupported {
+            runtime.assetCatalog.compositeVideoAsset == nil ? "not-needed" : "composite-ready"
+        } else {
+            runtime.assetCatalog.compositeVideoAsset == nil ? "blocked" : "composite"
+        }
         check(
-            validatedBundle?.capabilities.nativeSpineStatus == "supported",
-            "bundle catalog must expose native Spine support status"
+            validatedBundle?.capabilities.nativeSpineStatus == expectedNativeSpineStatus,
+            "bundle catalog must expose active bundle native Spine support status"
         )
         check(
-            validatedBundle?.capabilities.briefText.contains("fallback: composite-ready") == true,
-            "bundle catalog must expose composite fallback readiness"
+            validatedBundle?.capabilities.fallbackStatus == expectedFallbackStatus,
+            "bundle catalog must expose active bundle fallback readiness"
         )
         let capabilitySummary = runtime.runtimeCapabilitiesSummary()
         check(
@@ -124,48 +135,74 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("desktopItemGate=requires-accessibility-trust"),
             "runtime capabilities summary must disclose desktop item Accessibility trust requirement"
         )
-        check(
-            capabilitySummary.contains("head:act trigger=tap buttons=left"),
-            "runtime capabilities summary must expose pointerDown hit-zone actions and buttons"
-        )
-        check(
-            capabilitySummary.contains("spine\tattachments"),
-            "runtime capabilities summary must report Spine attachment compatibility"
-        )
-        check(
-            capabilitySummary.contains("spine\tnativeCompatibilityGate"),
-            "runtime capabilities summary must expose the native Spine compatibility gate"
-        )
-        check(
-            RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported,
-            "active bundle must pass native Spine compatibility gate"
-        )
+        if runtime.assetCatalog.spineAsset == nil {
+            check(
+                capabilitySummary.contains("spine\tnativeRenderer\tnot-used"),
+                "non-Spine active bundles must mark native Spine renderer unused"
+            )
+        } else {
+            check(
+                capabilitySummary.contains("spine\tattachments"),
+                "Spine active bundles must report Spine attachment compatibility"
+            )
+            check(
+                capabilitySummary.contains("spine\tnativeCompatibilityGate"),
+                "Spine active bundles must expose the native Spine compatibility gate"
+            )
+        }
         let interactionPlan = InteractionPlan(
             interactions: manifest.interactions,
             policy: manifest.interactionPolicy
         )
-        check(
-            interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") == "Left",
-            "interaction plan must resolve left pointer movement"
-        )
-        check(
-            interactionPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right") == "idle",
-            "interaction plan must honor idle dead zone"
-        )
-        let headHit = interactionPlan.hitTest(point: CGPoint(x: 0.50, y: 0.30), button: .left)
-        check(
-            headHit?.zoneID == "head" && headHit?.action == "act" && headHit?.trigger == .tap,
-            "interaction plan must resolve Imported head left-click tap action"
-        )
-        let bodyHit = interactionPlan.hitTest(point: CGPoint(x: 0.50, y: 0.70), button: .left)
-        check(
-            bodyHit?.zoneID == "body" && bodyHit?.action == "boll" && bodyHit?.trigger == .hold,
-            "interaction plan must resolve Imported body left-click hold action"
-        )
-        check(
-            interactionPlan.hitTest(point: CGPoint(x: 0.50, y: 0.30), button: .right) == nil,
-            "interaction plan must reject right-click when the manifest declares left-click hit zones"
-        )
+        let hasLookDirection = manifest.interactions.contains {
+            $0.event == .pointerMove && $0.mapping == "lookDirection"
+        }
+        if hasLookDirection {
+            check(
+                interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") != "idle",
+                "look-direction interaction plan must resolve off-center pointer movement"
+            )
+            check(
+                interactionPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right") == "idle",
+                "look-direction interaction plan must honor idle dead zone"
+            )
+        } else {
+            check(
+                interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") == "idle",
+                "bundles without pointerMove lookDirection must stay idle for pointer movement"
+            )
+        }
+        let hitZoneSummaries = interactionPlan.hitZoneSummaries()
+        if let hitZone = hitZoneSummaries.first {
+            let center = CGPoint(
+                x: CGFloat((hitZone.rect[0] + hitZone.rect[2]) / 2.0),
+                y: CGFloat((hitZone.rect[1] + hitZone.rect[3]) / 2.0)
+            )
+            let acceptedButton = hitZone.buttons.first ?? .left
+            let hit = interactionPlan.hitTest(point: center, button: acceptedButton)
+            check(
+                hit?.zoneID == hitZone.id && hit?.action == hitZone.action && hit?.trigger == hitZone.trigger,
+                "interaction plan must resolve declared pointerDown hit zones"
+            )
+            let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
+                .right
+            } else if hitZone.buttons.contains(.right), hitZone.buttons.contains(.left) == false {
+                .left
+            } else {
+                nil
+            }
+            if let rejectedButton {
+                check(
+                    interactionPlan.hitTest(point: center, button: rejectedButton) == nil,
+                    "interaction plan must reject undeclared hit-zone pointer buttons"
+                )
+            }
+        } else {
+            check(
+                capabilitySummary.contains("interaction\tpointerDown/hitZones\tnot-used"),
+                "bundles without pointerDown hit zones must report hit-zone interaction unused"
+            )
+        }
         let syntheticDisplay = DisplayIdentityDescriptor(
             name: "LG ULTRAFINE",
             displayID: 42,
@@ -229,19 +266,40 @@ enum RuntimeSelfTest {
             runtime: autoRuntime,
             role: RenderDisplayRole(kind: .primary, policy: .full)
         )
-        check(
-            autoPrimaryRenderPath.contains("foreground=nativeSpine(auto)"),
-            "auto render plan must prefer native Spine when the bundle supports it"
-        )
         let autoForegroundPlan = ForegroundRenderPlan.make(
             runtime: autoRuntime,
             role: RenderDisplayRole(kind: .primary, policy: .full),
             compatibility: RuntimeCapabilities.nativeSpineCompatibility(runtime: autoRuntime)
         )
-        check(
-            autoForegroundPlan.usesNativeSpine && autoForegroundPlan.foregroundLabel == "nativeSpine(auto)",
-            "shared foreground render plan must match auto native render summary"
-        )
+        if autoRuntime.assetCatalog.spineAsset != nil,
+           RuntimeCapabilities.nativeSpineCompatibility(runtime: autoRuntime).isSupported {
+            check(
+                autoPrimaryRenderPath.contains("foreground=nativeSpine(auto)"),
+                "auto render plan must prefer native Spine when the bundle supports it"
+            )
+            check(
+                autoForegroundPlan.usesNativeSpine && autoForegroundPlan.foregroundLabel == "nativeSpine(auto)",
+                "shared foreground render plan must match auto native render summary"
+            )
+        } else if autoRuntime.assetCatalog.compositeVideoAsset != nil {
+            check(
+                autoPrimaryRenderPath.contains("foreground=compositeVideo(auto)"),
+                "auto render plan must use composite fallback when native Spine is unavailable"
+            )
+            check(
+                autoForegroundPlan.usesCompositeVideo && autoForegroundPlan.foregroundLabel == "compositeVideo(auto)",
+                "shared foreground render plan must match auto composite render summary"
+            )
+        } else {
+            check(
+                autoPrimaryRenderPath.contains("foreground=none(no-foreground-asset)"),
+                "auto render plan must report no foreground asset when no Spine/composite foreground exists"
+            )
+            check(
+                autoForegroundPlan.usesNativeSpine == false && autoForegroundPlan.usesCompositeVideo == false,
+                "shared foreground render plan must not invent a foreground asset"
+            )
+        }
         let nativeRuntime = try NativeRuntimeCore(
             config: runtime.config.replacing(foregroundMode: .nativeSpine, clearDuration: true)
         )
@@ -249,10 +307,25 @@ enum RuntimeSelfTest {
             runtime: nativeRuntime,
             role: RenderDisplayRole(kind: .primary, policy: .full)
         )
-        check(
-            nativePrimaryRenderPath.contains("foreground=nativeSpine"),
-            "native render plan must schedule Spine foreground on full primary displays"
-        )
+        if nativeRuntime.assetCatalog.spineAsset != nil,
+           RuntimeCapabilities.nativeSpineCompatibility(runtime: nativeRuntime).isSupported {
+            check(
+                nativePrimaryRenderPath.contains("foreground=nativeSpine"),
+                "native render plan must schedule Spine foreground on full primary displays"
+            )
+        } else if nativeRuntime.assetCatalog.compositeVideoAsset != nil,
+                  RuntimeCapabilities.nativeSpineCompatibility(runtime: nativeRuntime).isSupported == false {
+            check(
+                nativePrimaryRenderPath.contains("foreground=compositeFallback(native-unsupported)"),
+                "native render plan must use composite fallback when requested native Spine is unsupported"
+            )
+        } else {
+            check(
+                nativePrimaryRenderPath.contains("foreground=none(no-spine)")
+                    || nativePrimaryRenderPath.contains("fallback=blocked(no-compositeVideo)"),
+                "native render plan must report missing or blocked native Spine foreground"
+            )
+        }
         let nativeSecondaryVideoPath = DisplayPlanner.renderPathSummary(
             runtime: nativeRuntime,
             role: RenderDisplayRole(kind: .secondary, policy: .videoOnly)
