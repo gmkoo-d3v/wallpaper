@@ -50,6 +50,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   downgrade ladder is exhausted and a composite asset exists.
 - Atomic display rebuild policy keeps the previous wallpaper windows alive if
   a hot-plug/display rebuild fails partway through.
+- Window visibility loss from occlusion or fullscreen-obscured states pauses
+  rendering when the manifest display policy requests `pause`.
 - Startup host failures keep the control panel open when UI is available so
   users can choose another bundle instead of watching the app silently exit.
 - Pass-through mode for desktop click safety.

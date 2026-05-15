@@ -5,8 +5,8 @@ final class WallpaperMetalView: MTKView {
     private let compositor: MetalCompositor
     private let interaction: InteractionController
     private let interactionPolicy: InteractionPolicy
+    private let displayPolicy: DisplayPolicy
     private let displayRole: RenderDisplayRole
-    private let pauseWhenOccluded: Bool
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
 
@@ -16,7 +16,7 @@ final class WallpaperMetalView: MTKView {
         }
 
         self.displayRole = displayRole
-        self.pauseWhenOccluded = runtime.manifest.displayPolicy.occluded == .pause
+        self.displayPolicy = runtime.manifest.displayPolicy
         let manifestInteractionPolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
             mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
             blockApplicationWindows: true,
@@ -146,7 +146,10 @@ final class WallpaperMetalView: MTKView {
 
     private func updatePauseStateFromOcclusion() {
         let isVisible = window?.occlusionState.contains(.visible) ?? true
-        let shouldPause = pauseWhenOccluded && !isVisible
+        let shouldPause = RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(
+            isVisible: isVisible,
+            displayPolicy: displayPolicy
+        )
         isPaused = shouldPause
         compositor.setPausedByHost(shouldPause)
     }

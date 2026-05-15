@@ -43,6 +43,10 @@ enum RuntimeSelfTest {
         check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(
+            RuntimeLifecyclePolicy.visibilityPausePolicy == "pause-when-occluded-or-fullscreen-obscured",
+            "window visibility pause policy must be explicit"
+        )
+        check(
             RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: true),
             "startup host failures must surface in the control panel when UI is available"
         )
@@ -50,6 +54,7 @@ enum RuntimeSelfTest {
             RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: false) == false,
             "wallpaper-only startup failures must not create recovery UI unexpectedly"
         )
+        checkVisibilityPolicy(failures: &failures, checks: &checks)
 
         checkResourceGovernorTelemetry(runtime: runtime, failures: &failures, checks: &checks)
 
@@ -176,6 +181,53 @@ enum RuntimeSelfTest {
         check(telemetry.summary().contains("power-saving"), "runtime telemetry summary must label active power-saving policy", failures: &failures, checks: &checks)
         telemetry.record(displayName: "Self Test Display", role: role, snapshot: powerGovernor.snapshot)
         check(telemetry.summary().contains("power-saving") == false, "runtime telemetry summary must clear power-saving label after recovery", failures: &failures, checks: &checks)
+    }
+
+    private static func checkVisibilityPolicy(failures: inout [String], checks: inout Int) {
+        let visiblePolicy = DisplayPolicy(
+            primary: .full,
+            secondary: .videoOnly,
+            fullscreenObscured: .pause,
+            occluded: .pause
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(isVisible: true, displayPolicy: visiblePolicy) == false,
+            "visible wallpaper windows must not pause for visibility policy",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(isVisible: false, displayPolicy: visiblePolicy),
+            "invisible wallpaper windows must pause when occlusion or fullscreen policy pauses",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let fullscreenOnlyPolicy = DisplayPolicy(
+            primary: .full,
+            secondary: .videoOnly,
+            fullscreenObscured: .pause,
+            occluded: .full
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(isVisible: false, displayPolicy: fullscreenOnlyPolicy),
+            "fullscreen-obscured pause policy must be honored even when generic occlusion is renderable",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let renderThroughPolicy = DisplayPolicy(
+            primary: .full,
+            secondary: .videoOnly,
+            fullscreenObscured: .full,
+            occluded: .videoOnly
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(isVisible: false, displayPolicy: renderThroughPolicy) == false,
+            "non-pause visibility policies must keep renderable windows active",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func checkBundleDiagnostics(
