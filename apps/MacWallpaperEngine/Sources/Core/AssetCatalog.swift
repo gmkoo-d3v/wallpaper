@@ -13,6 +13,10 @@ struct VideoAsset {
     let playbackRate: Float
 }
 
+struct StaticImageAsset {
+    let url: URL
+}
+
 struct SpinePlacement {
     let mode: String
     let pixelsPerUnit: Double
@@ -53,14 +57,17 @@ struct SpinePlacement {
 }
 
 final class AssetCatalog {
+    let staticImageAsset: StaticImageAsset?
     let videoAsset: VideoAsset?
     let compositeVideoAsset: VideoAsset?
+    var staticImageAssetURL: URL? { staticImageAsset?.url }
     var videoAssetURL: URL? { videoAsset?.url }
     var compositeVideoAssetURL: URL? { compositeVideoAsset?.url }
     let spineAsset: SpineAsset?
 
     init(manifest: WallpaperNativeManifest, bundleRoot: URL) throws {
         let root = bundleRoot.standardizedFileURL
+        self.staticImageAsset = Self.makeStaticImageAsset(manifest.assets.staticImage, root: root)
         self.videoAsset = Self.makeVideoAsset(manifest.assets.video, root: root)
         self.compositeVideoAsset = Self.makeVideoAsset(manifest.assets.compositeVideo, root: root)
 
@@ -75,6 +82,11 @@ final class AssetCatalog {
         } else {
             self.spineAsset = nil
         }
+    }
+
+    private static func makeStaticImageAsset(_ config: StaticImageAssetConfig?, root: URL) -> StaticImageAsset? {
+        guard let config else { return nil }
+        return StaticImageAsset(url: root.appendingPathComponent(config.path).standardizedFileURL)
     }
 
     private static func makeVideoAsset(_ config: VideoAssetConfig?, root: URL) -> VideoAsset? {

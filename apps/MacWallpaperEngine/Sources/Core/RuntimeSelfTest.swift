@@ -98,6 +98,7 @@ enum RuntimeSelfTest {
             "default bundle catalog must include the active wallpaper bundle"
         )
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
+        try checkStaticImageBundle(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
             let details = failures.map { "- \($0)" }.joined(separator: "\n")
@@ -241,6 +242,115 @@ enum RuntimeSelfTest {
         } catch {
             // Expected: static secondary displays need a validated preview image.
         }
+    }
+
+    private static func checkStaticImageBundle(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        let sourceImage = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        checks += 1
+        guard FileManager.default.fileExists(atPath: sourceImage.path) else {
+            failures.append("static image fixture requires active bundle preview.jpg")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let fixtureRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineStaticSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureRoot)
+        }
+
+        let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+        try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
+        let fixtureImage = assetsRoot.appendingPathComponent("poster.jpg")
+        do {
+            try fileManager.linkItem(at: sourceImage, to: fixtureImage)
+        } catch {
+            try fileManager.copyItem(at: sourceImage, to: fixtureImage)
+        }
+
+        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let manifestJSON = """
+        {
+          "schemaVersion": "macos-wallpaper-native.v2",
+          "metadata": {
+            "id": "selftest_static_image",
+            "title": "Self Test Static Image"
+          },
+          "runtime": {
+            "kind": "native-metal",
+            "targetFps": 30,
+            "maxFps": 60,
+            "fallbackFps": 15,
+            "scheduler": {
+              "maxInFlightCommandBuffers": 1,
+              "lateFramePolicy": "drop",
+              "catchUp": false
+            }
+          },
+          "displayPolicy": {
+            "primary": "full",
+            "secondary": "static",
+            "fullscreenObscured": "pause",
+            "occluded": "pause"
+          },
+          "thermalPolicy": {
+            "nominal": "30fps",
+            "serious": "15fps-or-static",
+            "critical": "pause"
+          },
+          "layerBudgets": {
+            "maxTexturePages": 1,
+            "maxTextureDimension": 4096,
+            "rssTargetMb": 128,
+            "rssHardMb": 256,
+            "primaryCpuTargetPercent": 5,
+            "cpuDowngradePercent": 10,
+            "cpuDowngradeWindowSeconds": 10
+          },
+          "assets": {
+            "staticImage": {
+              "id": "poster",
+              "path": "assets/poster.jpg"
+            }
+          },
+          "layers": [
+            {
+              "id": "poster-layer",
+              "type": "static_image",
+              "asset": "poster"
+            }
+          ],
+          "interactions": [],
+          "validation": {
+            "bundleRootOnly": true,
+            "requirePremultipliedAlpha": false,
+            "requireSpineVersion": "4.2.x",
+            "rejectUnknownLayerTypes": true
+          }
+        }
+        """
+        try Data(manifestJSON.utf8).write(to: manifestURL, options: .atomic)
+
+        let staticRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            displayMode: .primaryAnimated,
+            renderFps: 30,
+            foregroundMode: .compositeVideo,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+
+        check(staticRuntime.assetCatalog.staticImageAssetURL != nil, "static image bundle must load staticImage asset", failures: &failures, checks: &checks)
+        check(staticRuntime.assetCatalog.videoAsset == nil, "static image bundle must not require a video asset", failures: &failures, checks: &checks)
+        check(staticRuntime.assetCatalog.spineAsset == nil, "static image bundle must not require a Spine asset", failures: &failures, checks: &checks)
+        check(staticRuntime.manifest.layers.first?.type == .staticImage, "static image bundle must preserve static_image layer type", failures: &failures, checks: &checks)
+        check(staticRuntime.validationSummary().contains("static image: \(fixtureImage.path)"), "static image validation summary must report the image asset", failures: &failures, checks: &checks)
     }
 
     private static func check(

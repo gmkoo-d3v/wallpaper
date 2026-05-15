@@ -46,7 +46,7 @@ enum ManifestLoader {
         guard manifest.layers.isEmpty == false else {
             throw EngineError.manifest("at least one layer is required")
         }
-        if requiresStaticPreview(manifest.displayPolicy) {
+        if requiresStaticPreview(manifest.displayPolicy), manifest.assets.staticImage == nil {
             let previewURL = bundleRoot.appendingPathComponent("preview.jpg")
             guard FileManager.default.fileExists(atPath: previewURL.path) else {
                 throw EngineError.asset("static display policy requires preview.jpg")
@@ -66,7 +66,13 @@ enum ManifestLoader {
         }
 
         var assetTypeById: [String: LayerType] = [:]
+        if let staticImage = manifest.assets.staticImage {
+            assetTypeById[staticImage.id] = .staticImage
+        }
         if let video = manifest.assets.video {
+            guard assetTypeById[video.id] == nil else {
+                throw EngineError.manifest("asset ids must be unique")
+            }
             assetTypeById[video.id] = .video
         }
         if let compositeVideo = manifest.assets.compositeVideo {
@@ -94,6 +100,10 @@ enum ManifestLoader {
         try validateInteractions(manifest.interactions)
         try validateInteractionPolicy(manifest.interactionPolicy)
 
+        if let staticImage = manifest.assets.staticImage {
+            let imageURL = try validateRelativePath(staticImage.path, bundleRoot: bundleRoot)
+            try validateTextureDimensions(imageURL, maxDimension: manifest.layerBudgets.maxTextureDimension)
+        }
         if let video = manifest.assets.video {
             try validatePlaybackRate(video.playbackRate, label: video.id)
             let videoURL = try validateRelativePath(video.path, bundleRoot: bundleRoot)
@@ -185,6 +195,10 @@ enum ManifestLoader {
 
     private static func validateLayerRenderingMode(_ layer: LayerConfig) throws {
         switch layer.type {
+        case .staticImage:
+            guard layer.renderingMode == nil else {
+                throw EngineError.manifest("static image layer \(layer.id) must not define renderingMode")
+            }
         case .video:
             guard layer.renderingMode == nil else {
                 throw EngineError.manifest("video layer \(layer.id) must not define renderingMode")

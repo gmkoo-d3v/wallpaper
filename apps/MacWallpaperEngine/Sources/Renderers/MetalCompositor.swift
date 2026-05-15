@@ -92,8 +92,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
         self.interactionTexture = Self.makeInteractionTexture(device: device)
 
+        let fallbackImageURL = runtime.assetCatalog.staticImageAssetURL
+            ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
         self.fallbackBackground = try? textureLoader.newTexture(
-            URL: runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg"),
+            URL: fallbackImageURL,
             options: [.SRGB: false]
         )
 

@@ -39,6 +39,7 @@ final class NativeRuntimeCore {
         cpuBudget: target \(manifest.layerBudgets.primaryCpuTargetPercent)% downgrade \(manifest.layerBudgets.cpuDowngradePercent)% / \(manifest.layerBudgets.cpuDowngradeWindowSeconds)s
         rssBudget: target \(manifest.layerBudgets.rssTargetMb)MB hard \(manifest.layerBudgets.rssHardMb)MB
         layers: \(manifest.layers.map { "\($0.id):\($0.type.rawValue)" }.joined(separator: ", "))
+        static image: \(assetCatalog.staticImageAssetURL?.path ?? "none")
         video: \(assetCatalog.videoAssetURL?.path ?? "none") @ \(assetCatalog.videoAsset?.playbackRate ?? 0)x
         composite video: \(assetCatalog.compositeVideoAssetURL?.path ?? "none") @ \(assetCatalog.compositeVideoAsset?.playbackRate ?? 0)x
         spine json: \(assetCatalog.spineAsset?.json.path ?? "none")

@@ -94,9 +94,15 @@ struct LayerBudgets: Decodable {
 }
 
 struct AssetManifest: Decodable {
+    let staticImage: StaticImageAssetConfig?
     let video: VideoAssetConfig?
     let compositeVideo: VideoAssetConfig?
     let spine: SpineAssetConfig?
+}
+
+struct StaticImageAssetConfig: Decodable {
+    let id: String
+    let path: String
 }
 
 struct VideoAssetConfig: Decodable {
@@ -135,6 +141,7 @@ struct LayerConfig: Decodable {
 }
 
 enum LayerType: String, Decodable {
+    case staticImage = "static_image"
     case video
     case spine
 }

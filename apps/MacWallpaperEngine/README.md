@@ -14,8 +14,11 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   manifest validation and symlink rejection.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime
   does not require a Imported-style Spine layer for every bundle.
+- Static image wallpaper bundles can declare a manifest `static_image` layer
+  instead of relying on an implicit preview fallback.
 - Manifests that use a `static` display policy must include `preview.jpg` so
-  static displays have a validated fallback image.
+  static displays have a validated fallback image, unless they declare a
+  `staticImage` asset.
 - AVFoundation video frames via `AVPlayerItemVideoOutput` and `CVMetalTextureCache`.
 - PMA texture draw path using Metal blending.
 - Spine setup-pose weighted mesh renderer.
