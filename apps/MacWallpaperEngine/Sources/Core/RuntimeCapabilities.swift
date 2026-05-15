@@ -86,8 +86,8 @@ enum RuntimeCapabilities {
         rows.append(RuntimeCapabilityRow(
             category: "performance",
             name: "resourceFallback",
-            status: manifest.assets.compositeVideo == nil ? "fallback" : "supported",
-            detail: manifest.assets.compositeVideo == nil ? "no compositeVideo asset; downgrade falls back to lower FPS/static policy" : "compositeVideo available for exhausted native budget"
+            status: "fps-only",
+            detail: "resource pressure lowers FPS but does not silently replace native Spine with compositeVideo"
         ))
 
         rows.append(contentsOf: interactionRows(manifest.interactions, policy: manifest.interactionPolicy))

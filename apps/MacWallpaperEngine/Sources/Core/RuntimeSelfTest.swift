@@ -38,8 +38,8 @@ enum RuntimeSelfTest {
         let highPlan = PerformancePlan.make(manifest: manifest, requestedFps: manifest.runtime.maxFps * 2)
         check(highPlan.effectiveTargetFps == highPlan.maxFps, "high requested FPS should clamp to max FPS")
         check(
-            highPlan.summary().contains("exhaustedBudgetFallback: video-only when available"),
-            "performance plan must document exhausted-budget video-only fallback"
+            highPlan.summary().contains("exhaustedBudgetFallback: fps downgrade; renderer swap disabled by default"),
+            "performance plan must document that resource pressure keeps the selected renderer"
         )
         check(highPlan.summary().contains("telemetryFields: currentFps"), "performance plan must document runtime telemetry fields")
         check(DisplayPlanner.rebuildPolicy == "atomic-rollback", "display rebuild policy must preserve old windows until replacement succeeds")
@@ -281,6 +281,11 @@ enum RuntimeSelfTest {
                 autoForegroundPlan.usesNativeSpine && autoForegroundPlan.foregroundLabel == "nativeSpine(auto)",
                 "shared foreground render plan must match auto native render summary"
             )
+            check(
+                autoForegroundPlan.allowsVideoOnlyResourceFallback == false
+                    && autoPrimaryRenderPath.contains("fallback=resourceBudget->fpsOnly"),
+                "auto native render plan must keep Spine active under resource pressure"
+            )
         } else if autoRuntime.assetCatalog.compositeVideoAsset != nil {
             check(
                 autoPrimaryRenderPath.contains("foreground=compositeVideo(auto)"),
@@ -312,6 +317,10 @@ enum RuntimeSelfTest {
             check(
                 nativePrimaryRenderPath.contains("foreground=nativeSpine"),
                 "native render plan must schedule Spine foreground on full primary displays"
+            )
+            check(
+                nativePrimaryRenderPath.contains("fallback=resourceBudget->fpsOnly"),
+                "native render plan must not silently replace Spine with composite video"
             )
         } else if nativeRuntime.assetCatalog.compositeVideoAsset != nil,
                   RuntimeCapabilities.nativeSpineCompatibility(runtime: nativeRuntime).isSupported == false {
@@ -438,6 +447,7 @@ enum RuntimeSelfTest {
         check(initial.submittedFrames == 0, "resource governor snapshot must start with zero submitted frames", failures: &failures, checks: &checks)
         check(initial.skippedFrames == 0, "resource governor snapshot must start with zero skipped frames", failures: &failures, checks: &checks)
         check(initial.powerSavingActive == false, "resource governor snapshot must expose inactive power policy by default", failures: &failures, checks: &checks)
+        check(initial.videoOnlyFallback == false, "resource governor must not silently switch to video fallback by default", failures: &failures, checks: &checks)
 
         var powerState = RuntimePowerState(lowPowerModeEnabled: true, onBatteryPower: false)
         let powerGovernor = ResourceGovernor(

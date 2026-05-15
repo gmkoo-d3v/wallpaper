@@ -33,6 +33,12 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         displayName: String,
         interaction: InteractionController
     ) throws {
+        let nativeSpineCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let foregroundPlan = ForegroundRenderPlan.make(
+            runtime: runtime,
+            role: displayRole,
+            compatibility: nativeSpineCompatibility
+        )
         self.device = device
         guard let commandQueue = device.makeCommandQueue() else {
             throw EngineError.renderer("Could not create Metal command queue")
@@ -43,18 +49,16 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         self.displayRole = displayRole
         self.displayName = displayName
         self.interaction = interaction
-        self.governor = ResourceGovernor(manifest: runtime.manifest, targetFps: runtime.renderTargetFps)
+        self.governor = ResourceGovernor(
+            manifest: runtime.manifest,
+            targetFps: runtime.renderTargetFps,
+            videoOnlyFallbackEnabled: foregroundPlan.allowsVideoOnlyResourceFallback
+        )
         self.semaphore = DispatchSemaphore(value: runtime.performancePlan.maxInFlightCommandBuffers)
         self.normalPipelineState = try Self.makePipeline(device: device, blendMode: .normal)
         self.multiplyPipelineState = try Self.makePipeline(device: device, blendMode: .multiply)
         super.init()
 
-        let nativeSpineCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
-        let foregroundPlan = ForegroundRenderPlan.make(
-            runtime: runtime,
-            role: displayRole,
-            compatibility: nativeSpineCompatibility
-        )
         if foregroundPlan.isBlocked {
             throw EngineError.renderer(
                 "Native Spine renderer cannot safely play this bundle and no compositeVideo fallback exists: \(nativeSpineCompatibility.reasonText)"
@@ -97,6 +101,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
         if runtime.config.videoEnabled,
            foregroundPlan.usesNativeSpine,
+           foregroundPlan.allowsVideoOnlyResourceFallback,
            displayRole.rendersForeground,
            usingCompositeVideo == false,
            let compositeVideo = runtime.assetCatalog.compositeVideoAsset {

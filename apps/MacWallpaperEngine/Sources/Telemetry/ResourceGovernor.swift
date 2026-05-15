@@ -60,7 +60,7 @@ struct PerformancePlan {
         downgradeFpsLadder: \(downgradeFpsLadder.map(String.init).joined(separator: " -> "))
         seriousThermalFps: \(seriousThermalFps)
         criticalThermal: \(criticalPauses ? "pause" : "throttle")
-        exhaustedBudgetFallback: video-only when available
+        exhaustedBudgetFallback: fps downgrade; renderer swap disabled by default
         maxInFlightCommandBuffers: \(maxInFlightCommandBuffers)
         cpuTargetPercent: \(cpuTargetPercent)
         cpuDowngradePercent: \(cpuDowngradePercent)
@@ -133,6 +133,7 @@ enum RuntimePowerStateProvider {
 
 final class ResourceGovernor {
     private let plan: PerformancePlan
+    private let videoOnlyFallbackEnabled: Bool
     private let powerStateProvider: () -> RuntimePowerState
     private var frameDurations: [TimeInterval] = []
     private var resourceSamples: [ResourceSample] = []
@@ -150,9 +151,11 @@ final class ResourceGovernor {
     init(
         manifest: WallpaperNativeManifest,
         targetFps: Int,
+        videoOnlyFallbackEnabled: Bool = false,
         powerStateProvider: @escaping () -> RuntimePowerState = RuntimePowerStateProvider.current
     ) {
         self.plan = PerformancePlan.make(manifest: manifest, requestedFps: targetFps)
+        self.videoOnlyFallbackEnabled = videoOnlyFallbackEnabled
         self.powerStateProvider = powerStateProvider
         self.currentFps = plan.effectiveTargetFps
         self.resourceFpsCap = plan.effectiveTargetFps
@@ -298,7 +301,7 @@ final class ResourceGovernor {
 
     private func downgradeOrUseVideoFallback() {
         guard videoOnlyForResourceBudget == false else { return }
-        if downgradeOneStep() == false {
+        if downgradeOneStep() == false && videoOnlyFallbackEnabled {
             videoOnlyForResourceBudget = true
         }
     }

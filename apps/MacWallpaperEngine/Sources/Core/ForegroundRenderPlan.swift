@@ -44,6 +44,7 @@ struct ForegroundRenderPlan {
     var foregroundLabel: String { choice.label }
     var usesNativeSpine: Bool { choice.usesNativeSpine }
     var usesCompositeVideo: Bool { choice.usesCompositeVideo }
+    var allowsVideoOnlyResourceFallback: Bool { false }
     var isBlocked: Bool {
         if case .blockedNativeUnsupported = choice { return true }
         return false
@@ -112,6 +113,6 @@ struct ForegroundRenderPlan {
     }
 
     private static func resourceFallbackLabel(runtime: NativeRuntimeCore) -> String {
-        runtime.assetCatalog.compositeVideoAsset == nil ? "none" : "resourceBudget->compositeVideo"
+        runtime.assetCatalog.compositeVideoAsset == nil ? "none" : "resourceBudget->fpsOnly"
     }
 }
