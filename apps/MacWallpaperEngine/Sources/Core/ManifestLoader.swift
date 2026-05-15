@@ -46,6 +46,13 @@ enum ManifestLoader {
         guard manifest.layers.isEmpty == false else {
             throw EngineError.manifest("at least one layer is required")
         }
+        if requiresStaticPreview(manifest.displayPolicy) {
+            let previewURL = bundleRoot.appendingPathComponent("preview.jpg")
+            guard FileManager.default.fileExists(atPath: previewURL.path) else {
+                throw EngineError.asset("static display policy requires preview.jpg")
+            }
+            try validateTextureDimensions(previewURL, maxDimension: manifest.layerBudgets.maxTextureDimension)
+        }
 
         if manifest.validation.requirePremultipliedAlpha {
             guard manifest.assets.spine?.premultipliedAlpha != false else {
@@ -187,6 +194,15 @@ enum ManifestLoader {
                 throw EngineError.manifest("spine layer \(layer.id) renderingMode must be setup-mesh")
             }
         }
+    }
+
+    private static func requiresStaticPreview(_ displayPolicy: DisplayPolicy) -> Bool {
+        [
+            displayPolicy.primary,
+            displayPolicy.secondary,
+            displayPolicy.fullscreenObscured,
+            displayPolicy.occluded
+        ].contains(.static)
     }
 
     private static func validateInteractions(_ interactions: [InteractionConfig]) throws {

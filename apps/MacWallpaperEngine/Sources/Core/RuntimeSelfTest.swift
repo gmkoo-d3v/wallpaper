@@ -97,6 +97,7 @@ enum RuntimeSelfTest {
             },
             "default bundle catalog must include the active wallpaper bundle"
         )
+        try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
             let details = failures.map { "- \($0)" }.joined(separator: "\n")
@@ -109,6 +110,149 @@ enum RuntimeSelfTest {
         manifest: \(runtime.config.manifestURL.path)
         bundle: \(runtime.config.wallpaperRoot.path)
         """
+    }
+
+    private static func checkVideoOnlyBundle(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        checks += 1
+        guard let sourceVideo = runtime.assetCatalog.compositeVideoAssetURL ?? runtime.assetCatalog.videoAssetURL else {
+            failures.append("video-only fixture requires an active video or composite video asset")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let fixtureRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureRoot)
+        }
+
+        let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+        try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
+        let fixtureVideo = assetsRoot.appendingPathComponent("background.mp4")
+        do {
+            try fileManager.linkItem(at: sourceVideo, to: fixtureVideo)
+        } catch {
+            try fileManager.copyItem(at: sourceVideo, to: fixtureVideo)
+        }
+        let sourcePreview = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        let fixturePreview = fixtureRoot.appendingPathComponent("preview.jpg")
+        if fileManager.fileExists(atPath: sourcePreview.path) {
+            do {
+                try fileManager.linkItem(at: sourcePreview, to: fixturePreview)
+            } catch {
+                try fileManager.copyItem(at: sourcePreview, to: fixturePreview)
+            }
+        }
+
+        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let manifestJSON = """
+        {
+          "schemaVersion": "macos-wallpaper-native.v2",
+          "metadata": {
+            "id": "selftest_video_only",
+            "title": "Self Test Video Only"
+          },
+          "runtime": {
+            "kind": "native-metal",
+            "targetFps": 30,
+            "maxFps": 60,
+            "fallbackFps": 15,
+            "scheduler": {
+              "maxInFlightCommandBuffers": 1,
+              "lateFramePolicy": "drop",
+              "catchUp": false
+            }
+          },
+          "displayPolicy": {
+            "primary": "full",
+            "secondary": "static",
+            "fullscreenObscured": "pause",
+            "occluded": "pause"
+          },
+          "thermalPolicy": {
+            "nominal": "30fps",
+            "serious": "15fps-or-video-only",
+            "critical": "pause"
+          },
+          "layerBudgets": {
+            "maxTexturePages": 1,
+            "maxTextureDimension": 4096,
+            "rssTargetMb": 250,
+            "rssHardMb": 500,
+            "primaryCpuTargetPercent": 10,
+            "cpuDowngradePercent": 20,
+            "cpuDowngradeWindowSeconds": 10
+          },
+          "assets": {
+            "video": {
+              "id": "backgroundVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "video",
+              "asset": "backgroundVideo"
+            }
+          ],
+          "interactions": [],
+          "validation": {
+            "bundleRootOnly": true,
+            "requirePremultipliedAlpha": false,
+            "requireSpineVersion": "4.2.x",
+            "rejectUnknownLayerTypes": true
+          }
+        }
+        """
+        try Data(manifestJSON.utf8).write(to: manifestURL, options: .atomic)
+
+        let videoOnlyRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            displayMode: .primaryAnimated,
+            renderFps: 30,
+            foregroundMode: .compositeVideo,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+
+        check(videoOnlyRuntime.assetCatalog.spineAsset == nil, "video-only bundle must not require a Spine asset", failures: &failures, checks: &checks)
+        check(videoOnlyRuntime.manifest.layers.count == 1, "video-only bundle must preserve its single video layer", failures: &failures, checks: &checks)
+        check(videoOnlyRuntime.validationSummary().contains("spine json: none"), "video-only validation summary must report no Spine asset", failures: &failures, checks: &checks)
+        check(
+            DisplayPlanner.role(isPrimary: false, displayMode: .primaryAnimated, manifest: videoOnlyRuntime.manifest)?.policy == .static,
+            "video-only bundle must support static secondary display policy",
+            failures: &failures,
+            checks: &checks
+        )
+
+        try fileManager.removeItem(at: fixturePreview)
+        checks += 1
+        do {
+            _ = try NativeRuntimeCore(config: videoOnlyRuntime.config)
+            failures.append("static display policy must reject bundles without preview.jpg")
+        } catch {
+            // Expected: static secondary displays need a validated preview image.
+        }
+    }
+
+    private static func check(
+        _ condition: @autoclosure () -> Bool,
+        _ message: String,
+        failures: inout [String],
+        checks: inout Int
+    ) {
+        checks += 1
+        if condition() == false {
+            failures.append(message)
+        }
     }
 
     private static func checkRole(
