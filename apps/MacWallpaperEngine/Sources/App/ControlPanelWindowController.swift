@@ -44,6 +44,7 @@ protocol ControlPanelDelegate: AnyObject {
 
 final class ControlPanelWindowController: NSWindowController {
     static let displayModeLabels = ["Primary+Policy", "All Full", "Primary Only"]
+    static let fpsLabels = ["30", "60", "Display Hz"]
 
     weak var delegate: ControlPanelDelegate?
 
@@ -63,7 +64,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
-        labels: ["30", "60", "Display"],
+        labels: ControlPanelWindowController.fpsLabels,
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -426,6 +427,9 @@ final class ControlPanelWindowController: NSWindowController {
         [fpsControl, speedControl, fitModeControl].forEach { control in
             control.segmentStyle = .texturedSquare
         }
+        fpsControl.setToolTip("Render at fixed 30 FPS.", forSegment: 0)
+        fpsControl.setToolTip("Render at fixed 60 FPS.", forSegment: 1)
+        fpsControl.setToolTip("Match each monitor refresh rate for high-refresh displays.", forSegment: 2)
 
         row.addArrangedSubview(fpsCaption)
         row.addArrangedSubview(fpsControl)

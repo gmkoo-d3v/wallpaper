@@ -85,6 +85,10 @@ enum RuntimeSelfTest {
             "control panel display mode labels must distinguish secondary policy from primary-only"
         )
         check(
+            ControlPanelWindowController.fpsLabels == ["30", "60", "Display Hz"],
+            "control panel FPS labels must expose only fixed 30/60 plus display refresh matching"
+        )
+        check(
             RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: true),
             "startup host failures must surface in the control panel when UI is available"
         )
@@ -940,6 +944,13 @@ enum RuntimeSelfTest {
         check(
             legacyHighFpsOverride.matchDisplayRefresh && legacyHighFpsOverride.renderFps == nil,
             "EngineConfig must map legacy FPS values above 60 to display-refresh mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let highRefreshFpsOverride = try EngineConfig.parse(["--fps", "144"])
+        check(
+            highRefreshFpsOverride.matchDisplayRefresh && highRefreshFpsOverride.renderFps == nil,
+            "EngineConfig must map arbitrary high-refresh FPS values to display-refresh mode",
             failures: &failures,
             checks: &checks
         )
