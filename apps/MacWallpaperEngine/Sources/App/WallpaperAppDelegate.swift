@@ -398,6 +398,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             foregroundMode: .compositeVideo,
             validateOnly: false,
             displayPlanOnly: false,
+            renderPlanOnly: false,
             performancePlanOnly: false,
             runtimeCapabilitiesOnly: false,
             selfTestOnly: false,

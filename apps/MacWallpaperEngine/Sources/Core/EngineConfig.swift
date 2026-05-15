@@ -65,6 +65,7 @@ struct EngineConfig {
     let foregroundMode: ForegroundRenderMode
     let validateOnly: Bool
     let displayPlanOnly: Bool
+    let renderPlanOnly: Bool
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
     let selfTestOnly: Bool
@@ -94,6 +95,7 @@ struct EngineConfig {
         metalEnabled: Bool? = nil,
         plainWindowStyle: Bool? = nil,
         displayPlanOnly: Bool? = nil,
+        renderPlanOnly: Bool? = nil,
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
         selfTestOnly: Bool? = nil
@@ -111,6 +113,7 @@ struct EngineConfig {
             foregroundMode: foregroundMode ?? self.foregroundMode,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly ?? self.displayPlanOnly,
+            renderPlanOnly: renderPlanOnly ?? self.renderPlanOnly,
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
@@ -136,6 +139,7 @@ struct EngineConfig {
         var foregroundMode = ForegroundRenderMode.compositeVideo
         var validateOnly = false
         var displayPlanOnly = false
+        var renderPlanOnly = false
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
         var selfTestOnly = false
@@ -210,6 +214,8 @@ struct EngineConfig {
                 validateOnly = true
             case "--display-plan":
                 displayPlanOnly = true
+            case "--render-plan":
+                renderPlanOnly = true
             case "--performance-plan":
                 performancePlanOnly = true
             case "--runtime-capabilities":
@@ -284,6 +290,7 @@ struct EngineConfig {
             foregroundMode: foregroundMode,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly,
+            renderPlanOnly: renderPlanOnly,
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
             selfTestOnly: selfTestOnly,
@@ -327,6 +334,7 @@ struct EngineConfig {
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.
+      --render-plan            Print effective per-display background/foreground renderer path and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
       --self-test              Run built-in policy/runtime self checks and exit.

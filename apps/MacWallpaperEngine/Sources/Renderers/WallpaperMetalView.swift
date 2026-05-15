@@ -125,7 +125,6 @@ final class WallpaperMetalView: MTKView {
                     self?.interaction.pointerTrackingStopped()
                 }
             )
-            mouseMonitor?.start()
         }
 
         window?.makeFirstResponder(self)
@@ -150,8 +149,23 @@ final class WallpaperMetalView: MTKView {
             isVisible: isVisible,
             displayPolicy: displayPolicy
         )
+        let shouldEnableInteraction = RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
+            isVisible: isVisible,
+            displayRole: displayRole,
+            interactionPolicy: interactionPolicy
+        )
         isPaused = shouldPause
         compositor.setPausedByHost(shouldPause)
+        setMouseMonitorActive(shouldEnableInteraction)
+    }
+
+    private func setMouseMonitorActive(_ active: Bool) {
+        if active {
+            mouseMonitor?.start()
+        } else {
+            mouseMonitor?.stop()
+            interaction.pointerTrackingStopped()
+        }
     }
 
     override func mouseMoved(with event: NSEvent) {

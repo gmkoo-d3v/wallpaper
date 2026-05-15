@@ -126,6 +126,29 @@ enum RuntimeSelfTest {
             RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported,
             "active bundle must pass native Spine compatibility gate"
         )
+        let nativeRuntime = try NativeRuntimeCore(
+            config: runtime.config.replacing(foregroundMode: .nativeSpine, clearDuration: true)
+        )
+        let nativePrimaryRenderPath = DisplayPlanner.renderPathSummary(
+            runtime: nativeRuntime,
+            role: RenderDisplayRole(kind: .primary, policy: .full)
+        )
+        check(
+            nativePrimaryRenderPath.contains("foreground=nativeSpine"),
+            "native render plan must schedule Spine foreground on full primary displays"
+        )
+        let nativeSecondaryVideoPath = DisplayPlanner.renderPathSummary(
+            runtime: nativeRuntime,
+            role: RenderDisplayRole(kind: .secondary, policy: .videoOnly)
+        )
+        check(
+            nativeSecondaryVideoPath.contains("foreground=none(display-policy)"),
+            "native render plan must keep video-only secondary displays without Spine foreground"
+        )
+        check(
+            DisplayPlanner.renderSummary(runtime: nativeRuntime).contains("foregroundMode: native"),
+            "render plan summary must expose the requested foreground mode"
+        )
         if let metadata = manifest.metadata {
             if let id = metadata.id {
                 check(validatedBundle?.id == id, "bundle catalog id must prefer manifest metadata.id")
@@ -263,6 +286,69 @@ enum RuntimeSelfTest {
         check(
             RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(isVisible: false, displayPolicy: renderThroughPolicy) == false,
             "non-pause visibility policies must keep renderable windows active",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let interactivePolicy = InteractionPolicy(
+            mode: .desktopEmptyOnly,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        let disabledPolicy = InteractionPolicy(
+            mode: .disabled,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        let primaryRole = RenderDisplayRole(kind: .primary, policy: .full)
+        let secondaryRole = RenderDisplayRole(kind: .secondary, policy: .full)
+        check(
+            RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
+                isVisible: true,
+                displayRole: primaryRole,
+                interactionPolicy: interactivePolicy
+            ),
+            "visible primary full wallpaper must enable desktop interaction monitor",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
+                isVisible: false,
+                displayRole: primaryRole,
+                interactionPolicy: interactivePolicy
+            ) == false,
+            "invisible wallpaper must suspend desktop interaction monitor",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
+                isVisible: true,
+                displayRole: secondaryRole,
+                interactionPolicy: interactivePolicy
+            ) == false,
+            "secondary wallpaper displays must not enable desktop interaction monitor",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
+                isVisible: true,
+                displayRole: primaryRole,
+                interactionPolicy: disabledPolicy
+            ) == false,
+            "disabled interaction policy must not enable desktop interaction monitor",
             failures: &failures,
             checks: &checks
         )

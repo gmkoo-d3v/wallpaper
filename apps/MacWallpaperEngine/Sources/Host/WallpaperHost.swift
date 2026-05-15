@@ -204,6 +204,146 @@ enum DisplayPlanner {
         \(lines.joined(separator: "\n"))
         """
     }
+
+    static func renderSummary(runtime: NativeRuntimeCore) -> String {
+        let screens = NSScreen.screens
+        guard let primary = screens.first else {
+            return "render plan: no screens detected"
+        }
+
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let lines = screens.enumerated().map { index, screen in
+            let role = role(for: screen, primary: primary, runtime: runtime)
+            let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
+            let path = role.map { renderPathSummary(runtime: runtime, role: $0) }
+                ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive"
+            return "#\(index) \(screen.localizedName)\t\(Int(screen.frame.width))x\(Int(screen.frame.height))\t\(roleName)\t\(path)"
+        }
+
+        return """
+        render plan OK
+        foregroundMode: \(runtime.config.foregroundMode.rawValue)
+        displayMode: \(runtime.config.displayMode.rawValue)
+        nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
+        \(lines.joined(separator: "\n"))
+        """
+    }
+
+    static func renderPathSummary(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> String {
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let background = plannedBackground(runtime: runtime, role: role, compatibility: compatibility)
+        let foreground = plannedForeground(runtime: runtime, role: role, compatibility: compatibility)
+        let fallback = plannedFallback(runtime: runtime, role: role, compatibility: compatibility)
+        let interaction = plannedInteraction(runtime: runtime, role: role)
+        return "background=\(background)\tforeground=\(foreground)\tfallback=\(fallback)\tinteraction=\(interaction)"
+    }
+
+    private static func plannedBackground(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole,
+        compatibility: NativeSpineCompatibility
+    ) -> String {
+        if runtime.config.videoEnabled, role.playsVideo {
+            if shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility),
+               let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
+                return assetLabel("compositeVideo", compositeVideo.url)
+            }
+
+            if let video = runtime.assetCatalog.videoAsset {
+                return assetLabel("video", video.url)
+            }
+        }
+
+        if let staticImage = runtime.assetCatalog.staticImageAssetURL {
+            return assetLabel("staticImage", staticImage)
+        }
+
+        let preview = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        if FileManager.default.fileExists(atPath: preview.path) {
+            return assetLabel("preview", preview)
+        }
+
+        return "none(no-asset)"
+    }
+
+    private static func plannedForeground(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole,
+        compatibility: NativeSpineCompatibility
+    ) -> String {
+        guard role.rendersForeground else { return "none(display-policy)" }
+
+        switch runtime.config.foregroundMode {
+        case .compositeVideo:
+            guard shouldUseCompositeVideo(runtime: runtime, role: role, compatibility: compatibility) else {
+                return "none(no-compositeVideo)"
+            }
+            return "compositeVideo"
+        case .nativeSpine:
+            if compatibility.isSupported == false {
+                return runtime.assetCatalog.compositeVideoAsset == nil
+                    ? "blocked(native-unsupported)"
+                    : "compositeFallback(native-unsupported)"
+            }
+            return runtime.assetCatalog.spineAsset == nil ? "none(no-spine)" : "nativeSpine"
+        }
+    }
+
+    private static func plannedFallback(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole,
+        compatibility: NativeSpineCompatibility
+    ) -> String {
+        guard runtime.config.foregroundMode == .nativeSpine, role.rendersForeground else {
+            return "none"
+        }
+
+        if compatibility.isSupported == false {
+            return runtime.assetCatalog.compositeVideoAsset == nil
+                ? "blocked(no-compositeVideo)"
+                : "nativeCompatibility->compositeVideo"
+        }
+
+        return runtime.assetCatalog.compositeVideoAsset == nil
+            ? "none"
+            : "resourceBudget->compositeVideo"
+    }
+
+    private static func plannedInteraction(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> String {
+        guard runtime.config.interactive else { return "passive(config-disabled)" }
+        guard role.allowsInteraction else { return "passive(display-role)" }
+        let mode = runtime.manifest.interactionPolicy?.mode ?? .desktopEmptyOnly
+        return mode == .disabled ? "passive(policy-disabled)" : mode.rawValue
+    }
+
+    private static func shouldUseCompositeVideo(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole,
+        compatibility: NativeSpineCompatibility
+    ) -> Bool {
+        (runtime.config.foregroundMode == .compositeVideo || shouldFallbackNativeSpineToComposite(
+            runtime: runtime,
+            role: role,
+            compatibility: compatibility
+        ))
+            && role.prefersCompositeVideo
+            && runtime.assetCatalog.compositeVideoAsset != nil
+    }
+
+    private static func shouldFallbackNativeSpineToComposite(
+        runtime: NativeRuntimeCore,
+        role: RenderDisplayRole,
+        compatibility: NativeSpineCompatibility
+    ) -> Bool {
+        runtime.config.foregroundMode == .nativeSpine
+            && role.rendersForeground
+            && compatibility.isSupported == false
+            && runtime.assetCatalog.compositeVideoAsset != nil
+    }
+
+    private static func assetLabel(_ kind: String, _ url: URL) -> String {
+        "\(kind):\(url.lastPathComponent)"
+    }
 }
 
 struct RenderDisplayRole {

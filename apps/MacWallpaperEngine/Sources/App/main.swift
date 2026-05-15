@@ -58,6 +58,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.renderPlanOnly {
+        print(DisplayPlanner.renderSummary(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.performancePlanOnly {
         print(runtime.performanceSummary())
         exit(EXIT_SUCCESS)

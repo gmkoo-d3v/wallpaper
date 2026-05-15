@@ -16,6 +16,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
+- `--render-plan` reports the effective per-display background video,
+  foreground renderer, fallback, and interaction path before launching windows.
 - Control panel library diagnostics show invalid wallpaper folders without
   hiding valid bundles.
 - Control panel bundle library shows selected bundle metadata and preview art
@@ -62,6 +64,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   a hot-plug/display rebuild fails partway through.
 - Window visibility loss from occlusion or fullscreen-obscured states pauses
   rendering when the manifest display policy requests `pause`.
+- Desktop interaction monitors are suspended whenever the wallpaper window is
+  not visible, and remain disabled for passive secondary displays.
 - Display mode labels distinguish `Primary+Policy` from `Primary Only` so
   secondary-display background behavior is not hidden behind an ambiguous
   "primary" label.
@@ -100,6 +104,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 cd ~/project/wall-paper/apps/MacWallpaperEngine
 swift run MacWallpaperEngine --validate-only
 swift run MacWallpaperEngine --runtime-capabilities
+swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode all
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain

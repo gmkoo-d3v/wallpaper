@@ -10,4 +10,12 @@ enum RuntimeLifecyclePolicy {
         guard isVisible == false else { return false }
         return displayPolicy.occluded == .pause || displayPolicy.fullscreenObscured == .pause
     }
+
+    static func shouldEnableDesktopInteraction(
+        isVisible: Bool,
+        displayRole: RenderDisplayRole,
+        interactionPolicy: InteractionPolicy
+    ) -> Bool {
+        isVisible && displayRole.allowsInteraction && interactionPolicy.mode != .disabled
+    }
 }
