@@ -153,14 +153,14 @@ enum DisplayPlanner {
 
     static func displaySelectionOptions() -> [DisplaySelectionOption] {
         var options = [
-            DisplaySelectionOption(title: "AppKit Default Primary", selector: nil)
+            DisplaySelectionOption(title: "System Default Primary", selector: nil)
         ]
 
-        for screen in NSScreen.screens {
-            let descriptor = displayDescriptor(for: screen)
+        for display in currentDisplaySnapshots() {
+            let descriptor = displayDescriptor(for: display)
             let selector = descriptor.displayID.map { "displayID:\($0)" } ?? "fingerprint:\(descriptor.fingerprint)"
             options.append(DisplaySelectionOption(
-                title: "\(screen.localizedName) / \(descriptor.shortSummary)",
+                title: "\(display.name) / \(descriptor.shortSummary)",
                 selector: selector
             ))
         }
@@ -229,18 +229,18 @@ enum DisplayPlanner {
     }
 
     static func summary(runtime: NativeRuntimeCore) -> String {
-        let screens = NSScreen.screens
-        guard let primary = primaryScreen(in: screens, runtime: runtime) else {
+        let displays = currentDisplaySnapshots()
+        guard let primary = primaryDisplay(in: displays, runtime: runtime) else {
             return "display plan: no screens detected"
         }
 
-        let lines = screens.enumerated().map { index, screen in
-            let role = role(for: screen, primary: primary, runtime: runtime)
+        let lines = displays.enumerated().map { index, display in
+            let role = role(for: display, primary: primary, runtime: runtime)
             let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
             let foreground = role?.rendersForeground == true ? "foreground" : "no-foreground"
             let video = role?.playsVideo == true ? "video" : "static"
             let interaction = role?.allowsInteraction == true ? "interactive" : "passive"
-            return "#\(index) \(screen.localizedName)\t\(displayGeometry(screen))\t\(displayIdentity(screen))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
+            return "#\(index) \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(foreground)\t\(video)\t\(interaction)"
         }
 
         return """
@@ -257,18 +257,18 @@ enum DisplayPlanner {
     }
 
     static func renderSummary(runtime: NativeRuntimeCore) -> String {
-        let screens = NSScreen.screens
-        guard let primary = primaryScreen(in: screens, runtime: runtime) else {
+        let displays = currentDisplaySnapshots()
+        guard let primary = primaryDisplay(in: displays, runtime: runtime) else {
             return "render plan: no screens detected"
         }
 
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
-        let lines = screens.enumerated().map { index, screen in
-            let role = role(for: screen, primary: primary, runtime: runtime)
+        let lines = displays.enumerated().map { index, display in
+            let role = role(for: display, primary: primary, runtime: runtime)
             let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
             let path = role.map { renderPathSummary(runtime: runtime, role: $0) }
                 ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive"
-            return "#\(index) \(screen.localizedName)\t\(displayGeometry(screen))\t\(displayIdentity(screen))\t\(roleName)\t\(path)"
+            return "#\(index) \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(path)"
         }
 
         return """
@@ -337,12 +337,80 @@ enum DisplayPlanner {
         "\(kind):\(url.lastPathComponent)"
     }
 
+    private static func currentDisplaySnapshots() -> [DisplaySnapshot] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else {
+            return []
+        }
+
+        var displayIDs = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displayIDs, &count) == .success else {
+            return []
+        }
+
+        return displayIDs.prefix(Int(count)).map { displayID in
+            let frame = CGDisplayBounds(displayID)
+            let pixelWidth = CGDisplayPixelsWide(displayID)
+            let pixelHeight = CGDisplayPixelsHigh(displayID)
+            let scaleX = frame.width > 0 ? CGFloat(pixelWidth) / frame.width : 1
+            let scaleY = frame.height > 0 ? CGFloat(pixelHeight) / frame.height : 1
+            let scale = max(1, min(scaleX, scaleY))
+            return DisplaySnapshot(
+                name: "Display \(displayID)",
+                displayID: displayID,
+                frame: frame,
+                backingScaleFactor: scale,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                vendor: CGDisplayVendorNumber(displayID),
+                model: CGDisplayModelNumber(displayID),
+                serial: CGDisplaySerialNumber(displayID)
+            )
+        }
+    }
+
+    private static func primaryDisplay(in displays: [DisplaySnapshot], runtime: NativeRuntimeCore) -> DisplaySnapshot? {
+        guard let first = displays.first else { return nil }
+        guard let selector = runtime.config.primaryDisplaySelector?.trimmingCharacters(in: .whitespacesAndNewlines),
+              selector.isEmpty == false else {
+            return first
+        }
+        return displays.first { primarySelectorMatches(selector, descriptor: displayDescriptor(for: $0)) } ?? first
+    }
+
+    private static func role(
+        for display: DisplaySnapshot,
+        primary: DisplaySnapshot,
+        runtime: NativeRuntimeCore
+    ) -> RenderDisplayRole? {
+        role(isPrimary: display.displayID == primary.displayID, displayMode: runtime.config.displayMode, manifest: runtime.manifest)
+    }
+
+    private static func displayGeometry(_ display: DisplaySnapshot) -> String {
+        "\(Int(display.frame.width))x\(Int(display.frame.height))@\(format(display.backingScaleFactor)) origin=\(Int(display.frame.minX)),\(Int(display.frame.minY))"
+    }
+
     private static func displayGeometry(_ screen: NSScreen) -> String {
         "\(Int(screen.frame.width))x\(Int(screen.frame.height))@\(format(screen.backingScaleFactor)) origin=\(Int(screen.frame.minX)),\(Int(screen.frame.minY))"
     }
 
+    private static func displayIdentity(_ display: DisplaySnapshot) -> String {
+        displayDescriptor(for: display).summary
+    }
+
     private static func displayIdentity(_ screen: NSScreen) -> String {
         displayDescriptor(for: screen).summary
+    }
+
+    private static func primarySelectionSummary(primary: DisplaySnapshot, runtime: NativeRuntimeCore) -> String {
+        let descriptor = displayDescriptor(for: primary)
+        guard let selector = runtime.config.primaryDisplaySelector?.trimmingCharacters(in: .whitespacesAndNewlines),
+              selector.isEmpty == false else {
+            return "coregraphics-default \(descriptor.shortSummary)"
+        }
+
+        let status = primarySelectorMatches(selector, descriptor: descriptor) ? "matched" : "unmatched-fallback"
+        return "\(status) selector=\(selector) effective=\(descriptor.shortSummary)"
     }
 
     private static func primarySelectionSummary(primary: NSScreen, runtime: NativeRuntimeCore) -> String {
@@ -366,6 +434,28 @@ enum DisplayPlanner {
         )
     }
 
+    private static func displayDescriptor(for display: DisplaySnapshot) -> DisplayIdentityDescriptor {
+        DisplayIdentityDescriptor(
+            name: display.name,
+            displayID: UInt32(display.displayID),
+            fingerprint: fallbackFingerprint(for: display),
+            arrangement: arrangementFingerprint(for: display)
+        )
+    }
+
+    private static func fallbackFingerprint(for display: DisplaySnapshot) -> String {
+        let source = [
+            display.name,
+            "vendor:\(display.vendor)",
+            "model:\(display.model)",
+            "serial:\(display.serial)",
+            "pixels:\(display.pixelWidth)x\(display.pixelHeight)",
+            "scale:\(format(display.backingScaleFactor))",
+            "source:coregraphics"
+        ].joined(separator: "|")
+        return stableHash(source)
+    }
+
     private static func fallbackFingerprint(for screen: NSScreen, displayID: CGDirectDisplayID?) -> String {
         let pixelWidth = displayID.map { CGDisplayPixelsWide($0) } ?? Int(screen.frame.width * screen.backingScaleFactor)
         let pixelHeight = displayID.map { CGDisplayPixelsHigh($0) } ?? Int(screen.frame.height * screen.backingScaleFactor)
@@ -382,6 +472,15 @@ enum DisplayPlanner {
             "scale:\(format(screen.backingScaleFactor))",
             "fps:\(screen.maximumFramesPerSecond)",
             "color:\(colorSpace)"
+        ].joined(separator: "|")
+        return stableHash(source)
+    }
+
+    private static func arrangementFingerprint(for display: DisplaySnapshot) -> String {
+        let source = [
+            "origin:\(Int(display.frame.minX)),\(Int(display.frame.minY))",
+            "points:\(Int(display.frame.width))x\(Int(display.frame.height))",
+            "scale:\(format(display.backingScaleFactor))"
         ].joined(separator: "|")
         return stableHash(source)
     }
@@ -407,6 +506,18 @@ enum DisplayPlanner {
     private static func format(_ value: CGFloat) -> String {
         String(format: "%.2f", Double(value))
     }
+}
+
+private struct DisplaySnapshot {
+    let name: String
+    let displayID: CGDirectDisplayID
+    let frame: CGRect
+    let backingScaleFactor: CGFloat
+    let pixelWidth: Int
+    let pixelHeight: Int
+    let vendor: UInt32
+    let model: UInt32
+    let serial: UInt32
 }
 
 struct DisplaySelectionOption {
