@@ -454,7 +454,7 @@ struct EngineConfig {
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
       --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.
-      --spine-animation-plan   Print Spine animation durations, timeline coverage, and manifest action links, then exit.
+      --spine-animation-plan   Print Spine animation durations, native geometry samples, and manifest action links, then exit.
       --composite-quality-plan Print composite fallback FPS/quality and regeneration target, then exit.
       --strict-composite-quality
                               Fail validation/quality-plan when composite fallback FPS is below target.

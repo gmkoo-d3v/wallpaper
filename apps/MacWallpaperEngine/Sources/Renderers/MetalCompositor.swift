@@ -134,33 +134,13 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 device: device,
                 playbackRate: runtime.selectedPlaybackRate,
                 poseSampleFps: displayTargetFps,
-                loopingAnimationNames: Self.loopingAnimationNames(from: runtime.manifest),
-                oneShotAnimationNames: Self.oneShotAnimationNames(from: runtime.manifest)
+                loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
+                oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
             )
             if let spineRenderer {
                 print("spine setup mesh OK: batches=\(spineRenderer.batchCount) vertices=\(spineRenderer.triangleVertexCount)")
             }
         }
-    }
-
-    private static func loopingAnimationNames(from manifest: WallpaperNativeManifest) -> Set<String> {
-        var names: Set<String> = ["idle"]
-        for interaction in manifest.interactions where interaction.event == .pointerDown {
-            interaction.hitZones?
-                .filter { ($0.trigger ?? .tap) == .hold }
-                .forEach { names.insert($0.action) }
-        }
-        return names
-    }
-
-    private static func oneShotAnimationNames(from manifest: WallpaperNativeManifest) -> Set<String> {
-        var names: Set<String> = []
-        for interaction in manifest.interactions where interaction.event == .pointerDown {
-            interaction.hitZones?
-                .filter { ($0.trigger ?? .tap) == .tap }
-                .forEach { names.insert($0.action) }
-        }
-        return names
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}

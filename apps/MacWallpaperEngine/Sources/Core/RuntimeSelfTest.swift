@@ -298,6 +298,16 @@ enum RuntimeSelfTest {
             "Spine animation diagnostics must expose a stable CLI header and columns"
         )
         if runtime.assetCatalog.spineAsset != nil {
+            let spineGeometryPlan = try SpineGeometryDiagnostics.make(runtime: runtime)
+            check(
+                spineGeometryPlan.contains("spine geometry plan OK")
+                    && spineGeometryPlan.contains("columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"),
+                "Spine geometry diagnostics must expose a stable CLI header and columns"
+            )
+            check(
+                spineGeometryPlan.contains("invalidGeometrySamples: none"),
+                "Spine geometry diagnostics must render every sampled manifest action pose"
+            )
             check(
                 spineAnimationPlan.contains("animation\tidle\tavailable"),
                 "Spine animation diagnostics must report idle animation availability"
@@ -314,6 +324,10 @@ enum RuntimeSelfTest {
                 check(
                     spineAnimationPlan.contains("coverage\t\(actionName)\tcompatible"),
                     "Spine animation diagnostics must mark manifest action \(actionName) native timeline coverage compatible"
+                )
+                check(
+                    spineGeometryPlan.contains("geometry\t\(actionName)\t"),
+                    "Spine geometry diagnostics must sample manifest action \(actionName)"
                 )
             }
         }

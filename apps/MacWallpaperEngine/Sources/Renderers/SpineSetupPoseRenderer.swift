@@ -312,6 +312,18 @@ final class SpineSetupPoseRenderer {
         let capacity: Int
     }
 
+    struct GeometrySample {
+        let actionName: String
+        let time: Double
+        let status: String
+        let batchCount: Int
+        let vertexCount: Int
+        let blendModes: String
+        let uvStatus: String
+        let bounds: String
+        let error: String
+    }
+
     private let device: MTLDevice
     private let atlas: (pages: [String: AtlasPage], regions: [String: AtlasRegion])
     private let bones: [Bone]
@@ -462,6 +474,35 @@ final class SpineSetupPoseRenderer {
         }
     }
 
+    func diagnosticGeometrySamples(actionNames: [String]) -> [GeometrySample] {
+        let uniqueActionNames = Array(Set(actionNames.isEmpty ? ["idle"] : actionNames)).sorted()
+        let originalPhysicsStates = physicsStates
+        defer { physicsStates = originalPhysicsStates }
+
+        var samples: [GeometrySample] = []
+        for actionName in uniqueActionNames {
+            guard let animation = animations[actionName] else {
+                samples.append(GeometrySample(
+                    actionName: actionName,
+                    time: 0,
+                    status: "missing",
+                    batchCount: 0,
+                    vertexCount: 0,
+                    blendModes: "none",
+                    uvStatus: "uv=missing-animation",
+                    bounds: "bounds=none",
+                    error: "missing-animation"
+                ))
+                continue
+            }
+
+            for time in Self.geometrySampleTimes(duration: animation.duration) {
+                samples.append(diagnosticGeometrySample(actionName: actionName, animation: animation, time: time))
+            }
+        }
+        return samples
+    }
+
     private func batches(command: String) -> [Batch] {
         let now = CACurrentMediaTime()
         let animationName = resolvedAnimationName(command: command, now: now)
@@ -526,6 +567,56 @@ final class SpineSetupPoseRenderer {
             fputs("Spine animation pose failed: \(error.localizedDescription)\n", stderr)
         }
         return cachedBatches
+    }
+
+    private func diagnosticGeometrySample(
+        actionName: String,
+        animation: SpineAnimation,
+        time: Double
+    ) -> GeometrySample {
+        do {
+            let overlayAnimation = animation.name == "idle" ? nil : animation
+            let pose = evaluate(
+                baseAnimation: animations["idle"],
+                baseTime: time,
+                previousOverlayAnimation: nil,
+                previousOverlayTime: 0,
+                previousOverlayMix: 0,
+                overlayAnimation: overlayAnimation,
+                overlayTime: time,
+                overlayMix: overlayAnimation == nil ? 0 : 1,
+                physicsTime: time
+            )
+            let vertexBatches = try Self.buildVertexBatches(
+                slots: pose.slots,
+                attachments: attachments,
+                clippingAttachments: clippingAttachments,
+                bones: pose.boneWorld,
+                deforms: pose.deforms,
+                boneIndexByName: boneIndexByName,
+                atlas: atlas,
+                skeletonBounds: skeletonBounds,
+                placement: placement
+            )
+            return Self.geometrySample(
+                actionName: actionName,
+                time: time,
+                vertexBatches: vertexBatches,
+                error: "none"
+            )
+        } catch {
+            return GeometrySample(
+                actionName: actionName,
+                time: time,
+                status: "error",
+                batchCount: 0,
+                vertexCount: 0,
+                blendModes: "none",
+                uvStatus: "uv=error",
+                bounds: "bounds=none",
+                error: Self.sanitize(error.localizedDescription)
+            )
+        }
     }
 
     private func resolvedAnimationName(command: String, now: CFTimeInterval) -> String {
@@ -3192,6 +3283,93 @@ final class SpineSetupPoseRenderer {
 
     private static func cross(_ first: SIMD2<Float>, _ second: SIMD2<Float>) -> Float {
         (first.x * second.y) - (first.y * second.x)
+    }
+
+    private static func geometrySample(
+        actionName: String,
+        time: Double,
+        vertexBatches: [VertexBatch],
+        error: String
+    ) -> GeometrySample {
+        let vertices = vertexBatches.flatMap(\.vertices)
+        let blendModes = Array(Set(vertexBatches.map(\.blendMode.rawValue))).sorted()
+        let finite = vertices.allSatisfy { vertex in
+            vertex.position.x.isFinite
+                && vertex.position.y.isFinite
+                && vertex.texCoord.x.isFinite
+                && vertex.texCoord.y.isFinite
+                && vertex.color.x.isFinite
+                && vertex.color.y.isFinite
+                && vertex.color.z.isFinite
+                && vertex.color.w.isFinite
+        }
+        let uvInRange = vertices.allSatisfy { vertex in
+            vertex.texCoord.x >= -0.0001
+                && vertex.texCoord.x <= 1.0001
+                && vertex.texCoord.y >= -0.0001
+                && vertex.texCoord.y <= 1.0001
+        }
+        let status = vertices.isEmpty == false && finite && uvInRange ? "renderable" : "invalid"
+        let uvStatus: String
+        if vertices.isEmpty {
+            uvStatus = "uv=no-vertices"
+        } else if finite == false {
+            uvStatus = "uv=non-finite"
+        } else if uvInRange == false {
+            uvStatus = "uv=out-of-range"
+        } else {
+            uvStatus = "uv=ok"
+        }
+
+        return GeometrySample(
+            actionName: actionName,
+            time: time,
+            status: status,
+            batchCount: vertexBatches.count,
+            vertexCount: vertices.count,
+            blendModes: blendModes.isEmpty ? "none" : blendModes.joined(separator: "+"),
+            uvStatus: uvStatus,
+            bounds: boundsText(vertices),
+            error: error
+        )
+    }
+
+    private static func geometrySampleTimes(duration: Double) -> [Double] {
+        guard duration.isFinite, duration > 0 else { return [0] }
+        let candidates = [0, duration * 0.5, duration]
+        var result: [Double] = []
+        for candidate in candidates {
+            let rounded = (candidate * 1000).rounded() / 1000
+            if result.contains(where: { abs($0 - rounded) < 0.0005 }) == false {
+                result.append(rounded)
+            }
+        }
+        return result
+    }
+
+    private static func boundsText(_ vertices: [RenderVertex]) -> String {
+        guard let first = vertices.first else { return "bounds=none" }
+        var minX = first.position.x
+        var maxX = first.position.x
+        var minY = first.position.y
+        var maxY = first.position.y
+        for vertex in vertices.dropFirst() {
+            minX = min(minX, vertex.position.x)
+            maxX = max(maxX, vertex.position.x)
+            minY = min(minY, vertex.position.y)
+            maxY = max(maxY, vertex.position.y)
+        }
+        return "bounds=x:\(format(minX))...\(format(maxX)),y:\(format(minY))...\(format(maxY))"
+    }
+
+    private static func format(_ value: Float) -> String {
+        String(format: "%.3f", value)
+    }
+
+    private static func sanitize(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
     }
 
     private static func makeBatches(from vertexBatches: [VertexBatch], device: MTLDevice) throws -> [Batch] {

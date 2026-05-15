@@ -46,6 +46,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--spine-animation-plan` reports Spine animation duration, timeline coverage,
   native timeline compatibility per manifest action, and whether every manifest
   interaction action resolves to a real animation.
+- `--spine-animation-plan` also samples native Spine renderer geometry for every
+  manifest action, proving that setup/animated poses produce drawable batches
+  with finite positions and in-range UVs.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.

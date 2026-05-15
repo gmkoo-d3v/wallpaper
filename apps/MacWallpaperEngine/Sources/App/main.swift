@@ -86,6 +86,7 @@ do {
 
     if config.spineAnimationPlanOnly {
         print(try SpineAnimationDiagnostics.make(runtime: runtime))
+        print(try SpineGeometryDiagnostics.make(runtime: runtime))
         exit(EXIT_SUCCESS)
     }
 

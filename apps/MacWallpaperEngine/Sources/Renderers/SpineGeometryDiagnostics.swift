@@ -1,0 +1,92 @@
+import Foundation
+import Metal
+
+struct SpineGeometryDiagnostics {
+    static func make(runtime: NativeRuntimeCore) throws -> String {
+        let actionNames = manifestActionNames(runtime.manifest)
+        guard let spineAsset = runtime.assetCatalog.spineAsset else {
+            return noSpineSummary(actionNames: actionNames)
+        }
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            return metalUnavailableSummary(spineAsset: spineAsset, actionNames: actionNames)
+        }
+
+        let renderer = try SpineSetupPoseRenderer(
+            spineAsset: spineAsset,
+            device: device,
+            playbackRate: runtime.selectedPlaybackRate,
+            poseSampleFps: runtime.renderTargetFps,
+            loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
+            oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
+        )
+        let samples = renderer.diagnosticGeometrySamples(actionNames: actionNames)
+        let invalidSamples = samples.filter { $0.status != "renderable" }
+
+        var lines = [
+            "spine geometry plan OK",
+            "spine: \(spineAsset.json.path)",
+            "setupBatches: \(renderer.batchCount)",
+            "setupVertices: \(renderer.triangleVertexCount)",
+            "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))",
+            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
+        ]
+
+        for sample in samples {
+            lines.append([
+                "geometry",
+                sample.actionName,
+                formatSeconds(sample.time),
+                sample.status,
+                "\(sample.batchCount)",
+                "\(sample.vertexCount)",
+                sample.blendModes,
+                sample.uvStatus,
+                sample.bounds,
+                sample.error
+            ].joined(separator: "\t"))
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private static func noSpineSummary(actionNames: [String]) -> String {
+        [
+            "spine geometry plan OK",
+            "spine: none",
+            "setupBatches: 0",
+            "setupVertices: 0",
+            "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "invalidGeometrySamples: none",
+            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
+        ].joined(separator: "\n")
+    }
+
+    private static func metalUnavailableSummary(spineAsset: SpineAsset, actionNames: [String]) -> String {
+        [
+            "spine geometry plan OK",
+            "spine: \(spineAsset.json.path)",
+            "setupBatches: 0",
+            "setupVertices: 0",
+            "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "invalidGeometrySamples: metal-unavailable",
+            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
+        ].joined(separator: "\n")
+    }
+
+    private static func manifestActionNames(_ manifest: WallpaperNativeManifest) -> [String] {
+        var names = Set<String>()
+        for interaction in manifest.interactions {
+            interaction.actions?.values.forEach { names.insert($0) }
+            interaction.hitZones?.forEach { names.insert($0.action) }
+        }
+        if names.isEmpty {
+            names.insert("idle")
+        }
+        return Array(names).sorted()
+    }
+
+    private static func formatSeconds(_ value: Double) -> String {
+        String(format: "%.3fs", value)
+    }
+}
