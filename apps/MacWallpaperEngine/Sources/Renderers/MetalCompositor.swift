@@ -10,6 +10,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private let textureLoader: MTKTextureLoader
     private let runtime: NativeRuntimeCore
     private let displayRole: RenderDisplayRole
+    private let displayName: String
     private let interaction: InteractionController
     private let governor: ResourceGovernor
     private let semaphore: DispatchSemaphore
@@ -29,6 +30,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         device: MTLDevice,
         runtime: NativeRuntimeCore,
         displayRole: RenderDisplayRole,
+        displayName: String,
         interaction: InteractionController
     ) throws {
         self.device = device
@@ -39,6 +41,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         self.textureLoader = MTKTextureLoader(device: device)
         self.runtime = runtime
         self.displayRole = displayRole
+        self.displayName = displayName
         self.interaction = interaction
         self.governor = ResourceGovernor(manifest: runtime.manifest, targetFps: runtime.renderTargetFps)
         self.semaphore = DispatchSemaphore(value: runtime.performancePlan.maxInFlightCommandBuffers)
@@ -153,6 +156,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         let now = CACurrentMediaTime()
         let currentFps = governor.frameStarted(now: now)
+        publishTelemetry()
         let thermalPaused = governor.shouldPauseForThermal
         let resourcePaused = governor.shouldPauseForResourceBudget
         let shouldPause = thermalPaused || resourcePaused
@@ -179,22 +183,26 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         guard semaphore.wait(timeout: .now()) == .success else {
             governor.recordSkippedFrame(reason: .commandBufferBackpressure)
+            publishTelemetry()
             return
         }
         guard let drawable = view.currentDrawable,
               let descriptor = view.currentRenderPassDescriptor else {
             semaphore.signal()
             governor.recordSkippedFrame(reason: .drawableUnavailable)
+            publishTelemetry()
             return
         }
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
             semaphore.signal()
             governor.recordSkippedFrame(reason: .commandBufferUnavailable)
+            publishTelemetry()
             return
         }
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             semaphore.signal()
             governor.recordSkippedFrame(reason: .encoderUnavailable)
+            publishTelemetry()
             return
         }
 
@@ -238,7 +246,12 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         encoder.endEncoding()
         commandBuffer.present(drawable)
         governor.recordSubmittedFrame()
+        publishTelemetry()
         commandBuffer.commit()
+    }
+
+    private func publishTelemetry() {
+        runtime.telemetry.record(displayName: displayName, role: displayRole, snapshot: governor.snapshot)
     }
 
     private func setResourceFallbackVideoActive(_ active: Bool) {

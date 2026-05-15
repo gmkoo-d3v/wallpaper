@@ -85,7 +85,7 @@ final class WallpaperHost: NSObject {
     private func makeWindow(for screen: NSScreen, role: RenderDisplayRole) throws -> NSWindow {
         do {
             let view: NSView = if runtime.config.metalEnabled {
-                try WallpaperMetalView(runtime: runtime, displayRole: role)
+                try WallpaperMetalView(runtime: runtime, displayRole: role, displayName: screen.localizedName)
             } else {
                 PlainWallpaperView()
             }

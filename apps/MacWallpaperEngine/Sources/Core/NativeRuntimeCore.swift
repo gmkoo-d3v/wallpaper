@@ -4,6 +4,7 @@ final class NativeRuntimeCore {
     let config: EngineConfig
     let manifest: WallpaperNativeManifest
     let assetCatalog: AssetCatalog
+    let telemetry = RuntimeTelemetryStore()
     var performancePlan: PerformancePlan {
         PerformancePlan.make(manifest: manifest, requestedFps: config.renderFps ?? manifest.runtime.targetFps)
     }

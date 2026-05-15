@@ -144,6 +144,15 @@ enum RuntimeSelfTest {
         check(updated.skippedFrames == 1, "resource governor must count skipped frames", failures: &failures, checks: &checks)
         check(updated.lastSkipReason == FrameSkipReason.commandBufferBackpressure.rawValue, "resource governor must preserve last skip reason", failures: &failures, checks: &checks)
         check(updated.submittedFrames == 1, "resource governor must count submitted frames", failures: &failures, checks: &checks)
+
+        let telemetry = RuntimeTelemetryStore()
+        check(telemetry.summary() == "No runtime telemetry yet", "runtime telemetry store must report empty state", failures: &failures, checks: &checks)
+        let role = RenderDisplayRole(kind: .primary, policy: runtime.manifest.displayPolicy.primary)
+        telemetry.record(displayName: "Self Test Display", role: role, snapshot: updated)
+        let summary = telemetry.summary()
+        check(summary.contains("Self Test Display primary:"), "runtime telemetry summary must include display role", failures: &failures, checks: &checks)
+        check(summary.contains("submitted 1"), "runtime telemetry summary must include submitted frame count", failures: &failures, checks: &checks)
+        check(summary.contains("skipped 1"), "runtime telemetry summary must include skipped frame count", failures: &failures, checks: &checks)
     }
 
     private static func checkBundleDiagnostics(

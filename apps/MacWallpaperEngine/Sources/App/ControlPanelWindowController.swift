@@ -12,11 +12,13 @@ struct ControlPanelState {
     let wallpaperPath: String
     let availableBundles: [WallpaperBundleSummary]
     let bundleDiagnosticsText: String
+    let telemetryText: String
     let statusText: String
 }
 
 protocol ControlPanelDelegate: AnyObject {
     var controlPanelState: ControlPanelState { get }
+    var controlPanelTelemetryText: String { get }
     func controlPanelStart()
     func controlPanelStop()
     func controlPanelApply(
@@ -38,6 +40,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let statusValue = NSTextField(labelWithString: "")
     private let pathValue = NSTextField(labelWithString: "")
     private let bundleDiagnosticsValue = NSTextField(labelWithString: "")
+    private let telemetryValue = NSTextField(labelWithString: "")
     private let displayModeControl = NSSegmentedControl(
         labels: ["Primary", "All", "Only"],
         trackingMode: .selectOne,
@@ -77,6 +80,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let quitButton = NSButton(title: "QUIT", target: nil, action: nil)
     private let bundlePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private var availableBundles: [WallpaperBundleSummary] = []
+    private var refreshTimer: Timer?
 
     init(delegate: ControlPanelDelegate) {
         self.delegate = delegate
@@ -91,6 +95,7 @@ final class ControlPanelWindowController: NSWindowController {
         window.animationBehavior = .none
         window.center()
         super.init(window: window)
+        window.delegate = self
         buildInterface()
         refresh()
     }
@@ -100,8 +105,13 @@ final class ControlPanelWindowController: NSWindowController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        stopRefreshTimer()
+    }
+
     func showPanel() {
         refresh()
+        startRefreshTimer()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
@@ -113,6 +123,7 @@ final class ControlPanelWindowController: NSWindowController {
         pathValue.stringValue = state.wallpaperPath
         bundleDiagnosticsValue.stringValue = state.bundleDiagnosticsText
         bundleDiagnosticsValue.isHidden = state.bundleDiagnosticsText.isEmpty
+        telemetryValue.stringValue = state.telemetryText
         availableBundles = state.availableBundles
         reloadBundlePopup(currentRoot: state.wallpaperRoot)
         displayModeControl.selectedSegment = segment(for: state.displayMode)
@@ -165,6 +176,23 @@ final class ControlPanelWindowController: NSWindowController {
         [stopButton, chooseBundleButton, importBundleButton, quitButton].forEach(styleSecondaryButton)
     }
 
+    private func startRefreshTimer() {
+        guard refreshTimer == nil else { return }
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.refreshTelemetry()
+        }
+    }
+
+    private func refreshTelemetry() {
+        guard let text = delegate?.controlPanelTelemetryText else { return }
+        telemetryValue.stringValue = text
+    }
+
+    private func stopRefreshTimer() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+    }
+
     private func heroBand() -> NSView {
         let view = NSView()
         view.wantsLayer = true
@@ -205,6 +233,7 @@ final class ControlPanelWindowController: NSWindowController {
 
         stack.addArrangedSubview(infoRow(label: "STATUS", value: statusValue))
         stack.addArrangedSubview(bundleRow())
+        stack.addArrangedSubview(infoRow(label: "TELEMETRY", value: telemetryValue))
         stack.addArrangedSubview(modeRow())
         stack.addArrangedSubview(foregroundRow())
         stack.addArrangedSubview(renderRow())
@@ -523,5 +552,11 @@ final class ControlPanelWindowController: NSWindowController {
 
     @objc private func quitApp() {
         delegate?.controlPanelQuit()
+    }
+}
+
+extension ControlPanelWindowController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        stopRefreshTimer()
     }
 }

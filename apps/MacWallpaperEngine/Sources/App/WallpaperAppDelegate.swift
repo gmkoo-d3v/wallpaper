@@ -214,6 +214,10 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension WallpaperAppDelegate: ControlPanelDelegate {
+    var controlPanelTelemetryText: String {
+        runtime?.telemetry.summary() ?? "No runtime telemetry yet"
+    }
+
     var controlPanelState: ControlPanelState {
         let libraryState = wallpaperBundleLibraryState()
 
@@ -230,6 +234,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 wallpaperPath: "No wallpaper bundle selected",
                 availableBundles: libraryState.bundles,
                 bundleDiagnosticsText: libraryState.diagnosticsText,
+                telemetryText: "No runtime telemetry yet",
                 statusText: lastError.map { "ERROR / \($0)" } ?? "NO BUNDLE SELECTED"
             )
         }
@@ -252,6 +257,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             wallpaperPath: runtime.config.wallpaperRoot.path,
             availableBundles: libraryState.bundles,
             bundleDiagnosticsText: libraryState.diagnosticsText,
+            telemetryText: controlPanelTelemetryText,
             statusText: status
         )
     }

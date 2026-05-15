@@ -10,7 +10,7 @@ final class WallpaperMetalView: MTKView {
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
 
-    init(runtime: NativeRuntimeCore, displayRole: RenderDisplayRole) throws {
+    init(runtime: NativeRuntimeCore, displayRole: RenderDisplayRole, displayName: String) throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
             throw EngineError.renderer("Metal device is unavailable")
         }
@@ -42,6 +42,7 @@ final class WallpaperMetalView: MTKView {
             device: device,
             runtime: runtime,
             displayRole: displayRole,
+            displayName: displayName,
             interaction: interaction
         )
 
