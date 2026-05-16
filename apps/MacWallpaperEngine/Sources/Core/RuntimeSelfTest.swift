@@ -168,6 +168,14 @@ enum RuntimeSelfTest {
             runtime.validationSummary().contains("composite quality: \(compositeQualityReport.summaryLine)"),
             "validation summary must surface composite fallback quality"
         )
+        if runtime.assetCatalog.spineAsset != nil,
+           RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported {
+            check(
+                runtime.validationSummary().contains("native spine geometry: required"),
+                "validation summary must mark supported native Spine geometry as a required preflight"
+            )
+            try runtime.requireNativeSpineGeometryIfSupported()
+        }
         if compositeQualityReport.isAcceptable == false {
             check(
                 compositeQualityReport.text.contains("recommendedExportFps: display-refresh"),
@@ -1267,6 +1275,7 @@ enum RuntimeSelfTest {
         check(videoOnlyRuntime.assetCatalog.spineAsset == nil, "video-only bundle must not require a Spine asset", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.manifest.layers.count == 1, "video-only bundle must preserve its single video layer", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.validationSummary().contains("spine json: none"), "video-only validation summary must report no Spine asset", failures: &failures, checks: &checks)
+        check(videoOnlyRuntime.validationSummary().contains("native spine geometry: not-used"), "video-only validation summary must skip native Spine geometry preflight", failures: &failures, checks: &checks)
         let videoOnlySummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(videoOnlySummary.capabilities.nativeSpineStatus == "not-used", "video-only bundle catalog must mark native Spine unused", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeRenderer\tnot-used"), "video-only capability summary must mark Spine renderer unused", failures: &failures, checks: &checks)
@@ -1330,6 +1339,7 @@ enum RuntimeSelfTest {
         check(staticRuntime.assetCatalog.spineAsset == nil, "static image bundle must not require a Spine asset", failures: &failures, checks: &checks)
         check(staticRuntime.manifest.layers.first?.type == .staticImage, "static image bundle must preserve static_image layer type", failures: &failures, checks: &checks)
         check(staticRuntime.validationSummary().contains("static image: \(fixtureImage.path)"), "static image validation summary must report the image asset", failures: &failures, checks: &checks)
+        check(staticRuntime.validationSummary().contains("native spine geometry: not-used"), "static image validation summary must skip native Spine geometry preflight", failures: &failures, checks: &checks)
         check(staticRuntime.runtimeCapabilitiesSummary().contains("layer\tstatic_image\tsupported"), "static image capability summary must report static_image support", failures: &failures, checks: &checks)
         let staticSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(staticSummary.previewURL?.lastPathComponent == "poster.jpg", "static image bundle catalog preview must fall back to staticImage asset", failures: &failures, checks: &checks)
@@ -1620,6 +1630,8 @@ enum RuntimeSelfTest {
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("events/audio/sequence"), "compatibility gate must report events/audio/sequence limits", failures: &failures, checks: &checks)
+        check(unsupportedRuntime.validationSummary().contains("native spine geometry: skipped(native-unsupported)"), "unsupported native Spine validation summary must skip geometry preflight", failures: &failures, checks: &checks)
+        try unsupportedRuntime.requireNativeSpineGeometryIfSupported()
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeCompatibilityGate\tunsupported"),
             "unsupported Spine capability summary must mark nativeCompatibilityGate unsupported",

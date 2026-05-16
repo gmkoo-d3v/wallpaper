@@ -108,6 +108,7 @@ do {
         let summary = runtime.validationSummary()
         print(summary)
         try runtime.requireCompositeQualityIfStrict()
+        try runtime.requireNativeSpineGeometryIfSupported()
         exit(EXIT_SUCCESS)
     }
 

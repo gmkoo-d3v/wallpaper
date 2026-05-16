@@ -11,14 +11,7 @@ struct SpineGeometryDiagnostics {
             return metalUnavailableSummary(spineAsset: spineAsset, actionNames: actionNames)
         }
 
-        let renderer = try SpineSetupPoseRenderer(
-            spineAsset: spineAsset,
-            device: device,
-            playbackRate: runtime.selectedPlaybackRate,
-            poseSampleFps: runtime.renderTargetFps,
-            loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
-            oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
-        )
+        let renderer = try makeRenderer(runtime: runtime, spineAsset: spineAsset, device: device)
         let samples = renderer.diagnosticGeometrySamples(actionNames: actionNames)
         let invalidSamples = samples.filter { $0.status != "renderable" }
 
@@ -48,6 +41,42 @@ struct SpineGeometryDiagnostics {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    static func requireRenderableSamples(runtime: NativeRuntimeCore) throws {
+        guard let spineAsset = runtime.assetCatalog.spineAsset else { return }
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        guard compatibility.isSupported else { return }
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            throw EngineError.renderer("native Spine geometry preflight requires a Metal device")
+        }
+
+        let actionNames = manifestActionNames(runtime.manifest)
+        let renderer = try makeRenderer(runtime: runtime, spineAsset: spineAsset, device: device)
+        let invalidSamples = renderer
+            .diagnosticGeometrySamples(actionNames: actionNames)
+            .filter { $0.status != "renderable" }
+        guard invalidSamples.isEmpty else {
+            let details = invalidSamples
+                .map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status):\($0.error)" }
+                .joined(separator: ",")
+            throw EngineError.renderer("native Spine geometry preflight failed: \(details)")
+        }
+    }
+
+    private static func makeRenderer(
+        runtime: NativeRuntimeCore,
+        spineAsset: SpineAsset,
+        device: MTLDevice
+    ) throws -> SpineSetupPoseRenderer {
+        try SpineSetupPoseRenderer(
+            spineAsset: spineAsset,
+            device: device,
+            playbackRate: runtime.selectedPlaybackRate,
+            poseSampleFps: runtime.renderTargetFps,
+            loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
+            oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
+        )
     }
 
     private static func noSpineSummary(actionNames: [String]) -> String {

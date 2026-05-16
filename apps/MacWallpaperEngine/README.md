@@ -100,6 +100,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   playback rate, and effective FPS; low-FPS composite fallback is flagged so it
   can be regenerated at the display refresh rate instead of being mistaken for
   a renderer bug.
+- `--validate-only` runs native Spine geometry preflight for supported Spine
+  bundles, so package/release validation fails before shipping broken action
+  pose assembly or out-of-range UVs.
 - FPS policy exposes fixed `30`, fixed `60`, and `Display Hz` refresh matching;
   legacy values above 60 are treated as display-refresh mode instead of fixed
   120fps.

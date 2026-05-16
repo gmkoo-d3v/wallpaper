@@ -56,6 +56,7 @@ final class NativeRuntimeCore {
         video: \(assetCatalog.videoAssetURL?.path ?? "none") @ \(assetCatalog.videoAsset?.playbackRate ?? 0)x
         composite video: \(assetCatalog.compositeVideoAssetURL?.path ?? "none") @ \(assetCatalog.compositeVideoAsset?.playbackRate ?? 0)x
         composite quality: \(compositeQuality.summaryLine)
+        native spine geometry: \(nativeSpineGeometryValidationStatus())
         spine json: \(assetCatalog.spineAsset?.json.path ?? "none")
         """
     }
@@ -100,5 +101,16 @@ final class NativeRuntimeCore {
                 "strict composite quality failed: \(report.warnings.joined(separator: "; "))"
             )
         }
+    }
+
+    func requireNativeSpineGeometryIfSupported() throws {
+        try SpineGeometryDiagnostics.requireRenderableSamples(runtime: self)
+    }
+
+    private func nativeSpineGeometryValidationStatus() -> String {
+        guard assetCatalog.spineAsset != nil else { return "not-used" }
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: self)
+        guard compatibility.isSupported else { return "skipped(native-unsupported)" }
+        return "required"
     }
 }
