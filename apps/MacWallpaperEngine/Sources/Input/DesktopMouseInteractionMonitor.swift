@@ -9,6 +9,7 @@ final class DesktopMouseInteractionMonitor {
     private let onDown: (CGPoint, PointerButton) -> Void
     private let onUp: (CGPoint, PointerButton) -> Void
     private let onExit: () -> Void
+    private let currentInteractionSnapshot: () -> InteractionSnapshot?
     private let onTelemetry: (InteractionMonitorTelemetrySnapshot) -> Void
     private var monitors: [Any] = []
     private var localMonitor: Any?
@@ -58,6 +59,7 @@ final class DesktopMouseInteractionMonitor {
         onDown: @escaping (CGPoint, PointerButton) -> Void,
         onUp: @escaping (CGPoint, PointerButton) -> Void,
         onExit: @escaping () -> Void,
+        currentInteractionSnapshot: @escaping () -> InteractionSnapshot? = { nil },
         onTelemetry: @escaping (InteractionMonitorTelemetrySnapshot) -> Void = { _ in }
     ) {
         self.window = window
@@ -66,6 +68,7 @@ final class DesktopMouseInteractionMonitor {
         self.onDown = onDown
         self.onUp = onUp
         self.onExit = onExit
+        self.currentInteractionSnapshot = currentInteractionSnapshot
         self.onTelemetry = onTelemetry
     }
 
@@ -299,8 +302,6 @@ final class DesktopMouseInteractionMonitor {
             x: min(max(local.x / contentView.bounds.width, 0.0), 1.0),
             y: min(max(1.0 - (local.y / contentView.bounds.height), 0.0), 1.0)
         )
-        recordDelivered(source: "nsevent", kind: kind, normalized: normalized)
-
         switch kind {
         case .down(let button):
             onDown(normalized, button)
@@ -309,6 +310,7 @@ final class DesktopMouseInteractionMonitor {
         case .move:
             onMove(normalized)
         }
+        recordDelivered(source: "nsevent", kind: kind, normalized: normalized)
     }
 
     private func handleCGEvent(type: CGEventType, event: CGEvent) {
@@ -362,8 +364,6 @@ final class DesktopMouseInteractionMonitor {
             x: min(max(local.x / contentView.bounds.width, 0.0), 1.0),
             y: min(max(1.0 - (local.y / contentView.bounds.height), 0.0), 1.0)
         )
-        recordDelivered(source: "cgevent", kind: kind, normalized: normalized)
-
         switch kind {
         case .down(let button):
             onDown(normalized, button)
@@ -372,6 +372,7 @@ final class DesktopMouseInteractionMonitor {
         case .move:
             onMove(normalized)
         }
+        recordDelivered(source: "cgevent", kind: kind, normalized: normalized)
         _ = event
     }
 
@@ -551,6 +552,7 @@ final class DesktopMouseInteractionMonitor {
         if let point {
             lastPoint = point
         }
+        let interaction = currentInteractionSnapshot()
         onTelemetry(InteractionMonitorTelemetrySnapshot(
             active: isActive,
             eventTapActive: eventTap != nil,
@@ -560,6 +562,8 @@ final class DesktopMouseInteractionMonitor {
             lastEvent: lastEvent,
             lastDecision: lastDecision,
             lastPoint: lastPoint,
+            lastCommand: interaction?.command ?? "unknown",
+            lastClickPulse: Double(interaction?.clickPulse ?? 0),
             deliveredEvents: deliveredEvents,
             blockedEvents: blockedEvents
         ))

@@ -15,6 +15,8 @@ struct InteractionMonitorTelemetrySnapshot: Equatable {
     let lastEvent: String
     let lastDecision: String
     let lastPoint: String
+    let lastCommand: String
+    let lastClickPulse: Double
     let deliveredEvents: Int
     let blockedEvents: Int
 }
@@ -99,7 +101,7 @@ final class RuntimeTelemetryStore {
             let active = data.active ? "active" : "inactive"
             let tap = data.eventTapActive ? "tap:on" : "tap:off"
             let local = data.localMonitorActive ? "local:on" : "local:off"
-            return "\(entry.displayName) \(entry.roleName) interaction \(active) \(tap) \(local) global:\(data.globalMonitorCount) last:\(data.lastSource)/\(data.lastEvent)/\(data.lastDecision) point:\(data.lastPoint) delivered:\(data.deliveredEvents) blocked:\(data.blockedEvents)"
+            return "\(entry.displayName) \(entry.roleName) interaction \(active) \(tap) \(local) global:\(data.globalMonitorCount) last:\(data.lastSource)/\(data.lastEvent)/\(data.lastDecision) point:\(data.lastPoint) command:\(data.lastCommand)/\(format(data.lastClickPulse)) delivered:\(data.deliveredEvents) blocked:\(data.blockedEvents)"
         }
         return (renderSummary + interactionSummary).joined(separator: " | ")
     }

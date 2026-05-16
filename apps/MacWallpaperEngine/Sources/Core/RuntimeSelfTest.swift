@@ -839,6 +839,8 @@ enum RuntimeSelfTest {
                 lastEvent: "leftDown",
                 lastDecision: "delivered",
                 lastPoint: "0.500,0.500",
+                lastCommand: "act",
+                lastClickPulse: 1.0,
                 deliveredEvents: 1,
                 blockedEvents: 0
             )
@@ -847,8 +849,9 @@ enum RuntimeSelfTest {
         check(
             interactionTelemetrySummary.contains("interaction active")
                 && interactionTelemetrySummary.contains("last:nsevent/leftDown/delivered")
+                && interactionTelemetrySummary.contains("command:act/1.0")
                 && interactionTelemetrySummary.contains("delivered:1"),
-            "runtime telemetry summary must expose live desktop interaction monitor status",
+            "runtime telemetry summary must expose live desktop interaction monitor status and active command",
             failures: &failures,
             checks: &checks
         )
@@ -864,6 +867,8 @@ enum RuntimeSelfTest {
                 lastEvent: "leftDown",
                 lastDecision: "delivered",
                 lastPoint: "0.535,0.305",
+                lastCommand: "act",
+                lastClickPulse: 1.0,
                 deliveredEvents: 1,
                 blockedEvents: 0
             )

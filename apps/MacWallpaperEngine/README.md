@@ -127,7 +127,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Runtime telemetry is aggregated per display and surfaced in the control panel.
 - Desktop interaction telemetry reports whether the mouse monitor is active,
   whether the CGEvent tap is installed, the last delivered or blocked click
-  path, and delivered/blocked event counts for live desktop debugging.
+  path, the current interaction command/pulse, and delivered/blocked event
+  counts for live desktop debugging.
 - Direct NSResponder wallpaper mouse events are also recorded in interaction
   telemetry, so live click debugging can distinguish direct view delivery from
   NSEvent/CGEvent monitor delivery.

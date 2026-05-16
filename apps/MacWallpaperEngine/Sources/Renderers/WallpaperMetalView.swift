@@ -166,6 +166,9 @@ final class WallpaperMetalView: MTKView {
                 onExit: { [weak self] in
                     self?.interaction.pointerTrackingStopped()
                 },
+                currentInteractionSnapshot: { [weak self] in
+                    self?.interaction.snapshot()
+                },
                 onTelemetry: { [weak self] snapshot in
                     guard let self else { return }
                     self.runtime.telemetry.recordInteraction(
@@ -333,6 +336,7 @@ final class WallpaperMetalView: MTKView {
         } else {
             directBlockedEvents += 1
         }
+        let interactionSnapshot = interaction.snapshot()
         runtime.telemetry.recordInteraction(
             displayName: displayName,
             role: displayRole,
@@ -345,6 +349,8 @@ final class WallpaperMetalView: MTKView {
                 lastEvent: event,
                 lastDecision: decision,
                 lastPoint: point.map(Self.formatNormalizedPoint) ?? "none",
+                lastCommand: interactionSnapshot.command,
+                lastClickPulse: Double(interactionSnapshot.clickPulse),
                 deliveredEvents: directDeliveredEvents,
                 blockedEvents: directBlockedEvents
             )
