@@ -93,6 +93,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Shared interaction plan for deterministic hit-zone, default-action, button, and
   look-direction diagnostics.
+- Interaction hit testing resolves the wallpaper content aspect from Spine
+  placement, video metadata, composite video metadata, or static image metadata
+  instead of assuming every bundle is 16:9.
 - Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
 - Low Power Mode and battery-power detection clamp rendering to the manifest
   fallback FPS and expose the active policy in runtime telemetry.
@@ -151,8 +154,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   over Finder desktop items.
 - The bundled Imported sample keeps `blockDesktopItems=false` so its click
   reaction works without requiring Accessibility trust; app-window blocking
-  remains enabled, and desktop icons still receive their normal clicks because
-  the wallpaper window ignores mouse events.
+  remains enabled, primary interactive windows accept local mouse events for
+  reliable click delivery, global click monitors remain as a fallback when
+  clicks route through the desktop, and passive secondary windows stay
+  mouse-passive.
 - When desktop-item hit-testing needs Accessibility trust, the runtime requests
   the macOS Accessibility permission prompt and exposes the current trust state
   in capability diagnostics.

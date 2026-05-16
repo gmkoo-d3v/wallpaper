@@ -74,13 +74,14 @@ final class DesktopMouseInteractionMonitor {
             publishTelemetry(source: "lifecycle", event: "start", decision: "disabled")
             return
         }
-        let eventTapStarted = startEventTap()
+        let usesPassiveEventMonitoring = window?.ignoresMouseEvents ?? true
+        let eventTapStarted = usesPassiveEventMonitoring ? startEventTap() : false
         isActive = true
         guard localMonitor == nil, monitors.isEmpty else {
             publishTelemetry(
                 source: "lifecycle",
                 event: "start",
-                decision: eventTapStarted ? "active" : "eventTapUnavailable"
+                decision: startDecision(usesPassiveEventMonitoring: usesPassiveEventMonitoring, eventTapStarted: eventTapStarted)
             )
             return
         }
@@ -101,50 +102,12 @@ final class DesktopMouseInteractionMonitor {
             }
         )
 
-        if let monitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
-            handler: { [weak self] event in
-                self?.handle(event: event, kind: .move)
-            }
-        ) {
-            monitors.append(monitor)
-        }
-        if let monitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown],
-            handler: { [weak self] event in
-                self?.handle(event: event, kind: .down(.left))
-            }
-        ) {
-            monitors.append(monitor)
-        }
-        if let monitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseUp],
-            handler: { [weak self] event in
-                self?.handle(event: event, kind: .up(.left))
-            }
-        ) {
-            monitors.append(monitor)
-        }
-        if let monitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.rightMouseDown],
-            handler: { [weak self] event in
-                self?.handle(event: event, kind: .down(.right))
-            }
-        ) {
-            monitors.append(monitor)
-        }
-        if let monitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.rightMouseUp],
-            handler: { [weak self] event in
-                self?.handle(event: event, kind: .up(.right))
-            }
-        ) {
-            monitors.append(monitor)
-        }
+        addGlobalMoveMonitor()
+        addGlobalClickMonitors()
         publishTelemetry(
             source: "lifecycle",
             event: "start",
-            decision: eventTapStarted ? "active" : "eventTapUnavailable"
+            decision: startDecision(usesPassiveEventMonitoring: usesPassiveEventMonitoring, eventTapStarted: eventTapStarted)
         )
     }
 
@@ -221,6 +184,57 @@ final class DesktopMouseInteractionMonitor {
             CFMachPortInvalidate(tap)
             eventTap = nil
         }
+    }
+
+    private func addGlobalMoveMonitor() {
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .move)
+            }
+        ) {
+            monitors.append(monitor)
+        }
+    }
+
+    private func addGlobalClickMonitors() {
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .down(.left))
+            }
+        ) {
+            monitors.append(monitor)
+        }
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseUp],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .up(.left))
+            }
+        ) {
+            monitors.append(monitor)
+        }
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.rightMouseDown],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .down(.right))
+            }
+        ) {
+            monitors.append(monitor)
+        }
+        if let monitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.rightMouseUp],
+            handler: { [weak self] event in
+                self?.handle(event: event, kind: .up(.right))
+            }
+        ) {
+            monitors.append(monitor)
+        }
+    }
+
+    private func startDecision(usesPassiveEventMonitoring: Bool, eventTapStarted: Bool) -> String {
+        guard usesPassiveEventMonitoring else { return "activeLocalMouse" }
+        return eventTapStarted ? "active" : "eventTapUnavailable"
     }
 
     private func handleLocal(event: NSEvent) {

@@ -208,6 +208,10 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must expose a stable CLI header"
         )
         check(
+            capabilitySummary.contains("render\tcontentAspect\tsupported"),
+            "runtime capabilities summary must expose the resolved wallpaper content aspect"
+        )
+        check(
             capabilitySummary.contains("columns: category\tname\tstatus\tdetail"),
             "runtime capabilities summary must expose tabular columns"
         )
@@ -892,6 +896,39 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
+            RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+                runtimeInteractive: true,
+                displayRole: primaryRole,
+                interactionPolicy: noDesktopItemBlockPolicy,
+                plainWindowStyle: false
+            ),
+            "interactive primary wallpaper windows must accept local mouse events so click reactions do not depend only on global monitors",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+                runtimeInteractive: true,
+                displayRole: secondaryRole,
+                interactionPolicy: noDesktopItemBlockPolicy,
+                plainWindowStyle: false
+            ) == false,
+            "secondary wallpaper windows must stay mouse-passive",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+                runtimeInteractive: false,
+                displayRole: primaryRole,
+                interactionPolicy: noDesktopItemBlockPolicy,
+                plainWindowStyle: false
+            ) == false,
+            "pass-through mode must keep wallpaper windows mouse-passive",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
             DesktopMouseInteractionMonitor.eventKindName(for: .leftMouseDown) == "leftDown"
                 && DesktopMouseInteractionMonitor.eventKindName(for: .leftMouseUp) == "leftUp"
                 && DesktopMouseInteractionMonitor.eventKindName(for: .rightMouseDown) == "rightDown"
@@ -1497,6 +1534,7 @@ enum RuntimeSelfTest {
         ))
 
         check(videoOnlyRuntime.assetCatalog.spineAsset == nil, "video-only bundle must not require a Spine asset", failures: &failures, checks: &checks)
+        check(abs(videoOnlyRuntime.assetCatalog.contentAspect - (16.0 / 9.0)) < 0.01, "video-only bundle must derive interaction content aspect from video metadata", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.manifest.layers.count == 1, "video-only bundle must preserve its single video layer", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.validationSummary().contains("spine json: none"), "video-only validation summary must report no Spine asset", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.validationSummary().contains("native spine geometry: not-used"), "video-only validation summary must skip native Spine geometry preflight", failures: &failures, checks: &checks)
@@ -1559,6 +1597,7 @@ enum RuntimeSelfTest {
         ))
 
         check(staticRuntime.assetCatalog.staticImageAssetURL != nil, "static image bundle must load staticImage asset", failures: &failures, checks: &checks)
+        check(staticRuntime.assetCatalog.contentAspect > 0, "static image bundle must derive interaction content aspect from image metadata", failures: &failures, checks: &checks)
         check(staticRuntime.assetCatalog.videoAsset == nil, "static image bundle must not require a video asset", failures: &failures, checks: &checks)
         check(staticRuntime.assetCatalog.spineAsset == nil, "static image bundle must not require a Spine asset", failures: &failures, checks: &checks)
         check(staticRuntime.manifest.layers.first?.type == .staticImage, "static image bundle must preserve static_image layer type", failures: &failures, checks: &checks)

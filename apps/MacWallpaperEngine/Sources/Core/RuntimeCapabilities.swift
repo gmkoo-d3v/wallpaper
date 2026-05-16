@@ -103,6 +103,12 @@ enum RuntimeCapabilities {
             detail: "target=\(runtime.renderTargetFps) max=\(manifest.runtime.maxFps) fallback=\(manifest.runtime.fallbackFps) inFlight=\(manifest.runtime.scheduler.maxInFlightCommandBuffers)"
         ))
         rows.append(RuntimeCapabilityRow(
+            category: "render",
+            name: "contentAspect",
+            status: "supported",
+            detail: formatVideoDiagnosticNumber(runtime.assetCatalog.contentAspect)
+        ))
+        rows.append(RuntimeCapabilityRow(
             category: "performance",
             name: "resourceFallback",
             status: "fps-only",

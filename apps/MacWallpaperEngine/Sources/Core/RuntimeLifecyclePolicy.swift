@@ -31,6 +31,21 @@ enum RuntimeLifecyclePolicy {
         return true
     }
 
+    static func shouldAcceptLocalWallpaperMouseEvents(
+        runtimeInteractive: Bool,
+        displayRole: RenderDisplayRole,
+        interactionPolicy: InteractionPolicy,
+        plainWindowStyle: Bool
+    ) -> Bool {
+        guard plainWindowStyle == false,
+              runtimeInteractive,
+              displayRole.allowsInteraction,
+              interactionPolicy.mode != .disabled else {
+            return false
+        }
+        return true
+    }
+
     static func requiresAccessibilityTrustForDesktopItems(_ interactionPolicy: InteractionPolicy) -> Bool {
         interactionPolicy.mode == .desktopEmptyOnly && interactionPolicy.blockDesktopItems
     }

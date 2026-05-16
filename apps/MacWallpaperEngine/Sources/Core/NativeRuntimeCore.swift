@@ -55,6 +55,7 @@ final class NativeRuntimeCore {
         static image: \(assetCatalog.staticImageAssetURL?.path ?? "none")
         video: \(assetCatalog.videoAssetURL?.path ?? "none") @ \(assetCatalog.videoAsset?.playbackRate ?? 0)x
         composite video: \(assetCatalog.compositeVideoAssetURL?.path ?? "none") @ \(assetCatalog.compositeVideoAsset?.playbackRate ?? 0)x
+        contentAspect: \(String(format: "%.4f", assetCatalog.contentAspect))
         composite quality: \(compositeQuality.summaryLine)
         native spine geometry: \(nativeSpineGeometryValidationStatus())
         spine json: \(assetCatalog.spineAsset?.json.path ?? "none")

@@ -30,7 +30,7 @@ final class WallpaperMetalView: MTKView {
         self.displayPolicy = runtime.manifest.displayPolicy
         self.interactionCoordinateMapper = InteractionCoordinateMapper(
             fitMode: runtime.config.fitMode,
-            contentAspect: CGFloat(runtime.assetCatalog.spineAsset?.placement.designAspect ?? (16.0 / 9.0))
+            contentAspect: CGFloat(runtime.assetCatalog.contentAspect)
         )
         let manifestInteractionPolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
             mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
@@ -109,6 +109,10 @@ final class WallpaperMetalView: MTKView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        interactionPolicy.mode != .disabled
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateDrawableSize()
@@ -169,6 +173,7 @@ final class WallpaperMetalView: MTKView {
                     )
                 }
             )
+            window.acceptsMouseMovedEvents = true
         }
 
         window?.makeFirstResponder(self)

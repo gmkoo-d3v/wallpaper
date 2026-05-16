@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 struct SpineAsset {
     let json: URL
@@ -11,10 +12,12 @@ struct SpineAsset {
 struct VideoAsset {
     let url: URL
     let playbackRate: Float
+    let contentAspect: Double
 }
 
 struct StaticImageAsset {
     let url: URL
+    let contentAspect: Double
 }
 
 struct SpinePlacement {
@@ -64,12 +67,13 @@ final class AssetCatalog {
     var videoAssetURL: URL? { videoAsset?.url }
     var compositeVideoAssetURL: URL? { compositeVideoAsset?.url }
     let spineAsset: SpineAsset?
+    let contentAspect: Double
 
     init(manifest: WallpaperNativeManifest, bundleRoot: URL) throws {
         let root = bundleRoot.standardizedFileURL
-        self.staticImageAsset = Self.makeStaticImageAsset(manifest.assets.staticImage, root: root)
-        self.videoAsset = Self.makeVideoAsset(manifest.assets.video, root: root)
-        self.compositeVideoAsset = Self.makeVideoAsset(manifest.assets.compositeVideo, root: root)
+        self.staticImageAsset = try Self.makeStaticImageAsset(manifest.assets.staticImage, root: root)
+        self.videoAsset = try Self.makeVideoAsset(manifest.assets.video, root: root)
+        self.compositeVideoAsset = try Self.makeVideoAsset(manifest.assets.compositeVideo, root: root)
 
         if let spine = manifest.assets.spine {
             self.spineAsset = SpineAsset(
@@ -82,18 +86,73 @@ final class AssetCatalog {
         } else {
             self.spineAsset = nil
         }
-    }
-
-    private static func makeStaticImageAsset(_ config: StaticImageAssetConfig?, root: URL) -> StaticImageAsset? {
-        guard let config else { return nil }
-        return StaticImageAsset(url: root.appendingPathComponent(config.path).standardizedFileURL)
-    }
-
-    private static func makeVideoAsset(_ config: VideoAssetConfig?, root: URL) -> VideoAsset? {
-        guard let config else { return nil }
-        return VideoAsset(
-            url: root.appendingPathComponent(config.path).standardizedFileURL,
-            playbackRate: config.playbackRate ?? 1.0
+        self.contentAspect = Self.resolveContentAspect(
+            spineAsset: spineAsset,
+            videoAsset: videoAsset,
+            compositeVideoAsset: compositeVideoAsset,
+            staticImageAsset: staticImageAsset
         )
+    }
+
+    private static func makeStaticImageAsset(_ config: StaticImageAssetConfig?, root: URL) throws -> StaticImageAsset? {
+        guard let config else { return nil }
+        let url = root.appendingPathComponent(config.path).standardizedFileURL
+        return StaticImageAsset(
+            url: url,
+            contentAspect: try imageAspect(url: url)
+        )
+    }
+
+    private static func makeVideoAsset(_ config: VideoAssetConfig?, root: URL) throws -> VideoAsset? {
+        guard let config else { return nil }
+        let url = root.appendingPathComponent(config.path).standardizedFileURL
+        let metadata = try VideoMetadataInspector.inspect(url: url)
+        return VideoAsset(
+            url: url,
+            playbackRate: config.playbackRate ?? 1.0,
+            contentAspect: aspect(size: metadata.presentationSize)
+        )
+    }
+
+    private static func resolveContentAspect(
+        spineAsset: SpineAsset?,
+        videoAsset: VideoAsset?,
+        compositeVideoAsset: VideoAsset?,
+        staticImageAsset: StaticImageAsset?
+    ) -> Double {
+        if let spineAsset {
+            return max(spineAsset.placement.designAspect, 0.0001)
+        }
+        if let videoAsset {
+            return videoAsset.contentAspect
+        }
+        if let compositeVideoAsset {
+            return compositeVideoAsset.contentAspect
+        }
+        if let staticImageAsset {
+            return staticImageAsset.contentAspect
+        }
+        return 16.0 / 9.0
+    }
+
+    private static func imageAspect(url: URL) throws -> Double {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?,
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0,
+              height > 0 else {
+            throw EngineError.asset("could not read image dimensions: \(url.path)")
+        }
+        return Double(width) / Double(height)
+    }
+
+    private static func aspect(size: CGSize) -> Double {
+        let width = Double(abs(size.width))
+        let height = Double(abs(size.height))
+        guard width.isFinite, height.isFinite, width > 0, height > 0 else {
+            return 16.0 / 9.0
+        }
+        return width / height
     }
 }

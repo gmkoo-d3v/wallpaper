@@ -157,7 +157,7 @@ final class WallpaperHost: NSObject {
             window.isOpaque = true
             window.hasShadow = runtime.config.plainWindowStyle
             window.animationBehavior = .none
-            window.ignoresMouseEvents = runtime.config.plainWindowStyle == false
+            window.ignoresMouseEvents = Self.shouldIgnoreMouseEvents(runtime: runtime, role: role)
             if runtime.config.plainWindowStyle == false {
                 window.collectionBehavior = [
                     .canJoinAllSpaces,
@@ -175,6 +175,27 @@ final class WallpaperHost: NSObject {
         } catch {
             throw EngineError.renderer("display \(screen.localizedName) renderer failed: \(error.localizedDescription)")
         }
+    }
+
+    static func shouldIgnoreMouseEvents(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> Bool {
+        guard runtime.config.plainWindowStyle == false else { return false }
+        let manifestInteractionPolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
+            mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        let acceptsLocalMouseEvents = RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+            runtimeInteractive: runtime.config.interactive,
+            displayRole: role,
+            interactionPolicy: manifestInteractionPolicy,
+            plainWindowStyle: runtime.config.plainWindowStyle
+        )
+        return acceptsLocalMouseEvents == false
     }
 
 }
