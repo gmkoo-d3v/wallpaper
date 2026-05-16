@@ -21,6 +21,21 @@ case "$STRICT_COMPOSITE_QUALITY" in
     ;;
 esac
 
+print_composite_quality_warning() {
+  local bundle_dir="$1"
+  local bundle_name="$2"
+  local quality_output
+
+  quality_output="$("$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --composite-quality-plan)"
+  if grep -q '^status: warning' <<< "$quality_output"; then
+    echo "Composite fallback quality warning: $bundle_name" >&2
+    echo "$quality_output" >&2
+    if [ "$STRICT_COMPOSITE_QUALITY" != "1" ]; then
+      echo "Set STRICT_COMPOSITE_QUALITY=1 to fail packaging on this warning." >&2
+    fi
+  fi
+}
+
 if [ ! -d "$WALLPAPER_SOURCE" ]; then
   echo "Wallpaper source directory is missing: $WALLPAPER_SOURCE" >&2
   exit 1
@@ -55,6 +70,7 @@ for bundle_dir in "$WALLPAPER_SOURCE"/*; do
     echo "Invalid wallpaper bundle failed validation: $bundle_name ($bundle_dir)" >&2
     exit 1
   fi
+  print_composite_quality_warning "$bundle_dir" "$bundle_name"
 
   mkdir -p "$WALLPAPER_DEST/$bundle_name"
   rsync -a --exclude ".DS_Store" "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
