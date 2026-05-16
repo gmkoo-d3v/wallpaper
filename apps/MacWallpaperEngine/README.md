@@ -172,6 +172,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `desktop-empty-only` bundles that do not block Finder desktop items also route
   direct NSResponder mouse events, so first-click wallpaper reactions do not
   depend solely on global/local monitor delivery.
+- Passive wallpaper click delivery deduplicates near-simultaneous event-tap and
+  global-monitor clicks while leaving pointer tracking at the 30Hz move cap.
 - When desktop-item hit-testing needs Accessibility trust, the runtime requests
   the macOS Accessibility permission prompt and exposes the current trust state
   in capability diagnostics.

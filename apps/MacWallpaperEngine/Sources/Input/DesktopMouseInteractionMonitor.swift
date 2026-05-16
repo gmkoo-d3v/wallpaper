@@ -15,9 +15,14 @@ final class DesktopMouseInteractionMonitor {
     private var eventTap: CFMachPort?
     private var eventTapRunLoopSource: CFRunLoopSource?
     private let moveEventMinInterval: CFTimeInterval = 1.0 / 30.0
+    private let discreteEventDuplicateInterval: CFTimeInterval = 0.05
+    private let discreteEventDuplicateDistanceSquared: CGFloat = 3 * 3
     private let eligibilityCacheInterval: CFTimeInterval = 0.15
     private let eligibilityCacheDistanceSquared: CGFloat = 24 * 24
     private var lastMoveEventAt: CFTimeInterval = 0
+    private var lastDiscreteEventAt: CFTimeInterval = 0
+    private var lastDiscreteEventLabel: String?
+    private var lastDiscreteEventPoint: CGPoint?
     private var lastEligibilityCheckAt: CFTimeInterval = 0
     private var lastEligibilityPoint: CGPoint?
     private var lastEligibilityDecision: DesktopInteractionGate.EligibilityDecision = .blockedDisabled
@@ -268,6 +273,7 @@ final class DesktopMouseInteractionMonitor {
             onExit()
             return
         }
+        guard shouldAcceptDiscreteEvent(kind: kind, screenPoint: screenPoint) else { return }
         let isMouseUpEvent: Bool
         switch kind {
         case .up:
@@ -329,6 +335,7 @@ final class DesktopMouseInteractionMonitor {
             onExit()
             return
         }
+        guard shouldAcceptDiscreteEvent(kind: kind, screenPoint: screenPoint) else { return }
 
         let isMouseUpEvent: Bool
         switch kind {
@@ -385,6 +392,29 @@ final class DesktopMouseInteractionMonitor {
         }
     }
 
+    static func isDuplicateDiscreteEvent(
+        label: String,
+        screenPoint: CGPoint,
+        previousLabel: String?,
+        previousPoint: CGPoint?,
+        elapsedSeconds: CFTimeInterval,
+        maxInterval: CFTimeInterval,
+        maxDistanceSquared: CGFloat
+    ) -> Bool {
+        guard label != "move",
+              let previousLabel,
+              let previousPoint,
+              previousLabel == label,
+              elapsedSeconds >= 0,
+              elapsedSeconds <= maxInterval else {
+            return false
+        }
+
+        let dx = screenPoint.x - previousPoint.x
+        let dy = screenPoint.y - previousPoint.y
+        return (dx * dx) + (dy * dy) <= maxDistanceSquared
+    }
+
     private static func eventKind(for type: CGEventType) -> EventKind? {
         switch type {
         case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
@@ -438,6 +468,29 @@ final class DesktopMouseInteractionMonitor {
         return decision
     }
 
+    private func shouldAcceptDiscreteEvent(kind: EventKind, screenPoint: CGPoint) -> Bool {
+        guard kind.label != "move" else { return true }
+
+        let now = CACurrentMediaTime()
+        let duplicate = Self.isDuplicateDiscreteEvent(
+            label: kind.label,
+            screenPoint: screenPoint,
+            previousLabel: lastDiscreteEventLabel,
+            previousPoint: lastDiscreteEventPoint,
+            elapsedSeconds: now - lastDiscreteEventAt,
+            maxInterval: discreteEventDuplicateInterval,
+            maxDistanceSquared: discreteEventDuplicateDistanceSquared
+        )
+        if duplicate {
+            return false
+        }
+
+        lastDiscreteEventAt = now
+        lastDiscreteEventLabel = kind.label
+        lastDiscreteEventPoint = screenPoint
+        return true
+    }
+
     private func cachedEligibility(screenPoint: CGPoint) -> DesktopInteractionGate.EligibilityDecision? {
         guard let lastEligibilityPoint else { return nil }
         let now = CACurrentMediaTime()
@@ -461,6 +514,9 @@ final class DesktopMouseInteractionMonitor {
         lastEligibilityPoint = nil
         lastEligibilityDecision = .blockedDisabled
         lastMoveEventAt = 0
+        lastDiscreteEventAt = 0
+        lastDiscreteEventLabel = nil
+        lastDiscreteEventPoint = nil
     }
 
     private func recordDelivered(source: String, kind: EventKind, normalized: CGPoint) {

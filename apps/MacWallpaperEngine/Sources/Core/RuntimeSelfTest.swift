@@ -822,6 +822,49 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let duplicatePoint = CGPoint(x: 120, y: 240)
+        check(
+            DesktopMouseInteractionMonitor.isDuplicateDiscreteEvent(
+                label: "leftDown",
+                screenPoint: duplicatePoint,
+                previousLabel: "leftDown",
+                previousPoint: duplicatePoint,
+                elapsedSeconds: 0.01,
+                maxInterval: 0.05,
+                maxDistanceSquared: 9
+            ),
+            "desktop mouse monitor must suppress duplicate click events from parallel event sources",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.isDuplicateDiscreteEvent(
+                label: "leftDown",
+                screenPoint: duplicatePoint,
+                previousLabel: "leftDown",
+                previousPoint: duplicatePoint,
+                elapsedSeconds: 0.08,
+                maxInterval: 0.05,
+                maxDistanceSquared: 9
+            ) == false,
+            "desktop mouse monitor must allow later clicks with the same button and position",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.isDuplicateDiscreteEvent(
+                label: "move",
+                screenPoint: duplicatePoint,
+                previousLabel: "move",
+                previousPoint: duplicatePoint,
+                elapsedSeconds: 0.01,
+                maxInterval: 0.05,
+                maxDistanceSquared: 9
+            ) == false,
+            "desktop mouse monitor must not apply click deduplication to pointer tracking",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func checkVisibilityPolicy(failures: inout [String], checks: inout Int) {
