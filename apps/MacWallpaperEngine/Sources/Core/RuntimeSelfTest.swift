@@ -806,6 +806,16 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
+            DesktopMouseInteractionMonitor.eventKindName(for: .leftMouseDown) == "leftDown"
+                && DesktopMouseInteractionMonitor.eventKindName(for: .leftMouseUp) == "leftUp"
+                && DesktopMouseInteractionMonitor.eventKindName(for: .rightMouseDown) == "rightDown"
+                && DesktopMouseInteractionMonitor.eventKindName(for: .rightMouseUp) == "rightUp"
+                && DesktopMouseInteractionMonitor.eventKindName(for: .mouseMoved) == "move",
+            "desktop interaction event tap must map global mouse click and move events",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
             RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
                 isVisible: true,
                 displayRole: secondaryRole,

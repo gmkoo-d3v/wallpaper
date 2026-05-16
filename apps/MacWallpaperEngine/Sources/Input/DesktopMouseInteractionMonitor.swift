@@ -11,6 +11,8 @@ final class DesktopMouseInteractionMonitor {
     private let onExit: () -> Void
     private var monitors: [Any] = []
     private var localMonitor: Any?
+    private var eventTap: CFMachPort?
+    private var eventTapRunLoopSource: CFRunLoopSource?
     private let moveEventMinInterval: CFTimeInterval = 1.0 / 30.0
     private let eligibilityCacheInterval: CFTimeInterval = 0.15
     private let eligibilityCacheDistanceSquared: CGFloat = 24 * 24
@@ -47,6 +49,10 @@ final class DesktopMouseInteractionMonitor {
 
     func start() {
         guard localMonitor == nil, monitors.isEmpty, policy.mode != .disabled else { return }
+        if startEventTap() {
+            return
+        }
+
         localMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [
                 .mouseMoved,
@@ -106,6 +112,7 @@ final class DesktopMouseInteractionMonitor {
     }
 
     func stop() {
+        stopEventTap()
         if let localMonitor {
             NSEvent.removeMonitor(localMonitor)
             self.localMonitor = nil
@@ -115,6 +122,66 @@ final class DesktopMouseInteractionMonitor {
         }
         monitors.removeAll()
         resetEligibilityCache()
+    }
+
+    private func startEventTap() -> Bool {
+        guard eventTap == nil, eventTapRunLoopSource == nil else { return true }
+
+        let eventTypes: [CGEventType] = [
+            .mouseMoved,
+            .leftMouseDragged,
+            .rightMouseDragged,
+            .leftMouseDown,
+            .leftMouseUp,
+            .rightMouseDown,
+            .rightMouseUp
+        ]
+        let eventMask = eventTypes.reduce(CGEventMask(0)) { partial, type in
+            partial | (CGEventMask(1) << type.rawValue)
+        }
+
+        let opaqueSelf = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: eventMask,
+            callback: { _, type, event, refcon in
+                guard let refcon else {
+                    return Unmanaged.passUnretained(event)
+                }
+                let monitor = Unmanaged<DesktopMouseInteractionMonitor>
+                    .fromOpaque(refcon)
+                    .takeUnretainedValue()
+                monitor.handleCGEvent(type: type, event: event)
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: opaqueSelf
+        ) else {
+            return false
+        }
+
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+            CFMachPortInvalidate(tap)
+            return false
+        }
+
+        eventTap = tap
+        eventTapRunLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        return true
+    }
+
+    private func stopEventTap() {
+        if let source = eventTapRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            eventTapRunLoopSource = nil
+        }
+        if let tap = eventTap {
+            CFMachPortInvalidate(tap)
+            eventTap = nil
+        }
     }
 
     private func handleLocal(event: NSEvent) {
@@ -181,7 +248,100 @@ final class DesktopMouseInteractionMonitor {
         }
     }
 
-    private func isEligible(screenPoint: CGPoint, event: NSEvent) -> Bool {
+    private func handleCGEvent(type: CGEventType, event: CGEvent) {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            if let eventTap {
+                CGEvent.tapEnable(tap: eventTap, enable: true)
+            }
+            return
+        default:
+            break
+        }
+
+        guard let kind = Self.eventKind(for: type), let window else { return }
+        if case .move = kind {
+            let now = CACurrentMediaTime()
+            guard now - lastMoveEventAt >= moveEventMinInterval else { return }
+            lastMoveEventAt = now
+        }
+
+        let screenPoint = NSEvent.mouseLocation
+        guard window.frame.contains(screenPoint) else {
+            onExit()
+            return
+        }
+
+        let isMouseUpEvent: Bool
+        switch kind {
+        case .up:
+            isMouseUpEvent = true
+        case .move, .down:
+            isMouseUpEvent = false
+        }
+        if !isMouseUpEvent {
+            guard isEligible(screenPoint: screenPoint, event: nil) else {
+                onExit()
+                return
+            }
+        }
+
+        let windowPoint = window.convertPoint(fromScreen: screenPoint)
+        guard let contentView = window.contentView else { return }
+        let local = contentView.convert(windowPoint, from: nil)
+        guard contentView.bounds.width > 0, contentView.bounds.height > 0 else { return }
+
+        let normalized = CGPoint(
+            x: min(max(local.x / contentView.bounds.width, 0.0), 1.0),
+            y: min(max(1.0 - (local.y / contentView.bounds.height), 0.0), 1.0)
+        )
+
+        switch kind {
+        case .down(let button):
+            onDown(normalized, button)
+        case .up(let button):
+            onUp(normalized, button)
+        case .move:
+            onMove(normalized)
+        }
+        _ = event
+    }
+
+    static func eventKindName(for type: CGEventType) -> String? {
+        switch type {
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+            return "move"
+        case .leftMouseDown:
+            return "leftDown"
+        case .leftMouseUp:
+            return "leftUp"
+        case .rightMouseDown:
+            return "rightDown"
+        case .rightMouseUp:
+            return "rightUp"
+        default:
+            return nil
+        }
+    }
+
+    private static func eventKind(for type: CGEventType) -> EventKind? {
+        switch type {
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+            return .move
+        case .leftMouseDown:
+            return .down(.left)
+        case .leftMouseUp:
+            return .up(.left)
+        case .rightMouseDown:
+            return .down(.right)
+        case .rightMouseUp:
+            return .up(.right)
+        default:
+            return nil
+        }
+    }
+
+    private func isEligible(screenPoint: CGPoint, event: NSEvent?) -> Bool {
         if let cached = cachedEligibility(screenPoint: screenPoint) {
             return cached
         }
@@ -201,7 +361,7 @@ final class DesktopMouseInteractionMonitor {
         let likelyDesktopItem = policy.blockDesktopItems
             && accessibilityTrusted
             && (
-                DesktopInteractionGate.isLikelyDesktopItem(event: event, screenPoint: screenPoint)
+                event.map { DesktopInteractionGate.isLikelyDesktopItem(event: $0, screenPoint: screenPoint) } ?? false
                     || DesktopInteractionGate.isLikelyDesktopItem(screenPoint: screenPoint)
             )
         let decision = DesktopInteractionGate.eligibilityDecision(
