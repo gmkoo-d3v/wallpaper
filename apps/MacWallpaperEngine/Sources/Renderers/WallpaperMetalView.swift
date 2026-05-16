@@ -234,7 +234,7 @@ final class WallpaperMetalView: MTKView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard interactionPolicy.mode == .always else { return }
+        guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else {
             interaction.pointerTrackingStopped()
             return
@@ -243,7 +243,7 @@ final class WallpaperMetalView: MTKView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard interactionPolicy.mode == .always else { return }
+        guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else {
             interaction.pointerTrackingStopped()
             return
@@ -252,27 +252,33 @@ final class WallpaperMetalView: MTKView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard interactionPolicy.mode == .always else { return }
+        guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else { return }
         interaction.pointerDown(at: point, button: .left)
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        guard interactionPolicy.mode == .always else { return }
+        guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else { return }
         interaction.pointerDown(at: point, button: .right)
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard interactionPolicy.mode == .always else { return }
+        guard shouldHandleDirectMouseEvents else { return }
         let point = interactionContentPoint(from: event) ?? CGPoint(x: 0.5, y: 0.5)
         interaction.pointerUp(at: point, button: .left)
     }
 
     override func rightMouseUp(with event: NSEvent) {
-        guard interactionPolicy.mode == .always else { return }
+        guard shouldHandleDirectMouseEvents else { return }
         let point = interactionContentPoint(from: event) ?? CGPoint(x: 0.5, y: 0.5)
         interaction.pointerUp(at: point, button: .right)
+    }
+
+    private var shouldHandleDirectMouseEvents: Bool {
+        RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
+            interactionPolicy: interactionPolicy
+        )
     }
 
     private func interactionContentPoint(from event: NSEvent) -> CGPoint? {

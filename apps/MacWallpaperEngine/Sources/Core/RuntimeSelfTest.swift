@@ -840,6 +840,16 @@ enum RuntimeSelfTest {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
+        let alwaysPolicy = InteractionPolicy(
+            mode: .always,
+            blockApplicationWindows: false,
+            blockDesktopItems: false,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
         let primaryRole = RenderDisplayRole(kind: .primary, policy: .full)
         let secondaryRole = RenderDisplayRole(kind: .secondary, policy: .full)
         check(
@@ -903,6 +913,41 @@ enum RuntimeSelfTest {
                 plainWindowStyle: false
             ),
             "interactive primary wallpaper windows must accept local mouse events so click reactions do not depend only on global monitors",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+                runtimeInteractive: true,
+                displayRole: primaryRole,
+                interactionPolicy: interactivePolicy,
+                plainWindowStyle: false
+            ) == false,
+            "desktop-item blocking bundles must keep wallpaper windows mouse-passive for Finder icon safety",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
+                interactionPolicy: noDesktopItemBlockPolicy
+            ),
+            "desktop-empty interaction without desktop item blocking must route direct NSResponder clicks",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
+                interactionPolicy: interactivePolicy
+            ) == false,
+            "desktop-empty interaction with desktop item blocking must not route direct NSResponder clicks",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
+                interactionPolicy: alwaysPolicy
+            ),
+            "always interaction mode must route direct NSResponder clicks",
             failures: &failures,
             checks: &checks
         )

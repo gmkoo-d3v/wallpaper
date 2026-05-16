@@ -43,7 +43,20 @@ enum RuntimeLifecyclePolicy {
               interactionPolicy.mode != .disabled else {
             return false
         }
-        return true
+        return shouldRouteDirectWallpaperMouseEvents(interactionPolicy: interactionPolicy)
+    }
+
+    static func shouldRouteDirectWallpaperMouseEvents(
+        interactionPolicy: InteractionPolicy
+    ) -> Bool {
+        switch interactionPolicy.mode {
+        case .always:
+            return true
+        case .desktopEmptyOnly:
+            return interactionPolicy.blockDesktopItems == false
+        case .disabled:
+            return false
+        }
     }
 
     static func requiresAccessibilityTrustForDesktopItems(_ interactionPolicy: InteractionPolicy) -> Bool {
