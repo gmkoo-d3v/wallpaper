@@ -43,7 +43,7 @@ protocol ControlPanelDelegate: AnyObject {
 }
 
 final class ControlPanelWindowController: NSWindowController {
-    static let displayModeLabels = ["Primary+Policy", "All Full", "Primary Only"]
+    static let displayModeLabels = ["Selected Only", "Selected+Policy", "All Full"]
     static let fpsLabels = ["30", "60", "Display Hz"]
 
     weak var delegate: ControlPanelDelegate?
@@ -466,11 +466,11 @@ final class ControlPanelWindowController: NSWindowController {
 
     private func segment(for mode: DisplayMode) -> Int {
         switch mode {
-        case .primaryAnimated:
-            return 0
-        case .all:
-            return 1
         case .primaryOnly:
+            return 0
+        case .primaryAnimated:
+            return 1
+        case .all:
             return 2
         }
     }
@@ -580,11 +580,11 @@ final class ControlPanelWindowController: NSWindowController {
     private func selectedDisplayMode() -> DisplayMode {
         switch displayModeControl.selectedSegment {
         case 1:
-            return .all
-        case 2:
-            return .primaryOnly
-        default:
             return .primaryAnimated
+        case 2:
+            return .all
+        default:
+            return .primaryOnly
         }
     }
 

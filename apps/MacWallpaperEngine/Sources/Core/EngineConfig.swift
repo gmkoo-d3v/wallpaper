@@ -150,7 +150,7 @@ struct EngineConfig {
         var wallpaperRoot: URL?
         var manifestURL: URL?
         var level = WallpaperLevel.desktop
-        var displayMode = DisplayMode.primaryAnimated
+        var displayMode = DisplayMode.primaryOnly
         var primaryDisplaySelector: String?
         var duration: TimeInterval?
         var renderFps: Int?
@@ -436,7 +436,7 @@ struct EngineConfig {
     Options:
       --wallpaper-root <path>   Wallpaper bundle root. Defaults to the first valid bundle under wallpapers/.
       --manifest <path>         Native manifest path. Defaults to wallpaper.native.json under root.
-      --display-mode <mode>     all | primaryAnimated | primaryOnly. primaryAnimated keeps secondary displays on manifest policy.
+      --display-mode <mode>     primaryOnly | primaryAnimated | all. Default primaryOnly touches only the selected display.
       --primary-display <sel>   Treat a matching display as primary. Accepts displayID:<id>, fingerprint:<hash>, arrangement:<hash>, name:<name>, or raw id/hash/name.
       --level <level>           normal | desktop | desktopMinusOne | desktopPlusOne | backstop. Default: desktop.
       --duration <seconds>      Auto-quit after a short smoke run.

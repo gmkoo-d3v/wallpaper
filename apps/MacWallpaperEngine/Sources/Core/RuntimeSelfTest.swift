@@ -81,8 +81,8 @@ enum RuntimeSelfTest {
             "desktop item interaction policy must fail closed without Accessibility trust"
         )
         check(
-            ControlPanelWindowController.displayModeLabels == ["Primary+Policy", "All Full", "Primary Only"],
-            "control panel display mode labels must distinguish secondary policy from primary-only"
+            ControlPanelWindowController.displayModeLabels == ["Selected Only", "Selected+Policy", "All Full"],
+            "control panel display mode labels must make selected-display-only the default"
         )
         check(
             ControlPanelWindowController.fpsLabels == ["30", "60", "Display Hz"],
@@ -964,7 +964,7 @@ enum RuntimeSelfTest {
 
         let diagnosticParse = try EngineConfig.parse(["--validate-only"])
         check(
-            diagnosticParse.displayMode == .primaryAnimated,
+            diagnosticParse.displayMode == .primaryOnly,
             "diagnostic validation must ignore persisted display mode",
             failures: &failures,
             checks: &checks

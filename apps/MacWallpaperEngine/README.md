@@ -121,9 +121,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   rendering when the manifest display policy requests `pause`.
 - Desktop interaction monitors are suspended whenever the wallpaper window is
   not visible, and remain disabled for passive secondary displays.
-- Display mode labels distinguish `Primary+Policy` from `Primary Only` so
-  secondary-display background behavior is not hidden behind an ambiguous
-  "primary" label.
+- Display mode defaults to `Selected Only`; `Selected+Policy` must be chosen
+  explicitly before secondary displays receive the manifest secondary
+  background policy.
 - Startup host failures keep the control panel open when UI is available so
   users can choose another bundle instead of watching the app silently exit.
 - Pass-through mode for desktop click safety.
