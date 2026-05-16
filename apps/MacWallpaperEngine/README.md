@@ -54,6 +54,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   frame-cadence poses, and partial look-direction pose mixes for every manifest
   action, proving that setup/animated pointer poses produce drawable batches
   with finite positions and in-range UVs.
+- Native Spine geometry diagnostics include deterministic pose fingerprints
+  derived from blend modes, vertices, UVs, and colors so renderer changes can be
+  compared before full image-diff golden fixtures are available.
 - `--interaction-plan` probes pointer-move commands, hit-zone/default-action
   resolution, and click command hold/tap state for every declared pointerDown
   path.
@@ -191,7 +194,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
-- Golden image-diff parity against captured source-renderer frames.
+- Golden PNG image-diff parity against captured source-renderer frames.
 - Visual hit-zone editor for authoring new bundles.
 - Profiler-backed native Spine optimization beyond the bounded pose-frame cache.
 - Exact Finder desktop icon hit-testing without disabling interaction when

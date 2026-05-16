@@ -349,7 +349,7 @@ enum RuntimeSelfTest {
             let spineGeometryPlan = try SpineGeometryDiagnostics.make(runtime: runtime)
             check(
                 spineGeometryPlan.contains("spine geometry plan OK")
-                    && spineGeometryPlan.contains("columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"),
+                    && spineGeometryPlan.contains("columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"),
                 "Spine geometry diagnostics must expose a stable CLI header and columns"
             )
             check(
@@ -364,6 +364,10 @@ enum RuntimeSelfTest {
                 spineGeometryPlan.contains("runtime-cadence")
                     && spineGeometryPlan.contains("poseFps=\(runtime.renderTargetFps)"),
                 "Spine geometry diagnostics must sample runtime-cadence pose frames at the render target FPS"
+            )
+            check(
+                spineGeometryPlan.contains("fp="),
+                "Spine geometry diagnostics must expose deterministic pose fingerprints"
             )
             if hasLookDirection {
                 check(

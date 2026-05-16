@@ -353,6 +353,7 @@ final class SpineSetupPoseRenderer {
         let blendModes: String
         let uvStatus: String
         let bounds: String
+        let fingerprint: String
         let error: String
     }
 
@@ -533,6 +534,7 @@ final class SpineSetupPoseRenderer {
                     blendModes: "none",
                     uvStatus: "uv=missing-animation",
                     bounds: "bounds=none",
+                    fingerprint: "fp=missing-animation",
                     error: "missing-animation"
                 ))
                 continue
@@ -729,6 +731,7 @@ final class SpineSetupPoseRenderer {
                 blendModes: "none",
                 uvStatus: "uv=error",
                 bounds: "bounds=none",
+                fingerprint: "fp=error",
                 error: Self.sanitize(error.localizedDescription)
             )
         }
@@ -3492,8 +3495,51 @@ final class SpineSetupPoseRenderer {
             blendModes: blendModes.isEmpty ? "none" : blendModes.joined(separator: "+"),
             uvStatus: uvStatus,
             bounds: boundsText(vertices),
+            fingerprint: geometryFingerprint(vertexBatches),
             error: error
         )
+    }
+
+    private static func geometryFingerprint(_ vertexBatches: [VertexBatch]) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        hashString("spine-geometry-v1", into: &hash)
+        hashInt(vertexBatches.count, into: &hash)
+        for batch in vertexBatches {
+            hashString(batch.blendMode.rawValue, into: &hash)
+            hashInt(batch.vertices.count, into: &hash)
+            for vertex in batch.vertices {
+                hashFloat(vertex.position.x, into: &hash)
+                hashFloat(vertex.position.y, into: &hash)
+                hashFloat(vertex.texCoord.x, into: &hash)
+                hashFloat(vertex.texCoord.y, into: &hash)
+                hashFloat(vertex.color.x, into: &hash)
+                hashFloat(vertex.color.y, into: &hash)
+                hashFloat(vertex.color.z, into: &hash)
+                hashFloat(vertex.color.w, into: &hash)
+            }
+        }
+        return "fp=\(String(format: "%016llx", hash))"
+    }
+
+    private static func hashString(_ value: String, into hash: inout UInt64) {
+        for byte in value.utf8 {
+            hashByte(byte, into: &hash)
+        }
+        hashByte(0xff, into: &hash)
+    }
+
+    private static func hashInt(_ value: Int, into hash: inout UInt64) {
+        hashString(String(value), into: &hash)
+    }
+
+    private static func hashFloat(_ value: Float, into hash: inout UInt64) {
+        let quantized = Int((Double(value) * 10_000).rounded())
+        hashInt(quantized, into: &hash)
+    }
+
+    private static func hashByte(_ byte: UInt8, into hash: inout UInt64) {
+        hash ^= UInt64(byte)
+        hash = hash &* 1_099_511_628_211
     }
 
     private static func geometrySampleTimes(animation: SpineAnimation, poseSampleFps: Double) -> [Double] {
