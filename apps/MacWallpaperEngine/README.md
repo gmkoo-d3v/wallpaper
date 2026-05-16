@@ -99,6 +99,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Frame/drop telemetry snapshot for submitted frames, skipped frames, last skip
   reason, actual FPS, and p95 frame time.
 - Runtime telemetry is aggregated per display and surfaced in the control panel.
+- Desktop interaction telemetry reports whether the mouse monitor is active,
+  whether the CGEvent tap is installed, the last delivered or blocked click
+  path, and delivered/blocked event counts for live desktop debugging.
 - Resource-budget pressure lowers FPS without silently replacing native Spine
   with composite video, preserving the selected foreground renderer.
 - Native Spine compatibility gate falls back to `compositeVideo` when a bundle

@@ -740,6 +740,31 @@ enum RuntimeSelfTest {
         check(telemetry.summary().contains("power-saving"), "runtime telemetry summary must label active power-saving policy", failures: &failures, checks: &checks)
         telemetry.record(displayName: "Self Test Display", role: role, snapshot: powerGovernor.snapshot)
         check(telemetry.summary().contains("power-saving") == false, "runtime telemetry summary must clear power-saving label after recovery", failures: &failures, checks: &checks)
+        telemetry.recordInteraction(
+            displayName: "Self Test Display",
+            role: role,
+            snapshot: InteractionMonitorTelemetrySnapshot(
+                active: true,
+                eventTapActive: false,
+                localMonitorActive: true,
+                globalMonitorCount: 4,
+                lastSource: "nsevent",
+                lastEvent: "leftDown",
+                lastDecision: "delivered",
+                lastPoint: "0.500,0.500",
+                deliveredEvents: 1,
+                blockedEvents: 0
+            )
+        )
+        let interactionTelemetrySummary = telemetry.summary()
+        check(
+            interactionTelemetrySummary.contains("interaction active")
+                && interactionTelemetrySummary.contains("last:nsevent/leftDown/delivered")
+                && interactionTelemetrySummary.contains("delivered:1"),
+            "runtime telemetry summary must expose live desktop interaction monitor status",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func checkVisibilityPolicy(failures: inout [String], checks: inout Int) {

@@ -7,6 +7,8 @@ final class WallpaperMetalView: MTKView {
     private let interactionPolicy: InteractionPolicy
     private let displayPolicy: DisplayPolicy
     private let displayRole: RenderDisplayRole
+    private let runtime: NativeRuntimeCore
+    private let displayName: String
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
     private var didRequestAccessibilityTrust = false
@@ -22,6 +24,8 @@ final class WallpaperMetalView: MTKView {
         }
 
         self.displayRole = displayRole
+        self.runtime = runtime
+        self.displayName = displayName
         self.displayPolicy = runtime.manifest.displayPolicy
         let manifestInteractionPolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
             mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
@@ -135,6 +139,14 @@ final class WallpaperMetalView: MTKView {
                 },
                 onExit: { [weak self] in
                     self?.interaction.pointerTrackingStopped()
+                },
+                onTelemetry: { [weak self] snapshot in
+                    guard let self else { return }
+                    self.runtime.telemetry.recordInteraction(
+                        displayName: self.displayName,
+                        role: self.displayRole,
+                        snapshot: snapshot
+                    )
                 }
             )
         }

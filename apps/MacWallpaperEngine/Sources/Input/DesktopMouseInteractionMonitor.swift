@@ -9,6 +9,7 @@ final class DesktopMouseInteractionMonitor {
     private let onDown: (CGPoint, PointerButton) -> Void
     private let onUp: (CGPoint, PointerButton) -> Void
     private let onExit: () -> Void
+    private let onTelemetry: (InteractionMonitorTelemetrySnapshot) -> Void
     private var monitors: [Any] = []
     private var localMonitor: Any?
     private var eventTap: CFMachPort?
@@ -19,12 +20,30 @@ final class DesktopMouseInteractionMonitor {
     private var lastMoveEventAt: CFTimeInterval = 0
     private var lastEligibilityCheckAt: CFTimeInterval = 0
     private var lastEligibilityPoint: CGPoint?
-    private var lastEligibility = false
+    private var lastEligibilityDecision: DesktopInteractionGate.EligibilityDecision = .blockedDisabled
+    private var isActive = false
+    private var lastSource = "none"
+    private var lastEvent = "none"
+    private var lastDecision = "not-started"
+    private var lastPoint = "none"
+    private var deliveredEvents = 0
+    private var blockedEvents = 0
 
     private enum EventKind {
         case move
         case down(PointerButton)
         case up(PointerButton)
+
+        var label: String {
+            switch self {
+            case .move:
+                return "move"
+            case .down(let button):
+                return "\(button.rawValue)Down"
+            case .up(let button):
+                return "\(button.rawValue)Up"
+            }
+        }
     }
 
     init(
@@ -33,7 +52,8 @@ final class DesktopMouseInteractionMonitor {
         onMove: @escaping (CGPoint) -> Void,
         onDown: @escaping (CGPoint, PointerButton) -> Void,
         onUp: @escaping (CGPoint, PointerButton) -> Void,
-        onExit: @escaping () -> Void
+        onExit: @escaping () -> Void,
+        onTelemetry: @escaping (InteractionMonitorTelemetrySnapshot) -> Void = { _ in }
     ) {
         self.window = window
         self.policy = policy
@@ -41,6 +61,7 @@ final class DesktopMouseInteractionMonitor {
         self.onDown = onDown
         self.onUp = onUp
         self.onExit = onExit
+        self.onTelemetry = onTelemetry
     }
 
     deinit {
@@ -48,9 +69,21 @@ final class DesktopMouseInteractionMonitor {
     }
 
     func start() {
-        guard policy.mode != .disabled else { return }
-        _ = startEventTap()
-        guard localMonitor == nil, monitors.isEmpty else { return }
+        guard policy.mode != .disabled else {
+            isActive = false
+            publishTelemetry(source: "lifecycle", event: "start", decision: "disabled")
+            return
+        }
+        let eventTapStarted = startEventTap()
+        isActive = true
+        guard localMonitor == nil, monitors.isEmpty else {
+            publishTelemetry(
+                source: "lifecycle",
+                event: "start",
+                decision: eventTapStarted ? "active" : "eventTapUnavailable"
+            )
+            return
+        }
 
         localMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [
@@ -108,6 +141,11 @@ final class DesktopMouseInteractionMonitor {
         ) {
             monitors.append(monitor)
         }
+        publishTelemetry(
+            source: "lifecycle",
+            event: "start",
+            decision: eventTapStarted ? "active" : "eventTapUnavailable"
+        )
     }
 
     func stop() {
@@ -121,6 +159,8 @@ final class DesktopMouseInteractionMonitor {
         }
         monitors.removeAll()
         resetEligibilityCache()
+        isActive = false
+        publishTelemetry(source: "lifecycle", event: "stop", decision: "inactive")
     }
 
     private func startEventTap() -> Bool {
@@ -210,6 +250,7 @@ final class DesktopMouseInteractionMonitor {
 
         let screenPoint = NSEvent.mouseLocation
         guard window.frame.contains(screenPoint) else {
+            recordBlocked(source: "nsevent", kind: kind, decision: "outsideWindow", point: screenPoint)
             onExit()
             return
         }
@@ -221,7 +262,9 @@ final class DesktopMouseInteractionMonitor {
             isMouseUpEvent = false
         }
         if !isMouseUpEvent {
-            guard isEligible(screenPoint: screenPoint, event: event) else {
+            let decision = eligibilityDecision(screenPoint: screenPoint, event: event)
+            guard decision == .eligible else {
+                recordBlocked(source: "nsevent", kind: kind, decision: decision.rawValue, point: screenPoint)
                 onExit()
                 return
             }
@@ -236,6 +279,7 @@ final class DesktopMouseInteractionMonitor {
             x: min(max(local.x / contentView.bounds.width, 0.0), 1.0),
             y: min(max(1.0 - (local.y / contentView.bounds.height), 0.0), 1.0)
         )
+        recordDelivered(source: "nsevent", kind: kind, normalized: normalized)
 
         switch kind {
         case .down(let button):
@@ -267,6 +311,7 @@ final class DesktopMouseInteractionMonitor {
 
         let screenPoint = NSEvent.mouseLocation
         guard window.frame.contains(screenPoint) else {
+            recordBlocked(source: "cgevent", kind: kind, decision: "outsideWindow", point: screenPoint)
             onExit()
             return
         }
@@ -279,7 +324,9 @@ final class DesktopMouseInteractionMonitor {
             isMouseUpEvent = false
         }
         if !isMouseUpEvent {
-            guard isEligible(screenPoint: screenPoint, event: nil) else {
+            let decision = eligibilityDecision(screenPoint: screenPoint, event: nil)
+            guard decision == .eligible else {
+                recordBlocked(source: "cgevent", kind: kind, decision: decision.rawValue, point: screenPoint)
                 onExit()
                 return
             }
@@ -294,6 +341,7 @@ final class DesktopMouseInteractionMonitor {
             x: min(max(local.x / contentView.bounds.width, 0.0), 1.0),
             y: min(max(1.0 - (local.y / contentView.bounds.height), 0.0), 1.0)
         )
+        recordDelivered(source: "cgevent", kind: kind, normalized: normalized)
 
         switch kind {
         case .down(let button):
@@ -340,18 +388,21 @@ final class DesktopMouseInteractionMonitor {
         }
     }
 
-    private func isEligible(screenPoint: CGPoint, event: NSEvent?) -> Bool {
+    private func eligibilityDecision(
+        screenPoint: CGPoint,
+        event: NSEvent?
+    ) -> DesktopInteractionGate.EligibilityDecision {
         if let cached = cachedEligibility(screenPoint: screenPoint) {
             return cached
         }
 
         if policy.mode == .always {
-            cacheEligibility(true, screenPoint: screenPoint)
-            return true
+            cacheEligibility(.eligible, screenPoint: screenPoint)
+            return .eligible
         }
         if policy.mode == .disabled {
-            cacheEligibility(false, screenPoint: screenPoint)
-            return false
+            cacheEligibility(.blockedDisabled, screenPoint: screenPoint)
+            return .blockedDisabled
         }
 
         let accessibilityTrusted = policy.blockDesktopItems == false || DesktopInteractionGate.hasAccessibilityTrust()
@@ -369,12 +420,11 @@ final class DesktopMouseInteractionMonitor {
             coveredByApplicationWindow: coveredByApplicationWindow,
             likelyDesktopItem: likelyDesktopItem
         )
-        let eligible = decision == .eligible
-        cacheEligibility(eligible, screenPoint: screenPoint)
-        return eligible
+        cacheEligibility(decision, screenPoint: screenPoint)
+        return decision
     }
 
-    private func cachedEligibility(screenPoint: CGPoint) -> Bool? {
+    private func cachedEligibility(screenPoint: CGPoint) -> DesktopInteractionGate.EligibilityDecision? {
         guard let lastEligibilityPoint else { return nil }
         let now = CACurrentMediaTime()
         let dx = screenPoint.x - lastEligibilityPoint.x
@@ -383,20 +433,74 @@ final class DesktopMouseInteractionMonitor {
               (dx * dx) + (dy * dy) < eligibilityCacheDistanceSquared else {
             return nil
         }
-        return lastEligibility
+        return lastEligibilityDecision
     }
 
-    private func cacheEligibility(_ eligible: Bool, screenPoint: CGPoint) {
+    private func cacheEligibility(_ decision: DesktopInteractionGate.EligibilityDecision, screenPoint: CGPoint) {
         lastEligibilityCheckAt = CACurrentMediaTime()
         lastEligibilityPoint = screenPoint
-        lastEligibility = eligible
+        lastEligibilityDecision = decision
     }
 
     private func resetEligibilityCache() {
         lastEligibilityCheckAt = 0
         lastEligibilityPoint = nil
-        lastEligibility = false
+        lastEligibilityDecision = .blockedDisabled
         lastMoveEventAt = 0
+    }
+
+    private func recordDelivered(source: String, kind: EventKind, normalized: CGPoint) {
+        deliveredEvents += 1
+        publishTelemetry(
+            source: source,
+            event: kind.label,
+            decision: "delivered",
+            point: formatNormalizedPoint(normalized)
+        )
+    }
+
+    private func recordBlocked(source: String, kind: EventKind, decision: String, point: CGPoint) {
+        blockedEvents += 1
+        publishTelemetry(
+            source: source,
+            event: kind.label,
+            decision: decision,
+            point: formatScreenPoint(point)
+        )
+    }
+
+    private func publishTelemetry(
+        source: String,
+        event: String,
+        decision: String,
+        point: String? = nil
+    ) {
+        lastSource = source
+        lastEvent = event
+        lastDecision = decision
+        if let point {
+            lastPoint = point
+        }
+        onTelemetry(InteractionMonitorTelemetrySnapshot(
+            active: isActive,
+            eventTapActive: eventTap != nil,
+            localMonitorActive: localMonitor != nil,
+            globalMonitorCount: monitors.count,
+            lastSource: lastSource,
+            lastEvent: lastEvent,
+            lastDecision: lastDecision,
+            lastPoint: lastPoint,
+            deliveredEvents: deliveredEvents,
+            blockedEvents: blockedEvents
+        ))
+    }
+
+    private func formatNormalizedPoint(_ point: CGPoint) -> String {
+        String(format: "%.3f,%.3f", point.x, point.y)
+    }
+
+    private func formatScreenPoint(_ point: CGPoint) -> String {
+        "\(Int(point.x.rounded())),\(Int(point.y.rounded()))"
     }
 }
 
