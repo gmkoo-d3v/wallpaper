@@ -85,6 +85,13 @@ enum RuntimeSelfTest {
             "control panel display mode labels must make selected-display-only the default"
         )
         check(
+            ControlPanelWindowController.displayModeTooltips.count == ControlPanelWindowController.displayModeLabels.count
+                && ControlPanelWindowController.displayModeTooltips[0].contains("Only the selected primary display")
+                && ControlPanelWindowController.displayModeTooltips[1].contains("secondary displays follow")
+                && ControlPanelWindowController.displayModeTooltips[2].contains("All displays render"),
+            "control panel display mode tooltips must match segment order and actual display planner behavior"
+        )
+        check(
             ControlPanelWindowController.fpsLabels == ["30", "60", "Display Hz"],
             "control panel FPS labels must expose only fixed 30/60 plus display refresh matching"
         )

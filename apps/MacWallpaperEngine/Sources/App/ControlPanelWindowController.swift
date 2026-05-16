@@ -46,6 +46,11 @@ protocol ControlPanelDelegate: AnyObject {
 
 final class ControlPanelWindowController: NSWindowController {
     static let displayModeLabels = ["Selected Only", "Selected+Policy", "All Full"]
+    static let displayModeTooltips = [
+        "Only the selected primary display gets a wallpaper window.",
+        "Selected primary display is full; secondary displays follow the manifest secondary policy.",
+        "All displays render the full wallpaper; secondary displays remain passive."
+    ]
     static let fpsLabels = ["30", "60", "Display Hz"]
 
     weak var delegate: ControlPanelDelegate?
@@ -390,9 +395,9 @@ final class ControlPanelWindowController: NSWindowController {
 
         interactionToggle.font = .systemFont(ofSize: 13, weight: .regular)
         displayModeControl.segmentStyle = .texturedSquare
-        displayModeControl.setToolTip("Primary display is full; secondary displays follow the manifest secondary policy.", forSegment: 0)
-        displayModeControl.setToolTip("All displays render the full wallpaper; secondary displays remain passive.", forSegment: 1)
-        displayModeControl.setToolTip("Only the primary display gets a wallpaper window.", forSegment: 2)
+        for (index, tooltip) in Self.displayModeTooltips.enumerated() {
+            displayModeControl.setToolTip(tooltip, forSegment: index)
+        }
         primaryDisplayPopup.widthAnchor.constraint(equalToConstant: 260).isActive = true
 
         let primaryCaption = self.caption("PRIMARY")
