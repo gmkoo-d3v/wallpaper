@@ -253,7 +253,12 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 multiplyPipelineState: multiplyPipelineState
             )
         }
-        drawInteractionOverlay(interactionSnapshot, drawableSize: view.drawableSize, encoder: encoder)
+        drawInteractionOverlay(
+            interactionSnapshot,
+            contentRect: foregroundContentRect,
+            drawableSize: view.drawableSize,
+            encoder: encoder
+        )
 
         encoder.endEncoding()
         commandBuffer.present(drawable)
@@ -426,6 +431,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
     private func drawInteractionOverlay(
         _ interaction: InteractionSnapshot,
+        contentRect: CGRect,
         drawableSize: CGSize,
         encoder: MTLRenderCommandEncoder
     ) {
@@ -436,7 +442,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
 
         for (index, hitZone) in interactionHitZones.enumerated() {
-            guard let rect = overlayRect(for: hitZone.rect) else { continue }
+            guard let rect = overlayRect(for: hitZone.rect, contentRect: contentRect) else { continue }
             let isActive = interaction.command == hitZone.action
             let palette = overlayPalette(index: index, active: isActive, pulse: interaction.clickPulse)
             draw(texture: solidOverlayTexture, rect: rect, color: palette.fill, encoder: encoder)
@@ -447,7 +453,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         let dotSize = max(min(drawableSize.width, drawableSize.height) > 0 ? 58.0 : 0.0, 1.0)
         let dotWidth = dotSize / max(drawableSize.width, 1.0) * 2.0
         let dotHeight = dotSize / max(drawableSize.height, 1.0) * 2.0
-        let center = overlayPoint(interaction.pointer)
+        let center = overlayPoint(interaction.pointer, contentRect: contentRect)
         let pulseAlpha = Float(0.38 + min(max(interaction.clickPulse, 0), 1) * 0.42)
         let pointerColor = premultipliedColor(red: 0.10, green: 0.41, blue: 0.83, alpha: pulseAlpha)
         let pointerRect = CGRect(
@@ -477,18 +483,21 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
     }
 
-    private func overlayRect(for normalizedRect: [Double]) -> CGRect? {
+    private func overlayRect(for normalizedRect: [Double], contentRect: CGRect) -> CGRect? {
         guard normalizedRect.count == 4 else { return nil }
-        let x0 = CGFloat(normalizedRect[0]) * 2.0 - 1.0
-        let x1 = CGFloat(normalizedRect[2]) * 2.0 - 1.0
-        let yTop = 1.0 - CGFloat(normalizedRect[1]) * 2.0
-        let yBottom = 1.0 - CGFloat(normalizedRect[3]) * 2.0
+        let x0 = contentRect.minX + CGFloat(normalizedRect[0]) * contentRect.width
+        let x1 = contentRect.minX + CGFloat(normalizedRect[2]) * contentRect.width
+        let yTop = contentRect.maxY - CGFloat(normalizedRect[1]) * contentRect.height
+        let yBottom = contentRect.maxY - CGFloat(normalizedRect[3]) * contentRect.height
         guard x1 > x0, yTop > yBottom else { return nil }
         return CGRect(x: x0, y: yBottom, width: x1 - x0, height: yTop - yBottom)
     }
 
-    private func overlayPoint(_ point: CGPoint) -> CGPoint {
-        CGPoint(x: point.x * 2.0 - 1.0, y: 1.0 - point.y * 2.0)
+    private func overlayPoint(_ point: CGPoint, contentRect: CGRect) -> CGPoint {
+        CGPoint(
+            x: contentRect.minX + point.x * contentRect.width,
+            y: contentRect.maxY - point.y * contentRect.height
+        )
     }
 
     private func overlayPalette(index: Int, active: Bool, pulse: CGFloat) -> (fill: SIMD4<Float>, border: SIMD4<Float>) {
