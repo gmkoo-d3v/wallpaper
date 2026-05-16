@@ -14,24 +14,55 @@ WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers"
 WALLPAPER_DEST="$RESOURCES_DIR/wallpapers"
 STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
 
-validation_args=(--validate-only)
+STRICT_COMPOSITE_QUALITY_ENABLED=0
 case "$STRICT_COMPOSITE_QUALITY" in
   1|true|TRUE|yes|YES)
-    validation_args+=(--strict-composite-quality)
+    STRICT_COMPOSITE_QUALITY_ENABLED=1
+    ;;
+  0|false|FALSE|no|NO|"")
+    STRICT_COMPOSITE_QUALITY_ENABLED=0
+    ;;
+  *)
+    echo "Invalid STRICT_COMPOSITE_QUALITY value: $STRICT_COMPOSITE_QUALITY" >&2
+    echo "Use 1/true/yes or 0/false/no." >&2
+    exit 1
     ;;
 esac
 
 print_composite_quality_warning() {
   local bundle_dir="$1"
   local bundle_name="$2"
+  local context="$3"
   local quality_output
 
   quality_output="$("$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --composite-quality-plan)"
   if grep -q '^status: warning' <<< "$quality_output"; then
-    echo "Composite fallback quality warning: $bundle_name" >&2
+    echo "$context composite fallback quality warning: $bundle_name" >&2
     echo "$quality_output" >&2
-    if [ "$STRICT_COMPOSITE_QUALITY" != "1" ]; then
+    if [ "$STRICT_COMPOSITE_QUALITY_ENABLED" -eq 1 ]; then
+      echo "STRICT_COMPOSITE_QUALITY is enabled; packaging will fail on this warning." >&2
+    else
       echo "Set STRICT_COMPOSITE_QUALITY=1 to fail packaging on this warning." >&2
+    fi
+  fi
+}
+
+validate_wallpaper_bundle() {
+  local bundle_dir="$1"
+  local bundle_name="$2"
+  local context="$3"
+
+  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only >/dev/null; then
+    echo "$context wallpaper bundle failed validation: $bundle_name ($bundle_dir)" >&2
+    exit 1
+  fi
+
+  print_composite_quality_warning "$bundle_dir" "$bundle_name" "$context"
+
+  if [ "$STRICT_COMPOSITE_QUALITY_ENABLED" -eq 1 ]; then
+    if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only --strict-composite-quality >/dev/null; then
+      echo "$context wallpaper bundle failed strict composite quality validation: $bundle_name ($bundle_dir)" >&2
+      exit 1
     fi
   fi
 }
@@ -66,19 +97,12 @@ for bundle_dir in "$WALLPAPER_SOURCE"/*; do
     exit 1
   fi
 
-  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" "${validation_args[@]}" >/dev/null; then
-    echo "Invalid wallpaper bundle failed validation: $bundle_name ($bundle_dir)" >&2
-    exit 1
-  fi
-  print_composite_quality_warning "$bundle_dir" "$bundle_name"
+  validate_wallpaper_bundle "$bundle_dir" "$bundle_name" "Source"
 
   mkdir -p "$WALLPAPER_DEST/$bundle_name"
   rsync -a --exclude ".DS_Store" "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
 
-  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$WALLPAPER_DEST/$bundle_name" "${validation_args[@]}" >/dev/null; then
-    echo "Packaged wallpaper bundle failed validation after copy: $bundle_name ($WALLPAPER_DEST/$bundle_name)" >&2
-    exit 1
-  fi
+  validate_wallpaper_bundle "$WALLPAPER_DEST/$bundle_name" "$bundle_name" "Packaged"
 
   bundle_count=$((bundle_count + 1))
 done
