@@ -87,6 +87,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   `onlyTranslation`.
 - First-pass IK, transform, path, and asset-used physics constraint evaluation.
 - Reusable native Spine mesh buffers when batch structure is stable.
+- Bounded native Spine pose-frame cache for repeated quantized animation frames,
+  capped by entry count and memory budget to avoid unbounded RSS growth.
 - Pointer movement and click command mapping.
 - Pointer smoothing advances on render snapshots, not only on macOS mouse
   events, so look-direction commands keep converging after the cursor stops.
@@ -178,7 +180,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Runtime-calibrated region/mesh attachment parity beyond timeline-aware
   keyframe/transition sampling.
 - Visual hit-zone editor for authoring new bundles.
-- Production-grade frame cache and profiler-backed native Spine optimization.
+- Profiler-backed native Spine optimization beyond the bounded pose-frame cache.
 - Exact Finder desktop icon hit-testing without disabling interaction when
   Accessibility trust is unavailable.
 

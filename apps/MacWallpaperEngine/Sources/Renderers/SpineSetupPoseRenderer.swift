@@ -338,6 +338,12 @@ final class SpineSetupPoseRenderer {
         let capacity: Int
     }
 
+    private struct PoseFrameCacheEntry {
+        let key: String
+        let vertexBatches: [VertexBatch]
+        let byteCount: Int
+    }
+
     struct GeometrySample {
         let actionName: String
         let time: Double
@@ -374,6 +380,8 @@ final class SpineSetupPoseRenderer {
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
     private var cachedBatches: [Batch]
     private var cachedPoseKey = ""
+    private var poseFrameCache: [PoseFrameCacheEntry] = []
+    private var poseFrameCacheBytes = 0
     private var activeAnimationName = "idle"
     private var activeAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
     private var previousOverlayAnimationName: String?
@@ -382,6 +390,8 @@ final class SpineSetupPoseRenderer {
     let triangleVertexCount: Int
     private static let enablePathConstraints = true
     private static let enablePhysicsConstraints = false
+    private static let maxPoseFrameCacheEntries = 96
+    private static let maxPoseFrameCacheBytes = 32 * 1024 * 1024
     static let maxGeometryDiagnosticSamplesPerAction = 96
 
     init(
@@ -540,6 +550,8 @@ final class SpineSetupPoseRenderer {
         let idleAnimation = animations["idle"]
         let idleAnimationTime = idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0
         let physicsTime = max(0, now - rendererStartedAt) * playbackRate
+        let posePhysicsTime = Self.enablePhysicsConstraints ? physicsTime : 0
+        let canUsePoseFrameCache = Self.enablePhysicsConstraints == false
         let transitionMix = animationTransitionMix(now: now)
         let activeOverlayAnimation = activeAnimation.name == "idle" ? nil : activeAnimation
         let activeOverlayMix = activeOverlayAnimation == nil ? 0 : transitionMix
@@ -554,7 +566,7 @@ final class SpineSetupPoseRenderer {
         let quantizedFrame = Int((activeAnimationTime * poseSampleFps).rounded())
         let quantizedIdleFrame = Int((idleAnimationTime * poseSampleFps).rounded())
         let quantizedPreviousFrame = Int((previousOverlayTime * poseSampleFps).rounded())
-        let quantizedPhysicsFrame = Int((physicsTime * poseSampleFps).rounded())
+        let quantizedPhysicsFrame = Int((posePhysicsTime * poseSampleFps).rounded())
         let quantizedTransition = Int((transitionMix * poseSampleFps).rounded())
         let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):physics:\(quantizedPhysicsFrame)"
         if cacheKey == cachedPoseKey {
@@ -562,6 +574,16 @@ final class SpineSetupPoseRenderer {
         }
 
         do {
+            if canUsePoseFrameCache, let cachedVertexBatches = cachedVertexBatches(for: cacheKey) {
+                cachedBatches = try Self.updateBatches(
+                    from: cachedVertexBatches,
+                    previous: cachedBatches,
+                    device: device
+                )
+                cachedPoseKey = cacheKey
+                return cachedBatches
+            }
+
             let pose = evaluate(
                 baseAnimation: idleAnimation,
                 baseTime: idleAnimationTime,
@@ -571,7 +593,7 @@ final class SpineSetupPoseRenderer {
                 overlayAnimation: activeOverlayAnimation,
                 overlayTime: activeAnimationTime,
                 overlayMix: activeOverlayMix,
-                physicsTime: physicsTime
+                physicsTime: posePhysicsTime
             )
             let vertexBatches = try Self.buildVertexBatches(
                 slots: pose.slots,
@@ -590,10 +612,45 @@ final class SpineSetupPoseRenderer {
                 device: device
             )
             cachedPoseKey = cacheKey
+            if canUsePoseFrameCache {
+                storeVertexBatches(vertexBatches, for: cacheKey)
+            }
         } catch {
             fputs("Spine animation pose failed: \(error.localizedDescription)\n", stderr)
         }
         return cachedBatches
+    }
+
+    private func cachedVertexBatches(for key: String) -> [VertexBatch]? {
+        guard let index = poseFrameCache.firstIndex(where: { $0.key == key }) else {
+            return nil
+        }
+        let entry = poseFrameCache.remove(at: index)
+        poseFrameCache.append(entry)
+        return entry.vertexBatches
+    }
+
+    private func storeVertexBatches(_ vertexBatches: [VertexBatch], for key: String) {
+        let byteCount = Self.vertexBatchByteCount(vertexBatches)
+        guard byteCount > 0, byteCount <= Self.maxPoseFrameCacheBytes else { return }
+
+        if let existingIndex = poseFrameCache.firstIndex(where: { $0.key == key }) {
+            let existing = poseFrameCache.remove(at: existingIndex)
+            poseFrameCacheBytes -= existing.byteCount
+        }
+
+        poseFrameCache.append(PoseFrameCacheEntry(
+            key: key,
+            vertexBatches: vertexBatches,
+            byteCount: byteCount
+        ))
+        poseFrameCacheBytes += byteCount
+
+        while poseFrameCache.count > Self.maxPoseFrameCacheEntries
+            || poseFrameCacheBytes > Self.maxPoseFrameCacheBytes {
+            let removed = poseFrameCache.removeFirst()
+            poseFrameCacheBytes -= removed.byteCount
+        }
     }
 
     private func diagnosticGeometrySample(
@@ -3495,6 +3552,13 @@ final class SpineSetupPoseRenderer {
         }
 
         return result
+    }
+
+    private static func vertexBatchByteCount(_ vertexBatches: [VertexBatch]) -> Int {
+        let stride = MemoryLayout<RenderVertex>.stride
+        return vertexBatches.reduce(0) { total, batch in
+            total + (batch.vertices.count * stride)
+        }
     }
 
     private static func meshWorldVertices(
