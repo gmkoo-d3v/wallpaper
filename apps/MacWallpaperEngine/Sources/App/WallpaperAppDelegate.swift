@@ -130,7 +130,8 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         matchDisplayRefresh: Bool,
         playbackRate: Float,
         fitMode: RenderFitMode,
-        foregroundMode: ForegroundRenderMode
+        foregroundMode: ForegroundRenderMode,
+        interactionDebugOverlay: Bool
     ) {
         guard let currentRuntime = runtime else {
             let error = EngineError.invalidArgument("Select a valid wallpaper bundle before applying settings.")
@@ -151,6 +152,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 playbackRateOverride: playbackRate,
                 fitMode: fitMode,
                 foregroundMode: foregroundMode,
+                interactionDebugOverlay: interactionDebugOverlay,
                 startHidden: false,
                 clearDuration: true
             )
@@ -246,6 +248,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 playbackRate: 1.0,
                 fitMode: .contain,
                 foregroundMode: .automatic,
+                interactionDebugOverlay: false,
                 wallpaperRoot: nil,
                 wallpaperPath: "No wallpaper bundle selected",
                 bundleInfoText: "No validated wallpaper bundle is selected.",
@@ -276,6 +279,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             playbackRate: runtime.selectedPlaybackRate,
             fitMode: runtime.config.fitMode,
             foregroundMode: runtime.config.foregroundMode,
+            interactionDebugOverlay: runtime.config.interactionDebugOverlay,
             wallpaperRoot: runtime.config.wallpaperRoot,
             wallpaperPath: runtime.config.wallpaperRoot.path,
             bundleInfoText: bundleInfoText(for: selectedBundle),
@@ -311,7 +315,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         matchDisplayRefresh: Bool,
         playbackRate: Float,
         fitMode: RenderFitMode,
-        foregroundMode: ForegroundRenderMode
+        foregroundMode: ForegroundRenderMode,
+        interactionDebugOverlay: Bool
     ) {
         restartHost(
             displayMode: displayMode,
@@ -321,7 +326,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             matchDisplayRefresh: matchDisplayRefresh,
             playbackRate: playbackRate,
             fitMode: fitMode,
-            foregroundMode: foregroundMode
+            foregroundMode: foregroundMode,
+            interactionDebugOverlay: interactionDebugOverlay
         )
     }
 
@@ -426,6 +432,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             playbackRateOverride: 1.0,
             fitMode: .contain,
             foregroundMode: .automatic,
+            interactionDebugOverlay: false,
             validateOnly: false,
             displayPlanOnly: false,
             renderPlanOnly: false,

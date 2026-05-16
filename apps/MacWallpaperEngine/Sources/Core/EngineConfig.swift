@@ -66,6 +66,7 @@ struct EngineConfig {
     let playbackRateOverride: Float?
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
+    let interactionDebugOverlay: Bool
     let validateOnly: Bool
     let displayPlanOnly: Bool
     let renderPlanOnly: Bool
@@ -95,6 +96,7 @@ struct EngineConfig {
         playbackRateOverride: Float? = nil,
         fitMode: RenderFitMode? = nil,
         foregroundMode: ForegroundRenderMode? = nil,
+        interactionDebugOverlay: Bool? = nil,
         startHidden: Bool? = nil,
         duration: TimeInterval? = nil,
         clearDuration: Bool = false,
@@ -126,6 +128,7 @@ struct EngineConfig {
             playbackRateOverride: playbackRateOverride ?? self.playbackRateOverride,
             fitMode: fitMode ?? self.fitMode,
             foregroundMode: foregroundMode ?? self.foregroundMode,
+            interactionDebugOverlay: interactionDebugOverlay ?? self.interactionDebugOverlay,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly ?? self.displayPlanOnly,
             renderPlanOnly: renderPlanOnly ?? self.renderPlanOnly,
@@ -158,6 +161,7 @@ struct EngineConfig {
         var playbackRateOverride: Float?
         var fitMode = RenderFitMode.contain
         var foregroundMode = ForegroundRenderMode.automatic
+        var interactionDebugOverlay = false
         var explicitWallpaperRoot = false
         var explicitManifestURL = false
         var explicitDisplayMode = false
@@ -269,6 +273,8 @@ struct EngineConfig {
                 }
                 foregroundMode = parsed
                 explicitForegroundMode = true
+            case "--interaction-debug-overlay":
+                interactionDebugOverlay = true
             case "--validate-only":
                 validateOnly = true
             case "--display-plan":
@@ -399,6 +405,7 @@ struct EngineConfig {
             playbackRateOverride: playbackRateOverride,
             fitMode: fitMode,
             foregroundMode: foregroundMode,
+            interactionDebugOverlay: interactionDebugOverlay,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly,
             renderPlanOnly: renderPlanOnly,
@@ -444,6 +451,8 @@ struct EngineConfig {
       --playback-rate <value>   Video playback rate override. Defaults to manifest asset rate.
       --fit-mode <mode>         contain | fill. Default: contain.
       --foreground-mode <mode>  auto | composite | native. Default: auto.
+      --interaction-debug-overlay
+                              Draw pointer and pointerDown hit-zone diagnostics over the wallpaper.
       --list-bundles           Print validated wallpaper bundles and exit.
       --include-invalid        With --list-bundles, include invalid bundle diagnostics.
       --include-capabilities   With --list-bundles, include asset/layer/native fallback capability summary.

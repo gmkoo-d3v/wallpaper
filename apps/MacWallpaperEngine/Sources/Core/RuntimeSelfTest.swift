@@ -447,6 +447,19 @@ enum RuntimeSelfTest {
             parsedDefaultForeground.foregroundMode == .automatic,
             "EngineConfig must default foreground mode to auto"
         )
+        let parsedInteractionOverlay = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--interaction-debug-overlay",
+            "--validate-only"
+        ])
+        check(
+            parsedInteractionOverlay.interactionDebugOverlay,
+            "EngineConfig must parse interaction debug overlay diagnostics"
+        )
+        check(
+            runtime.config.replacing(interactionDebugOverlay: true, clearDuration: true).interactionDebugOverlay,
+            "EngineConfig.replacing must preserve interaction debug overlay overrides"
+        )
         let displaySelectionOptions = [DisplaySelectionOption(title: "System Default Primary", selector: nil)]
         check(
             displaySelectionOptions.first?.selector == nil,

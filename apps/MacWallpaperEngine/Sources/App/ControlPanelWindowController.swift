@@ -10,6 +10,7 @@ struct ControlPanelState {
     let playbackRate: Float
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
+    let interactionDebugOverlay: Bool
     let wallpaperRoot: URL?
     let wallpaperPath: String
     let bundleInfoText: String
@@ -35,7 +36,8 @@ protocol ControlPanelDelegate: AnyObject {
         matchDisplayRefresh: Bool,
         playbackRate: Float,
         fitMode: RenderFitMode,
-        foregroundMode: ForegroundRenderMode
+        foregroundMode: ForegroundRenderMode,
+        interactionDebugOverlay: Bool
     )
     func controlPanelChooseWallpaperBundle(_ url: URL)
     func controlPanelImportWallpaperBundle(_ url: URL)
@@ -63,6 +65,7 @@ final class ControlPanelWindowController: NSWindowController {
     )
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
+    private let interactionDebugOverlayToggle = NSButton(checkboxWithTitle: "Hit-zone overlay", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ControlPanelWindowController.fpsLabels,
         trackingMode: .selectOne,
@@ -153,6 +156,7 @@ final class ControlPanelWindowController: NSWindowController {
         speedControl.selectedSegment = segment(forPlaybackRate: state.playbackRate)
         fitModeControl.selectedSegment = segment(forFitMode: state.fitMode)
         foregroundModeControl.selectedSegment = segment(forForegroundMode: state.foregroundMode)
+        interactionDebugOverlayToggle.state = state.interactionDebugOverlay ? .on : .off
         startButton.isEnabled = state.isRunning == false
         stopButton.isEnabled = state.isRunning
     }
@@ -260,6 +264,7 @@ final class ControlPanelWindowController: NSWindowController {
         stack.addArrangedSubview(modeRow())
         stack.addArrangedSubview(foregroundRow())
         stack.addArrangedSubview(renderRow())
+        stack.addArrangedSubview(debugRow())
         stack.addArrangedSubview(buttonRow())
 
         NSLayoutConstraint.activate([
@@ -437,6 +442,20 @@ final class ControlPanelWindowController: NSWindowController {
         row.addArrangedSubview(speedControl)
         row.addArrangedSubview(fitCaption)
         row.addArrangedSubview(fitModeControl)
+        return row
+    }
+
+    private func debugRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 18
+
+        let debugCaption = caption("DEBUG")
+        interactionDebugOverlayToggle.font = .systemFont(ofSize: 13, weight: .regular)
+
+        row.addArrangedSubview(debugCaption)
+        row.addArrangedSubview(interactionDebugOverlayToggle)
         return row
     }
 
@@ -661,7 +680,8 @@ final class ControlPanelWindowController: NSWindowController {
             matchDisplayRefresh: selectedMatchDisplayRefresh(),
             playbackRate: selectedPlaybackRate(),
             fitMode: selectedFitMode(),
-            foregroundMode: selectedForegroundMode()
+            foregroundMode: selectedForegroundMode(),
+            interactionDebugOverlay: interactionDebugOverlayToggle.state == .on
         )
         refresh()
     }

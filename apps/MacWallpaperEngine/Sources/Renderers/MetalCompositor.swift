@@ -12,6 +12,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private let displayRole: RenderDisplayRole
     private let displayName: String
     private let interaction: InteractionController
+    private let interactionHitZones: [InteractionHitZoneSummary]
     private let governor: ResourceGovernor
     private let semaphore: DispatchSemaphore
 
@@ -19,6 +20,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var deskOcclusionSource: VideoFrameSource?
     private var resourceFallbackVideoSource: VideoFrameSource?
     private var interactionTexture: MTLTexture?
+    private var solidOverlayTexture: MTLTexture?
     private var usingCompositeVideo = false
     private var fallbackBackground: MTLTexture?
     private var spineRenderer: SpineSetupPoseRenderer?
@@ -52,6 +54,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         self.displayRole = displayRole
         self.displayName = displayName
         self.interaction = interaction
+        self.interactionHitZones = InteractionPlan(
+            interactions: runtime.manifest.interactions,
+            policy: runtime.manifest.interactionPolicy
+        ).hitZoneSummaries()
         self.governor = ResourceGovernor(
             manifest: runtime.manifest,
             targetFps: displayTargetFps,
@@ -117,6 +123,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             self.resourceFallbackVideoSource = fallbackSource
         }
         self.interactionTexture = Self.makeInteractionTexture(device: device)
+        self.solidOverlayTexture = Self.makeSolidOverlayTexture(device: device)
 
         let fallbackImageURL = runtime.assetCatalog.staticImageAssetURL
             ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
@@ -420,9 +427,102 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         drawableSize: CGSize,
         encoder: MTLRenderCommandEncoder
     ) {
-        _ = interaction
-        _ = drawableSize
-        _ = encoder
+        guard runtime.config.interactionDebugOverlay,
+              displayRole.allowsInteraction,
+              let solidOverlayTexture else {
+            return
+        }
+
+        for (index, hitZone) in interactionHitZones.enumerated() {
+            guard let rect = overlayRect(for: hitZone.rect) else { continue }
+            let isActive = interaction.command == hitZone.action
+            let palette = overlayPalette(index: index, active: isActive, pulse: interaction.clickPulse)
+            draw(texture: solidOverlayTexture, rect: rect, color: palette.fill, encoder: encoder)
+            drawBorder(texture: solidOverlayTexture, rect: rect, drawableSize: drawableSize, color: palette.border, encoder: encoder)
+        }
+
+        guard let interactionTexture else { return }
+        let dotSize = max(min(drawableSize.width, drawableSize.height) > 0 ? 58.0 : 0.0, 1.0)
+        let dotWidth = dotSize / max(drawableSize.width, 1.0) * 2.0
+        let dotHeight = dotSize / max(drawableSize.height, 1.0) * 2.0
+        let center = overlayPoint(interaction.pointer)
+        let pulseAlpha = Float(0.38 + min(max(interaction.clickPulse, 0), 1) * 0.42)
+        let pointerColor = premultipliedColor(red: 0.10, green: 0.41, blue: 0.83, alpha: pulseAlpha)
+        let pointerRect = CGRect(
+            x: center.x - dotWidth / 2.0,
+            y: center.y - dotHeight / 2.0,
+            width: dotWidth,
+            height: dotHeight
+        )
+        draw(texture: interactionTexture, rect: pointerRect, color: pointerColor, encoder: encoder)
+    }
+
+    private func drawBorder(
+        texture: MTLTexture,
+        rect: CGRect,
+        drawableSize: CGSize,
+        color: SIMD4<Float>,
+        encoder: MTLRenderCommandEncoder
+    ) {
+        let thicknessX = 2.0 / max(drawableSize.width, 1.0) * 2.0
+        let thicknessY = 2.0 / max(drawableSize.height, 1.0) * 2.0
+        let top = CGRect(x: rect.minX, y: rect.maxY - thicknessY, width: rect.width, height: thicknessY)
+        let bottom = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: thicknessY)
+        let left = CGRect(x: rect.minX, y: rect.minY, width: thicknessX, height: rect.height)
+        let right = CGRect(x: rect.maxX - thicknessX, y: rect.minY, width: thicknessX, height: rect.height)
+        for edge in [top, bottom, left, right] {
+            draw(texture: texture, rect: edge, color: color, encoder: encoder)
+        }
+    }
+
+    private func overlayRect(for normalizedRect: [Double]) -> CGRect? {
+        guard normalizedRect.count == 4 else { return nil }
+        let x0 = CGFloat(normalizedRect[0]) * 2.0 - 1.0
+        let x1 = CGFloat(normalizedRect[2]) * 2.0 - 1.0
+        let yTop = 1.0 - CGFloat(normalizedRect[1]) * 2.0
+        let yBottom = 1.0 - CGFloat(normalizedRect[3]) * 2.0
+        guard x1 > x0, yTop > yBottom else { return nil }
+        return CGRect(x: x0, y: yBottom, width: x1 - x0, height: yTop - yBottom)
+    }
+
+    private func overlayPoint(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: point.x * 2.0 - 1.0, y: 1.0 - point.y * 2.0)
+    }
+
+    private func overlayPalette(index: Int, active: Bool, pulse: CGFloat) -> (fill: SIMD4<Float>, border: SIMD4<Float>) {
+        let base: (red: Float, green: Float, blue: Float) = index.isMultiple(of: 2)
+            ? (0.10, 0.41, 0.83)
+            : (0.96, 0.62, 0.04)
+        let activeBoost = Float(active ? min(max(pulse, 0), 1) * 0.18 + 0.18 : 0)
+        let fillAlpha = Float(active ? 0.30 : 0.14) + activeBoost
+        let borderAlpha = Float(active ? 0.88 : 0.52)
+        return (
+            fill: premultipliedColor(red: base.red, green: base.green, blue: base.blue, alpha: fillAlpha),
+            border: premultipliedColor(red: base.red, green: base.green, blue: base.blue, alpha: borderAlpha)
+        )
+    }
+
+    private func premultipliedColor(red: Float, green: Float, blue: Float, alpha: Float) -> SIMD4<Float> {
+        SIMD4<Float>(red * alpha, green * alpha, blue * alpha, alpha)
+    }
+
+    private static func makeSolidOverlayTexture(device: MTLDevice) -> MTLTexture? {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm,
+            width: 1,
+            height: 1,
+            mipmapped: false
+        )
+        descriptor.usage = [.shaderRead]
+        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
+        let pixel: [UInt8] = [255, 255, 255, 255]
+        texture.replace(
+            region: MTLRegionMake2D(0, 0, 1, 1),
+            mipmapLevel: 0,
+            withBytes: pixel,
+            bytesPerRow: 4
+        )
+        return texture
     }
 
     private static func makeInteractionTexture(device: MTLDevice) -> MTLTexture? {

@@ -43,6 +43,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   buttons, hit zones, effective animation-synchronized tail timing, and
   left/right click probes from the same interaction planner used by the
   renderer.
+- `--interaction-debug-overlay` and the control panel debug toggle draw
+  pointer/hit-zone diagnostics over the wallpaper so bundle click regions can
+  be verified on the live desktop.
 - `--spine-animation-plan` reports Spine animation duration, timeline coverage,
   native timeline compatibility per manifest action, and whether every manifest
   interaction action resolves to a real animation.
@@ -155,7 +158,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Runtime-calibrated region/mesh attachment parity beyond timeline-aware
   keyframe/transition sampling.
-- Visual hit-zone editor/debug overlay for authoring new bundles.
+- Visual hit-zone editor for authoring new bundles.
 - Production-grade frame cache and profiler-backed native Spine optimization.
 - Exact Finder desktop icon hit-testing without disabling interaction when
   Accessibility trust is unavailable.
@@ -185,6 +188,7 @@ swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mo
 swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode primaryAnimated
 swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
 swift run MacWallpaperEngine --interaction-plan
+swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
 swift run MacWallpaperEngine --spine-animation-plan
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
