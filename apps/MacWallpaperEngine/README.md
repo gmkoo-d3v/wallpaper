@@ -95,6 +95,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Pointer movement and click command mapping.
 - Pointer smoothing advances on render snapshots, not only on macOS mouse
   events, so look-direction commands keep converging after the cursor stops.
+- Native Spine look-direction poses are mixed by smoothed pointer distance from
+  the idle dead zone, avoiding abrupt full-strength directional pose snaps.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Shared interaction plan for deterministic hit-zone, default-action, button, and
   look-direction diagnostics.

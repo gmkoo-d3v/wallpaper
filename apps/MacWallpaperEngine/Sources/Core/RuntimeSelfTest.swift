@@ -270,6 +270,15 @@ enum RuntimeSelfTest {
         }
         if hasLookDirection {
             check(
+                SpineInteractionAnimationRoles.lookAnimationNames(from: manifest).isSubset(
+                    of: Set(manifest.interactions.flatMap { interaction -> [String] in
+                        interaction.actions.map { Array($0.values) } ?? []
+                    })
+                )
+                    && SpineInteractionAnimationRoles.lookAnimationNames(from: manifest).contains("idle") == false,
+                "native Spine renderer must identify pointerMove look actions separately from idle for pointer-strength blending"
+            )
+            check(
                 interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") != "idle",
                 "look-direction interaction plan must resolve off-center pointer movement"
             )

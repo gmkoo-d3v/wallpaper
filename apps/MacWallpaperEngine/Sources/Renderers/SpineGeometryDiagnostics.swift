@@ -84,6 +84,8 @@ struct SpineGeometryDiagnostics {
             device: device,
             playbackRate: runtime.selectedPlaybackRate,
             poseSampleFps: runtime.renderTargetFps,
+            lookAnimationNames: SpineInteractionAnimationRoles.lookAnimationNames(from: runtime.manifest),
+            lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
             loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
             oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
         )

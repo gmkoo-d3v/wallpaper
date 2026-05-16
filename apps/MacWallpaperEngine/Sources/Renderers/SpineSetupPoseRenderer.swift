@@ -373,6 +373,8 @@ final class SpineSetupPoseRenderer {
     private let referenceScale: Double
     private let playbackRate: Double
     private let poseSampleFps: Double
+    private let lookAnimationNames: Set<String>
+    private let lookIdleDeadZone: Double
     private let loopingAnimationNames: Set<String>
     private let oneShotAnimationNames: Set<String>
     private let rendererStartedAt: CFTimeInterval
@@ -399,6 +401,8 @@ final class SpineSetupPoseRenderer {
         device: MTLDevice,
         playbackRate: Float = 1.0,
         poseSampleFps: Int = 60,
+        lookAnimationNames: Set<String> = [],
+        lookIdleDeadZone: Double = 0.18,
         loopingAnimationNames: Set<String> = ["idle"],
         oneShotAnimationNames: Set<String> = []
     ) throws {
@@ -463,6 +467,8 @@ final class SpineSetupPoseRenderer {
         self.poseConstraints = poseConstraints
         self.playbackRate = max(0.01, Double(playbackRate))
         self.poseSampleFps = Double(max(1, min(poseSampleFps, 240)))
+        self.lookAnimationNames = lookAnimationNames
+        self.lookIdleDeadZone = min(max(lookIdleDeadZone, 0), 0.49)
         self.loopingAnimationNames = loopingAnimationNames.union(["idle"])
         self.oneShotAnimationNames = oneShotAnimationNames.subtracting(loopingAnimationNames)
         self.referenceScale = referenceScale
@@ -485,11 +491,10 @@ final class SpineSetupPoseRenderer {
         normalPipelineState: MTLRenderPipelineState,
         multiplyPipelineState: MTLRenderPipelineState
     ) {
-        _ = pointer
         _ = drawableSize
         _ = contentRect
         let scale: Float = 1.0
-        let drawableBatches = batches(command: command)
+        let drawableBatches = batches(command: command, pointer: pointer)
         let foregroundAspectScale = SIMD2<Float>(1.0, 1.0)
 
         for batch in drawableBatches {
@@ -540,7 +545,7 @@ final class SpineSetupPoseRenderer {
         return samples
     }
 
-    private func batches(command: String) -> [Batch] {
+    private func batches(command: String, pointer: CGPoint) -> [Batch] {
         let now = CACurrentMediaTime()
         let animationName = resolvedAnimationName(command: command, now: now)
         guard let activeAnimation = animations[animationName] ?? animations["idle"] else {
@@ -563,12 +568,14 @@ final class SpineSetupPoseRenderer {
         if transitionMix >= 1.0 {
             previousOverlayAnimationName = nil
         }
+        let lookMix = lookAnimationNames.contains(activeAnimation.name) ? pointerLookMix(pointer) : 1.0
         let quantizedFrame = Int((activeAnimationTime * poseSampleFps).rounded())
         let quantizedIdleFrame = Int((idleAnimationTime * poseSampleFps).rounded())
         let quantizedPreviousFrame = Int((previousOverlayTime * poseSampleFps).rounded())
         let quantizedPhysicsFrame = Int((posePhysicsTime * poseSampleFps).rounded())
         let quantizedTransition = Int((transitionMix * poseSampleFps).rounded())
-        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):physics:\(quantizedPhysicsFrame)"
+        let quantizedLookMix = Int((lookMix * poseSampleFps).rounded())
+        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame)"
         if cacheKey == cachedPoseKey {
             return cachedBatches
         }
@@ -592,7 +599,7 @@ final class SpineSetupPoseRenderer {
                 previousOverlayMix: previousOverlayMix,
                 overlayAnimation: activeOverlayAnimation,
                 overlayTime: activeAnimationTime,
-                overlayMix: activeOverlayMix,
+                overlayMix: activeOverlayMix * lookMix,
                 physicsTime: posePhysicsTime
             )
             let vertexBatches = try Self.buildVertexBatches(
@@ -619,6 +626,14 @@ final class SpineSetupPoseRenderer {
             fputs("Spine animation pose failed: \(error.localizedDescription)\n", stderr)
         }
         return cachedBatches
+    }
+
+    private func pointerLookMix(_ pointer: CGPoint) -> Double {
+        let dx = abs(Double(pointer.x) - 0.5)
+        let dy = abs(Double(pointer.y) - 0.5)
+        let axisDistance = max(dx, dy)
+        let range = max(0.001, 0.5 - lookIdleDeadZone)
+        return min(max((axisDistance - lookIdleDeadZone) / range, 0), 1)
     }
 
     private func cachedVertexBatches(for key: String) -> [VertexBatch]? {

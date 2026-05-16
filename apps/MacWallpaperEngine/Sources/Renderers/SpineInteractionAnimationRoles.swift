@@ -1,4 +1,16 @@
 enum SpineInteractionAnimationRoles {
+    static func lookAnimationNames(from manifest: WallpaperNativeManifest) -> Set<String> {
+        var names: Set<String> = []
+        for interaction in manifest.interactions where interaction.event == .pointerMove {
+            interaction.actions?.forEach { key, action in
+                if key != "idle" && action != "idle" {
+                    names.insert(action)
+                }
+            }
+        }
+        return names
+    }
+
     static func loopingAnimationNames(from manifest: WallpaperNativeManifest) -> Set<String> {
         var names: Set<String> = ["idle"]
         for interaction in manifest.interactions where interaction.event == .pointerDown {
