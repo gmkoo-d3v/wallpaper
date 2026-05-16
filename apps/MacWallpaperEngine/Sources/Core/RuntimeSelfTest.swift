@@ -316,8 +316,9 @@ enum RuntimeSelfTest {
         check(
             interactionSummary.contains("interaction plan OK")
                 && interactionSummary.contains("pointerMoveProbes:")
-                && interactionSummary.contains("pointerDownButtons:"),
-            "interaction diagnostics must expose move probes and click buttons"
+                && interactionSummary.contains("pointerDownButtons:")
+                && interactionSummary.contains("clickTimeline:"),
+            "interaction diagnostics must expose move probes, click buttons, and deterministic click timelines"
         )
         for hitZoneSummary in hitZoneSummaries {
             check(

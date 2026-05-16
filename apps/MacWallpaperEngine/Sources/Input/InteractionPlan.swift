@@ -37,6 +37,14 @@ struct InteractionDefaultActionSummary {
     }
 }
 
+private final class InteractionDiagnosticClock {
+    var time: CFTimeInterval = 0
+
+    func now() -> CFTimeInterval {
+        time
+    }
+}
+
 struct InteractionPlan {
     private let interactions: [InteractionConfig]
     private let pointerSmoothing: CGFloat
@@ -234,6 +242,16 @@ struct InteractionPlan {
                     "up=\(upSnapshot.command)",
                     "upPulse=\(formatInteractionNumber(Double(upSnapshot.clickPulse)))"
                 ].joined(separator: " "))
+                lines.append(Self.clickTimelineText(
+                    label: zone.id,
+                    point: center,
+                    button: probeButton,
+                    trigger: zone.trigger,
+                    tailSeconds: zone.tailSeconds,
+                    interactions: interactions,
+                    policy: policy,
+                    actionTailDurations: actionTailDurations
+                ))
             }
         }
         if let defaultAction {
@@ -263,8 +281,84 @@ struct InteractionPlan {
                 "up=\(upSnapshot.command)",
                 "upPulse=\(formatInteractionNumber(Double(upSnapshot.clickPulse)))"
             ].joined(separator: " "))
+            lines.append(Self.clickTimelineText(
+                label: "default",
+                point: probePoint,
+                button: probeButton,
+                trigger: defaultAction.trigger,
+                tailSeconds: defaultAction.tailSeconds,
+                interactions: interactions,
+                policy: policy,
+                actionTailDurations: actionTailDurations
+            ))
         }
         return lines.joined(separator: "\n")
+    }
+
+    private static func clickTimelineText(
+        label: String,
+        point: CGPoint,
+        button: PointerButton,
+        trigger: HitZoneTrigger,
+        tailSeconds: CFTimeInterval,
+        interactions: [InteractionConfig],
+        policy: InteractionPolicy?,
+        actionTailDurations: [String: CFTimeInterval]
+    ) -> String {
+        let clock = InteractionDiagnosticClock()
+        let controller = InteractionController(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations,
+            clock: clock.now
+        )
+        let safeTail = max(tailSeconds, 0.001)
+        controller.pointerDown(at: point, button: button)
+        let down = controller.snapshot()
+
+        switch trigger {
+        case .tap:
+            clock.time = 0.016
+            controller.pointerUp(at: point, button: button)
+            let up = controller.snapshot()
+            clock.time = safeTail / 2.0
+            let mid = controller.snapshot()
+            clock.time = safeTail + 0.10
+            let expired = controller.snapshot()
+            return [
+                "clickTimeline: \(label)",
+                "button=\(button.rawValue)",
+                "trigger=\(trigger.rawValue)",
+                "down@0.000=\(snapshotText(down))",
+                "up@0.016=\(snapshotText(up))",
+                "mid@\(formatInteractionNumber(safeTail / 2.0))=\(snapshotText(mid))",
+                "expired@\(formatInteractionNumber(safeTail + 0.10))=\(snapshotText(expired))"
+            ].joined(separator: " ")
+        case .hold:
+            let holdSampleTime = max(0.10, safeTail / 2.0)
+            clock.time = holdSampleTime
+            let held = controller.snapshot()
+            controller.pointerUp(at: point, button: button)
+            let up = controller.snapshot()
+            clock.time = holdSampleTime + (safeTail / 2.0)
+            let fade = controller.snapshot()
+            clock.time = holdSampleTime + safeTail + 0.10
+            let expired = controller.snapshot()
+            return [
+                "clickTimeline: \(label)",
+                "button=\(button.rawValue)",
+                "trigger=\(trigger.rawValue)",
+                "down@0.000=\(snapshotText(down))",
+                "held@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(held))",
+                "up@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(up))",
+                "fade@\(formatInteractionNumber(holdSampleTime + (safeTail / 2.0)))=\(snapshotText(fade))",
+                "expired@\(formatInteractionNumber(holdSampleTime + safeTail + 0.10))=\(snapshotText(expired))"
+            ].joined(separator: " ")
+        }
+    }
+
+    private static func snapshotText(_ snapshot: InteractionSnapshot) -> String {
+        "\(snapshot.command)/\(formatInteractionNumber(Double(snapshot.clickPulse)))"
     }
 
     func clamp(_ point: CGPoint) -> CGPoint {

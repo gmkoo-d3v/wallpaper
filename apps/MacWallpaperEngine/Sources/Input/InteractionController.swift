@@ -25,11 +25,13 @@ final class InteractionController {
     private var pressedButton: PointerButton?
     private var pressStartedAt: CFTimeInterval = 0
     private let plan: InteractionPlan
+    private let clock: () -> CFTimeInterval
 
     init(
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
-        actionTailDurations: [String: CFTimeInterval] = [:]
+        actionTailDurations: [String: CFTimeInterval] = [:],
+        clock: @escaping () -> CFTimeInterval = CACurrentMediaTime
     ) {
         self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
         self.releaseFadeDuration = policy?.releaseFadeSeconds ?? 0.20
@@ -39,6 +41,7 @@ final class InteractionController {
             policy: policy,
             actionTailDurations: actionTailDurations
         )
+        self.clock = clock
     }
 
     func snapshot() -> InteractionSnapshot {
@@ -46,7 +49,7 @@ final class InteractionController {
         defer { lock.unlock() }
 
         advanceSmoothedPointerLocked()
-        let now = CACurrentMediaTime()
+        let now = clock()
         if let pressedHitAction, pressedHitTrigger == .hold {
             clickCommandState = pressedHitAction
             clickCommandHeld = true
@@ -82,7 +85,7 @@ final class InteractionController {
         let pointer = clamp(normalizedPoint)
         let hitResult = plan.hitTest(point: pointer, button: button)
 
-        let now = CACurrentMediaTime()
+        let now = clock()
         lock.lock()
         pointerState = pointer
         smoothedPointerState = pointer
@@ -111,7 +114,7 @@ final class InteractionController {
     func pointerUp(at normalizedPoint: CGPoint, button: PointerButton = .left) {
         _ = button
         let pointer = clamp(normalizedPoint)
-        let now = CACurrentMediaTime()
+        let now = clock()
         lock.lock()
         pointerState = pointer
         guard pressedButton == nil || pressedButton == button else {
@@ -139,7 +142,7 @@ final class InteractionController {
 
     func pointerTrackingStopped() {
         lock.lock()
-        let now = CACurrentMediaTime()
+        let now = clock()
         pointerState = CGPoint(x: 0.5, y: 0.5)
         smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
         moveCommandState = "idle"
