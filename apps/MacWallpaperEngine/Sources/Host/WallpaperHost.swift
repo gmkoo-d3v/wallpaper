@@ -380,6 +380,41 @@ enum DisplayPlanner {
         """
     }
 
+    static func simulatedMultiDisplayRenderSummary(
+        runtime: NativeRuntimeCore,
+        displayMode: DisplayMode? = nil
+    ) -> String {
+        let displays = simulatedMultiDisplaySnapshots()
+        guard let primary = primaryDisplay(in: displays, runtime: runtime) else {
+            return "render plan: no simulated screens detected"
+        }
+
+        let effectiveDisplayMode = displayMode ?? runtime.config.displayMode
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let lines = displays.enumerated().map { index, display in
+            let role = role(
+                isPrimary: display.displayID == primary.displayID,
+                displayMode: effectiveDisplayMode,
+                manifest: runtime.manifest
+            )
+            let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
+            let path = role.map {
+                renderPathSummary(runtime: runtime, role: $0, displayRefreshFps: display.maximumFramesPerSecond)
+            } ?? "background=none\tforeground=none\tfallback=none\tinteraction=passive\t\(plannedFps(runtime: runtime, role: nil, displayRefreshFps: display.maximumFramesPerSecond))"
+            return "#\(index) \(display.name)\t\(displayGeometry(display))\t\(displayIdentity(display))\t\(roleName)\t\(path)"
+        }
+
+        return """
+        render plan OK
+        displayProbe: simulated(cli-safe)
+        foregroundMode: \(runtime.config.foregroundMode.rawValue)
+        displayMode: \(effectiveDisplayMode.rawValue)
+        primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
+        nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
+        \(lines.joined(separator: "\n"))
+        """
+    }
+
     static func renderPathSummary(
         runtime: NativeRuntimeCore,
         role: RenderDisplayRole,
@@ -506,6 +541,47 @@ enum DisplayPlanner {
             model: 0,
             serial: 0
         )
+    }
+
+    private static func simulatedMultiDisplaySnapshots() -> [DisplaySnapshot] {
+        [
+            DisplaySnapshot(
+                name: "Simulated MacBook Primary",
+                displayID: 90_001,
+                frame: CGRect(x: 0, y: 0, width: 1728, height: 1117),
+                backingScaleFactor: 2,
+                pixelWidth: 3456,
+                pixelHeight: 2234,
+                maximumFramesPerSecond: 120,
+                vendor: 0,
+                model: 1,
+                serial: 1
+            ),
+            DisplaySnapshot(
+                name: "Simulated AOC Left",
+                displayID: 90_002,
+                frame: CGRect(x: -2560, y: 0, width: 2560, height: 1440),
+                backingScaleFactor: 1,
+                pixelWidth: 2560,
+                pixelHeight: 1440,
+                maximumFramesPerSecond: 60,
+                vendor: 0,
+                model: 2,
+                serial: 2
+            ),
+            DisplaySnapshot(
+                name: "Simulated LG Right",
+                displayID: 90_003,
+                frame: CGRect(x: 1728, y: 0, width: 2560, height: 1440),
+                backingScaleFactor: 1,
+                pixelWidth: 2560,
+                pixelHeight: 1440,
+                maximumFramesPerSecond: 60,
+                vendor: 0,
+                model: 3,
+                serial: 3
+            )
+        ]
     }
 
     private static func primaryDisplay(in displays: [DisplaySnapshot], runtime: NativeRuntimeCore) -> DisplaySnapshot? {

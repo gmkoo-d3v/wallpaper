@@ -148,6 +148,44 @@ enum RuntimeSelfTest {
             manifest: manifest
         )
         check(primaryOnlySecondaryRole == nil, "displayMode=primaryOnly must not create secondary display roles")
+        let primaryOnlySimulatedPlan = DisplayPlanner.simulatedMultiDisplayRenderSummary(
+            runtime: runtime,
+            displayMode: .primaryOnly
+        )
+        check(
+            occurrenceCount("primary:\(manifest.displayPolicy.primary.rawValue)", in: primaryOnlySimulatedPlan) == 1,
+            "selected-only simulated plan must render exactly one primary display"
+        )
+        check(
+            occurrenceCount("\tnone\tbackground=none\tforeground=none", in: primaryOnlySimulatedPlan) == 2,
+            "selected-only simulated plan must leave both secondary displays untouched"
+        )
+        let selectedPolicySimulatedPlan = DisplayPlanner.simulatedMultiDisplayRenderSummary(
+            runtime: runtime,
+            displayMode: .primaryAnimated
+        )
+        check(
+            occurrenceCount("secondary:\(manifest.displayPolicy.secondary.rawValue)", in: selectedPolicySimulatedPlan) == 2,
+            "selected+policy simulated plan must apply manifest secondary policy to both secondary displays"
+        )
+        check(
+            selectedPolicySimulatedPlan.contains("foreground=none(display-policy)")
+                && selectedPolicySimulatedPlan.contains("interaction=passive"),
+            "selected+policy simulated plan must keep secondary displays video/static-only and passive"
+        )
+        let allDisplaysSimulatedPlan = DisplayPlanner.simulatedMultiDisplayRenderSummary(
+            runtime: runtime,
+            displayMode: .all
+        )
+        check(
+            occurrenceCount("secondary:full", in: allDisplaysSimulatedPlan) == 2,
+            "all-full simulated plan must render both secondary displays with full foreground policy"
+        )
+        check(
+            occurrenceCount("displayRefresh=60Hz", in: allDisplaysSimulatedPlan) == 2
+                && allDisplaysSimulatedPlan.contains("displayRefresh=120Hz"),
+            "simulated multi-display plan must preserve per-display refresh diagnostics"
+        )
 
         let validatedBundle = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)
         check(validatedBundle != nil, "active wallpaper bundle must pass catalog validation")
@@ -2477,5 +2515,10 @@ enum RuntimeSelfTest {
         if role.rendersForeground != (policy == .full) {
             failures.append("\(kind) foreground flag must match display policy")
         }
+    }
+
+    private static func occurrenceCount(_ needle: String, in haystack: String) -> Int {
+        guard needle.isEmpty == false else { return 0 }
+        return haystack.components(separatedBy: needle).count - 1
     }
 }
