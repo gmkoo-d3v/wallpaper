@@ -50,10 +50,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   native timeline compatibility per manifest action, and whether every manifest
   interaction action resolves to a real animation.
 - `--spine-animation-plan` also samples native Spine renderer geometry across
-  timeline keyframes and discrete attachment/draw-order transitions for every
-  manifest action plus partial look-direction pose mixes, proving that
-  setup/animated pointer poses produce drawable batches with finite positions
-  and in-range UVs.
+  timeline keyframes, discrete attachment/draw-order transitions, runtime
+  frame-cadence poses, and partial look-direction pose mixes for every manifest
+  action, proving that setup/animated pointer poses produce drawable batches
+  with finite positions and in-range UVs.
 - `--interaction-plan` probes pointer-move commands, hit-zone/default-action
   resolution, and click command hold/tap state for every declared pointerDown
   path.
@@ -191,8 +191,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
-- Runtime-calibrated region/mesh attachment parity beyond timeline-aware
-  keyframe/transition sampling.
+- Golden image-diff parity against captured source-renderer frames.
 - Visual hit-zone editor for authoring new bundles.
 - Profiler-backed native Spine optimization beyond the bounded pose-frame cache.
 - Exact Finder desktop icon hit-testing without disabling interaction when

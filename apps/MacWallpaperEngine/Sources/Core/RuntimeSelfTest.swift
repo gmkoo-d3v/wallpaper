@@ -360,6 +360,11 @@ enum RuntimeSelfTest {
                 spineGeometryPlan.contains("samplePolicy: timeline-keyframes+discrete-transitions"),
                 "Spine geometry diagnostics must sample timeline keyframes and discrete attachment transitions"
             )
+            check(
+                spineGeometryPlan.contains("runtime-cadence")
+                    && spineGeometryPlan.contains("poseFps=\(runtime.renderTargetFps)"),
+                "Spine geometry diagnostics must sample runtime-cadence pose frames at the render target FPS"
+            )
             if hasLookDirection {
                 check(
                     spineGeometryPlan.contains("#lookMix=0.50"),

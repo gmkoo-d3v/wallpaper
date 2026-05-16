@@ -538,7 +538,7 @@ final class SpineSetupPoseRenderer {
                 continue
             }
 
-            for time in Self.geometrySampleTimes(animation: animation) {
+            for time in Self.geometrySampleTimes(animation: animation, poseSampleFps: poseSampleFps) {
                 samples.append(diagnosticGeometrySample(actionName: actionName, animation: animation, time: time))
             }
             if lookAnimationNames.contains(actionName) {
@@ -3496,15 +3496,26 @@ final class SpineSetupPoseRenderer {
         )
     }
 
-    private static func geometrySampleTimes(animation: SpineAnimation) -> [Double] {
+    private static func geometrySampleTimes(animation: SpineAnimation, poseSampleFps: Double) -> [Double] {
         guard animation.duration.isFinite, animation.duration > 0 else { return [0] }
         let duration = animation.duration
         let transitionEpsilon = 0.001
+        let fps = max(poseSampleFps, 1)
+        let frameCount = Int((duration * fps).rounded(.down))
+        let maxCadenceCandidates = maxGeometryDiagnosticSamplesPerAction * 4
+        let frameStride = max(1, frameCount / maxCadenceCandidates)
         var candidates = [0, duration * 0.5, duration]
         candidates.append(contentsOf: animation.timelineFrameTimes())
         candidates.append(contentsOf: animation.discreteTransitionTimes().map {
             min(max($0 + transitionEpsilon, 0), duration)
         })
+        if frameCount > 0 {
+            var frame = 1
+            while frame <= frameCount {
+                candidates.append(min(Double(frame) / fps, duration))
+                frame += frameStride
+            }
+        }
 
         var result: [Double] = []
         for candidate in candidates {
