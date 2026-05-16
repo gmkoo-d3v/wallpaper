@@ -24,6 +24,19 @@ struct InteractionHitZoneSummary {
     }
 }
 
+struct InteractionDefaultActionSummary {
+    let action: String
+    let trigger: HitZoneTrigger
+    let tailSeconds: CFTimeInterval
+    let buttons: [PointerButton]
+
+    var detailText: String {
+        let buttonText = buttons.map(\.rawValue).joined(separator: "+")
+        let tailText = String(format: "%.2fs", tailSeconds)
+        return "\(action) trigger=\(trigger.rawValue) buttons=\(buttonText) tail=\(tailText)"
+    }
+}
+
 struct InteractionPlan {
     private let interactions: [InteractionConfig]
     private let pointerSmoothing: CGFloat
@@ -76,13 +89,12 @@ struct InteractionPlan {
 
     func hitTest(point: CGPoint, button: PointerButton) -> InteractionHitResult? {
         let pointer = clamp(point)
-        guard let config = interactions.first(where: { $0.event == .pointerDown }),
-              let hitZones = config.hitZones else {
+        guard let config = interactions.first(where: { $0.event == .pointerDown }) else {
             return nil
         }
         let interactionButtons = config.buttons ?? [.left]
         guard interactionButtons.contains(button) else { return nil }
-        for hitZone in hitZones {
+        for hitZone in config.hitZones ?? [] {
             let zoneButtons = hitZone.buttons ?? interactionButtons
             guard zoneButtons.contains(button), contains(point: pointer, in: hitZone.rect) else { continue }
             return InteractionHitResult(
@@ -90,6 +102,16 @@ struct InteractionPlan {
                 action: hitZone.action,
                 trigger: hitZone.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: hitZone)
+            )
+        }
+        if let defaultAction = config.defaultAction {
+            let defaultButtons = defaultAction.buttons ?? interactionButtons
+            guard defaultButtons.contains(button) else { return nil }
+            return InteractionHitResult(
+                zoneID: "default",
+                action: defaultAction.action,
+                trigger: defaultAction.trigger ?? .tap,
+                tailSeconds: resolvedTailSeconds(for: defaultAction)
             )
         }
         return nil
@@ -113,6 +135,20 @@ struct InteractionPlan {
         }
     }
 
+    func defaultActionSummary() -> InteractionDefaultActionSummary? {
+        guard let config = interactions.first(where: { $0.event == .pointerDown }),
+              let defaultAction = config.defaultAction else {
+            return nil
+        }
+        let interactionButtons = config.buttons ?? [.left]
+        return InteractionDefaultActionSummary(
+            action: defaultAction.action,
+            trigger: defaultAction.trigger ?? .tap,
+            tailSeconds: resolvedTailSeconds(for: defaultAction),
+            buttons: defaultAction.buttons ?? interactionButtons
+        )
+    }
+
     static func diagnosticSummary(
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
@@ -134,6 +170,7 @@ struct InteractionPlan {
             .joined(separator: ",") ?? "none"
         let clickButtons = (clickConfig?.buttons ?? [.left]).map(\.rawValue).joined(separator: "+")
         let zones = plan.hitZoneSummaries()
+        let defaultAction = plan.defaultActionSummary()
         let moveProbeText = [
             "left=\(plan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle"))",
             "right=\(plan.command(for: CGPoint(x: 0.90, y: 0.50), previousCommand: "idle"))",
@@ -156,6 +193,7 @@ struct InteractionPlan {
             "pointerMoveActions: \(moveActions)",
             "pointerMoveProbes: \(moveProbeText)",
             "pointerDownButtons: \(clickConfig == nil ? "none" : clickButtons)",
+            "defaultAction: \(defaultAction?.detailText ?? "none")",
             "hitZones: \(zones.count)"
         ]
 
@@ -198,6 +236,34 @@ struct InteractionPlan {
                 ].joined(separator: " "))
             }
         }
+        if let defaultAction {
+            let probeController = InteractionController(
+                interactions: interactions,
+                policy: policy,
+                actionTailDurations: actionTailDurations
+            )
+            let probeButton = defaultAction.buttons.first ?? .left
+            let probePoint = CGPoint(x: 0.02, y: 0.02)
+            let hit = plan.hitTest(point: probePoint, button: probeButton)
+            probeController.pointerDown(at: probePoint, button: probeButton)
+            let downSnapshot = probeController.snapshot()
+            probeController.pointerUp(at: probePoint, button: probeButton)
+            let upSnapshot = probeController.snapshot()
+            lines.append([
+                "defaultHitProbe:",
+                "point=\(formatPoint(probePoint))",
+                "button=\(probeButton.rawValue)",
+                "hit=\(hit?.action ?? "none")"
+            ].joined(separator: " "))
+            lines.append([
+                "defaultClickProbe:",
+                "button=\(probeButton.rawValue)",
+                "down=\(downSnapshot.command)",
+                "downPulse=\(formatInteractionNumber(Double(downSnapshot.clickPulse)))",
+                "up=\(upSnapshot.command)",
+                "upPulse=\(formatInteractionNumber(Double(upSnapshot.clickPulse)))"
+            ].joined(separator: " "))
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -220,6 +286,17 @@ struct InteractionPlan {
         let declaredTail = hitZone.tailSeconds ?? defaultClickTailDuration
         guard (hitZone.trigger ?? .tap) == .tap,
               let animationTail = actionTailDurations[hitZone.action],
+              animationTail.isFinite,
+              animationTail > 0 else {
+            return declaredTail
+        }
+        return max(declaredTail, animationTail)
+    }
+
+    private func resolvedTailSeconds(for defaultAction: PointerDownDefaultAction) -> CFTimeInterval {
+        let declaredTail = defaultAction.tailSeconds ?? defaultClickTailDuration
+        guard (defaultAction.trigger ?? .tap) == .tap,
+              let animationTail = actionTailDurations[defaultAction.action],
               animationTail.isFinite,
               animationTail > 0 else {
             return declaredTail

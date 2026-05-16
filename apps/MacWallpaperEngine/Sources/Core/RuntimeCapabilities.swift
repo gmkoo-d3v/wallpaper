@@ -305,15 +305,21 @@ enum RuntimeCapabilities {
 
         let hitZoneCount = pointerDown.reduce(0) { $0 + ($1.hitZones?.count ?? 0) }
         let hitZoneSummaries = InteractionPlan(interactions: interactions, policy: policy).hitZoneSummaries()
+        let defaultActionSummaries = pointerDown.compactMap {
+            InteractionPlan(interactions: [$0], policy: policy).defaultActionSummary()
+        }
         let buttons = Set(hitZoneSummaries.flatMap { $0.buttons.map(\.rawValue) }).sorted().joined(separator: ",")
+        let defaultButtons = Set(defaultActionSummaries.flatMap { $0.buttons.map(\.rawValue) }).sorted().joined(separator: ",")
         let hitZoneDetails = hitZoneSummaries.map(\.detailText).joined(separator: "; ")
+        let defaultActionDetails = defaultActionSummaries.map(\.detailText).joined(separator: "; ")
+        let hasPointerDown = hitZoneCount > 0 || defaultActionSummaries.isEmpty == false
         rows.append(RuntimeCapabilityRow(
             category: "interaction",
             name: "pointerDown/hitZones",
-            status: hitZoneCount == 0 ? "not-used" : "supported",
-            detail: hitZoneCount == 0
+            status: hasPointerDown ? "supported" : "not-used",
+            detail: hasPointerDown == false
                 ? "none"
-                : "\(hitZoneCount) zone(s) buttons=\(buttons.isEmpty ? "left(default)" : buttons) \(hitZoneDetails)"
+                : "\(hitZoneCount) zone(s) buttons=\(buttons.isEmpty ? "left(default)" : buttons) \(hitZoneDetails) default=\(defaultActionDetails.isEmpty ? "none" : defaultActionDetails) defaultButtons=\(defaultButtons.isEmpty ? "left(default)" : defaultButtons)"
         ))
 
         return rows

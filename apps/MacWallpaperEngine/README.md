@@ -40,9 +40,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   foreground, fallback, interaction, FPS, and display-refresh path exposed by
   `--render-plan`.
 - `--interaction-plan` reports pointer movement commands, accepted click
-  buttons, hit zones, effective animation-synchronized tail timing, and
-  left/right click probes from the same interaction planner used by the
-  renderer.
+  buttons, hit zones, pointerDown default actions, effective
+  animation-synchronized tail timing, and left/right click probes from the same
+  interaction planner used by the renderer.
 - `--interaction-debug-overlay` and the control panel debug toggle draw
   pointer/hit-zone diagnostics over the wallpaper so bundle click regions can
   be verified on the live desktop.
@@ -53,8 +53,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   timeline keyframes and discrete attachment/draw-order transitions for every
   manifest action, proving that setup/animated poses produce drawable batches
   with finite positions and in-range UVs.
-- `--interaction-plan` probes pointer-move commands, hit-zone resolution, and
-  click command hold/tap state for every declared pointerDown zone.
+- `--interaction-plan` probes pointer-move commands, hit-zone/default-action
+  resolution, and click command hold/tap state for every declared pointerDown
+  path.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
@@ -90,7 +91,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Pointer smoothing advances on render snapshots, not only on macOS mouse
   events, so look-direction commands keep converging after the cursor stops.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
-- Shared interaction plan for deterministic hit-zone, button, and
+- Shared interaction plan for deterministic hit-zone, default-action, button, and
   look-direction diagnostics.
 - Frame-time, CPU, RSS, and thermal governor with manifest-bounded in-flight command buffers.
 - Low Power Mode and battery-power detection clamp rendering to the manifest

@@ -307,6 +307,9 @@ enum RuntimeSelfTest {
         for interaction in manifest.interactions {
             interaction.actions?.values.forEach { manifestActionNames.insert($0) }
             interaction.hitZones?.forEach { manifestActionNames.insert($0.action) }
+            if let defaultAction = interaction.defaultAction {
+                manifestActionNames.insert(defaultAction.action)
+            }
         }
         let spineAnimationPlan = try SpineAnimationDiagnostics.make(runtime: runtime)
         check(
@@ -352,7 +355,8 @@ enum RuntimeSelfTest {
                 )
             }
         }
-        if hitZoneSummaries.isEmpty == false {
+        let defaultActionSummary = interactionPlan.defaultActionSummary()
+        if hitZoneSummaries.isEmpty == false || defaultActionSummary != nil {
             for hitZone in hitZoneSummaries {
                 let center = CGPoint(
                     x: CGFloat((hitZone.rect[0] + hitZone.rect[2]) / 2.0),
@@ -406,6 +410,34 @@ enum RuntimeSelfTest {
                         "interaction plan must reject undeclared hit-zone pointer buttons"
                     )
                 }
+            }
+            if let defaultActionSummary {
+                let outsideHitZones = CGPoint(x: 0.02, y: 0.02)
+                let acceptedButton = defaultActionSummary.buttons.first ?? .left
+                let defaultHit = interactionPlan.hitTest(point: outsideHitZones, button: acceptedButton)
+                check(
+                    defaultHit?.zoneID == "default"
+                        && defaultHit?.action == defaultActionSummary.action
+                        && defaultHit?.trigger == defaultActionSummary.trigger,
+                    "interaction plan must resolve pointerDown default action outside explicit hit zones"
+                )
+                let defaultController = InteractionController(
+                    interactions: manifest.interactions,
+                    policy: manifest.interactionPolicy,
+                    actionTailDurations: tapActionDurations
+                )
+                defaultController.pointerDown(at: outsideHitZones, button: acceptedButton)
+                let downSnapshot = defaultController.snapshot()
+                defaultController.pointerUp(at: outsideHitZones, button: acceptedButton)
+                let upSnapshot = defaultController.snapshot()
+                check(
+                    downSnapshot.command == defaultActionSummary.action && downSnapshot.clickPulse > 0,
+                    "interaction controller must emit pointerDown default action \(defaultActionSummary.action)"
+                )
+                check(
+                    upSnapshot.command == defaultActionSummary.action && upSnapshot.clickPulse > 0,
+                    "interaction controller must keep pointerDown default action \(defaultActionSummary.action) visible after pointerUp"
+                )
             }
         } else {
             check(

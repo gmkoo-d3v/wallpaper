@@ -151,6 +151,7 @@ struct InteractionConfig: Decodable {
     let mapping: String?
     let actions: [String: String]?
     let hitZones: [HitZone]?
+    let defaultAction: PointerDownDefaultAction?
     let buttons: [PointerButton]?
 }
 
@@ -172,6 +173,13 @@ enum HitZoneTrigger: String, Decodable {
 struct HitZone: Decodable {
     let id: String
     let rect: [Double]
+    let action: String
+    let trigger: HitZoneTrigger?
+    let tailSeconds: Double?
+    let buttons: [PointerButton]?
+}
+
+struct PointerDownDefaultAction: Decodable {
     let action: String
     let trigger: HitZoneTrigger?
     let tailSeconds: Double?

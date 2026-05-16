@@ -120,6 +120,9 @@ struct SpineGeometryDiagnostics {
         for interaction in manifest.interactions {
             interaction.actions?.values.forEach { names.insert($0) }
             interaction.hitZones?.forEach { names.insert($0.action) }
+            if let defaultAction = interaction.defaultAction {
+                names.insert(defaultAction.action)
+            }
         }
         if names.isEmpty {
             names.insert("idle")

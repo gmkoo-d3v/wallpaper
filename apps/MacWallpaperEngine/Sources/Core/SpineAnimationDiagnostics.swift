@@ -59,9 +59,14 @@ struct SpineAnimationDiagnostics {
     static func tapActionDurations(runtime: NativeRuntimeCore) throws -> [String: TimeInterval] {
         let tapActions = Set(runtime.manifest.interactions.flatMap { interaction -> [String] in
             guard interaction.event == .pointerDown else { return [] }
-            return (interaction.hitZones ?? [])
+            var actions = (interaction.hitZones ?? [])
                 .filter { ($0.trigger ?? .tap) == .tap }
                 .map(\.action)
+            if (interaction.defaultAction?.trigger ?? .tap) == .tap,
+               let action = interaction.defaultAction?.action {
+                actions.append(action)
+            }
+            return actions
         })
         guard tapActions.isEmpty == false, let spineAsset = runtime.assetCatalog.spineAsset else {
             return [:]
@@ -291,6 +296,10 @@ struct SpineAnimationDiagnostics {
                     references.append(ActionReference(action: action, use: "pointerMove.\(direction)"))
                 }
             case .pointerDown:
+                if let defaultAction = interaction.defaultAction {
+                    let trigger = defaultAction.trigger?.rawValue ?? HitZoneTrigger.tap.rawValue
+                    references.append(ActionReference(action: defaultAction.action, use: "pointerDown.default.\(trigger)"))
+                }
                 let sortedZones = (interaction.hitZones ?? []).sorted { $0.id < $1.id }
                 for zone in sortedZones {
                     let trigger = zone.trigger?.rawValue ?? HitZoneTrigger.tap.rawValue

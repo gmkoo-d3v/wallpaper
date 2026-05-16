@@ -269,11 +269,15 @@ enum ManifestLoader {
                     }
                 }
             case .pointerDown:
-                guard let hitZones = interaction.hitZones, hitZones.isEmpty == false else {
-                    throw EngineError.manifest("pointerDown interaction requires at least one hitZone")
+                let hitZones = interaction.hitZones ?? []
+                guard hitZones.isEmpty == false || interaction.defaultAction != nil else {
+                    throw EngineError.manifest("pointerDown interaction requires at least one hitZone or defaultAction")
                 }
                 for hitZone in hitZones {
                     try validateHitZone(hitZone)
+                }
+                if let defaultAction = interaction.defaultAction {
+                    try validatePointerDownDefaultAction(defaultAction)
                 }
             }
             if let buttons = interaction.buttons, buttons.isEmpty {
@@ -330,6 +334,18 @@ enum ManifestLoader {
         }
         if let buttons = hitZone.buttons, buttons.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")
+        }
+    }
+
+    private static func validatePointerDownDefaultAction(_ action: PointerDownDefaultAction) throws {
+        guard action.action.isEmpty == false else {
+            throw EngineError.manifest("pointerDown defaultAction action must not be empty")
+        }
+        if let tailSeconds = action.tailSeconds {
+            try validateInteractionDuration(tailSeconds, label: "pointerDown defaultAction tailSeconds")
+        }
+        if let buttons = action.buttons, buttons.isEmpty {
+            throw EngineError.manifest("pointerDown defaultAction buttons must not be empty")
         }
     }
 
@@ -405,6 +421,9 @@ enum ManifestLoader {
         for interaction in interactions {
             interaction.actions?.values.forEach { actions.insert($0) }
             interaction.hitZones?.forEach { actions.insert($0.action) }
+            if let defaultAction = interaction.defaultAction {
+                actions.insert(defaultAction.action)
+            }
         }
         return actions
     }
