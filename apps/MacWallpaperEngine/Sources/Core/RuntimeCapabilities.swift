@@ -139,6 +139,9 @@ enum RuntimeCapabilities {
         if scan.unsupportedAttachmentTypes.isEmpty == false {
             reasons.append("unsupported attachment types: \(scan.unsupportedAttachmentTypes.listOrNone)")
         }
+        if scan.unsupportedLinkedMeshReferences.isEmpty == false {
+            reasons.append("unsupported linkedmesh references: \(scan.unsupportedLinkedMeshReferences.listOrNone)")
+        }
         if scan.unsupportedTimelineKeys.isEmpty == false {
             reasons.append("unsupported timeline keys: \(scan.unsupportedTimelineKeys.listOrNone)")
         }
@@ -377,7 +380,9 @@ enum RuntimeCapabilities {
 
         let compatibility = nativeSpineCompatibility(runtime: runtime)
         let scan = SpineFeatureScan.scan(url: spine.json)
-        let attachmentStatus = scan.unsupportedAttachmentTypes.isEmpty ? "supported" : "unsupported"
+        let attachmentStatus = scan.unsupportedAttachmentTypes.isEmpty && scan.unsupportedLinkedMeshReferences.isEmpty
+            ? "supported"
+            : "unsupported"
         let timelineStatus = scan.unsupportedTimelineKeys.isEmpty ? "supported" : "unsupported"
 
         return [
@@ -397,7 +402,7 @@ enum RuntimeCapabilities {
                 category: "spine",
                 name: "attachments",
                 status: attachmentStatus,
-                detail: "used=\(scan.attachmentTypes.listOrNone) unsupported=\(scan.unsupportedAttachmentTypes.listOrNone)"
+                detail: "used=\(scan.attachmentTypes.listOrNone) unsupported=\(scan.unsupportedAttachmentTypes.listOrNone) linkedmeshIssues=\(scan.unsupportedLinkedMeshReferences.listOrNone)"
             ),
             RuntimeCapabilityRow(
                 category: "spine",
@@ -425,6 +430,7 @@ private struct SpineFeatureScan {
     var attachmentTypes: Set<String> = []
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
+    var unsupportedLinkedMeshReferences: Set<String> = []
     var hasEventsOrAudioOrSequence = false
 
     var unsupportedAttachmentTypes: Set<String> {
@@ -464,17 +470,37 @@ private struct SpineFeatureScan {
     private mutating func collectAttachmentTypes(root: [String: Any]) {
         guard let skins = root["skins"] as? [[String: Any]] else { return }
         for skin in skins {
+            let skinName = skin["name"] as? String ?? "default"
             guard let attachmentsBySlot = skin["attachments"] as? [String: Any] else { continue }
-            for rawSlotAttachments in attachmentsBySlot.values {
+            for (slotName, rawSlotAttachments) in attachmentsBySlot {
                 guard let slotAttachments = rawSlotAttachments as? [String: Any] else { continue }
-                for rawAttachment in slotAttachments.values {
+                let attachmentNames = Set(slotAttachments.keys)
+                for (attachmentName, rawAttachment) in slotAttachments {
                     guard let attachment = rawAttachment as? [String: Any] else { continue }
-                    if let type = attachment["type"] as? String {
-                        attachmentTypes.insert(type.lowercased())
+                    let type: String
+                    if let rawType = attachment["type"] as? String {
+                        type = rawType.lowercased()
+                        attachmentTypes.insert(type)
                     } else if attachment["triangles"] != nil || attachment["uvs"] != nil {
+                        type = "mesh"
                         attachmentTypes.insert("mesh")
                     } else {
+                        type = "region"
                         attachmentTypes.insert("region")
+                    }
+                    guard type == "linkedmesh" else { continue }
+                    if let referencedSkin = attachment["skin"] as? String,
+                       referencedSkin.isEmpty == false,
+                       referencedSkin != skinName {
+                        unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):external-skin=\(referencedSkin)")
+                    }
+                    guard let parentName = attachment["parent"] as? String,
+                          parentName.isEmpty == false else {
+                        unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):missing-parent")
+                        continue
+                    }
+                    if attachmentNames.contains(parentName) == false {
+                        unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):missing-parent=\(parentName)")
                     }
                 }
             }

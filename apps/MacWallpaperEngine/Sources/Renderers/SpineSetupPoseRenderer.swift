@@ -2880,12 +2880,14 @@ final class SpineSetupPoseRenderer {
             throw EngineError.asset("Spine JSON missing skin attachments")
         }
 
+        let firstSkinName = firstSkin["name"] as? String ?? "default"
         var bySlot: [String: [String: Attachment]] = [:]
+        var pendingLinkedMeshes: [(slotName: String, attachmentName: String, raw: [String: Any])] = []
         for (slotName, slotValue) in rawAttachments {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
-                let type = raw["type"] as? String ?? "region"
+                let type = (raw["type"] as? String ?? "region").lowercased()
                 let atlasRegionName = raw["path"] as? String ?? attachmentName
                 if type == "region" {
                     let attachment = makeRegionAttachment(
@@ -2894,6 +2896,10 @@ final class SpineSetupPoseRenderer {
                         raw: raw
                     )
                     bySlot[slotName, default: [:]][attachmentName] = attachment
+                    continue
+                }
+                if type == "linkedmesh" {
+                    pendingLinkedMeshes.append((slotName: slotName, attachmentName: attachmentName, raw: raw))
                     continue
                 }
                 guard type == "mesh" else {
@@ -2913,6 +2919,47 @@ final class SpineSetupPoseRenderer {
                 )
                 bySlot[slotName, default: [:]][attachmentName] = attachment
             }
+        }
+
+        while pendingLinkedMeshes.isEmpty == false {
+            var remaining: [(slotName: String, attachmentName: String, raw: [String: Any])] = []
+            var resolvedAtLeastOne = false
+            for linkedMesh in pendingLinkedMeshes {
+                if let referencedSkin = linkedMesh.raw["skin"] as? String,
+                   referencedSkin.isEmpty == false,
+                   referencedSkin != firstSkinName {
+                    throw EngineError.asset(
+                        "Spine linkedmesh attachment \(linkedMesh.slotName)/\(linkedMesh.attachmentName) references unsupported external skin \(referencedSkin)"
+                    )
+                }
+                guard let parentName = linkedMesh.raw["parent"] as? String,
+                      parentName.isEmpty == false else {
+                    throw EngineError.asset(
+                        "Spine linkedmesh attachment \(linkedMesh.slotName)/\(linkedMesh.attachmentName) missing parent"
+                    )
+                }
+                guard let parent = bySlot[linkedMesh.slotName]?[parentName] else {
+                    remaining.append(linkedMesh)
+                    continue
+                }
+                let atlasRegionName = linkedMesh.raw["path"] as? String ?? parent.name
+                bySlot[linkedMesh.slotName, default: [:]][linkedMesh.attachmentName] = Attachment(
+                    name: atlasRegionName,
+                    slotName: linkedMesh.slotName,
+                    uvs: parent.uvs,
+                    triangles: parent.triangles,
+                    vertices: parent.vertices
+                )
+                resolvedAtLeastOne = true
+            }
+            guard resolvedAtLeastOne else {
+                let unresolved = pendingLinkedMeshes
+                    .map { "\($0.slotName)/\($0.attachmentName)" }
+                    .sorted()
+                    .joined(separator: ",")
+                throw EngineError.asset("Spine linkedmesh attachment(s) missing parent mesh: \(unresolved)")
+            }
+            pendingLinkedMeshes = remaining
         }
         return bySlot
     }

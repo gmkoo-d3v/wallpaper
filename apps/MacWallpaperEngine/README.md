@@ -77,6 +77,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - AVFoundation video frames via `AVPlayerItemVideoOutput` and `CVMetalTextureCache`.
 - PMA texture draw path using Metal blending.
 - Spine setup-pose weighted mesh renderer.
+- Same-skin Spine `linkedmesh` attachments resolve to their parent mesh
+  geometry for native rendering; missing-parent or external-skin linked meshes
+  are blocked by compatibility diagnostics.
 - Spine animation slice for bone `rotate`, `translate`, `translatex`,
   `translatey`, `scale`, `shear`, slot `rgba` and `attachment` timelines.
 - Bezier/stepped curve sampling for Spine timelines.
