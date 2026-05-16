@@ -21,6 +21,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: \(renderer.batchCount)",
             "setupVertices: \(renderer.triangleVertexCount)",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "samplePolicy: timeline-keyframes+discrete-transitions maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
             "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
         ]
@@ -48,7 +49,8 @@ struct SpineGeometryDiagnostics {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
         guard compatibility.isSupported else { return }
         guard let device = MTLCreateSystemDefaultDevice() else {
-            throw EngineError.renderer("native Spine geometry preflight requires a Metal device")
+            fputs("Native Spine geometry preflight skipped: Metal device unavailable in this process.\n", stderr)
+            return
         }
 
         let actionNames = manifestActionNames(runtime.manifest)
@@ -62,6 +64,14 @@ struct SpineGeometryDiagnostics {
                 .joined(separator: ",")
             throw EngineError.renderer("native Spine geometry preflight failed: \(details)")
         }
+    }
+
+    static func validationStatus(runtime: NativeRuntimeCore) -> String {
+        guard runtime.assetCatalog.spineAsset != nil else { return "not-used" }
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        guard compatibility.isSupported else { return "skipped(native-unsupported)" }
+        guard MTLCreateSystemDefaultDevice() != nil else { return "skipped(metal-unavailable)" }
+        return "required"
     }
 
     private static func makeRenderer(
@@ -86,6 +96,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: 0",
             "setupVertices: 0",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "samplePolicy: timeline-keyframes+discrete-transitions maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
             "invalidGeometrySamples: none",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
         ].joined(separator: "\n")
@@ -98,6 +109,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: 0",
             "setupVertices: 0",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "samplePolicy: timeline-keyframes+discrete-transitions maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
             "invalidGeometrySamples: metal-unavailable",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
         ].joined(separator: "\n")

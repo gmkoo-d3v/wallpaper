@@ -10,6 +10,7 @@ final class DesktopMouseInteractionMonitor {
     private let onUp: (CGPoint, PointerButton) -> Void
     private let onExit: () -> Void
     private var monitors: [Any] = []
+    private var localMonitor: Any?
     private let moveEventMinInterval: CFTimeInterval = 1.0 / 30.0
     private let eligibilityCacheInterval: CFTimeInterval = 0.15
     private let eligibilityCacheDistanceSquared: CGFloat = 24 * 24
@@ -45,7 +46,22 @@ final class DesktopMouseInteractionMonitor {
     }
 
     func start() {
-        guard monitors.isEmpty, policy.mode != .disabled else { return }
+        guard localMonitor == nil, monitors.isEmpty, policy.mode != .disabled else { return }
+        localMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [
+                .mouseMoved,
+                .leftMouseDragged,
+                .rightMouseDragged,
+                .leftMouseDown,
+                .leftMouseUp,
+                .rightMouseDown,
+                .rightMouseUp
+            ],
+            handler: { [weak self] event in
+                self?.handleLocal(event: event)
+                return event
+            }
+        )
 
         if let monitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
@@ -90,11 +106,32 @@ final class DesktopMouseInteractionMonitor {
     }
 
     func stop() {
+        if let localMonitor {
+            NSEvent.removeMonitor(localMonitor)
+            self.localMonitor = nil
+        }
         for monitor in monitors {
             NSEvent.removeMonitor(monitor)
         }
         monitors.removeAll()
         resetEligibilityCache()
+    }
+
+    private func handleLocal(event: NSEvent) {
+        switch event.type {
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+            handle(event: event, kind: .move)
+        case .leftMouseDown:
+            handle(event: event, kind: .down(.left))
+        case .leftMouseUp:
+            handle(event: event, kind: .up(.left))
+        case .rightMouseDown:
+            handle(event: event, kind: .down(.right))
+        case .rightMouseUp:
+            handle(event: event, kind: .up(.right))
+        default:
+            break
+        }
     }
 
     private func handle(event: NSEvent, kind: EventKind) {

@@ -170,9 +170,11 @@ enum RuntimeSelfTest {
         )
         if runtime.assetCatalog.spineAsset != nil,
            RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported {
+            let spineGeometryStatus = SpineGeometryDiagnostics.validationStatus(runtime: runtime)
             check(
-                runtime.validationSummary().contains("native spine geometry: required"),
-                "validation summary must mark supported native Spine geometry as a required preflight"
+                runtime.validationSummary().contains("native spine geometry: \(spineGeometryStatus)")
+                    && ["required", "skipped(metal-unavailable)"].contains(spineGeometryStatus),
+                "validation summary must mark supported native Spine geometry as required when Metal is available or skipped when headless Metal is unavailable"
             )
             try runtime.requireNativeSpineGeometryIfSupported()
         }
@@ -317,6 +319,10 @@ enum RuntimeSelfTest {
                 "Spine geometry diagnostics must render every sampled manifest action pose"
             )
             check(
+                spineGeometryPlan.contains("samplePolicy: timeline-keyframes+discrete-transitions"),
+                "Spine geometry diagnostics must sample timeline keyframes and discrete attachment transitions"
+            )
+            check(
                 spineAnimationPlan.contains("animation\tidle\tavailable"),
                 "Spine animation diagnostics must report idle animation availability"
             )
@@ -339,35 +345,54 @@ enum RuntimeSelfTest {
                 )
             }
         }
-        if let hitZone = hitZoneSummaries.first {
-            let center = CGPoint(
-                x: CGFloat((hitZone.rect[0] + hitZone.rect[2]) / 2.0),
-                y: CGFloat((hitZone.rect[1] + hitZone.rect[3]) / 2.0)
-            )
-            let acceptedButton = hitZone.buttons.first ?? .left
-            let hit = interactionPlan.hitTest(point: center, button: acceptedButton)
-            check(
-                hit?.zoneID == hitZone.id && hit?.action == hitZone.action && hit?.trigger == hitZone.trigger,
-                "interaction plan must resolve declared pointerDown hit zones"
-            )
-            if hitZone.trigger == .tap, let animationTail = tapActionDurations[hitZone.action] {
-                check(
-                    hit?.tailSeconds ?? 0 >= animationTail,
-                    "tap hit-zone \(hitZone.id) tail must cover its Spine animation duration"
+        if hitZoneSummaries.isEmpty == false {
+            for hitZone in hitZoneSummaries {
+                let center = CGPoint(
+                    x: CGFloat((hitZone.rect[0] + hitZone.rect[2]) / 2.0),
+                    y: CGFloat((hitZone.rect[1] + hitZone.rect[3]) / 2.0)
                 )
-            }
-            let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
-                .right
-            } else if hitZone.buttons.contains(.right), hitZone.buttons.contains(.left) == false {
-                .left
-            } else {
-                nil
-            }
-            if let rejectedButton {
+                let acceptedButton = hitZone.buttons.first ?? .left
+                let hit = interactionPlan.hitTest(point: center, button: acceptedButton)
                 check(
-                    interactionPlan.hitTest(point: center, button: rejectedButton) == nil,
-                    "interaction plan must reject undeclared hit-zone pointer buttons"
+                    hit?.zoneID == hitZone.id && hit?.action == hitZone.action && hit?.trigger == hitZone.trigger,
+                    "interaction plan must resolve declared pointerDown hit zone \(hitZone.id)"
                 )
+                if hitZone.trigger == .tap, let animationTail = tapActionDurations[hitZone.action] {
+                    check(
+                        hit?.tailSeconds ?? 0 >= animationTail,
+                        "tap hit-zone \(hitZone.id) tail must cover its Spine animation duration"
+                    )
+                }
+                let clickController = InteractionController(
+                    interactions: manifest.interactions,
+                    policy: manifest.interactionPolicy,
+                    actionTailDurations: tapActionDurations
+                )
+                clickController.pointerDown(at: center, button: acceptedButton)
+                let downSnapshot = clickController.snapshot()
+                check(
+                    downSnapshot.command == hitZone.action && downSnapshot.clickPulse > 0,
+                    "interaction controller must emit click action \(hitZone.action) on pointerDown for hit zone \(hitZone.id)"
+                )
+                clickController.pointerUp(at: center, button: acceptedButton)
+                let upSnapshot = clickController.snapshot()
+                check(
+                    upSnapshot.command == hitZone.action && upSnapshot.clickPulse > 0,
+                    "interaction controller must keep click action \(hitZone.action) visible after pointerUp for hit zone \(hitZone.id)"
+                )
+                let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
+                    .right
+                } else if hitZone.buttons.contains(.right), hitZone.buttons.contains(.left) == false {
+                    .left
+                } else {
+                    nil
+                }
+                if let rejectedButton {
+                    check(
+                        interactionPlan.hitTest(point: center, button: rejectedButton) == nil,
+                        "interaction plan must reject undeclared hit-zone pointer buttons"
+                    )
+                }
             }
         } else {
             check(

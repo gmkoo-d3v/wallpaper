@@ -202,11 +202,14 @@ final class SpineSetupPoseRenderer {
         var scale: [TimelineFrame] = []
         var shear: [TimelineFrame] = []
 
-        var maxTime: Double {
+        var frameTimes: [Double] {
             [rotate, translate, translateX, translateY, scale, shear]
                 .flatMap { $0 }
                 .map(\.time)
-                .max() ?? 0
+        }
+
+        var maxTime: Double {
+            frameTimes.max() ?? 0
         }
     }
 
@@ -214,11 +217,18 @@ final class SpineSetupPoseRenderer {
         var rgba: [TimelineFrame] = []
         var attachment: [TimelineFrame] = []
 
-        var maxTime: Double {
+        var frameTimes: [Double] {
             [rgba, attachment]
                 .flatMap { $0 }
                 .map(\.time)
-                .max() ?? 0
+        }
+
+        var discreteTransitionTimes: [Double] {
+            attachment.map(\.time)
+        }
+
+        var maxTime: Double {
+            frameTimes.max() ?? 0
         }
     }
 
@@ -237,6 +247,22 @@ final class SpineSetupPoseRenderer {
         let slotTimelines: [String: SlotTimelines]
         let attachmentTimelines: [String: [String: AttachmentTimelines]]
         let drawOrder: [DrawOrderFrame]
+
+        func timelineFrameTimes() -> [Double] {
+            var times = boneTimelines.values.flatMap(\.frameTimes)
+            times.append(contentsOf: slotTimelines.values.flatMap(\.frameTimes))
+            times.append(contentsOf: attachmentTimelines.values.flatMap { slotTimelines in
+                slotTimelines.values.flatMap { $0.deform.map(\.time) }
+            })
+            times.append(contentsOf: drawOrder.map(\.time))
+            return times
+        }
+
+        func discreteTransitionTimes() -> [Double] {
+            var times = slotTimelines.values.flatMap(\.discreteTransitionTimes)
+            times.append(contentsOf: drawOrder.map(\.time))
+            return times
+        }
     }
 
     private struct Attachment {
@@ -356,6 +382,7 @@ final class SpineSetupPoseRenderer {
     let triangleVertexCount: Int
     private static let enablePathConstraints = true
     private static let enablePhysicsConstraints = false
+    static let maxGeometryDiagnosticSamplesPerAction = 96
 
     init(
         spineAsset: SpineAsset,
@@ -496,7 +523,7 @@ final class SpineSetupPoseRenderer {
                 continue
             }
 
-            for time in Self.geometrySampleTimes(duration: animation.duration) {
+            for time in Self.geometrySampleTimes(animation: animation) {
                 samples.append(diagnosticGeometrySample(actionName: actionName, animation: animation, time: time))
             }
         }
@@ -3334,17 +3361,50 @@ final class SpineSetupPoseRenderer {
         )
     }
 
-    private static func geometrySampleTimes(duration: Double) -> [Double] {
-        guard duration.isFinite, duration > 0 else { return [0] }
-        let candidates = [0, duration * 0.5, duration]
+    private static func geometrySampleTimes(animation: SpineAnimation) -> [Double] {
+        guard animation.duration.isFinite, animation.duration > 0 else { return [0] }
+        let duration = animation.duration
+        let transitionEpsilon = 0.001
+        var candidates = [0, duration * 0.5, duration]
+        candidates.append(contentsOf: animation.timelineFrameTimes())
+        candidates.append(contentsOf: animation.discreteTransitionTimes().map {
+            min(max($0 + transitionEpsilon, 0), duration)
+        })
+
         var result: [Double] = []
         for candidate in candidates {
-            let rounded = (candidate * 1000).rounded() / 1000
+            let clamped = min(max(candidate, 0), duration)
+            let rounded = (clamped * 1000).rounded() / 1000
             if result.contains(where: { abs($0 - rounded) < 0.0005 }) == false {
                 result.append(rounded)
             }
         }
-        return result
+        result.sort()
+        return cappedSampleTimes(result, limit: maxGeometryDiagnosticSamplesPerAction)
+    }
+
+    private static func cappedSampleTimes(_ times: [Double], limit: Int) -> [Double] {
+        guard times.count > limit, limit >= 3 else { return times }
+        let lastIndex = times.count - 1
+        var selected: [Double] = []
+        selected.reserveCapacity(limit)
+        for offset in 0..<limit {
+            let ratio = Double(offset) / Double(limit - 1)
+            let index = Int((ratio * Double(lastIndex)).rounded())
+            let value = times[min(max(index, 0), lastIndex)]
+            if selected.contains(where: { abs($0 - value) < 0.0005 }) == false {
+                selected.append(value)
+            }
+        }
+        if selected.contains(where: { abs($0 - times[0]) < 0.0005 }) == false {
+            selected.insert(times[0], at: 0)
+        }
+        if let last = times.last,
+           selected.contains(where: { abs($0 - last) < 0.0005 }) == false {
+            selected.append(last)
+        }
+        selected.sort()
+        return selected
     }
 
     private static func boundsText(_ vertices: [RenderVertex]) -> String {

@@ -108,9 +108,6 @@ final class NativeRuntimeCore {
     }
 
     private func nativeSpineGeometryValidationStatus() -> String {
-        guard assetCatalog.spineAsset != nil else { return "not-used" }
-        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: self)
-        guard compatibility.isSupported else { return "skipped(native-unsupported)" }
-        return "required"
+        SpineGeometryDiagnostics.validationStatus(runtime: self)
     }
 }

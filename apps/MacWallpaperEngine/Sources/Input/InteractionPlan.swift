@@ -170,6 +170,16 @@ struct InteractionPlan {
                 let leftHit = plan.hitTest(point: center, button: .left)
                 let rightHit = plan.hitTest(point: center, button: .right)
                 let acceptedButtons = zone.buttons.map(\.rawValue).joined(separator: "+")
+                let probeController = InteractionController(
+                    interactions: interactions,
+                    policy: policy,
+                    actionTailDurations: actionTailDurations
+                )
+                let probeButton = zone.buttons.first ?? .left
+                probeController.pointerDown(at: center, button: probeButton)
+                let downSnapshot = probeController.snapshot()
+                probeController.pointerUp(at: center, button: probeButton)
+                let upSnapshot = probeController.snapshot()
                 lines.append("hitZone: \(zone.detailText)")
                 lines.append([
                     "hitProbe: \(zone.id)",
@@ -177,6 +187,14 @@ struct InteractionPlan {
                     "accepts=\(acceptedButtons)",
                     "left=\(leftHit?.action ?? "none")",
                     "right=\(rightHit?.action ?? "none")"
+                ].joined(separator: " "))
+                lines.append([
+                    "clickProbe: \(zone.id)",
+                    "button=\(probeButton.rawValue)",
+                    "down=\(downSnapshot.command)",
+                    "downPulse=\(formatInteractionNumber(Double(downSnapshot.clickPulse)))",
+                    "up=\(upSnapshot.command)",
+                    "upPulse=\(formatInteractionNumber(Double(upSnapshot.clickPulse)))"
                 ].joined(separator: " "))
             }
         }

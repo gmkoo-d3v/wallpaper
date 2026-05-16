@@ -126,8 +126,8 @@ final class InteractionController {
         } else if let pressedHitAction, pressedHitTrigger == .hold {
             clickCommandState = pressedHitAction
             clickCommandHeld = false
-            activeClickTailDuration = releaseFadeDuration
-            clickCommandExpiresAt = now + releaseFadeDuration
+            activeClickTailDuration = max(pressedHitTailDuration, releaseFadeDuration)
+            clickCommandExpiresAt = now + activeClickTailDuration
         }
         pressedHitAction = nil
         pressedHitTrigger = nil
