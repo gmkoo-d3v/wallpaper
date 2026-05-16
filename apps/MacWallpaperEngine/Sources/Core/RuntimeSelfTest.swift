@@ -113,6 +113,19 @@ enum RuntimeSelfTest {
             manifest: manifest
         )
         checkRole(primaryRole, policy: manifest.displayPolicy.primary, kind: "primary", failures: &failures, checks: &checks)
+        if let primaryRole {
+            check(
+                WallpaperHost.shouldIgnoreMouseEvents(runtime: runtime, role: primaryRole),
+                "desktop wallpaper host windows must ignore mouse events so Finder and other desktop targets keep click ownership"
+            )
+            let plainRuntime = try NativeRuntimeCore(
+                config: runtime.config.replacing(plainWindowStyle: true)
+            )
+            check(
+                WallpaperHost.shouldIgnoreMouseEvents(runtime: plainRuntime, role: primaryRole) == false,
+                "plain diagnostic host windows must accept mouse events for local direct-delivery debugging"
+            )
+        }
 
         let secondaryRole = DisplayPlanner.role(
             isPrimary: false,
@@ -1065,8 +1078,19 @@ enum RuntimeSelfTest {
                 displayRole: primaryRole,
                 interactionPolicy: noDesktopItemBlockPolicy,
                 plainWindowStyle: false
+            ) == false,
+            "desktop wallpaper windows must stay mouse-passive and rely on passive monitors for click delivery",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+                runtimeInteractive: true,
+                displayRole: primaryRole,
+                interactionPolicy: noDesktopItemBlockPolicy,
+                plainWindowStyle: true
             ),
-            "interactive primary wallpaper windows must accept local mouse events so click reactions do not depend only on global monitors",
+            "plain diagnostic wallpaper windows may accept local mouse events for direct delivery debugging",
             failures: &failures,
             checks: &checks
         )
@@ -1085,7 +1109,7 @@ enum RuntimeSelfTest {
             RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
                 interactionPolicy: noDesktopItemBlockPolicy
             ),
-            "desktop-empty interaction without desktop item blocking must route direct NSResponder clicks",
+            "desktop-empty interaction without desktop item blocking may route direct NSResponder clicks in plain diagnostic windows",
             failures: &failures,
             checks: &checks
         )
@@ -1101,7 +1125,7 @@ enum RuntimeSelfTest {
             RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
                 interactionPolicy: alwaysPolicy
             ),
-            "always interaction mode must route direct NSResponder clicks",
+            "always interaction mode may route direct NSResponder clicks in plain diagnostic windows",
             failures: &failures,
             checks: &checks
         )
@@ -1110,7 +1134,7 @@ enum RuntimeSelfTest {
                 runtimeInteractive: true,
                 displayRole: secondaryRole,
                 interactionPolicy: noDesktopItemBlockPolicy,
-                plainWindowStyle: false
+                plainWindowStyle: true
             ) == false,
             "secondary wallpaper windows must stay mouse-passive",
             failures: &failures,

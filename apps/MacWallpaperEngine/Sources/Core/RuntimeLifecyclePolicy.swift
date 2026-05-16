@@ -37,7 +37,7 @@ enum RuntimeLifecyclePolicy {
         interactionPolicy: InteractionPolicy,
         plainWindowStyle: Bool
     ) -> Bool {
-        guard plainWindowStyle == false,
+        guard plainWindowStyle,
               runtimeInteractive,
               displayRole.allowsInteraction,
               interactionPolicy.mode != .disabled else {

@@ -94,21 +94,23 @@ final class DesktopMouseInteractionMonitor {
             return
         }
 
-        localMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [
-                .mouseMoved,
-                .leftMouseDragged,
-                .rightMouseDragged,
-                .leftMouseDown,
-                .leftMouseUp,
-                .rightMouseDown,
-                .rightMouseUp
-            ],
-            handler: { [weak self] event in
-                self?.handleLocal(event: event)
-                return event
-            }
-        )
+        if usesPassiveEventMonitoring == false {
+            localMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [
+                    .mouseMoved,
+                    .leftMouseDragged,
+                    .rightMouseDragged,
+                    .leftMouseDown,
+                    .leftMouseUp,
+                    .rightMouseDown,
+                    .rightMouseUp
+                ],
+                handler: { [weak self] event in
+                    self?.handleLocal(event: event)
+                    return event
+                }
+            )
+        }
 
         addGlobalMoveMonitor()
         addGlobalClickMonitors()

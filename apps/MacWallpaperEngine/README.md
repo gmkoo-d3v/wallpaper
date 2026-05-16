@@ -132,9 +132,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   whether the CGEvent tap is installed, the last delivered or blocked click
   path, the current interaction command/pulse, and delivered/blocked event
   counts for live desktop debugging.
-- Direct NSResponder wallpaper mouse events are also recorded in interaction
-  telemetry, so live click debugging can distinguish direct view delivery from
-  NSEvent/CGEvent monitor delivery.
+- Desktop-level wallpaper windows remain mouse-passive and drive interactions
+  through passive NSEvent/CGEvent monitoring, while plain diagnostic windows can
+  still record direct NSResponder delivery for local click debugging.
 - Resource-budget pressure lowers FPS without silently replacing native Spine
   with composite video, preserving the selected foreground renderer.
 - Native Spine compatibility gate falls back to `compositeVideo` when a bundle
@@ -184,13 +184,12 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   over Finder desktop items.
 - The bundled Imported sample keeps `blockDesktopItems=false` so its click
   reaction works without requiring Accessibility trust; app-window blocking
-  remains enabled, primary interactive windows accept local mouse events for
-  reliable click delivery, global click monitors remain as a fallback when
-  clicks route through the desktop, and passive secondary windows stay
+  remains enabled, desktop wallpaper windows stay mouse-passive, passive
+  monitors provide click delivery, and passive secondary windows stay
   mouse-passive.
-- `desktop-empty-only` bundles that do not block Finder desktop items also route
-  direct NSResponder mouse events, so first-click wallpaper reactions do not
-  depend solely on global/local monitor delivery.
+- `desktop-empty-only` bundles that do not block Finder desktop items route
+  direct NSResponder mouse events only in plain diagnostic windows; desktop
+  wallpaper windows preserve pass-through click ownership.
 - Passive wallpaper click delivery deduplicates near-simultaneous event-tap and
   global-monitor clicks while leaving pointer tracking at the 30Hz move cap.
 - When desktop-item hit-testing needs Accessibility trust, the runtime requests
