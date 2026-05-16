@@ -7,6 +7,7 @@ final class WallpaperMetalView: MTKView {
     private let interactionPolicy: InteractionPolicy
     private let displayPolicy: DisplayPolicy
     private let displayRole: RenderDisplayRole
+    private let interactionCoordinateMapper: InteractionCoordinateMapper
     private let runtime: NativeRuntimeCore
     private let displayName: String
     private weak var observedWindow: NSWindow?
@@ -27,6 +28,10 @@ final class WallpaperMetalView: MTKView {
         self.runtime = runtime
         self.displayName = displayName
         self.displayPolicy = runtime.manifest.displayPolicy
+        self.interactionCoordinateMapper = InteractionCoordinateMapper(
+            fitMode: runtime.config.fitMode,
+            contentAspect: CGFloat(runtime.assetCatalog.spineAsset?.placement.designAspect ?? (16.0 / 9.0))
+        )
         let manifestInteractionPolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
             mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
             blockApplicationWindows: true,
@@ -129,13 +134,28 @@ final class WallpaperMetalView: MTKView {
                 window: window,
                 policy: interactionPolicy,
                 onMove: { [weak self] point in
-                    self?.interaction.pointerMoved(to: point)
+                    guard let self else { return }
+                    guard let contentPoint = self.interactionContentPoint(fromWindowNormalized: point) else {
+                        self.interaction.pointerTrackingStopped()
+                        return
+                    }
+                    self.interaction.pointerMoved(to: contentPoint)
                 },
                 onDown: { [weak self] point, button in
-                    self?.interaction.pointerDown(at: point, button: button)
+                    guard let self,
+                          let contentPoint = self.interactionContentPoint(fromWindowNormalized: point) else {
+                        return
+                    }
+                    self.interaction.pointerDown(at: contentPoint, button: button)
                 },
                 onUp: { [weak self] point, button in
-                    self?.interaction.pointerUp(at: point, button: button)
+                    guard let self else { return }
+                    if let contentPoint = self.interactionContentPoint(fromWindowNormalized: point) {
+                        self.interaction.pointerUp(at: contentPoint, button: button)
+                    } else {
+                        self.interaction.pointerUp(at: CGPoint(x: 0.5, y: 0.5), button: button)
+                        self.interaction.pointerTrackingStopped()
+                    }
                 },
                 onExit: { [weak self] in
                     self?.interaction.pointerTrackingStopped()
@@ -210,32 +230,58 @@ final class WallpaperMetalView: MTKView {
 
     override func mouseMoved(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerMoved(to: normalizedPoint(from: event))
+        guard let point = interactionContentPoint(from: event) else {
+            interaction.pointerTrackingStopped()
+            return
+        }
+        interaction.pointerMoved(to: point)
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerMoved(to: normalizedPoint(from: event))
+        guard let point = interactionContentPoint(from: event) else {
+            interaction.pointerTrackingStopped()
+            return
+        }
+        interaction.pointerMoved(to: point)
     }
 
     override func mouseDown(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerDown(at: normalizedPoint(from: event), button: .left)
+        guard let point = interactionContentPoint(from: event) else { return }
+        interaction.pointerDown(at: point, button: .left)
     }
 
     override func rightMouseDown(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerDown(at: normalizedPoint(from: event), button: .right)
+        guard let point = interactionContentPoint(from: event) else { return }
+        interaction.pointerDown(at: point, button: .right)
     }
 
     override func mouseUp(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerUp(at: normalizedPoint(from: event), button: .left)
+        let point = interactionContentPoint(from: event) ?? CGPoint(x: 0.5, y: 0.5)
+        interaction.pointerUp(at: point, button: .left)
     }
 
     override func rightMouseUp(with event: NSEvent) {
         guard interactionPolicy.mode == .always else { return }
-        interaction.pointerUp(at: normalizedPoint(from: event), button: .right)
+        let point = interactionContentPoint(from: event) ?? CGPoint(x: 0.5, y: 0.5)
+        interaction.pointerUp(at: point, button: .right)
+    }
+
+    private func interactionContentPoint(from event: NSEvent) -> CGPoint? {
+        interactionContentPoint(fromWindowNormalized: normalizedPoint(from: event))
+    }
+
+    private func interactionContentPoint(fromWindowNormalized point: CGPoint) -> CGPoint? {
+        guard bounds.width > 0, bounds.height > 0 else {
+            return CGPoint(x: 0.5, y: 0.5)
+        }
+        return interactionCoordinateMapper.mapWindowNormalizedPoint(
+            point,
+            viewAspect: bounds.width / bounds.height
+        )
     }
 
     private func normalizedPoint(from event: NSEvent) -> CGPoint {

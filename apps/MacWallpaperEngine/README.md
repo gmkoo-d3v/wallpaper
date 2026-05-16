@@ -124,6 +124,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   low-FPS composite fallbacks.
 - Packaging prints composite fallback quality warnings even when strict mode is
   disabled, so release builds do not hide low-FPS fallback debt.
+- `PACKAGE_VALIDATE_ONLY=1` runs the same source-bundle package validation
+  without replacing the existing `dist/MacWallpaperEngine.app`.
 - Strict packaging prints the composite quality report before failing, so the
   rejected bundle includes an actionable regeneration target in the build log.
 - Manifest/package validation rejects unsupported native Spine bundles that do
@@ -147,6 +149,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Desktop icon hit-testing fails closed without Accessibility trust when
   `blockDesktopItems` is enabled, instead of letting wallpaper reactions leak
   over Finder desktop items.
+- The bundled Imported sample keeps `blockDesktopItems=false` so its click
+  reaction works without requiring Accessibility trust; app-window blocking
+  remains enabled, and desktop icons still receive their normal clicks because
+  the wallpaper window ignores mouse events.
 - When desktop-item hit-testing needs Accessibility trust, the runtime requests
   the macOS Accessibility permission prompt and exposes the current trust state
   in capability diagnostics.

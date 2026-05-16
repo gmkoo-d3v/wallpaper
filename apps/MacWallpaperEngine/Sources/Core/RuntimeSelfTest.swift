@@ -215,9 +215,12 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("interaction\tpointerMove/lookDirection"),
             "runtime capabilities summary must report pointer movement support"
         )
+        let expectedDesktopItemGate = (runtime.manifest.interactionPolicy?.blockDesktopItems ?? true)
+            ? "desktopItemGate=requires-accessibility-trust"
+            : "desktopItemGate=not-required"
         check(
-            capabilitySummary.contains("desktopItemGate=requires-accessibility-trust"),
-            "runtime capabilities summary must disclose desktop item Accessibility trust requirement"
+            capabilitySummary.contains(expectedDesktopItemGate),
+            "runtime capabilities summary must disclose the effective desktop item gate"
         )
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
             check(
@@ -970,6 +973,28 @@ enum RuntimeSelfTest {
                 likelyDesktopItem: true
             ) == .eligible,
             "desktop interaction gate must ignore desktop item hits when item blocking is disabled",
+            failures: &failures,
+            checks: &checks
+        )
+        let containMapper = InteractionCoordinateMapper(fitMode: .contain, contentAspect: 16.0 / 9.0)
+        let ultrawideAspect: CGFloat = 21.0 / 9.0
+        check(
+            containMapper.mapWindowNormalizedPoint(CGPoint(x: 0.5, y: 0.5), viewAspect: ultrawideAspect) == CGPoint(x: 0.5, y: 0.5),
+            "contain interaction mapper must keep content center stable on ultrawide displays",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            containMapper.mapWindowNormalizedPoint(CGPoint(x: 0.05, y: 0.5), viewAspect: ultrawideAspect) == nil,
+            "contain interaction mapper must reject clicks outside the visible wallpaper content",
+            failures: &failures,
+            checks: &checks
+        )
+        let fillMapper = InteractionCoordinateMapper(fitMode: .fill, contentAspect: 16.0 / 9.0)
+        let fillMapped = fillMapper.mapWindowNormalizedPoint(CGPoint(x: 0.5, y: 0.0), viewAspect: ultrawideAspect)
+        check(
+            fillMapped.map { abs($0.x - 0.5) < 0.001 && $0.y > 0.0 && $0.y < 0.2 } ?? false,
+            "fill interaction mapper must translate window points into cropped content coordinates",
             failures: &failures,
             checks: &checks
         )

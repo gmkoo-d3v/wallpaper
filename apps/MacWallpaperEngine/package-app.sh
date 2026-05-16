@@ -13,6 +13,8 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers"
 WALLPAPER_DEST="$RESOURCES_DIR/wallpapers"
 STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
+PACKAGE_VALIDATE_ONLY="${PACKAGE_VALIDATE_ONLY:-0}"
+VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
 
 STRICT_COMPOSITE_QUALITY_ENABLED=0
 case "$STRICT_COMPOSITE_QUALITY" in
@@ -29,13 +31,28 @@ case "$STRICT_COMPOSITE_QUALITY" in
     ;;
 esac
 
+PACKAGE_VALIDATE_ONLY_ENABLED=0
+case "$PACKAGE_VALIDATE_ONLY" in
+  1|true|TRUE|yes|YES)
+    PACKAGE_VALIDATE_ONLY_ENABLED=1
+    ;;
+  0|false|FALSE|no|NO|"")
+    PACKAGE_VALIDATE_ONLY_ENABLED=0
+    ;;
+  *)
+    echo "Invalid PACKAGE_VALIDATE_ONLY value: $PACKAGE_VALIDATE_ONLY" >&2
+    echo "Use 1/true/yes or 0/false/no." >&2
+    exit 1
+    ;;
+esac
+
 print_composite_quality_warning() {
   local bundle_dir="$1"
   local bundle_name="$2"
   local context="$3"
   local quality_output
 
-  quality_output="$("$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --composite-quality-plan)"
+  quality_output="$("$VALIDATOR_BIN" --wallpaper-root "$bundle_dir" --composite-quality-plan)"
   if grep -q '^status: warning' <<< "$quality_output"; then
     echo "$context composite fallback quality warning: $bundle_name" >&2
     echo "$quality_output" >&2
@@ -52,7 +69,7 @@ validate_wallpaper_bundle() {
   local bundle_name="$2"
   local context="$3"
 
-  if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only >/dev/null; then
+  if ! "$VALIDATOR_BIN" --wallpaper-root "$bundle_dir" --validate-only >/dev/null; then
     echo "$context wallpaper bundle failed validation: $bundle_name ($bundle_dir)" >&2
     exit 1
   fi
@@ -60,7 +77,7 @@ validate_wallpaper_bundle() {
   print_composite_quality_warning "$bundle_dir" "$bundle_name" "$context"
 
   if [ "$STRICT_COMPOSITE_QUALITY_ENABLED" -eq 1 ]; then
-    if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" --validate-only --strict-composite-quality >/dev/null; then
+    if ! "$VALIDATOR_BIN" --wallpaper-root "$bundle_dir" --validate-only --strict-composite-quality >/dev/null; then
       echo "$context wallpaper bundle failed strict composite quality validation: $bundle_name ($bundle_dir)" >&2
       exit 1
     fi
@@ -73,6 +90,37 @@ if [ ! -d "$WALLPAPER_SOURCE" ]; then
 fi
 
 swift build -c release --package-path "$SCRIPT_DIR"
+
+if [ "$PACKAGE_VALIDATE_ONLY_ENABLED" -eq 1 ]; then
+  bundle_count=0
+  for bundle_dir in "$WALLPAPER_SOURCE"/*; do
+    [ -d "$bundle_dir" ] || continue
+    [ -f "$bundle_dir/wallpaper.native.json" ] || continue
+    bundle_name="$(basename "$bundle_dir")"
+
+    if [ -L "$bundle_dir" ]; then
+      echo "Skipping symlinked wallpaper bundle: $bundle_name" >&2
+      continue
+    fi
+    symlink_path="$(find "$bundle_dir" -type l -print)"
+    if [ -n "$symlink_path" ]; then
+      first_symlink="${symlink_path%%$'\n'*}"
+      echo "Invalid wallpaper bundle contains symlinked entry: $bundle_name ($first_symlink)" >&2
+      exit 1
+    fi
+
+    validate_wallpaper_bundle "$bundle_dir" "$bundle_name" "Source"
+    bundle_count=$((bundle_count + 1))
+  done
+
+  if [ "$bundle_count" -eq 0 ]; then
+    echo "No valid wallpaper bundles found under $WALLPAPER_SOURCE" >&2
+    exit 1
+  fi
+
+  echo "Package validation-only OK: $bundle_count bundle(s)"
+  exit 0
+fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$WALLPAPER_DEST"
