@@ -102,6 +102,19 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if let wallpaperSnapshotURL = config.wallpaperSnapshotURL {
+        print(try WallpaperSnapshotDiagnostics.writeSnapshot(
+            runtime: runtime,
+            destination: wallpaperSnapshotURL,
+            reference: config.wallpaperSnapshotReferenceURL,
+            actionName: config.spineSnapshotAction,
+            time: config.spineSnapshotTime,
+            width: config.spineSnapshotWidth,
+            height: config.spineSnapshotHeight
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.compositeQualityPlanOnly {
         let report = runtime.compositeQualityReport()
         print(report.text)

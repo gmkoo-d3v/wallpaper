@@ -577,6 +577,26 @@ final class SpineSetupPoseRenderer {
         )
     }
 
+    func encodeDiagnosticPose(
+        actionName: String,
+        time: Double,
+        encoder: MTLRenderCommandEncoder,
+        normalPipelineState: MTLRenderPipelineState,
+        multiplyPipelineState: MTLRenderPipelineState
+    ) throws {
+        guard let animation = animations[actionName] else {
+            throw EngineError.renderer("Missing Spine animation for snapshot action: \(actionName)")
+        }
+        let vertexBatches = try diagnosticVertexBatches(animation: animation, time: time)
+        try Self.encodeVertexBatches(
+            vertexBatches,
+            device: device,
+            encoder: encoder,
+            normalPipelineState: normalPipelineState,
+            multiplyPipelineState: multiplyPipelineState
+        )
+    }
+
     private func batches(command: String, pointer: CGPoint) -> [Batch] {
         let now = CACurrentMediaTime()
         let animationName = resolvedAnimationName(command: command, now: now)
@@ -3576,17 +3596,7 @@ final class SpineSetupPoseRenderer {
         width: Int,
         height: Int
     ) throws -> CGImage {
-        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .bgra8Unorm,
-            width: width,
-            height: height,
-            mipmapped: false
-        )
-        textureDescriptor.usage = [.renderTarget]
-        textureDescriptor.storageMode = .private
-        guard let renderTexture = device.makeTexture(descriptor: textureDescriptor) else {
-            throw EngineError.renderer("Could not allocate Spine snapshot render texture")
-        }
+        let renderTexture = try MetalSnapshotImage.makeRenderTexture(device: device, width: width, height: height)
         guard let commandQueue = device.makeCommandQueue(),
               let commandBuffer = commandQueue.makeCommandBuffer() else {
             throw EngineError.renderer("Could not create Metal command buffer for Spine snapshot")
@@ -3603,6 +3613,24 @@ final class SpineSetupPoseRenderer {
             throw EngineError.renderer("Could not create Metal render encoder for Spine snapshot")
         }
 
+        try encodeVertexBatches(
+            vertexBatches,
+            device: device,
+            encoder: encoder,
+            normalPipelineState: normalPipelineState,
+            multiplyPipelineState: multiplyPipelineState
+        )
+        encoder.endEncoding()
+        return try MetalSnapshotImage.readImage(texture: renderTexture, device: device, commandBuffer: commandBuffer)
+    }
+
+    private static func encodeVertexBatches(
+        _ vertexBatches: [VertexBatch],
+        device: MTLDevice,
+        encoder: MTLRenderCommandEncoder,
+        normalPipelineState: MTLRenderPipelineState,
+        multiplyPipelineState: MTLRenderPipelineState
+    ) throws {
         var uniforms = RenderUniforms.make(
             scale: 1,
             offset: SIMD2<Float>(0, 0),
@@ -3619,7 +3647,6 @@ final class SpineSetupPoseRenderer {
                 bytes: batch.vertices,
                 length: MemoryLayout<RenderVertex>.stride * batch.vertices.count
             ) else {
-                encoder.endEncoding()
                 throw EngineError.renderer("Could not allocate Spine snapshot vertex buffer")
             }
             encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
@@ -3627,68 +3654,6 @@ final class SpineSetupPoseRenderer {
             encoder.setFragmentTexture(batch.texture, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: batch.vertices.count)
         }
-        encoder.endEncoding()
-
-        let sourceBytesPerRow = width * 4
-        let destinationBytesPerRow = ((sourceBytesPerRow + 255) / 256) * 256
-        let destinationLength = destinationBytesPerRow * height
-        guard let readBuffer = device.makeBuffer(length: destinationLength, options: [.storageModeShared]),
-              let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw EngineError.renderer("Could not allocate Spine snapshot readback buffer")
-        }
-        blitEncoder.copy(
-            from: renderTexture,
-            sourceSlice: 0,
-            sourceLevel: 0,
-            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-            sourceSize: MTLSize(width: width, height: height, depth: 1),
-            to: readBuffer,
-            destinationOffset: 0,
-            destinationBytesPerRow: destinationBytesPerRow,
-            destinationBytesPerImage: destinationLength
-        )
-        blitEncoder.endEncoding()
-        commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
-        if let error = commandBuffer.error {
-            throw EngineError.renderer("Spine snapshot render failed: \(error.localizedDescription)")
-        }
-
-        var pixels = [UInt8](repeating: 0, count: sourceBytesPerRow * height)
-        let sourcePointer = readBuffer.contents().assumingMemoryBound(to: UInt8.self)
-        pixels.withUnsafeMutableBytes { destination in
-            guard let baseAddress = destination.baseAddress else { return }
-            for row in 0..<height {
-                baseAddress
-                    .advanced(by: row * sourceBytesPerRow)
-                    .copyMemory(
-                        from: sourcePointer.advanced(by: row * destinationBytesPerRow),
-                        byteCount: sourceBytesPerRow
-                    )
-            }
-        }
-        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else {
-            throw EngineError.renderer("Could not create Spine snapshot image provider")
-        }
-        let bitmapInfo = CGBitmapInfo.byteOrder32Little.union(
-            CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)
-        )
-        guard let image = CGImage(
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bitsPerPixel: 32,
-            bytesPerRow: sourceBytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: bitmapInfo,
-            provider: provider,
-            decode: nil,
-            shouldInterpolate: true,
-            intent: .defaultIntent
-        ) else {
-            throw EngineError.renderer("Could not create Spine snapshot CGImage")
-        }
-        return image
     }
 
     private static func geometrySampleTimes(animation: SpineAnimation, poseSampleFps: Double) -> [Double] {

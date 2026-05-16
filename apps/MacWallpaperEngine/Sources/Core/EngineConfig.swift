@@ -79,6 +79,8 @@ struct EngineConfig {
     let spineSnapshotTime: Double
     let spineSnapshotWidth: Int
     let spineSnapshotHeight: Int
+    let wallpaperSnapshotURL: URL?
+    let wallpaperSnapshotReferenceURL: URL?
     let compositeQualityPlanOnly: Bool
     let strictCompositeQuality: Bool
     let selfTestOnly: Bool
@@ -121,6 +123,8 @@ struct EngineConfig {
         spineSnapshotTime: Double? = nil,
         spineSnapshotWidth: Int? = nil,
         spineSnapshotHeight: Int? = nil,
+        wallpaperSnapshotURL: URL? = nil,
+        wallpaperSnapshotReferenceURL: URL? = nil,
         compositeQualityPlanOnly: Bool? = nil,
         strictCompositeQuality: Bool? = nil,
         selfTestOnly: Bool? = nil
@@ -151,6 +155,8 @@ struct EngineConfig {
             spineSnapshotTime: spineSnapshotTime ?? self.spineSnapshotTime,
             spineSnapshotWidth: spineSnapshotWidth ?? self.spineSnapshotWidth,
             spineSnapshotHeight: spineSnapshotHeight ?? self.spineSnapshotHeight,
+            wallpaperSnapshotURL: wallpaperSnapshotURL ?? self.wallpaperSnapshotURL,
+            wallpaperSnapshotReferenceURL: wallpaperSnapshotReferenceURL ?? self.wallpaperSnapshotReferenceURL,
             compositeQualityPlanOnly: compositeQualityPlanOnly ?? self.compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
@@ -198,6 +204,8 @@ struct EngineConfig {
         var spineSnapshotTime = 0.0
         var spineSnapshotWidth = 1280
         var spineSnapshotHeight = 720
+        var wallpaperSnapshotURL: URL?
+        var wallpaperSnapshotReferenceURL: URL?
         var compositeQualityPlanOnly = false
         var strictCompositeQuality = false
         var selfTestOnly = false
@@ -312,6 +320,20 @@ struct EngineConfig {
             case "--spine-snapshot":
                 index += 1
                 spineSnapshotURL = try valueURL(arguments, index, option: argument)
+            case "--wallpaper-snapshot":
+                index += 1
+                wallpaperSnapshotURL = try valueURL(arguments, index, option: argument)
+            case "--wallpaper-snapshot-reference":
+                index += 1
+                wallpaperSnapshotReferenceURL = try valueURL(arguments, index, option: argument)
+            case "--snapshot-action":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.isEmpty == false else {
+                    throw EngineError.invalidArgument("--snapshot-action cannot be empty")
+                }
+                spineSnapshotAction = trimmed
             case "--spine-snapshot-action":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -320,6 +342,13 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("--spine-snapshot-action cannot be empty")
                 }
                 spineSnapshotAction = trimmed
+            case "--snapshot-time":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                guard let parsed = Double(raw), parsed.isFinite, parsed >= 0 else {
+                    throw EngineError.invalidArgument("Invalid --snapshot-time: \(raw)")
+                }
+                spineSnapshotTime = parsed
             case "--spine-snapshot-time":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -327,6 +356,12 @@ struct EngineConfig {
                     throw EngineError.invalidArgument("Invalid --spine-snapshot-time: \(raw)")
                 }
                 spineSnapshotTime = parsed
+            case "--snapshot-size":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                let parsedSize = try parsePixelSize(raw, option: argument)
+                spineSnapshotWidth = parsedSize.width
+                spineSnapshotHeight = parsedSize.height
             case "--spine-snapshot-size":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -377,6 +412,7 @@ struct EngineConfig {
             || interactionPlanOnly
             || spineAnimationPlanOnly
             || spineSnapshotURL != nil
+            || wallpaperSnapshotURL != nil
             || compositeQualityPlanOnly
             || selfTestOnly
         let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
@@ -463,6 +499,8 @@ struct EngineConfig {
             spineSnapshotTime: spineSnapshotTime,
             spineSnapshotWidth: spineSnapshotWidth,
             spineSnapshotHeight: spineSnapshotHeight,
+            wallpaperSnapshotURL: wallpaperSnapshotURL,
+            wallpaperSnapshotReferenceURL: wallpaperSnapshotReferenceURL,
             compositeQualityPlanOnly: compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality,
             selfTestOnly: selfTestOnly,
@@ -530,12 +568,20 @@ struct EngineConfig {
       --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.
       --spine-animation-plan   Print Spine animation durations, native geometry samples, and manifest action links, then exit.
       --spine-snapshot <png>   Render a native Spine diagnostic PNG on a white background, then exit.
+      --wallpaper-snapshot <png>
+                              Render a full diagnostic wallpaper PNG, then exit.
+      --wallpaper-snapshot-reference <png>
+                              With --wallpaper-snapshot, print pixel diff metrics against a reference PNG.
+      --snapshot-action <name> Action to render for snapshot diagnostics. Default: idle.
+      --snapshot-time <seconds>
+                              Pose/video time for snapshot diagnostics. Default: 0.
+      --snapshot-size <WxH>    Pixel size for snapshot diagnostics. Default: 1280x720.
       --spine-snapshot-action <name>
-                              Action to render for --spine-snapshot. Default: idle.
+                              Backward-compatible alias for --snapshot-action.
       --spine-snapshot-time <seconds>
-                              Pose time for --spine-snapshot. Default: 0.
+                              Backward-compatible alias for --snapshot-time.
       --spine-snapshot-size <WxH>
-                              Pixel size for --spine-snapshot. Default: 1280x720.
+                              Backward-compatible alias for --snapshot-size.
       --composite-quality-plan Print composite fallback FPS/quality and regeneration target, then exit.
       --strict-composite-quality
                               Fail validation/quality-plan when composite fallback FPS is below target.

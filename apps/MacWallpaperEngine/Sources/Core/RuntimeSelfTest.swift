@@ -547,9 +547,9 @@ enum RuntimeSelfTest {
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
             "--spine-snapshot", "/tmp/native-spine-snapshot.png",
-            "--spine-snapshot-action", "act",
-            "--spine-snapshot-time", "1.25",
-            "--spine-snapshot-size", "640x360"
+            "--snapshot-action", "act",
+            "--snapshot-time", "1.25",
+            "--snapshot-size", "640x360"
         ])
         check(
             parsedSpineSnapshot.spineSnapshotURL?.path == "/tmp/native-spine-snapshot.png"
@@ -558,6 +558,23 @@ enum RuntimeSelfTest {
                 && parsedSpineSnapshot.spineSnapshotWidth == 640
                 && parsedSpineSnapshot.spineSnapshotHeight == 360,
             "EngineConfig must parse native Spine snapshot diagnostics"
+        )
+        let parsedWallpaperSnapshot = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--wallpaper-snapshot", "/tmp/wallpaper-snapshot.png",
+            "--wallpaper-snapshot-reference", "/tmp/reference.png",
+            "--snapshot-action", "idle",
+            "--snapshot-time", "2.5",
+            "--snapshot-size", "320x180"
+        ])
+        check(
+            parsedWallpaperSnapshot.wallpaperSnapshotURL?.path == "/tmp/wallpaper-snapshot.png"
+                && parsedWallpaperSnapshot.wallpaperSnapshotReferenceURL?.path == "/tmp/reference.png"
+                && parsedWallpaperSnapshot.spineSnapshotAction == "idle"
+                && parsedWallpaperSnapshot.spineSnapshotTime == 2.5
+                && parsedWallpaperSnapshot.spineSnapshotWidth == 320
+                && parsedWallpaperSnapshot.spineSnapshotHeight == 180,
+            "EngineConfig must parse full wallpaper snapshot diagnostics"
         )
         check(
             runtime.config.replacing(interactionDebugOverlay: true, clearDuration: true).interactionDebugOverlay,

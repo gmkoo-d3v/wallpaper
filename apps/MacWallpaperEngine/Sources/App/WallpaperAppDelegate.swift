@@ -445,6 +445,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             spineSnapshotTime: 0,
             spineSnapshotWidth: 1280,
             spineSnapshotHeight: 720,
+            wallpaperSnapshotURL: nil,
+            wallpaperSnapshotReferenceURL: nil,
             compositeQualityPlanOnly: false,
             strictCompositeQuality: false,
             selfTestOnly: false,

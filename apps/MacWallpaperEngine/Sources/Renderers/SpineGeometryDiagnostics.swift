@@ -1,5 +1,4 @@
 import Foundation
-import ImageIO
 import Metal
 
 struct SpineGeometryDiagnostics {
@@ -102,22 +101,7 @@ struct SpineGeometryDiagnostics {
             width: width,
             height: height
         )
-        try FileManager.default.createDirectory(
-            at: destination.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        guard let destinationWriter = CGImageDestinationCreateWithURL(
-            destination as CFURL,
-            "public.png" as CFString,
-            1,
-            nil
-        ) else {
-            throw EngineError.renderer("Could not create PNG writer for \(destination.path)")
-        }
-        CGImageDestinationAddImage(destinationWriter, image, nil)
-        guard CGImageDestinationFinalize(destinationWriter) else {
-            throw EngineError.renderer("Could not write Spine snapshot PNG: \(destination.path)")
-        }
+        try MetalSnapshotImage.writePNG(image, to: destination)
         return """
         spine snapshot OK
         action: \(actionName)
