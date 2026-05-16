@@ -13,6 +13,8 @@ final class WallpaperMetalView: MTKView {
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
     private var didRequestAccessibilityTrust = false
+    private var directDeliveredEvents = 0
+    private var directBlockedEvents = 0
 
     init(
         runtime: NativeRuntimeCore,
@@ -237,42 +239,56 @@ final class WallpaperMetalView: MTKView {
         guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else {
             interaction.pointerTrackingStopped()
+            recordDirectInteraction(event: "move", decision: "outsideContent", point: nil, delivered: false)
             return
         }
         interaction.pointerMoved(to: point)
+        recordDirectInteraction(event: "move", decision: "delivered", point: point, delivered: true)
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else {
             interaction.pointerTrackingStopped()
+            recordDirectInteraction(event: "drag", decision: "outsideContent", point: nil, delivered: false)
             return
         }
         interaction.pointerMoved(to: point)
+        recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
     }
 
     override func mouseDown(with event: NSEvent) {
         guard shouldHandleDirectMouseEvents else { return }
-        guard let point = interactionContentPoint(from: event) else { return }
+        guard let point = interactionContentPoint(from: event) else {
+            recordDirectInteraction(event: "leftDown", decision: "outsideContent", point: nil, delivered: false)
+            return
+        }
         interaction.pointerDown(at: point, button: .left)
+        recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
     }
 
     override func rightMouseDown(with event: NSEvent) {
         guard shouldHandleDirectMouseEvents else { return }
-        guard let point = interactionContentPoint(from: event) else { return }
+        guard let point = interactionContentPoint(from: event) else {
+            recordDirectInteraction(event: "rightDown", decision: "outsideContent", point: nil, delivered: false)
+            return
+        }
         interaction.pointerDown(at: point, button: .right)
+        recordDirectInteraction(event: "rightDown", decision: "delivered", point: point, delivered: true)
     }
 
     override func mouseUp(with event: NSEvent) {
         guard shouldHandleDirectMouseEvents else { return }
         let point = interactionContentPoint(from: event) ?? CGPoint(x: 0.5, y: 0.5)
         interaction.pointerUp(at: point, button: .left)
+        recordDirectInteraction(event: "leftUp", decision: "delivered", point: point, delivered: true)
     }
 
     override func rightMouseUp(with event: NSEvent) {
         guard shouldHandleDirectMouseEvents else { return }
         let point = interactionContentPoint(from: event) ?? CGPoint(x: 0.5, y: 0.5)
         interaction.pointerUp(at: point, button: .right)
+        recordDirectInteraction(event: "rightUp", decision: "delivered", point: point, delivered: true)
     }
 
     private var shouldHandleDirectMouseEvents: Bool {
@@ -304,5 +320,38 @@ final class WallpaperMetalView: MTKView {
             x: local.x / bounds.width,
             y: 1.0 - (local.y / bounds.height)
         )
+    }
+
+    private func recordDirectInteraction(
+        event: String,
+        decision: String,
+        point: CGPoint?,
+        delivered: Bool
+    ) {
+        if delivered {
+            directDeliveredEvents += 1
+        } else {
+            directBlockedEvents += 1
+        }
+        runtime.telemetry.recordInteraction(
+            displayName: displayName,
+            role: displayRole,
+            snapshot: InteractionMonitorTelemetrySnapshot(
+                active: interactionPolicy.mode != .disabled,
+                eventTapActive: false,
+                localMonitorActive: false,
+                globalMonitorCount: 0,
+                lastSource: "direct",
+                lastEvent: event,
+                lastDecision: decision,
+                lastPoint: point.map(Self.formatNormalizedPoint) ?? "none",
+                deliveredEvents: directDeliveredEvents,
+                blockedEvents: directBlockedEvents
+            )
+        )
+    }
+
+    private static func formatNormalizedPoint(_ point: CGPoint) -> String {
+        String(format: "%.3f,%.3f", point.x, point.y)
     }
 }

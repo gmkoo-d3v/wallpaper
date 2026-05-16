@@ -773,6 +773,28 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        telemetry.recordInteraction(
+            displayName: "Self Test Display",
+            role: role,
+            snapshot: InteractionMonitorTelemetrySnapshot(
+                active: true,
+                eventTapActive: false,
+                localMonitorActive: false,
+                globalMonitorCount: 0,
+                lastSource: "direct",
+                lastEvent: "leftDown",
+                lastDecision: "delivered",
+                lastPoint: "0.535,0.305",
+                deliveredEvents: 1,
+                blockedEvents: 0
+            )
+        )
+        check(
+            telemetry.summary().contains("last:direct/leftDown/delivered"),
+            "runtime telemetry summary must distinguish direct NSResponder wallpaper clicks from monitor-delivered clicks",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func checkVisibilityPolicy(failures: inout [String], checks: inout Int) {
