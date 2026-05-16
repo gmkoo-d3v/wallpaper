@@ -44,6 +44,39 @@ struct InteractionCoordinateMapper {
         }
     }
 
+    func windowNormalizedPoint(forContentPoint point: CGPoint, viewAspect: CGFloat) -> CGPoint {
+        let safeViewAspect = max(viewAspect, 0.0001)
+        let point = CGPoint(
+            x: min(max(point.x, 0.0), 1.0),
+            y: min(max(point.y, 0.0), 1.0)
+        )
+
+        switch fitMode {
+        case .contain:
+            let rect = containedContentRect(viewAspect: safeViewAspect)
+            return CGPoint(
+                x: rect.minX + point.x * rect.width,
+                y: rect.minY + point.y * rect.height
+            )
+        case .fill:
+            if contentAspect > safeViewAspect {
+                let visibleWidth = safeViewAspect / contentAspect
+                let startX = (1.0 - visibleWidth) / 2.0
+                return CGPoint(
+                    x: (point.x - startX) / visibleWidth,
+                    y: point.y
+                )
+            }
+
+            let visibleHeight = contentAspect / safeViewAspect
+            let startY = (1.0 - visibleHeight) / 2.0
+            return CGPoint(
+                x: point.x,
+                y: (point.y - startY) / visibleHeight
+            )
+        }
+    }
+
     private func containedContentRect(viewAspect: CGFloat) -> CGRect {
         if contentAspect > viewAspect {
             let height = viewAspect / contentAspect

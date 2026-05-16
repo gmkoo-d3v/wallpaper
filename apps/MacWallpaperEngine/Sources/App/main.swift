@@ -79,7 +79,9 @@ do {
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy,
             runtimeInteractive: runtime.config.interactive,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            fitMode: runtime.config.fitMode,
+            contentAspect: CGFloat(runtime.assetCatalog.contentAspect)
         ))
         exit(EXIT_SUCCESS)
     }

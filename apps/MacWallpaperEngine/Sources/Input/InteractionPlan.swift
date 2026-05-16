@@ -161,7 +161,9 @@ struct InteractionPlan {
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
         runtimeInteractive: Bool,
-        actionTailDurations: [String: CFTimeInterval] = [:]
+        actionTailDurations: [String: CFTimeInterval] = [:],
+        fitMode: RenderFitMode? = nil,
+        contentAspect: CGFloat? = nil
     ) -> String {
         let plan = InteractionPlan(
             interactions: interactions,
@@ -292,6 +294,15 @@ struct InteractionPlan {
                 actionTailDurations: actionTailDurations
             ))
         }
+        if let fitMode, let contentAspect {
+            lines.append(contentsOf: Self.coordinateProbeLines(
+                plan: plan,
+                zones: zones,
+                defaultAction: defaultAction,
+                fitMode: fitMode,
+                contentAspect: contentAspect
+            ))
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -355,6 +366,91 @@ struct InteractionPlan {
                 "expired@\(formatInteractionNumber(holdSampleTime + safeTail + 0.10))=\(snapshotText(expired))"
             ].joined(separator: " ")
         }
+    }
+
+    private static func coordinateProbeLines(
+        plan: InteractionPlan,
+        zones: [InteractionHitZoneSummary],
+        defaultAction: InteractionDefaultActionSummary?,
+        fitMode: RenderFitMode,
+        contentAspect: CGFloat
+    ) -> [String] {
+        guard contentAspect.isFinite, contentAspect > 0 else { return [] }
+        let mapper = InteractionCoordinateMapper(fitMode: fitMode, contentAspect: contentAspect)
+        let views: [(name: String, aspect: CGFloat)] = [
+            ("16:9", 16.0 / 9.0),
+            ("21:9", 21.0 / 9.0),
+            ("32:9", 32.0 / 9.0)
+        ]
+        var lines = [
+            "coordinateProbes: fit=\(fitMode.rawValue) contentAspect=\(formatInteractionNumber(Double(contentAspect)))"
+        ]
+
+        for view in views {
+            for zone in zones {
+                let contentPoint = CGPoint(
+                    x: CGFloat((zone.rect[0] + zone.rect[2]) / 2.0),
+                    y: CGFloat((zone.rect[1] + zone.rect[3]) / 2.0)
+                )
+                lines.append(coordinateProbeLine(
+                    label: zone.id,
+                    contentPoint: contentPoint,
+                    button: zone.buttons.first ?? .left,
+                    view: view,
+                    mapper: mapper,
+                    plan: plan
+                ))
+            }
+            if let defaultAction {
+                lines.append(coordinateProbeLine(
+                    label: "default",
+                    contentPoint: CGPoint(x: 0.02, y: 0.02),
+                    button: defaultAction.buttons.first ?? .left,
+                    view: view,
+                    mapper: mapper,
+                    plan: plan
+                ))
+            }
+            lines.append(outsideContentProbeLine(view: view, mapper: mapper))
+        }
+        return lines
+    }
+
+    private static func coordinateProbeLine(
+        label: String,
+        contentPoint: CGPoint,
+        button: PointerButton,
+        view: (name: String, aspect: CGFloat),
+        mapper: InteractionCoordinateMapper,
+        plan: InteractionPlan
+    ) -> String {
+        let windowPoint = mapper.windowNormalizedPoint(forContentPoint: contentPoint, viewAspect: view.aspect)
+        let remapped = mapper.mapWindowNormalizedPoint(windowPoint, viewAspect: view.aspect)
+        let hit = remapped.flatMap { plan.hitTest(point: $0, button: button) }
+        return [
+            "coordinateProbe:",
+            "view=\(view.name)",
+            "aspect=\(formatInteractionNumber(Double(view.aspect)))",
+            "target=\(label)",
+            "content=\(formatPoint(contentPoint))",
+            "window=\(formatPoint(windowPoint))",
+            "remap=\(remapped.map(formatPoint) ?? "outside")",
+            "hit=\(hit?.action ?? "none")"
+        ].joined(separator: " ")
+    }
+
+    private static func outsideContentProbeLine(
+        view: (name: String, aspect: CGFloat),
+        mapper: InteractionCoordinateMapper
+    ) -> String {
+        let probe = CGPoint(x: 0.02, y: 0.50)
+        let remapped = mapper.mapWindowNormalizedPoint(probe, viewAspect: view.aspect)
+        return [
+            "coordinateProbe:",
+            "view=\(view.name)",
+            "outsideContentWindow=\(formatPoint(probe))",
+            "remap=\(remapped.map(formatPoint) ?? "outside")"
+        ].joined(separator: " ")
     }
 
     private static func snapshotText(_ snapshot: InteractionSnapshot) -> String {

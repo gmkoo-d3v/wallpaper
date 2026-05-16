@@ -46,6 +46,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--interaction-plan` also emits deterministic click timelines for tap and
   hold actions, making command hold duration and post-click look-direction
   resume behavior visible without launching desktop windows.
+- `--interaction-plan` probes content-to-window coordinate round trips across
+  16:9, 21:9, and 32:9 display aspects so contain/fill hit-zone drift can be
+  diagnosed without moving real desktop windows.
 - `--interaction-debug-overlay` and the control panel debug toggle draw
   pointer/hit-zone diagnostics over the wallpaper so bundle click regions can
   be verified on the live desktop.

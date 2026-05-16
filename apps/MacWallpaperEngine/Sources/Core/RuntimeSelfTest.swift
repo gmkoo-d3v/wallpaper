@@ -311,14 +311,18 @@ enum RuntimeSelfTest {
             interactions: manifest.interactions,
             policy: manifest.interactionPolicy,
             runtimeInteractive: runtime.config.interactive,
-            actionTailDurations: tapActionDurations
+            actionTailDurations: tapActionDurations,
+            fitMode: runtime.config.fitMode,
+            contentAspect: CGFloat(runtime.assetCatalog.contentAspect)
         )
         check(
             interactionSummary.contains("interaction plan OK")
                 && interactionSummary.contains("pointerMoveProbes:")
                 && interactionSummary.contains("pointerDownButtons:")
-                && interactionSummary.contains("clickTimeline:"),
-            "interaction diagnostics must expose move probes, click buttons, and deterministic click timelines"
+                && interactionSummary.contains("clickTimeline:")
+                && interactionSummary.contains("coordinateProbes:")
+                && interactionSummary.contains("coordinateProbe: view=32:9"),
+            "interaction diagnostics must expose move probes, click buttons, deterministic click timelines, and display-aspect coordinate probes"
         )
         for hitZoneSummary in hitZoneSummaries {
             check(
