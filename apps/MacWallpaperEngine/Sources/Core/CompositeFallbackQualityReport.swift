@@ -40,7 +40,7 @@ struct CompositeFallbackQualityReport {
         } else {
             lines.append("warnings:")
             lines.append(contentsOf: warnings.map { "- \($0)" })
-            lines.append("action: regenerate the composite fallback from native/source animation at display refresh rate; do not merely duplicate low-FPS frames")
+            lines.append("action: regenerate the composite fallback from native/source animation with --export-composite-video at display refresh rate; do not merely duplicate low-FPS frames")
         }
         return lines.joined(separator: "\n")
     }

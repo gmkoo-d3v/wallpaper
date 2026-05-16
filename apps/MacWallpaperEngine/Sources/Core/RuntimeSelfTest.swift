@@ -203,6 +203,10 @@ enum RuntimeSelfTest {
                 compositeQualityReport.text.contains("recommendedExportFps: display-refresh"),
                 "low-FPS composite quality report must recommend display-refresh export above 60fps"
             )
+            check(
+                CompositeVideoExporter.defaultDuration(runtime: runtime) > 0,
+                "composite video export must derive a positive default duration from source assets"
+            )
             let strictRuntime = try NativeRuntimeCore(config: runtime.config.replacing(strictCompositeQuality: true))
             var strictQualityFailed = false
             do {

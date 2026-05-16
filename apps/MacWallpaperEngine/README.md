@@ -152,6 +152,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Composite fallback quality diagnostics can emit a regeneration plan and can
   run as a strict validation gate for release/package workflows that require
   fallback FPS to meet the manifest target.
+- `--export-composite-video` renders a native/source composite MP4 fallback at
+  a chosen FPS, duration, and snapshot size so low-FPS fallback debt can be
+  regenerated instead of hand-authored.
 - Packaging validates each source bundle and the copied `.app` resource bundle;
   set `STRICT_COMPOSITE_QUALITY=1` or `true` to make package validation reject
   low-FPS composite fallbacks.
@@ -234,6 +237,7 @@ cd ~/project/wall-paper/apps/MacWallpaperEngine
 swift run MacWallpaperEngine --validate-only
 swift run MacWallpaperEngine --runtime-capabilities
 swift run MacWallpaperEngine --composite-quality-plan
+swift run MacWallpaperEngine --export-composite-video /tmp/imported-composite-60fps.mp4 --export-composite-fps 60 --snapshot-size 1280x720
 swift run MacWallpaperEngine --validate-only --strict-composite-quality
 swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode all
 swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode primaryAnimated

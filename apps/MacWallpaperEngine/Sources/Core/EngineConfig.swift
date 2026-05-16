@@ -84,6 +84,9 @@ struct EngineConfig {
     let wallpaperGoldenCheckOnly: Bool
     let wallpaperGoldenURL: URL?
     let compositeQualityPlanOnly: Bool
+    let compositeExportURL: URL?
+    let compositeExportFps: Int?
+    let compositeExportDuration: TimeInterval?
     let strictCompositeQuality: Bool
     let selfTestOnly: Bool
     let startHidden: Bool
@@ -130,6 +133,9 @@ struct EngineConfig {
         wallpaperGoldenCheckOnly: Bool? = nil,
         wallpaperGoldenURL: URL? = nil,
         compositeQualityPlanOnly: Bool? = nil,
+        compositeExportURL: URL? = nil,
+        compositeExportFps: Int? = nil,
+        compositeExportDuration: TimeInterval? = nil,
         strictCompositeQuality: Bool? = nil,
         selfTestOnly: Bool? = nil
     ) -> EngineConfig {
@@ -164,6 +170,9 @@ struct EngineConfig {
             wallpaperGoldenCheckOnly: wallpaperGoldenCheckOnly ?? self.wallpaperGoldenCheckOnly,
             wallpaperGoldenURL: wallpaperGoldenURL ?? self.wallpaperGoldenURL,
             compositeQualityPlanOnly: compositeQualityPlanOnly ?? self.compositeQualityPlanOnly,
+            compositeExportURL: compositeExportURL ?? self.compositeExportURL,
+            compositeExportFps: compositeExportFps ?? self.compositeExportFps,
+            compositeExportDuration: compositeExportDuration ?? self.compositeExportDuration,
             strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
             startHidden: startHidden ?? self.startHidden,
@@ -215,6 +224,9 @@ struct EngineConfig {
         var wallpaperGoldenCheckOnly = false
         var wallpaperGoldenURL: URL?
         var compositeQualityPlanOnly = false
+        var compositeExportURL: URL?
+        var compositeExportFps: Int?
+        var compositeExportDuration: TimeInterval?
         var strictCompositeQuality = false
         var selfTestOnly = false
         var startHidden = false
@@ -383,6 +395,23 @@ struct EngineConfig {
                 spineSnapshotHeight = parsedSize.height
             case "--composite-quality-plan":
                 compositeQualityPlanOnly = true
+            case "--export-composite-video":
+                index += 1
+                compositeExportURL = try valueURL(arguments, index, option: argument)
+            case "--export-composite-fps":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                guard let parsed = Int(raw), parsed >= 1, parsed <= 240 else {
+                    throw EngineError.invalidArgument("Invalid --export-composite-fps: \(raw). Expected 1...240")
+                }
+                compositeExportFps = parsed
+            case "--export-composite-duration":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                guard let parsed = TimeInterval(raw), parsed.isFinite, parsed > 0, parsed <= 600 else {
+                    throw EngineError.invalidArgument("Invalid --export-composite-duration: \(raw). Expected seconds in 0...600, excluding 0")
+                }
+                compositeExportDuration = parsed
             case "--strict-composite-quality":
                 strictCompositeQuality = true
             case "--self-test":
@@ -428,6 +457,7 @@ struct EngineConfig {
             || wallpaperSnapshotURL != nil
             || wallpaperGoldenCheckOnly
             || compositeQualityPlanOnly
+            || compositeExportURL != nil
             || selfTestOnly
         let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
         if let persistedSettings {
@@ -518,6 +548,9 @@ struct EngineConfig {
             wallpaperGoldenCheckOnly: wallpaperGoldenCheckOnly,
             wallpaperGoldenURL: wallpaperGoldenURL,
             compositeQualityPlanOnly: compositeQualityPlanOnly,
+            compositeExportURL: compositeExportURL,
+            compositeExportFps: compositeExportFps,
+            compositeExportDuration: compositeExportDuration,
             strictCompositeQuality: strictCompositeQuality,
             selfTestOnly: selfTestOnly,
             startHidden: startHidden,
@@ -603,6 +636,12 @@ struct EngineConfig {
       --spine-snapshot-size <WxH>
                               Backward-compatible alias for --snapshot-size.
       --composite-quality-plan Print composite fallback FPS/quality and regeneration target, then exit.
+      --export-composite-video <mp4>
+                              Render a native/source composite MP4 fallback, then exit.
+      --export-composite-fps <n>
+                              FPS for --export-composite-video. Default: manifest targetFps.
+      --export-composite-duration <seconds>
+                              Duration for --export-composite-video. Default: source video duration.
       --strict-composite-quality
                               Fail validation/quality-plan when composite fallback FPS is below target.
       --self-test              Run built-in policy/runtime self checks and exit.

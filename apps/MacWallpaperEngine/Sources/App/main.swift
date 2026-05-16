@@ -134,6 +134,23 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if let compositeExportURL = config.compositeExportURL {
+        let fps = config.compositeExportFps ?? runtime.manifest.runtime.targetFps
+        let duration = config.compositeExportDuration ?? CompositeVideoExporter.defaultDuration(runtime: runtime)
+        print(try CompositeVideoExporter.export(
+            runtime: runtime,
+            options: CompositeVideoExporter.Options(
+                destination: compositeExportURL,
+                fps: fps,
+                duration: duration,
+                width: config.spineSnapshotWidth,
+                height: config.spineSnapshotHeight,
+                actionName: config.spineSnapshotAction
+            )
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.selfTestOnly {
         print(try RuntimeSelfTest.run(runtime: runtime))
         exit(EXIT_SUCCESS)
