@@ -51,8 +51,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   interaction action resolves to a real animation.
 - `--spine-animation-plan` also samples native Spine renderer geometry across
   timeline keyframes and discrete attachment/draw-order transitions for every
-  manifest action, proving that setup/animated poses produce drawable batches
-  with finite positions and in-range UVs.
+  manifest action plus partial look-direction pose mixes, proving that
+  setup/animated pointer poses produce drawable batches with finite positions
+  and in-range UVs.
 - `--interaction-plan` probes pointer-move commands, hit-zone/default-action
   resolution, and click command hold/tap state for every declared pointerDown
   path.

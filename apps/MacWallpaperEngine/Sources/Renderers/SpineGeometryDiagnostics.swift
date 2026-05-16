@@ -21,7 +21,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: \(renderer.batchCount)",
             "setupVertices: \(renderer.triangleVertexCount)",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
-            "samplePolicy: timeline-keyframes+discrete-transitions maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
+            "samplePolicy: timeline-keyframes+discrete-transitions+look-mix maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
             "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
         ]
@@ -98,7 +98,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: 0",
             "setupVertices: 0",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
-            "samplePolicy: timeline-keyframes+discrete-transitions maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
+            "samplePolicy: timeline-keyframes+discrete-transitions+look-mix maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
             "invalidGeometrySamples: none",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
         ].joined(separator: "\n")
@@ -111,7 +111,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: 0",
             "setupVertices: 0",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
-            "samplePolicy: timeline-keyframes+discrete-transitions maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
+            "samplePolicy: timeline-keyframes+discrete-transitions+look-mix maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)",
             "invalidGeometrySamples: metal-unavailable",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\terror"
         ].joined(separator: "\n")

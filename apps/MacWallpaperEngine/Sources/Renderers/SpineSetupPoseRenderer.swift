@@ -541,6 +541,20 @@ final class SpineSetupPoseRenderer {
             for time in Self.geometrySampleTimes(animation: animation) {
                 samples.append(diagnosticGeometrySample(actionName: actionName, animation: animation, time: time))
             }
+            if lookAnimationNames.contains(actionName) {
+                samples.append(diagnosticGeometrySample(
+                    actionName: "\(actionName)#lookMix=0.00",
+                    animation: animation,
+                    time: 0,
+                    overlayMix: 0
+                ))
+                samples.append(diagnosticGeometrySample(
+                    actionName: "\(actionName)#lookMix=0.50",
+                    animation: animation,
+                    time: 0,
+                    overlayMix: 0.5
+                ))
+            }
         }
         return samples
     }
@@ -671,10 +685,12 @@ final class SpineSetupPoseRenderer {
     private func diagnosticGeometrySample(
         actionName: String,
         animation: SpineAnimation,
-        time: Double
+        time: Double,
+        overlayMix: Double? = nil
     ) -> GeometrySample {
         do {
             let overlayAnimation = animation.name == "idle" ? nil : animation
+            let effectiveOverlayMix = overlayAnimation == nil ? 0 : min(max(overlayMix ?? 1, 0), 1)
             let pose = evaluate(
                 baseAnimation: animations["idle"],
                 baseTime: time,
@@ -683,7 +699,7 @@ final class SpineSetupPoseRenderer {
                 previousOverlayMix: 0,
                 overlayAnimation: overlayAnimation,
                 overlayTime: time,
-                overlayMix: overlayAnimation == nil ? 0 : 1,
+                overlayMix: effectiveOverlayMix,
                 physicsTime: time
             )
             let vertexBatches = try Self.buildVertexBatches(

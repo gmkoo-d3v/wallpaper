@@ -115,7 +115,12 @@ enum RuntimeCapabilities {
             detail: "resource pressure lowers FPS but does not silently replace native Spine with compositeVideo"
         ))
 
-        rows.append(contentsOf: interactionRows(manifest.interactions, policy: manifest.interactionPolicy))
+        let actionTailDurations = (try? SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)) ?? [:]
+        rows.append(contentsOf: interactionRows(
+            manifest.interactions,
+            policy: manifest.interactionPolicy,
+            actionTailDurations: actionTailDurations
+        ))
         rows.append(contentsOf: spineRows(runtime: runtime))
 
         return rows
@@ -291,7 +296,8 @@ enum RuntimeCapabilities {
 
     private static func interactionRows(
         _ interactions: [InteractionConfig],
-        policy: InteractionPolicy?
+        policy: InteractionPolicy?,
+        actionTailDurations: [String: CFTimeInterval]
     ) -> [RuntimeCapabilityRow] {
         var rows: [RuntimeCapabilityRow] = []
         let policyMode = policy?.mode.rawValue ?? "desktop-empty-only(default)"
@@ -313,9 +319,17 @@ enum RuntimeCapabilities {
         ))
 
         let hitZoneCount = pointerDown.reduce(0) { $0 + ($1.hitZones?.count ?? 0) }
-        let hitZoneSummaries = InteractionPlan(interactions: interactions, policy: policy).hitZoneSummaries()
+        let hitZoneSummaries = InteractionPlan(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations
+        ).hitZoneSummaries()
         let defaultActionSummaries = pointerDown.compactMap {
-            InteractionPlan(interactions: [$0], policy: policy).defaultActionSummary()
+            InteractionPlan(
+                interactions: [$0],
+                policy: policy,
+                actionTailDurations: actionTailDurations
+            ).defaultActionSummary()
         }
         let buttons = Set(hitZoneSummaries.flatMap { $0.buttons.map(\.rawValue) }).sorted().joined(separator: ",")
         let defaultButtons = Set(defaultActionSummaries.flatMap { $0.buttons.map(\.rawValue) }).sorted().joined(separator: ",")

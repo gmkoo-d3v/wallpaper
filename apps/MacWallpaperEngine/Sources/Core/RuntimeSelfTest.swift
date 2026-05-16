@@ -319,6 +319,18 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("pointerDownButtons:"),
             "interaction diagnostics must expose move probes and click buttons"
         )
+        for hitZoneSummary in hitZoneSummaries {
+            check(
+                capabilitySummary.contains(hitZoneSummary.detailText),
+                "runtime capabilities summary must report resolved hit-zone tail for \(hitZoneSummary.id)"
+            )
+        }
+        if let defaultActionSummary = interactionPlan.defaultActionSummary() {
+            check(
+                capabilitySummary.contains(defaultActionSummary.detailText),
+                "runtime capabilities summary must report resolved default pointerDown tail"
+            )
+        }
         var manifestActionNames = Set<String>()
         for interaction in manifest.interactions {
             interaction.actions?.values.forEach { manifestActionNames.insert($0) }
@@ -348,6 +360,12 @@ enum RuntimeSelfTest {
                 spineGeometryPlan.contains("samplePolicy: timeline-keyframes+discrete-transitions"),
                 "Spine geometry diagnostics must sample timeline keyframes and discrete attachment transitions"
             )
+            if hasLookDirection {
+                check(
+                    spineGeometryPlan.contains("#lookMix=0.50"),
+                    "Spine geometry diagnostics must sample partial look-direction pose mixes"
+                )
+            }
             check(
                 spineAnimationPlan.contains("animation\tidle\tavailable"),
                 "Spine animation diagnostics must report idle animation availability"
