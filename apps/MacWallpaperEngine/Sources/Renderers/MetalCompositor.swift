@@ -563,7 +563,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         return texture
     }
 
-    private static func makePipeline(device: MTLDevice, blendMode: RenderBlendMode) throws -> MTLRenderPipelineState {
+    static func makePipeline(device: MTLDevice, blendMode: RenderBlendMode) throws -> MTLRenderPipelineState {
         pipelineLock.lock()
         defer { pipelineLock.unlock() }
 

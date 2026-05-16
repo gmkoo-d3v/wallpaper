@@ -561,6 +561,22 @@ final class SpineSetupPoseRenderer {
         return samples
     }
 
+    func diagnosticSnapshot(actionName: String, time: Double, width: Int, height: Int) throws -> CGImage {
+        guard width > 0, height > 0, width <= 8192, height <= 8192 else {
+            throw EngineError.invalidArgument("Spine snapshot size must be between 1x1 and 8192x8192")
+        }
+        guard let animation = animations[actionName] else {
+            throw EngineError.renderer("Missing Spine animation for snapshot action: \(actionName)")
+        }
+        let vertexBatches = try diagnosticVertexBatches(animation: animation, time: time)
+        return try Self.snapshotImage(
+            vertexBatches: vertexBatches,
+            device: device,
+            width: width,
+            height: height
+        )
+    }
+
     private func batches(command: String, pointer: CGPoint) -> [Batch] {
         let now = CACurrentMediaTime()
         let animationName = resolvedAnimationName(command: command, now: now)
@@ -691,29 +707,10 @@ final class SpineSetupPoseRenderer {
         overlayMix: Double? = nil
     ) -> GeometrySample {
         do {
-            let overlayAnimation = animation.name == "idle" ? nil : animation
-            let effectiveOverlayMix = overlayAnimation == nil ? 0 : min(max(overlayMix ?? 1, 0), 1)
-            let pose = evaluate(
-                baseAnimation: animations["idle"],
-                baseTime: time,
-                previousOverlayAnimation: nil,
-                previousOverlayTime: 0,
-                previousOverlayMix: 0,
-                overlayAnimation: overlayAnimation,
-                overlayTime: time,
-                overlayMix: effectiveOverlayMix,
-                physicsTime: time
-            )
-            let vertexBatches = try Self.buildVertexBatches(
-                slots: pose.slots,
-                attachments: attachments,
-                clippingAttachments: clippingAttachments,
-                bones: pose.boneWorld,
-                deforms: pose.deforms,
-                boneIndexByName: boneIndexByName,
-                atlas: atlas,
-                skeletonBounds: skeletonBounds,
-                placement: placement
+            let vertexBatches = try diagnosticVertexBatches(
+                animation: animation,
+                time: time,
+                overlayMix: overlayMix
             )
             return Self.geometrySample(
                 actionName: actionName,
@@ -735,6 +732,37 @@ final class SpineSetupPoseRenderer {
                 error: Self.sanitize(error.localizedDescription)
             )
         }
+    }
+
+    private func diagnosticVertexBatches(
+        animation: SpineAnimation,
+        time: Double,
+        overlayMix: Double? = nil
+    ) throws -> [VertexBatch] {
+        let overlayAnimation = animation.name == "idle" ? nil : animation
+        let effectiveOverlayMix = overlayAnimation == nil ? 0 : min(max(overlayMix ?? 1, 0), 1)
+        let pose = evaluate(
+            baseAnimation: animations["idle"],
+            baseTime: time,
+            previousOverlayAnimation: nil,
+            previousOverlayTime: 0,
+            previousOverlayMix: 0,
+            overlayAnimation: overlayAnimation,
+            overlayTime: time,
+            overlayMix: effectiveOverlayMix,
+            physicsTime: time
+        )
+        return try Self.buildVertexBatches(
+            slots: pose.slots,
+            attachments: attachments,
+            clippingAttachments: clippingAttachments,
+            bones: pose.boneWorld,
+            deforms: pose.deforms,
+            boneIndexByName: boneIndexByName,
+            atlas: atlas,
+            skeletonBounds: skeletonBounds,
+            placement: placement
+        )
     }
 
     private func resolvedAnimationName(command: String, now: CFTimeInterval) -> String {
@@ -3540,6 +3568,127 @@ final class SpineSetupPoseRenderer {
     private static func hashByte(_ byte: UInt8, into hash: inout UInt64) {
         hash ^= UInt64(byte)
         hash = hash &* 1_099_511_628_211
+    }
+
+    private static func snapshotImage(
+        vertexBatches: [VertexBatch],
+        device: MTLDevice,
+        width: Int,
+        height: Int
+    ) throws -> CGImage {
+        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .bgra8Unorm,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        textureDescriptor.usage = [.renderTarget]
+        textureDescriptor.storageMode = .private
+        guard let renderTexture = device.makeTexture(descriptor: textureDescriptor) else {
+            throw EngineError.renderer("Could not allocate Spine snapshot render texture")
+        }
+        guard let commandQueue = device.makeCommandQueue(),
+              let commandBuffer = commandQueue.makeCommandBuffer() else {
+            throw EngineError.renderer("Could not create Metal command buffer for Spine snapshot")
+        }
+        let normalPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .normal)
+        let multiplyPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .multiply)
+
+        let passDescriptor = MTLRenderPassDescriptor()
+        passDescriptor.colorAttachments[0].texture = renderTexture
+        passDescriptor.colorAttachments[0].loadAction = .clear
+        passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(1, 1, 1, 1)
+        passDescriptor.colorAttachments[0].storeAction = .store
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor) else {
+            throw EngineError.renderer("Could not create Metal render encoder for Spine snapshot")
+        }
+
+        var uniforms = RenderUniforms.make(
+            scale: 1,
+            offset: SIMD2<Float>(0, 0),
+            aspectScale: SIMD2<Float>(1, 1)
+        )
+        for batch in vertexBatches where batch.vertices.isEmpty == false {
+            switch batch.blendMode {
+            case .normal:
+                encoder.setRenderPipelineState(normalPipelineState)
+            case .multiply:
+                encoder.setRenderPipelineState(multiplyPipelineState)
+            }
+            guard let vertexBuffer = device.makeBuffer(
+                bytes: batch.vertices,
+                length: MemoryLayout<RenderVertex>.stride * batch.vertices.count
+            ) else {
+                encoder.endEncoding()
+                throw EngineError.renderer("Could not allocate Spine snapshot vertex buffer")
+            }
+            encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)
+            encoder.setFragmentTexture(batch.texture, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: batch.vertices.count)
+        }
+        encoder.endEncoding()
+
+        let sourceBytesPerRow = width * 4
+        let destinationBytesPerRow = ((sourceBytesPerRow + 255) / 256) * 256
+        let destinationLength = destinationBytesPerRow * height
+        guard let readBuffer = device.makeBuffer(length: destinationLength, options: [.storageModeShared]),
+              let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw EngineError.renderer("Could not allocate Spine snapshot readback buffer")
+        }
+        blitEncoder.copy(
+            from: renderTexture,
+            sourceSlice: 0,
+            sourceLevel: 0,
+            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+            sourceSize: MTLSize(width: width, height: height, depth: 1),
+            to: readBuffer,
+            destinationOffset: 0,
+            destinationBytesPerRow: destinationBytesPerRow,
+            destinationBytesPerImage: destinationLength
+        )
+        blitEncoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        if let error = commandBuffer.error {
+            throw EngineError.renderer("Spine snapshot render failed: \(error.localizedDescription)")
+        }
+
+        var pixels = [UInt8](repeating: 0, count: sourceBytesPerRow * height)
+        let sourcePointer = readBuffer.contents().assumingMemoryBound(to: UInt8.self)
+        pixels.withUnsafeMutableBytes { destination in
+            guard let baseAddress = destination.baseAddress else { return }
+            for row in 0..<height {
+                baseAddress
+                    .advanced(by: row * sourceBytesPerRow)
+                    .copyMemory(
+                        from: sourcePointer.advanced(by: row * destinationBytesPerRow),
+                        byteCount: sourceBytesPerRow
+                    )
+            }
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else {
+            throw EngineError.renderer("Could not create Spine snapshot image provider")
+        }
+        let bitmapInfo = CGBitmapInfo.byteOrder32Little.union(
+            CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)
+        )
+        guard let image = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: sourceBytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: bitmapInfo,
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        ) else {
+            throw EngineError.renderer("Could not create Spine snapshot CGImage")
+        }
+        return image
     }
 
     private static func geometrySampleTimes(animation: SpineAnimation, poseSampleFps: Double) -> [Double] {

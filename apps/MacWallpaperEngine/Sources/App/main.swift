@@ -90,6 +90,18 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if let spineSnapshotURL = config.spineSnapshotURL {
+        print(try SpineGeometryDiagnostics.writeSnapshot(
+            runtime: runtime,
+            destination: spineSnapshotURL,
+            actionName: config.spineSnapshotAction,
+            time: config.spineSnapshotTime,
+            width: config.spineSnapshotWidth,
+            height: config.spineSnapshotHeight
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.compositeQualityPlanOnly {
         let report = runtime.compositeQualityReport()
         print(report.text)

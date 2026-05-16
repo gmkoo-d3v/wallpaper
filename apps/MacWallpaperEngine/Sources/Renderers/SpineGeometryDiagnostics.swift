@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import Metal
 
 struct SpineGeometryDiagnostics {
@@ -73,6 +74,58 @@ struct SpineGeometryDiagnostics {
         guard compatibility.isSupported else { return "skipped(native-unsupported)" }
         guard MTLCreateSystemDefaultDevice() != nil else { return "skipped(metal-unavailable)" }
         return "required"
+    }
+
+    static func writeSnapshot(
+        runtime: NativeRuntimeCore,
+        destination: URL,
+        actionName: String,
+        time: Double,
+        width: Int,
+        height: Int
+    ) throws -> String {
+        guard let spineAsset = runtime.assetCatalog.spineAsset else {
+            throw EngineError.renderer("Selected bundle has no native Spine asset")
+        }
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        guard compatibility.isSupported else {
+            throw EngineError.renderer("Selected bundle is not native-Spine compatible: \(compatibility.reasonText)")
+        }
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            throw EngineError.renderer("Metal device unavailable for Spine snapshot")
+        }
+
+        let renderer = try makeRenderer(runtime: runtime, spineAsset: spineAsset, device: device)
+        let image = try renderer.diagnosticSnapshot(
+            actionName: actionName,
+            time: time,
+            width: width,
+            height: height
+        )
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        guard let destinationWriter = CGImageDestinationCreateWithURL(
+            destination as CFURL,
+            "public.png" as CFString,
+            1,
+            nil
+        ) else {
+            throw EngineError.renderer("Could not create PNG writer for \(destination.path)")
+        }
+        CGImageDestinationAddImage(destinationWriter, image, nil)
+        guard CGImageDestinationFinalize(destinationWriter) else {
+            throw EngineError.renderer("Could not write Spine snapshot PNG: \(destination.path)")
+        }
+        return """
+        spine snapshot OK
+        action: \(actionName)
+        time: \(formatSeconds(time))
+        size: \(width)x\(height)
+        output: \(destination.path)
+        background: white
+        """
     }
 
     private static func makeRenderer(

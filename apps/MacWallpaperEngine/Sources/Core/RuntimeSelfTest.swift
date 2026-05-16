@@ -544,6 +544,21 @@ enum RuntimeSelfTest {
             parsedInteractionOverlay.interactionDebugOverlay,
             "EngineConfig must parse interaction debug overlay diagnostics"
         )
+        let parsedSpineSnapshot = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--spine-snapshot", "/tmp/native-spine-snapshot.png",
+            "--spine-snapshot-action", "act",
+            "--spine-snapshot-time", "1.25",
+            "--spine-snapshot-size", "640x360"
+        ])
+        check(
+            parsedSpineSnapshot.spineSnapshotURL?.path == "/tmp/native-spine-snapshot.png"
+                && parsedSpineSnapshot.spineSnapshotAction == "act"
+                && parsedSpineSnapshot.spineSnapshotTime == 1.25
+                && parsedSpineSnapshot.spineSnapshotWidth == 640
+                && parsedSpineSnapshot.spineSnapshotHeight == 360,
+            "EngineConfig must parse native Spine snapshot diagnostics"
+        )
         check(
             runtime.config.replacing(interactionDebugOverlay: true, clearDuration: true).interactionDebugOverlay,
             "EngineConfig.replacing must preserve interaction debug overlay overrides"
