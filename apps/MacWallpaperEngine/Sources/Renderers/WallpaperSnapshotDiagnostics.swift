@@ -11,6 +11,128 @@ struct WallpaperSnapshotDiagnostics {
         let foreground: String
     }
 
+    final class Renderer {
+        private let runtime: NativeRuntimeCore
+        private let width: Int
+        private let height: Int
+        private let device: MTLDevice
+        private let commandQueue: MTLCommandQueue
+        private let textureLoader: MTKTextureLoader
+        private let renderTexture: MTLTexture
+        private let normalPipelineState: MTLRenderPipelineState
+        private let multiplyPipelineState: MTLRenderPipelineState
+        private let foregroundPlan: ForegroundRenderPlan
+        private let spineRenderer: SpineSetupPoseRenderer?
+
+        init(
+            runtime: NativeRuntimeCore,
+            width: Int,
+            height: Int
+        ) throws {
+            guard width > 0, height > 0, width <= 8192, height <= 8192 else {
+                throw EngineError.invalidArgument("Wallpaper snapshot size must be between 1x1 and 8192x8192")
+            }
+            guard let device = MTLCreateSystemDefaultDevice() else {
+                throw EngineError.renderer("Metal device unavailable for wallpaper snapshot")
+            }
+            guard let commandQueue = device.makeCommandQueue() else {
+                throw EngineError.renderer("Could not create Metal command queue for wallpaper snapshot")
+            }
+
+            self.runtime = runtime
+            self.width = width
+            self.height = height
+            self.device = device
+            self.commandQueue = commandQueue
+            self.textureLoader = MTKTextureLoader(device: device)
+            self.renderTexture = try MetalSnapshotImage.makeRenderTexture(device: device, width: width, height: height)
+            self.normalPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .normal)
+            self.multiplyPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .multiply)
+
+            let role = RenderDisplayRole(kind: .primary, policy: .full)
+            self.foregroundPlan = ForegroundRenderPlan.make(
+                runtime: runtime,
+                role: role,
+                compatibility: RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+            )
+
+            if foregroundPlan.usesNativeSpine,
+               let spineAsset = runtime.assetCatalog.spineAsset {
+                self.spineRenderer = try SpineSetupPoseRenderer(
+                    spineAsset: spineAsset,
+                    device: device,
+                    playbackRate: runtime.selectedPlaybackRate,
+                    poseSampleFps: runtime.renderTargetFps,
+                    lookAnimationNames: SpineInteractionAnimationRoles.lookAnimationNames(from: runtime.manifest),
+                    lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
+                    loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
+                    oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
+                )
+            } else {
+                self.spineRenderer = nil
+            }
+        }
+
+        func render(actionName: String, time: Double) throws -> Snapshot {
+            guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+                throw EngineError.renderer("Could not create Metal command buffer for wallpaper snapshot")
+            }
+
+            let background = try WallpaperSnapshotDiagnostics.backgroundTexture(
+                runtime: runtime,
+                foregroundPlan: foregroundPlan,
+                device: device,
+                textureLoader: textureLoader,
+                time: time
+            )
+
+            let passDescriptor = MTLRenderPassDescriptor()
+            passDescriptor.colorAttachments[0].texture = renderTexture
+            passDescriptor.colorAttachments[0].loadAction = .clear
+            passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(1, 1, 1, 1)
+            passDescriptor.colorAttachments[0].storeAction = .store
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor) else {
+                throw EngineError.renderer("Could not create Metal render encoder for wallpaper snapshot")
+            }
+
+            if let backgroundTexture = background.texture {
+                WallpaperSnapshotDiagnostics.drawVideo(
+                    texture: backgroundTexture,
+                    fitMode: runtime.config.fitMode,
+                    drawableSize: CGSize(width: width, height: height),
+                    encoder: encoder,
+                    normalPipelineState: normalPipelineState
+                )
+            }
+
+            var foreground = "none"
+            if foregroundPlan.usesNativeSpine,
+               let spineRenderer,
+               background.usesCompositeVideo == false {
+                try spineRenderer.encodeDiagnosticPose(
+                    actionName: actionName,
+                    time: time,
+                    encoder: encoder,
+                    normalPipelineState: normalPipelineState,
+                    multiplyPipelineState: multiplyPipelineState
+                )
+                foreground = "nativeSpine"
+            } else if foregroundPlan.usesCompositeVideo || background.usesCompositeVideo {
+                foreground = "compositeVideo"
+            } else if foregroundPlan.isBlocked {
+                foreground = "blocked"
+            }
+
+            encoder.endEncoding()
+            let image = try MetalSnapshotImage.readImage(
+                texture: renderTexture,
+                device: device,
+                commandBuffer: commandBuffer
+            )
+            return Snapshot(image: image, background: background.label, foreground: foreground)
+        }
+    }
+
     struct DiffMetrics {
         let dimensionsMatch: Bool
         let generatedSize: String
@@ -68,89 +190,11 @@ struct WallpaperSnapshotDiagnostics {
         width: Int,
         height: Int
     ) throws -> Snapshot {
-        guard width > 0, height > 0, width <= 8192, height <= 8192 else {
-            throw EngineError.invalidArgument("Wallpaper snapshot size must be between 1x1 and 8192x8192")
-        }
-        guard let device = MTLCreateSystemDefaultDevice() else {
-            throw EngineError.renderer("Metal device unavailable for wallpaper snapshot")
-        }
-        guard let commandQueue = device.makeCommandQueue(),
-              let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw EngineError.renderer("Could not create Metal command buffer for wallpaper snapshot")
-        }
-        let textureLoader = MTKTextureLoader(device: device)
-        let renderTexture = try MetalSnapshotImage.makeRenderTexture(device: device, width: width, height: height)
-        let normalPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .normal)
-        let multiplyPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .multiply)
-        let role = RenderDisplayRole(kind: .primary, policy: .full)
-        let foregroundPlan = ForegroundRenderPlan.make(
+        try Renderer(
             runtime: runtime,
-            role: role,
-            compatibility: RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
-        )
-
-        let background = try backgroundTexture(
-            runtime: runtime,
-            foregroundPlan: foregroundPlan,
-            device: device,
-            textureLoader: textureLoader,
-            time: time
-        )
-
-        let passDescriptor = MTLRenderPassDescriptor()
-        passDescriptor.colorAttachments[0].texture = renderTexture
-        passDescriptor.colorAttachments[0].loadAction = .clear
-        passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(1, 1, 1, 1)
-        passDescriptor.colorAttachments[0].storeAction = .store
-        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor) else {
-            throw EngineError.renderer("Could not create Metal render encoder for wallpaper snapshot")
-        }
-
-        if let backgroundTexture = background.texture {
-            drawVideo(
-                texture: backgroundTexture,
-                fitMode: runtime.config.fitMode,
-                drawableSize: CGSize(width: width, height: height),
-                encoder: encoder,
-                normalPipelineState: normalPipelineState
-            )
-        }
-
-        var foreground = "none"
-        if foregroundPlan.usesNativeSpine,
-           let spineAsset = runtime.assetCatalog.spineAsset,
-           background.usesCompositeVideo == false {
-            let renderer = try SpineSetupPoseRenderer(
-                spineAsset: spineAsset,
-                device: device,
-                playbackRate: runtime.selectedPlaybackRate,
-                poseSampleFps: runtime.renderTargetFps,
-                lookAnimationNames: SpineInteractionAnimationRoles.lookAnimationNames(from: runtime.manifest),
-                lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
-                loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
-                oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
-            )
-            try renderer.encodeDiagnosticPose(
-                actionName: actionName,
-                time: time,
-                encoder: encoder,
-                normalPipelineState: normalPipelineState,
-                multiplyPipelineState: multiplyPipelineState
-            )
-            foreground = "nativeSpine"
-        } else if foregroundPlan.usesCompositeVideo || background.usesCompositeVideo {
-            foreground = "compositeVideo"
-        } else if foregroundPlan.isBlocked {
-            foreground = "blocked"
-        }
-
-        encoder.endEncoding()
-        let image = try MetalSnapshotImage.readImage(
-            texture: renderTexture,
-            device: device,
-            commandBuffer: commandBuffer
-        )
-        return Snapshot(image: image, background: background.label, foreground: foreground)
+            width: width,
+            height: height
+        ).render(actionName: actionName, time: time)
     }
 
     static func diffMetrics(generated: CGImage, reference: URL) throws -> DiffMetrics {

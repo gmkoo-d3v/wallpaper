@@ -75,18 +75,20 @@ enum CompositeVideoExporter {
 
         let frameCount = max(Int(ceil(options.duration * Double(options.fps))), 1)
         let timescale = CMTimeScale(options.fps)
+        let renderer = try WallpaperSnapshotDiagnostics.Renderer(
+            runtime: runtime,
+            width: options.width,
+            height: options.height
+        )
         for frameIndex in 0..<frameCount {
             while input.isReadyForMoreMediaData == false {
                 Thread.sleep(forTimeInterval: 0.001)
             }
 
             let frameTime = TimeInterval(frameIndex) / TimeInterval(options.fps)
-            let snapshot = try WallpaperSnapshotDiagnostics.renderSnapshot(
-                runtime: runtime,
+            let snapshot = try renderer.render(
                 actionName: options.actionName,
-                time: frameTime,
-                width: options.width,
-                height: options.height
+                time: frameTime
             )
             guard let pixelBufferPool = adaptor.pixelBufferPool else {
                 throw EngineError.renderer("Composite export pixel buffer pool unavailable")
