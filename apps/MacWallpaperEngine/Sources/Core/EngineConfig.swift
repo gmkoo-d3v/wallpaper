@@ -81,6 +81,8 @@ struct EngineConfig {
     let spineSnapshotHeight: Int
     let wallpaperSnapshotURL: URL?
     let wallpaperSnapshotReferenceURL: URL?
+    let wallpaperGoldenCheckOnly: Bool
+    let wallpaperGoldenURL: URL?
     let compositeQualityPlanOnly: Bool
     let strictCompositeQuality: Bool
     let selfTestOnly: Bool
@@ -125,6 +127,8 @@ struct EngineConfig {
         spineSnapshotHeight: Int? = nil,
         wallpaperSnapshotURL: URL? = nil,
         wallpaperSnapshotReferenceURL: URL? = nil,
+        wallpaperGoldenCheckOnly: Bool? = nil,
+        wallpaperGoldenURL: URL? = nil,
         compositeQualityPlanOnly: Bool? = nil,
         strictCompositeQuality: Bool? = nil,
         selfTestOnly: Bool? = nil
@@ -157,6 +161,8 @@ struct EngineConfig {
             spineSnapshotHeight: spineSnapshotHeight ?? self.spineSnapshotHeight,
             wallpaperSnapshotURL: wallpaperSnapshotURL ?? self.wallpaperSnapshotURL,
             wallpaperSnapshotReferenceURL: wallpaperSnapshotReferenceURL ?? self.wallpaperSnapshotReferenceURL,
+            wallpaperGoldenCheckOnly: wallpaperGoldenCheckOnly ?? self.wallpaperGoldenCheckOnly,
+            wallpaperGoldenURL: wallpaperGoldenURL ?? self.wallpaperGoldenURL,
             compositeQualityPlanOnly: compositeQualityPlanOnly ?? self.compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
@@ -206,6 +212,8 @@ struct EngineConfig {
         var spineSnapshotHeight = 720
         var wallpaperSnapshotURL: URL?
         var wallpaperSnapshotReferenceURL: URL?
+        var wallpaperGoldenCheckOnly = false
+        var wallpaperGoldenURL: URL?
         var compositeQualityPlanOnly = false
         var strictCompositeQuality = false
         var selfTestOnly = false
@@ -326,6 +334,11 @@ struct EngineConfig {
             case "--wallpaper-snapshot-reference":
                 index += 1
                 wallpaperSnapshotReferenceURL = try valueURL(arguments, index, option: argument)
+            case "--wallpaper-golden-check":
+                wallpaperGoldenCheckOnly = true
+            case "--wallpaper-golden-file":
+                index += 1
+                wallpaperGoldenURL = try valueURL(arguments, index, option: argument)
             case "--snapshot-action":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -413,6 +426,7 @@ struct EngineConfig {
             || spineAnimationPlanOnly
             || spineSnapshotURL != nil
             || wallpaperSnapshotURL != nil
+            || wallpaperGoldenCheckOnly
             || compositeQualityPlanOnly
             || selfTestOnly
         let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
@@ -501,6 +515,8 @@ struct EngineConfig {
             spineSnapshotHeight: spineSnapshotHeight,
             wallpaperSnapshotURL: wallpaperSnapshotURL,
             wallpaperSnapshotReferenceURL: wallpaperSnapshotReferenceURL,
+            wallpaperGoldenCheckOnly: wallpaperGoldenCheckOnly,
+            wallpaperGoldenURL: wallpaperGoldenURL,
             compositeQualityPlanOnly: compositeQualityPlanOnly,
             strictCompositeQuality: strictCompositeQuality,
             selfTestOnly: selfTestOnly,
@@ -572,6 +588,10 @@ struct EngineConfig {
                               Render a full diagnostic wallpaper PNG, then exit.
       --wallpaper-snapshot-reference <png>
                               With --wallpaper-snapshot, print pixel diff metrics against a reference PNG.
+      --wallpaper-golden-check
+                              Render every bundle golden fixture and fail if any pixel threshold is exceeded.
+      --wallpaper-golden-file <json>
+                              Override the bundle golden manifest. Defaults to golden/wallpaper.golden.json.
       --snapshot-action <name> Action to render for snapshot diagnostics. Default: idle.
       --snapshot-time <seconds>
                               Pose/video time for snapshot diagnostics. Default: 0.

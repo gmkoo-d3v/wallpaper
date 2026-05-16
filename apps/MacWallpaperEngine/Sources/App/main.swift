@@ -115,6 +115,14 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.wallpaperGoldenCheckOnly {
+        print(try WallpaperGoldenDiagnostics.make(
+            runtime: runtime,
+            goldenURL: config.wallpaperGoldenURL
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.compositeQualityPlanOnly {
         let report = runtime.compositeQualityReport()
         print(report.text)

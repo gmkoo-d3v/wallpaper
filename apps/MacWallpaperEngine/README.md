@@ -62,6 +62,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--wallpaper-snapshot` writes a full diagnostic wallpaper PNG using sampled
   video/composite/static background, the selected fit mode, native Spine when
   active, and optional reference PNG diff metrics.
+- `--wallpaper-golden-check` loads bundle-local
+  `golden/wallpaper.golden.json` fixtures, renders each snapshot through the
+  same full wallpaper diagnostic path, and fails when configured pixel
+  thresholds are exceeded.
 - `--interaction-plan` probes pointer-move commands, hit-zone/default-action
   resolution, and click command hold/tap state for every declared pointerDown
   path.
@@ -199,7 +203,6 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
-- Curated golden reference fixture set for source-renderer frame parity.
 - Visual hit-zone editor for authoring new bundles.
 - Profiler-backed native Spine optimization beyond the bounded pose-frame cache.
 - Exact Finder desktop icon hit-testing without disabling interaction when
@@ -232,6 +235,7 @@ swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
 swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
 swift run MacWallpaperEngine --spine-animation-plan
+swift run MacWallpaperEngine --wallpaper-golden-check
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain

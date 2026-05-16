@@ -5,6 +5,28 @@ import Metal
 import MetalKit
 
 struct WallpaperSnapshotDiagnostics {
+    struct Snapshot {
+        let image: CGImage
+        let background: String
+        let foreground: String
+    }
+
+    struct DiffMetrics {
+        let dimensionsMatch: Bool
+        let generatedSize: String
+        let referenceSize: String
+        let meanAbsoluteError: Double
+        let maxDelta: Int
+        let changedPixelRatio: Double
+
+        var summaryLine: String {
+            if dimensionsMatch == false {
+                return "diff: dimension-mismatch generated=\(generatedSize) reference=\(referenceSize)"
+            }
+            return "diff: mae=\(WallpaperSnapshotDiagnostics.formatNumber(meanAbsoluteError)) max=\(maxDelta) changedPixels=\(WallpaperSnapshotDiagnostics.formatNumber(changedPixelRatio * 100))%"
+        }
+    }
+
     static func writeSnapshot(
         runtime: NativeRuntimeCore,
         destination: URL,
@@ -14,6 +36,38 @@ struct WallpaperSnapshotDiagnostics {
         width: Int,
         height: Int
     ) throws -> String {
+        let snapshot = try renderSnapshot(
+            runtime: runtime,
+            actionName: actionName,
+            time: time,
+            width: width,
+            height: height
+        )
+        try MetalSnapshotImage.writePNG(snapshot.image, to: destination)
+
+        var lines = [
+            "wallpaper snapshot OK",
+            "action: \(actionName)",
+            "time: \(formatSeconds(time))",
+            "size: \(width)x\(height)",
+            "fitMode: \(runtime.config.fitMode.rawValue)",
+            "background: \(snapshot.background)",
+            "foreground: \(snapshot.foreground)",
+            "output: \(destination.path)"
+        ]
+        if let reference {
+            lines.append(try diffMetrics(generated: snapshot.image, reference: reference).summaryLine)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static func renderSnapshot(
+        runtime: NativeRuntimeCore,
+        actionName: String,
+        time: Double,
+        width: Int,
+        height: Int
+    ) throws -> Snapshot {
         guard width > 0, height > 0, width <= 8192, height <= 8192 else {
             throw EngineError.invalidArgument("Wallpaper snapshot size must be between 1x1 and 8192x8192")
         }
@@ -96,22 +150,54 @@ struct WallpaperSnapshotDiagnostics {
             device: device,
             commandBuffer: commandBuffer
         )
-        try MetalSnapshotImage.writePNG(image, to: destination)
+        return Snapshot(image: image, background: background.label, foreground: foreground)
+    }
 
-        var lines = [
-            "wallpaper snapshot OK",
-            "action: \(actionName)",
-            "time: \(formatSeconds(time))",
-            "size: \(width)x\(height)",
-            "fitMode: \(runtime.config.fitMode.rawValue)",
-            "background: \(background.label)",
-            "foreground: \(foreground)",
-            "output: \(destination.path)"
-        ]
-        if let reference {
-            lines.append(try diffSummary(generated: image, reference: reference))
+    static func diffMetrics(generated: CGImage, reference: URL) throws -> DiffMetrics {
+        let referenceImage = try MetalSnapshotImage.loadImage(from: reference)
+        let generatedSize = "\(generated.width)x\(generated.height)"
+        let referenceSize = "\(referenceImage.width)x\(referenceImage.height)"
+        guard generated.width == referenceImage.width, generated.height == referenceImage.height else {
+            return DiffMetrics(
+                dimensionsMatch: false,
+                generatedSize: generatedSize,
+                referenceSize: referenceSize,
+                meanAbsoluteError: .infinity,
+                maxDelta: Int.max,
+                changedPixelRatio: 1
+            )
         }
-        return lines.joined(separator: "\n")
+        let generatedPixels = try MetalSnapshotImage.bgraPixels(generated)
+        let referencePixels = try MetalSnapshotImage.bgraPixels(referenceImage)
+        var totalDelta = 0
+        var maxDelta = 0
+        var changedPixels = 0
+        let pixelCount = generated.width * generated.height
+        for pixel in 0..<pixelCount {
+            var pixelChanged = false
+            for channel in 0..<4 {
+                let index = pixel * 4 + channel
+                let delta = abs(Int(generatedPixels[index]) - Int(referencePixels[index]))
+                totalDelta += delta
+                maxDelta = max(maxDelta, delta)
+                if delta != 0 {
+                    pixelChanged = true
+                }
+            }
+            if pixelChanged {
+                changedPixels += 1
+            }
+        }
+        let mae = Double(totalDelta) / Double(max(pixelCount * 4, 1))
+        let changedRatio = Double(changedPixels) / Double(max(pixelCount, 1))
+        return DiffMetrics(
+            dimensionsMatch: true,
+            generatedSize: generatedSize,
+            referenceSize: referenceSize,
+            meanAbsoluteError: mae,
+            maxDelta: maxDelta,
+            changedPixelRatio: changedRatio
+        )
     }
 
     private static func backgroundTexture(
@@ -233,37 +319,6 @@ struct WallpaperSnapshotDiagnostics {
         }
         let width = 2.0 * (textureAspect / viewAspect)
         return CGRect(x: -width / 2.0, y: -1.0, width: width, height: 2.0)
-    }
-
-    private static func diffSummary(generated: CGImage, reference: URL) throws -> String {
-        let referenceImage = try MetalSnapshotImage.loadImage(from: reference)
-        guard generated.width == referenceImage.width, generated.height == referenceImage.height else {
-            return "diff: dimension-mismatch generated=\(generated.width)x\(generated.height) reference=\(referenceImage.width)x\(referenceImage.height)"
-        }
-        let generatedPixels = try MetalSnapshotImage.bgraPixels(generated)
-        let referencePixels = try MetalSnapshotImage.bgraPixels(referenceImage)
-        var totalDelta = 0
-        var maxDelta = 0
-        var changedPixels = 0
-        let pixelCount = generated.width * generated.height
-        for pixel in 0..<pixelCount {
-            var pixelChanged = false
-            for channel in 0..<4 {
-                let index = pixel * 4 + channel
-                let delta = abs(Int(generatedPixels[index]) - Int(referencePixels[index]))
-                totalDelta += delta
-                maxDelta = max(maxDelta, delta)
-                if delta != 0 {
-                    pixelChanged = true
-                }
-            }
-            if pixelChanged {
-                changedPixels += 1
-            }
-        }
-        let mae = Double(totalDelta) / Double(max(pixelCount * 4, 1))
-        let changedRatio = Double(changedPixels) / Double(max(pixelCount, 1))
-        return "diff: mae=\(formatNumber(mae)) max=\(maxDelta) changedPixels=\(formatNumber(changedRatio * 100))%"
     }
 
     private static func formatSeconds(_ value: Double) -> String {

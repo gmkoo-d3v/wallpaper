@@ -576,6 +576,16 @@ enum RuntimeSelfTest {
                 && parsedWallpaperSnapshot.spineSnapshotHeight == 180,
             "EngineConfig must parse full wallpaper snapshot diagnostics"
         )
+        let parsedWallpaperGolden = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--wallpaper-golden-check",
+            "--wallpaper-golden-file", "/tmp/wallpaper.golden.json"
+        ])
+        check(
+            parsedWallpaperGolden.wallpaperGoldenCheckOnly
+                && parsedWallpaperGolden.wallpaperGoldenURL?.path == "/tmp/wallpaper.golden.json",
+            "EngineConfig must parse wallpaper golden fixture diagnostics"
+        )
         check(
             runtime.config.replacing(interactionDebugOverlay: true, clearDuration: true).interactionDebugOverlay,
             "EngineConfig.replacing must preserve interaction debug overlay overrides"
