@@ -249,6 +249,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 fitMode: .contain,
                 foregroundMode: .automatic,
                 interactionDebugOverlay: false,
+                interactionStatusText: "INTERACTION OFF / no wallpaper bundle selected",
+                canRequestInteractionPermission: false,
                 wallpaperRoot: nil,
                 wallpaperPath: "No wallpaper bundle selected",
                 bundleInfoText: "No validated wallpaper bundle is selected.",
@@ -269,6 +271,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             status = host == nil ? "STOPPED" : "RUNNING"
         }
         let selectedBundle = currentBundleSummary(from: libraryState.bundles, currentRoot: runtime.config.wallpaperRoot)
+        let interactionPermission = interactionPermissionStatus(for: runtime)
         return ControlPanelState(
             isRunning: host != nil,
             displayMode: runtime.config.displayMode,
@@ -280,6 +283,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             fitMode: runtime.config.fitMode,
             foregroundMode: runtime.config.foregroundMode,
             interactionDebugOverlay: runtime.config.interactionDebugOverlay,
+            interactionStatusText: interactionPermission.text,
+            canRequestInteractionPermission: interactionPermission.canRequestAccessibilityPermission,
             wallpaperRoot: runtime.config.wallpaperRoot,
             wallpaperPath: runtime.config.wallpaperRoot.path,
             bundleInfoText: bundleInfoText(for: selectedBundle),
@@ -405,8 +410,36 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         }
     }
 
+    func controlPanelRequestInteractionPermission() {
+        _ = DesktopInteractionGate.requestAccessibilityTrustPrompt()
+        controlPanel?.refresh()
+    }
+
     func controlPanelQuit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    private func interactionPermissionStatus(for runtime: NativeRuntimeCore) -> DesktopInteractionPermissionStatus {
+        let primaryRole = RenderDisplayRole(kind: .primary, policy: runtime.manifest.displayPolicy.primary)
+        return RuntimeLifecyclePolicy.interactionPermissionStatus(
+            runtimeInteractive: runtime.config.interactive,
+            displayRole: primaryRole,
+            interactionPolicy: effectiveInteractionPolicy(for: runtime),
+            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
+        )
+    }
+
+    private func effectiveInteractionPolicy(for runtime: NativeRuntimeCore) -> InteractionPolicy {
+        runtime.manifest.interactionPolicy ?? InteractionPolicy(
+            mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
     }
 
     private func makeConfigForSelectedBundle(bundleRoot: URL, manifestURL: URL) -> EngineConfig {

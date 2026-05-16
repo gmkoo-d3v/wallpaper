@@ -1023,6 +1023,33 @@ enum RuntimeSelfTest {
         )
         let primaryRole = RenderDisplayRole(kind: .primary, policy: .full)
         let secondaryRole = RenderDisplayRole(kind: .secondary, policy: .full)
+        let blockedPermissionStatus = RuntimeLifecyclePolicy.interactionPermissionStatus(
+            runtimeInteractive: true,
+            displayRole: primaryRole,
+            interactionPolicy: interactivePolicy,
+            accessibilityTrusted: false
+        )
+        check(
+            blockedPermissionStatus.canRequestAccessibilityPermission
+                && blockedPermissionStatus.text.contains("INTERACTION BLOCKED")
+                && blockedPermissionStatus.text.contains("Accessibility"),
+            "control panel interaction status must explain Accessibility-blocked desktop interaction",
+            failures: &failures,
+            checks: &checks
+        )
+        let secondaryPermissionStatus = RuntimeLifecyclePolicy.interactionPermissionStatus(
+            runtimeInteractive: true,
+            displayRole: secondaryRole,
+            interactionPolicy: interactivePolicy,
+            accessibilityTrusted: true
+        )
+        check(
+            secondaryPermissionStatus.canRequestAccessibilityPermission == false
+                && secondaryPermissionStatus.text.contains("INTERACTION PASSIVE"),
+            "control panel interaction status must mark secondary displays passive instead of requesting permission",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
                 isVisible: true,
@@ -1064,6 +1091,19 @@ enum RuntimeSelfTest {
             directionSwitchMargin: nil,
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
+        )
+        let readyPermissionStatus = RuntimeLifecyclePolicy.interactionPermissionStatus(
+            runtimeInteractive: true,
+            displayRole: primaryRole,
+            interactionPolicy: noDesktopItemBlockPolicy,
+            accessibilityTrusted: false
+        )
+        check(
+            readyPermissionStatus.canRequestAccessibilityPermission == false
+                && readyPermissionStatus.text.contains("INTERACTION READY"),
+            "control panel interaction status must not request Accessibility when desktop item blocking is disabled",
+            failures: &failures,
+            checks: &checks
         )
         check(
             RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(

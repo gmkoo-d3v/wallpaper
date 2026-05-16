@@ -11,6 +11,8 @@ struct ControlPanelState {
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
     let interactionDebugOverlay: Bool
+    let interactionStatusText: String
+    let canRequestInteractionPermission: Bool
     let wallpaperRoot: URL?
     let wallpaperPath: String
     let bundleInfoText: String
@@ -41,6 +43,7 @@ protocol ControlPanelDelegate: AnyObject {
     )
     func controlPanelChooseWallpaperBundle(_ url: URL)
     func controlPanelImportWallpaperBundle(_ url: URL)
+    func controlPanelRequestInteractionPermission()
     func controlPanelQuit()
 }
 
@@ -61,6 +64,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let bundleDiagnosticsValue = NSTextField(labelWithString: "")
     private let renderPlanValue = NSTextField(labelWithString: "")
     private let telemetryValue = NSTextField(labelWithString: "")
+    private let interactionStatusValue = NSTextField(labelWithString: "")
     private let previewImageView = NSImageView(frame: .zero)
     private let displayModeControl = NSSegmentedControl(
         labels: ControlPanelWindowController.displayModeLabels,
@@ -71,6 +75,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let interactionDebugOverlayToggle = NSButton(checkboxWithTitle: "Hit-zone overlay", target: nil, action: nil)
+    private let requestInteractionPermissionButton = NSButton(title: "ALLOW ACCESSIBILITY", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ControlPanelWindowController.fpsLabels,
         trackingMode: .selectOne,
@@ -151,6 +156,7 @@ final class ControlPanelWindowController: NSWindowController {
         bundleDiagnosticsValue.isHidden = state.bundleDiagnosticsText.isEmpty
         renderPlanValue.stringValue = state.renderPlanText
         telemetryValue.stringValue = state.telemetryText
+        interactionStatusValue.stringValue = state.interactionStatusText
         availableBundles = state.availableBundles
         displaySelectionOptions = state.displaySelectionOptions
         reloadBundlePopup(currentRoot: state.wallpaperRoot)
@@ -162,6 +168,8 @@ final class ControlPanelWindowController: NSWindowController {
         fitModeControl.selectedSegment = segment(forFitMode: state.fitMode)
         foregroundModeControl.selectedSegment = segment(forForegroundMode: state.foregroundMode)
         interactionDebugOverlayToggle.state = state.interactionDebugOverlay ? .on : .off
+        requestInteractionPermissionButton.isHidden = state.canRequestInteractionPermission == false
+        requestInteractionPermissionButton.isEnabled = state.canRequestInteractionPermission
         startButton.isEnabled = state.isRunning == false
         stopButton.isEnabled = state.isRunning
     }
@@ -197,13 +205,15 @@ final class ControlPanelWindowController: NSWindowController {
         chooseBundleButton.action = #selector(chooseBundle)
         importBundleButton.target = self
         importBundleButton.action = #selector(importBundle)
+        requestInteractionPermissionButton.target = self
+        requestInteractionPermissionButton.action = #selector(requestInteractionPermission)
         bundlePopup.target = self
         bundlePopup.action = #selector(selectLibraryBundle)
         quitButton.target = self
         quitButton.action = #selector(quitApp)
 
         [startButton, applyButton].forEach(stylePrimaryButton)
-        [stopButton, chooseBundleButton, importBundleButton, quitButton].forEach(styleSecondaryButton)
+        [stopButton, chooseBundleButton, importBundleButton, requestInteractionPermissionButton, quitButton].forEach(styleSecondaryButton)
     }
 
     private func startRefreshTimer() {
@@ -267,6 +277,7 @@ final class ControlPanelWindowController: NSWindowController {
         stack.addArrangedSubview(renderPlanRow())
         stack.addArrangedSubview(infoRow(label: "TELEMETRY", value: telemetryValue))
         stack.addArrangedSubview(modeRow())
+        stack.addArrangedSubview(interactionStatusRow())
         stack.addArrangedSubview(foregroundRow())
         stack.addArrangedSubview(renderRow())
         stack.addArrangedSubview(debugRow())
@@ -407,6 +418,25 @@ final class ControlPanelWindowController: NSWindowController {
         row.addArrangedSubview(primaryCaption)
         row.addArrangedSubview(primaryDisplayPopup)
         row.addArrangedSubview(interactionToggle)
+        return row
+    }
+
+    private func interactionStatusRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 18
+
+        let caption = self.caption("INTERACTION")
+        interactionStatusValue.font = .systemFont(ofSize: 13, weight: .light)
+        interactionStatusValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
+        interactionStatusValue.lineBreakMode = .byTruncatingTail
+        interactionStatusValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        requestInteractionPermissionButton.widthAnchor.constraint(equalToConstant: 180).isActive = true
+
+        row.addArrangedSubview(caption)
+        row.addArrangedSubview(interactionStatusValue)
+        row.addArrangedSubview(requestInteractionPermissionButton)
         return row
     }
 
@@ -716,6 +746,11 @@ final class ControlPanelWindowController: NSWindowController {
         if panel.runModal() == .OK, let url = panel.url {
             delegate?.controlPanelImportWallpaperBundle(url)
         }
+        refresh()
+    }
+
+    @objc private func requestInteractionPermission() {
+        delegate?.controlPanelRequestInteractionPermission()
         refresh()
     }
 
