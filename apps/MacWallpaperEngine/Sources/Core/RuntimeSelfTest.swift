@@ -370,9 +370,15 @@ enum RuntimeSelfTest {
                 )
                 clickController.pointerDown(at: center, button: acceptedButton)
                 let downSnapshot = clickController.snapshot()
+                clickController.pointerTrackingStopped()
+                let stoppedSnapshot = clickController.snapshot()
                 check(
                     downSnapshot.command == hitZone.action && downSnapshot.clickPulse > 0,
                     "interaction controller must emit click action \(hitZone.action) on pointerDown for hit zone \(hitZone.id)"
+                )
+                check(
+                    stoppedSnapshot.command == hitZone.action && stoppedSnapshot.clickPulse > 0,
+                    "interaction controller must preserve click action \(hitZone.action) when desktop tracking stops after pointerDown"
                 )
                 clickController.pointerUp(at: center, button: acceptedButton)
                 let upSnapshot = clickController.snapshot()
@@ -1174,6 +1180,87 @@ enum RuntimeSelfTest {
         )
 
         let activeBundle = try WallpaperBundleCatalog.requireValidBundle(runtime.config.wallpaperRoot)
+        let sourceImage = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        let looseValidationRoot = fixtureParent.appendingPathComponent("loose_validation_bundle", isDirectory: true)
+        let looseValidationManifest = try writeStaticImageBundleFixture(
+            root: looseValidationRoot,
+            imageSource: sourceImage,
+            id: "loose_validation_bundle",
+            title: "Loose Validation Bundle"
+        )
+        var looseValidationJSON = try String(contentsOf: looseValidationManifest)
+        looseValidationJSON = looseValidationJSON.replacingOccurrences(
+            of: "\"bundleRootOnly\": true",
+            with: "\"bundleRootOnly\": false"
+        )
+        try Data(looseValidationJSON.utf8).write(to: looseValidationManifest, options: .atomic)
+        let looseValidationDiagnostic = WallpaperBundleCatalog.diagnoseBundle(looseValidationRoot)
+        check(
+            looseValidationDiagnostic.status == .invalid
+                && (looseValidationDiagnostic.errorMessage?.contains("bundleRootOnly") == true),
+            "bundle validation must require bundleRootOnly=true for portable packages",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let permissiveLayerRoot = fixtureParent.appendingPathComponent("permissive_layer_bundle", isDirectory: true)
+        let permissiveLayerManifest = try writeStaticImageBundleFixture(
+            root: permissiveLayerRoot,
+            imageSource: sourceImage,
+            id: "permissive_layer_bundle",
+            title: "Permissive Layer Bundle"
+        )
+        var permissiveLayerJSON = try String(contentsOf: permissiveLayerManifest)
+        permissiveLayerJSON = permissiveLayerJSON.replacingOccurrences(
+            of: "\"rejectUnknownLayerTypes\": true",
+            with: "\"rejectUnknownLayerTypes\": false"
+        )
+        try Data(permissiveLayerJSON.utf8).write(to: permissiveLayerManifest, options: .atomic)
+        let permissiveLayerDiagnostic = WallpaperBundleCatalog.diagnoseBundle(permissiveLayerRoot)
+        check(
+            permissiveLayerDiagnostic.status == .invalid
+                && (permissiveLayerDiagnostic.errorMessage?.contains("rejectUnknownLayerTypes") == true),
+            "bundle validation must require rejectUnknownLayerTypes=true for deterministic renderer dispatch",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let internalSymlinkRoot = fixtureParent.appendingPathComponent("internal_symlink_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: internalSymlinkRoot,
+            imageSource: sourceImage,
+            id: "internal_symlink_bundle",
+            title: "Internal Symlink Bundle"
+        )
+        let internalSymlink = internalSymlinkRoot.appendingPathComponent("assets/symlink.jpg")
+        try fileManager.createSymbolicLink(at: internalSymlink, withDestinationURL: sourceImage)
+        let internalSymlinkDiagnostic = WallpaperBundleCatalog.diagnoseBundle(internalSymlinkRoot)
+        check(
+            internalSymlinkDiagnostic.status == .invalid
+                && (internalSymlinkDiagnostic.errorMessage?.contains("symlinked entries") == true),
+            "bundle validation must reject internal symlink entries before import or packaging",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let symlinkedBundleTarget = fixtureParent.appendingPathComponent("symlink_target_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: symlinkedBundleTarget,
+            imageSource: sourceImage,
+            id: "symlink_target_bundle",
+            title: "Symlink Target Bundle"
+        )
+        let symlinkedBundleRoot = fixtureParent.appendingPathComponent("symlink_root_bundle", isDirectory: true)
+        try fileManager.createSymbolicLink(at: symlinkedBundleRoot, withDestinationURL: symlinkedBundleTarget)
+        let symlinkedRootDiagnostic = WallpaperBundleCatalog.diagnoseBundle(symlinkedBundleRoot)
+        check(
+            symlinkedRootDiagnostic.status == .invalid
+                && (symlinkedRootDiagnostic.errorMessage?.contains("symlinked bundle roots") == true),
+            "bundle validation must reject symlinked bundle roots before resolving them",
+            failures: &failures,
+            checks: &checks
+        )
+
         let duplicateBundleRoot = fixtureParent.appendingPathComponent("duplicate_id_bundle", isDirectory: true)
         try writeStaticImageBundleFixture(
             root: duplicateBundleRoot,

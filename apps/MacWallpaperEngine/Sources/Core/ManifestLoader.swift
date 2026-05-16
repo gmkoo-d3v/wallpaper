@@ -3,27 +3,44 @@ import ImageIO
 
 enum ManifestLoader {
     static func load(url: URL, bundleRoot: URL) throws -> WallpaperNativeManifest {
-        let manifestURL = url.standardizedFileURL.resolvingSymlinksInPath()
-        let root = bundleRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let requestedManifestURL = url.standardizedFileURL
+        let requestedRoot = bundleRoot.standardizedFileURL
 
-        guard manifestURL.path.hasPrefix(root.path + "/") || manifestURL.path == root.path else {
+        guard requestedManifestURL.path.hasPrefix(requestedRoot.path + "/") || requestedManifestURL.path == requestedRoot.path else {
             throw EngineError.manifest("manifest must be inside wallpaper bundle root")
         }
 
-        let data = try Data(contentsOf: manifestURL)
+        let manifestURL = requestedManifestURL.resolvingSymlinksInPath()
+        let root = requestedRoot.resolvingSymlinksInPath()
+        guard manifestURL.path.hasPrefix(root.path + "/") || manifestURL.path == root.path else {
+            throw EngineError.manifest("manifest must stay inside wallpaper bundle root after resolving symlinks")
+        }
+
+        let data = try Data(contentsOf: requestedManifestURL)
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(WallpaperNativeManifest.self, from: data)
-        try validate(manifest, bundleRoot: root)
+        try validate(manifest, bundleRoot: root, requestedBundleRoot: requestedRoot)
         return manifest
     }
 
-    private static func validate(_ manifest: WallpaperNativeManifest, bundleRoot: URL) throws {
+    private static func validate(
+        _ manifest: WallpaperNativeManifest,
+        bundleRoot: URL,
+        requestedBundleRoot: URL
+    ) throws {
         guard manifest.schemaVersion == "macos-wallpaper-native.v2" else {
             throw EngineError.manifest("unsupported schemaVersion \(manifest.schemaVersion)")
         }
         guard manifest.runtime.kind == "native-metal" else {
             throw EngineError.manifest("runtime.kind must be native-metal")
         }
+        guard manifest.validation.bundleRootOnly else {
+            throw EngineError.manifest("validation.bundleRootOnly must be true")
+        }
+        guard manifest.validation.rejectUnknownLayerTypes else {
+            throw EngineError.manifest("validation.rejectUnknownLayerTypes must be true")
+        }
+        try WallpaperBundleFilesystemGuard.rejectSymlinkEntries(in: requestedBundleRoot)
         try validateMetadata(manifest.metadata)
         guard manifest.runtime.targetFps > 0,
               manifest.runtime.fallbackFps > 0,

@@ -48,10 +48,9 @@ final class DesktopMouseInteractionMonitor {
     }
 
     func start() {
-        guard localMonitor == nil, monitors.isEmpty, policy.mode != .disabled else { return }
-        if startEventTap() {
-            return
-        }
+        guard policy.mode != .disabled else { return }
+        _ = startEventTap()
+        guard localMonitor == nil, monitors.isEmpty else { return }
 
         localMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [

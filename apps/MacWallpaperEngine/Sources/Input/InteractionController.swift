@@ -139,14 +139,15 @@ final class InteractionController {
 
     func pointerTrackingStopped() {
         lock.lock()
+        let now = CACurrentMediaTime()
         pointerState = CGPoint(x: 0.5, y: 0.5)
         smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
         moveCommandState = "idle"
         if clickCommandHeld {
             clickCommandHeld = false
             activeClickTailDuration = releaseFadeDuration
-            clickCommandExpiresAt = CACurrentMediaTime() + releaseFadeDuration
-        } else {
+            clickCommandExpiresAt = now + releaseFadeDuration
+        } else if clickCommandState == nil || now >= clickCommandExpiresAt {
             clickCommandState = nil
             clickCommandExpiresAt = 0
         }

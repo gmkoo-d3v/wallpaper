@@ -44,6 +44,12 @@ for bundle_dir in "$WALLPAPER_SOURCE"/*; do
     echo "Skipping symlinked wallpaper bundle: $bundle_name" >&2
     continue
   fi
+  symlink_path="$(find "$bundle_dir" -type l -print)"
+  if [ -n "$symlink_path" ]; then
+    first_symlink="${symlink_path%%$'\n'*}"
+    echo "Invalid wallpaper bundle contains symlinked entry: $bundle_name ($first_symlink)" >&2
+    exit 1
+  fi
 
   if ! "$MACOS_DIR/$APP_NAME" --wallpaper-root "$bundle_dir" "${validation_args[@]}" >/dev/null; then
     echo "Invalid wallpaper bundle failed validation: $bundle_name ($bundle_dir)" >&2

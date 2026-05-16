@@ -9,9 +9,11 @@ enum WallpaperBundleInstaller {
             throw EngineError.invalidArgument("Could not resolve the user wallpaper library directory.")
         }
 
-        let sourceRoot = sourceRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let requestedSourceRoot = sourceRoot.standardizedFileURL
+        try WallpaperBundleFilesystemGuard.rejectSymlinkEntries(in: requestedSourceRoot)
+
+        let sourceRoot = requestedSourceRoot.resolvingSymlinksInPath()
         let sourceBundle = try WallpaperBundleCatalog.requireValidBundle(sourceRoot)
-        try rejectSymlinkEntries(in: sourceRoot)
 
         let libraryDirectory = resolvedLibraryDirectory.standardizedFileURL
         try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
@@ -41,30 +43,6 @@ enum WallpaperBundleInstaller {
         } catch {
             try? FileManager.default.removeItem(at: destination)
             throw error
-        }
-    }
-
-    private static func rejectSymlinkEntries(in root: URL) throws {
-        let fileManager = FileManager.default
-        let rootValues = try root.resourceValues(forKeys: [.isSymbolicLinkKey])
-        if rootValues.isSymbolicLink == true {
-            throw EngineError.manifest("Wallpaper bundle import rejects symlinked bundle roots: \(root.path)")
-        }
-
-        guard let enumerator = fileManager.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isSymbolicLinkKey],
-            options: []
-        ) else {
-            throw EngineError.invalidArgument("Could not enumerate wallpaper bundle: \(root.path)")
-        }
-
-        for case let url as URL in enumerator {
-            if url.lastPathComponent == ".DS_Store" { continue }
-            let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
-            if values.isSymbolicLink == true {
-                throw EngineError.manifest("Wallpaper bundle import rejects symlinked entries: \(url.path)")
-            }
         }
     }
 
