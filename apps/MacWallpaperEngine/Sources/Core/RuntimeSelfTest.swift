@@ -1670,6 +1670,52 @@ enum RuntimeSelfTest {
             failures.append("bundle catalog fixtures require active bundle preview or staticImage asset")
             return
         }
+        let invalidInteractiveRoot = fixtureParent.appendingPathComponent("interactive_static_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: invalidInteractiveRoot,
+            imageSource: sourceImage,
+            id: "interactive_static_bundle",
+            title: "Interactive Static Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerDown",
+                "defaultAction": {
+                  "action": "act",
+                  "trigger": "tap",
+                  "tailSeconds": 0.5,
+                  "buttons": ["left"]
+                }
+              }
+            ]
+            """
+        )
+        let invalidInteractiveDiagnostic = WallpaperBundleCatalog.diagnoseBundle(invalidInteractiveRoot)
+        check(
+            invalidInteractiveDiagnostic.status == .invalid
+                && (invalidInteractiveDiagnostic.errorMessage?.contains("interactions require a Spine asset") == true),
+            "bundle diagnostics must reject non-Spine bundles that declare interaction actions",
+            failures: &failures,
+            checks: &checks
+        )
+        checks += 1
+        do {
+            _ = try BundleValidationMatrix.make(
+                projectRoot: nil,
+                strictCompositeQuality: false,
+                includeInvalid: true,
+                bundleDirectories: [invalidInteractiveRoot.deletingLastPathComponent()]
+            )
+            failures.append("bundle validation matrix must fail invalid-only libraries with diagnostic reasons")
+        } catch {
+            check(
+                error.localizedDescription.contains("interactive_static_bundle")
+                    && error.localizedDescription.contains("interactions require a Spine asset"),
+                "bundle validation matrix must expose invalid-only library diagnostics",
+                failures: &failures,
+                checks: &checks
+            )
+        }
         let looseValidationRoot = fixtureParent.appendingPathComponent("loose_validation_bundle", isDirectory: true)
         let looseValidationManifest = try writeStaticImageBundleFixture(
             root: looseValidationRoot,

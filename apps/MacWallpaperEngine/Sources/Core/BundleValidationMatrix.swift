@@ -11,6 +11,17 @@ enum BundleValidationMatrix {
             ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
         guard bundles.isEmpty == false else {
+            if includeInvalid {
+                let invalidDiagnostics = diagnostics.filter { $0.status == .invalid }
+                if invalidDiagnostics.isEmpty == false {
+                    let details = invalidDiagnostics.map {
+                        "- \($0.id): \($0.errorMessage ?? "invalid bundle") (\($0.root.path))"
+                    }.joined(separator: "\n")
+                    throw EngineError.invalidArgument(
+                        "No valid wallpaper bundles found for validation matrix.\nInvalid diagnostics:\n\(details)"
+                    )
+                }
+            }
             throw EngineError.invalidArgument("No valid wallpaper bundles found for validation matrix.")
         }
 
