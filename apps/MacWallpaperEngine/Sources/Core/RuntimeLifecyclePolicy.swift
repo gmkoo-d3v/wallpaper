@@ -24,6 +24,7 @@ enum RuntimeLifecyclePolicy {
     static let visibilityPausePolicy = "pause-when-occluded-or-fullscreen-obscured"
     static let desktopItemTrustPolicy = "fail-closed-without-accessibility-trust"
     static let displayRebuildPolicy = "debounced-atomic-rollback"
+    static let rendererFailureRecoveryPolicy = RendererRecoveryPolicy.policyName
     static let outsideContentTrackingPolicy = "ignore-same-window-outside-content-without-idle-reset"
     static let blockedDesktopEventTrackingPolicy = "ignore-blocked-desktop-events-without-idle-reset"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25

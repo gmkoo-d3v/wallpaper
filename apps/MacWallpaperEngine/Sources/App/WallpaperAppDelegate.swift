@@ -16,6 +16,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var controlPanel: ControlPanelWindowController?
     private var lastError: String?
+    private let recoveryTracker = RendererRecoveryTracker()
 
     init(runtime: NativeRuntimeCore?, startupError: Error? = nil) {
         self.runtime = runtime
@@ -111,8 +112,23 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         guard let runtime else {
             throw EngineError.invalidArgument("Select a valid wallpaper bundle before starting wallpaper.")
         }
+        let recoveryKey = rendererRecoveryKey(for: runtime)
+        if let safeModeDecision = recoveryTracker.decisionBeforeStart(key: recoveryKey) {
+            throw EngineError.renderer(safeModeDecision.message)
+        }
+
         let host = try WallpaperHost(runtime: runtime)
-        try host.start()
+        do {
+            try host.start()
+        } catch {
+            host.stop()
+            let recoveryDecision = recoveryTracker.recordFailure(key: recoveryKey)
+            if recoveryDecision.shouldYieldToSystemWallpaper {
+                throw EngineError.renderer(recoveryDecision.message)
+            }
+            throw error
+        }
+        recoveryTracker.recordSuccess(key: recoveryKey)
         self.host = host
         lastError = nil
         controlPanel?.refresh()
@@ -484,6 +500,15 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         runtime.telemetry.interactionSnapshot()
             .first { $0.roleName.hasPrefix("primary:") }?
             .snapshot
+    }
+
+    private func rendererRecoveryKey(for runtime: NativeRuntimeCore) -> RendererRecoveryKey {
+        RendererRecoveryKey(
+            wallpaperID: runtime.manifest.metadata?.id ?? runtime.config.wallpaperRoot.lastPathComponent,
+            displayFingerprint: runtime.config.primaryDisplaySelector ?? "system-primary",
+            rendererKind: runtime.config.foregroundMode.rawValue,
+            failureClass: "host-start"
+        )
     }
 
     private func makeConfigForSelectedBundle(bundleRoot: URL, manifestURL: URL) -> EngineConfig {

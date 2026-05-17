@@ -106,6 +106,48 @@ enum RuntimeSelfTest {
         }
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(
+            RuntimeLifecyclePolicy.rendererFailureRecoveryPolicy == "yield-to-system-wallpaper-after-repeated-renderer-failures",
+            "repeated renderer failures must have an explicit safe-mode recovery policy"
+        )
+        let rendererRecoveryKey = RendererRecoveryKey(
+            wallpaperID: manifest.metadata?.id ?? "unknown",
+            displayFingerprint: "display:self-test",
+            rendererKind: "native",
+            failureClass: "host-start"
+        )
+        let recoveryTracker = RendererRecoveryTracker()
+        let firstRendererFailure = recoveryTracker.recordFailure(key: rendererRecoveryKey, now: 10)
+        let secondRendererFailure = recoveryTracker.recordFailure(key: rendererRecoveryKey, now: 20)
+        let thirdRendererFailure = recoveryTracker.recordFailure(key: rendererRecoveryKey, now: 30)
+        check(
+            firstRendererFailure.shouldYieldToSystemWallpaper == false
+                && secondRendererFailure.shouldYieldToSystemWallpaper == false,
+            "renderer recovery must allow bounded retries before safe mode"
+        )
+        check(
+            thirdRendererFailure.shouldYieldToSystemWallpaper,
+            "renderer recovery must yield to system wallpaper after repeated failures"
+        )
+        if case .safeMode(let failureCount, let retryAfterSeconds, let reason) = thirdRendererFailure {
+            check(
+                failureCount == RendererRecoveryPolicy.failureThreshold
+                    && retryAfterSeconds == RendererRecoveryPolicy.safeModeCooldownSeconds
+                    && reason.contains("SAFE MODE"),
+                "renderer recovery safe mode must expose failure count, cooldown, and user-visible reason"
+            )
+        } else {
+            check(false, "third renderer failure must produce safe mode decision")
+        }
+        check(
+            recoveryTracker.decisionBeforeStart(key: rendererRecoveryKey, now: 40)?.shouldYieldToSystemWallpaper == true,
+            "safe-mode renderer recovery must block immediate restart loops"
+        )
+        recoveryTracker.recordSuccess(key: rendererRecoveryKey)
+        check(
+            recoveryTracker.decisionBeforeStart(key: rendererRecoveryKey, now: 41) == nil,
+            "successful renderer start must clear safe-mode quarantine for that wallpaper/display/renderer key"
+        )
+        check(
             RuntimeLifecyclePolicy.visibilityPausePolicy == "pause-when-occluded-or-fullscreen-obscured",
             "window visibility pause policy must be explicit"
         )

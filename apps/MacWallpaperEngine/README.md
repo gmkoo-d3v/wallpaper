@@ -265,6 +265,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   background policy.
 - Startup host failures keep the control panel open when UI is available so
   users can choose another bundle instead of watching the app silently exit.
+- Repeated host renderer start failures are tracked by wallpaper/display/renderer
+  key and enter safe mode after bounded retries, yielding to the system
+  wallpaper instead of looping window creation.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
 - The interaction gate ignores the wallpaper host window itself but still treats
