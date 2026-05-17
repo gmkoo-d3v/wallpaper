@@ -234,6 +234,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   users can choose another bundle instead of watching the app silently exit.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
+- The interaction gate ignores the wallpaper host window itself but still treats
+  the control panel and other same-process UI windows as covering application
+  windows, so UI clicks do not leak into the wallpaper.
 - Desktop interaction eligibility is centralized and self-tested for application
   window, desktop item, disabled mode, and missing Accessibility trust cases.
 - Desktop icon hit-testing fails closed without Accessibility trust when

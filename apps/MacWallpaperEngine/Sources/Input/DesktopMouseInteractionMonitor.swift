@@ -669,11 +669,16 @@ enum DesktopInteractionGate {
             guard layer == 0 else { continue }
 
             let ownerPID = window[kCGWindowOwnerPID as String] as? pid_t ?? -1
-            if ownerPID == currentPID {
+            let ownerName = window[kCGWindowOwnerName as String] as? String ?? ""
+            let windowName = window[kCGWindowName as String] as? String ?? ""
+            if shouldIgnoreApplicationWindowForInteraction(
+                ownerPID: ownerPID,
+                windowName: windowName,
+                currentPID: currentPID
+            ) {
                 continue
             }
 
-            let ownerName = window[kCGWindowOwnerName as String] as? String ?? ""
             if ["Finder", "Dock", "SystemUIServer"].contains(ownerName) {
                 continue
             }
@@ -693,6 +698,15 @@ enum DesktopInteractionGate {
         }
 
         return false
+    }
+
+    static func shouldIgnoreApplicationWindowForInteraction(
+        ownerPID: pid_t,
+        windowName: String,
+        currentPID: pid_t
+    ) -> Bool {
+        guard ownerPID == currentPID else { return false }
+        return windowName == "Mac Wallpaper Engine Diagnostic"
     }
 
     static func isLikelyDesktopItem(event: NSEvent, screenPoint: CGPoint) -> Bool {

@@ -1664,6 +1664,37 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        check(
+            DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
+                ownerPID: currentPID,
+                windowName: "Mac Wallpaper Engine Diagnostic",
+                currentPID: currentPID
+            ),
+            "desktop interaction gate must ignore the wallpaper host window itself when scanning covering app windows",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
+                ownerPID: currentPID,
+                windowName: "Mac Wallpaper Engine",
+                currentPID: currentPID
+            ) == false,
+            "desktop interaction gate must treat the control panel as a covering app window, not as empty desktop",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
+                ownerPID: currentPID + 1,
+                windowName: "Other App",
+                currentPID: currentPID
+            ) == false,
+            "desktop interaction gate must not ignore other app windows during empty-desktop checks",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             DesktopInteractionGate.eligibilityDecision(
                 policy: interactivePolicy,
