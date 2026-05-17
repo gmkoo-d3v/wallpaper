@@ -103,7 +103,7 @@ final class RuntimeTelemetryStore {
             let local = data.localMonitorActive ? "local:on" : "local:off"
             return "\(entry.displayName) \(entry.roleName) interaction \(active) \(tap) \(local) global:\(data.globalMonitorCount) last:\(data.lastSource)/\(data.lastEvent)/\(data.lastDecision) point:\(data.lastPoint) command:\(data.lastCommand)/\(format(data.lastClickPulse)) delivered:\(data.deliveredEvents) blocked:\(data.blockedEvents)"
         }
-        return (renderSummary + interactionSummary).joined(separator: " | ")
+        return (renderSummary + interactionSummary).joined(separator: "\n")
     }
 
     private func format(_ value: Double) -> String {

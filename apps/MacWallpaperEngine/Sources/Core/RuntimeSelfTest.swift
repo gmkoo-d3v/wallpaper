@@ -926,6 +926,12 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        check(
+            interactionTelemetrySummary.contains("\n"),
+            "runtime telemetry summary must keep render and interaction diagnostics on separate lines for control-panel readability",
+            failures: &failures,
+            checks: &checks
+        )
         telemetry.recordInteraction(
             displayName: "Self Test Display",
             role: role,

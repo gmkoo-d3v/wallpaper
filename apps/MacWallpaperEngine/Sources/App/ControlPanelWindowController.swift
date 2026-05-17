@@ -275,7 +275,7 @@ final class ControlPanelWindowController: NSWindowController {
         stack.addArrangedSubview(bundleRow())
         stack.addArrangedSubview(bundlePreviewRow())
         stack.addArrangedSubview(renderPlanRow())
-        stack.addArrangedSubview(infoRow(label: "TELEMETRY", value: telemetryValue))
+        stack.addArrangedSubview(telemetryRow())
         stack.addArrangedSubview(modeRow())
         stack.addArrangedSubview(interactionStatusRow())
         stack.addArrangedSubview(foregroundRow())
@@ -391,6 +391,23 @@ final class ControlPanelWindowController: NSWindowController {
 
         row.addArrangedSubview(caption)
         row.addArrangedSubview(renderPlanValue)
+        return row
+    }
+
+    private func telemetryRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .vertical
+        row.spacing = 8
+
+        let caption = self.caption("TELEMETRY")
+        telemetryValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        telemetryValue.textColor = NSColor(red: 0.18, green: 0.18, blue: 0.18, alpha: 1)
+        telemetryValue.lineBreakMode = .byTruncatingTail
+        telemetryValue.maximumNumberOfLines = 5
+        telemetryValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        row.addArrangedSubview(caption)
+        row.addArrangedSubview(telemetryValue)
         return row
     }
 
