@@ -2400,6 +2400,40 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let absoluteAssetPathRoot = fixtureParent.appendingPathComponent("absolute_asset_path_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: absoluteAssetPathRoot,
+            imageSource: sourceImage,
+            id: "absolute_asset_path_bundle",
+            title: "Absolute Asset Path Bundle",
+            staticImagePath: sourceImage.path
+        )
+        let absoluteAssetPathDiagnostic = WallpaperBundleCatalog.diagnoseBundle(absoluteAssetPathRoot)
+        check(
+            absoluteAssetPathDiagnostic.status == .invalid
+                && (absoluteAssetPathDiagnostic.errorMessage?.contains("asset path must be relative") == true),
+            "bundle validation must reject absolute manifest asset paths",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let escapingAssetPathRoot = fixtureParent.appendingPathComponent("escaping_asset_path_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: escapingAssetPathRoot,
+            imageSource: sourceImage,
+            id: "escaping_asset_path_bundle",
+            title: "Escaping Asset Path Bundle",
+            staticImagePath: "../outside.jpg"
+        )
+        let escapingAssetPathDiagnostic = WallpaperBundleCatalog.diagnoseBundle(escapingAssetPathRoot)
+        check(
+            escapingAssetPathDiagnostic.status == .invalid
+                && (escapingAssetPathDiagnostic.errorMessage?.contains("asset escapes bundle root") == true),
+            "bundle validation must reject manifest asset paths that escape the bundle root",
+            failures: &failures,
+            checks: &checks
+        )
+
         let internalSymlinkRoot = fixtureParent.appendingPathComponent("internal_symlink_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: internalSymlinkRoot,
@@ -2872,7 +2906,8 @@ enum RuntimeSelfTest {
         imageSource: URL,
         id: String,
         title: String,
-        interactionsJSON: String = "[]"
+        interactionsJSON: String = "[]",
+        staticImagePath: String = "assets/poster.jpg"
     ) throws -> URL {
         let fileManager = FileManager.default
         let assetsRoot = root.appendingPathComponent("assets", isDirectory: true)
@@ -2887,6 +2922,7 @@ enum RuntimeSelfTest {
         let manifestURL = root.appendingPathComponent("wallpaper.native.json")
         let idLiteral = try jsonStringLiteral(id)
         let titleLiteral = try jsonStringLiteral(title)
+        let staticImagePathLiteral = try jsonStringLiteral(staticImagePath)
         let manifestJSON = """
         {
           "schemaVersion": "macos-wallpaper-native.v2",
@@ -2928,7 +2964,7 @@ enum RuntimeSelfTest {
           "assets": {
             "staticImage": {
               "id": "poster",
-              "path": "assets/poster.jpg"
+              "path": \(staticImagePathLiteral)
             }
           },
           "layers": [
