@@ -1240,6 +1240,30 @@ enum RuntimeSelfTest {
         check(recoveredFps == runtime.renderTargetFps, "power-saving FPS clamp must recover when power state clears", failures: &failures, checks: &checks)
 
         let budgetPlan = runtime.performancePlan
+        var thermalState = ProcessInfo.ThermalState.nominal
+        let thermalGovernor = ResourceGovernor(
+            manifest: runtime.manifest,
+            targetFps: runtime.renderTargetFps,
+            thermalStateProvider: { thermalState }
+        )
+        thermalState = .serious
+        let seriousThermalFps = thermalGovernor.frameStarted(now: 1.0)
+        check(
+            seriousThermalFps <= budgetPlan.seriousThermalFps,
+            "serious thermal state must clamp rendering to the manifest thermal FPS",
+            failures: &failures,
+            checks: &checks
+        )
+        thermalState = .critical
+        let criticalThermalFps = thermalGovernor.frameStarted(now: 2.0)
+        check(
+            thermalGovernor.snapshot.pauseForThermal
+                && criticalThermalFps <= 1,
+            "critical thermal state must expose pause-for-thermal telemetry and reduce rendering to a minimal cadence",
+            failures: &failures,
+            checks: &checks
+        )
+
         let highCPUGovernor = ResourceGovernor(
             manifest: runtime.manifest,
             targetFps: runtime.renderTargetFps,

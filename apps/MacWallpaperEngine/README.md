@@ -209,6 +209,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Runtime self-test injects deterministic CPU/RSS samples into the governor to
   prove sustained CPU downgrade, RSS target fallback, and RSS hard-limit pause
   behavior without relying on the current machine load.
+- Runtime self-test also injects deterministic thermal states into the governor,
+  proving serious thermal FPS clamping and critical thermal pause telemetry
+  without waiting for the current Mac to heat up.
 - Native Spine compatibility gate falls back to `compositeVideo` when a bundle
   uses Spine feature classes the native renderer does not implement yet.
 - Runtime capability diagnostics report video/composite size, duration,

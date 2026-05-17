@@ -145,6 +145,7 @@ final class ResourceGovernor {
     private let plan: PerformancePlan
     private let videoOnlyFallbackEnabled: Bool
     private let powerStateProvider: () -> RuntimePowerState
+    private let thermalStateProvider: () -> ProcessInfo.ThermalState
     private let resourceSampler: (TimeInterval) -> ResourceGovernorSample
     private var frameDurations: [TimeInterval] = []
     private var resourceSamples: [ResourceGovernorSample] = []
@@ -164,11 +165,13 @@ final class ResourceGovernor {
         targetFps: Int,
         videoOnlyFallbackEnabled: Bool = false,
         powerStateProvider: @escaping () -> RuntimePowerState = RuntimePowerStateProvider.current,
+        thermalStateProvider: @escaping () -> ProcessInfo.ThermalState = { ProcessInfo.processInfo.thermalState },
         resourceSampler: @escaping (TimeInterval) -> ResourceGovernorSample = ProcessResourceSampler.sample
     ) {
         self.plan = PerformancePlan.make(manifest: manifest, requestedFps: targetFps)
         self.videoOnlyFallbackEnabled = videoOnlyFallbackEnabled
         self.powerStateProvider = powerStateProvider
+        self.thermalStateProvider = thermalStateProvider
         self.resourceSampler = resourceSampler
         self.currentFps = plan.effectiveTargetFps
         self.resourceFpsCap = plan.effectiveTargetFps
@@ -206,7 +209,7 @@ final class ResourceGovernor {
     }
 
     var shouldPauseForThermal: Bool {
-        plan.criticalPauses && ProcessInfo.processInfo.thermalState == .critical
+        plan.criticalPauses && thermalStateProvider() == .critical
     }
 
     var shouldPauseForResourceBudget: Bool {
@@ -254,7 +257,7 @@ final class ResourceGovernor {
         pauseForResourceBudget = false
         applyCurrentFpsCap()
 
-        let thermal = ProcessInfo.processInfo.thermalState
+        let thermal = thermalStateProvider()
         if thermal == .critical {
             currentFps = min(currentFps, plan.criticalPauses ? 1 : plan.seriousThermalFps)
             return
