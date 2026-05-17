@@ -208,13 +208,18 @@ enum RuntimeSelfTest {
             validatedBundle?.capabilities.fallbackStatus == expectedFallbackStatus,
             "bundle catalog must expose active bundle fallback readiness"
         )
+        let expectedInteractionRequirement = RuntimeCapabilities
+            .bundleInfo(manifest: manifest, bundleRoot: runtime.config.wallpaperRoot)
+            .interactionRequirement
         check(
-            validatedBundle?.capabilities.interactionRequirement == "accessibility-required",
+            validatedBundle?.capabilities.interactionRequirement == expectedInteractionRequirement,
             "bundle catalog must expose active bundle desktop interaction permission requirement"
         )
         if let validatedBundle {
             check(
-                ControlPanelWindowController.bundlePopupTitle(for: validatedBundle).contains("/accessibility-required/"),
+                ControlPanelWindowController
+                    .bundlePopupTitle(for: validatedBundle)
+                    .contains("/\(expectedInteractionRequirement)/"),
                 "control panel bundle popup title must expose interaction permission requirement before selection"
             )
         }
@@ -1639,7 +1644,13 @@ enum RuntimeSelfTest {
         )
 
         let activeBundle = try WallpaperBundleCatalog.requireValidBundle(runtime.config.wallpaperRoot)
-        let sourceImage = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        let sourceImage = activeBundle.previewURL
+            ?? runtime.assetCatalog.staticImageAssetURL
+            ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        guard FileManager.default.fileExists(atPath: sourceImage.path) else {
+            failures.append("bundle catalog fixtures require active bundle preview or staticImage asset")
+            return
+        }
         let looseValidationRoot = fixtureParent.appendingPathComponent("loose_validation_bundle", isDirectory: true)
         let looseValidationManifest = try writeStaticImageBundleFixture(
             root: looseValidationRoot,
@@ -1723,7 +1734,7 @@ enum RuntimeSelfTest {
         let duplicateBundleRoot = fixtureParent.appendingPathComponent("duplicate_id_bundle", isDirectory: true)
         try writeStaticImageBundleFixture(
             root: duplicateBundleRoot,
-            imageSource: runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg"),
+            imageSource: sourceImage,
             id: activeBundle.id,
             title: "Duplicate ID Bundle"
         )
@@ -1897,10 +1908,12 @@ enum RuntimeSelfTest {
         failures: inout [String],
         checks: inout Int
     ) throws {
-        let sourceImage = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        let sourceImage = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)?.previewURL
+            ?? runtime.assetCatalog.staticImageAssetURL
+            ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
         checks += 1
         guard FileManager.default.fileExists(atPath: sourceImage.path) else {
-            failures.append("static image fixture requires active bundle preview.jpg")
+            failures.append("static image fixture requires active bundle preview or staticImage asset")
             return
         }
 
