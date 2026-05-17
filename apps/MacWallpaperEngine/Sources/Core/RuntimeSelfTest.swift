@@ -212,6 +212,12 @@ enum RuntimeSelfTest {
             validatedBundle?.capabilities.interactionRequirement == "accessibility-required",
             "bundle catalog must expose active bundle desktop interaction permission requirement"
         )
+        if let validatedBundle {
+            check(
+                ControlPanelWindowController.bundlePopupTitle(for: validatedBundle).contains("/accessibility-required/"),
+                "control panel bundle popup title must expose interaction permission requirement before selection"
+            )
+        }
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
            let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
            let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),

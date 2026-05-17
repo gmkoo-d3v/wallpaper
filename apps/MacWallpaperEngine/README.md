@@ -35,7 +35,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   instead of silently hiding imported or project-local bundles.
 - Control panel bundle library shows selected bundle metadata and preview art
   from `preview.jpg` or a declared `staticImage` asset.
-- Control panel bundle library surfaces asset/layer/interaction/native-fallback
+- Control panel bundle library surfaces asset/layer/interaction permission/native-fallback
   capabilities before the user starts a selected bundle.
 - Bundle library and `--list-bundles --include-capabilities` summaries flag
   low-FPS composite fallback quality before the user selects or starts a bundle.

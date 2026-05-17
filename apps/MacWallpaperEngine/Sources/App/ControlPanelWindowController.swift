@@ -56,6 +56,10 @@ final class ControlPanelWindowController: NSWindowController {
     ]
     static let fpsLabels = ["30", "60", "Display Hz"]
 
+    static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
+        "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)]"
+    }
+
     weak var delegate: ControlPanelDelegate?
 
     private let statusValue = NSTextField(labelWithString: "")
@@ -595,8 +599,9 @@ final class ControlPanelWindowController: NSWindowController {
 
         bundlePopup.isEnabled = true
         for bundle in availableBundles {
-            bundlePopup.addItem(withTitle: "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.qualityStatus)]")
+            bundlePopup.addItem(withTitle: Self.bundlePopupTitle(for: bundle))
             bundlePopup.lastItem?.representedObject = bundle.root.path
+            bundlePopup.lastItem?.toolTip = bundle.capabilities.briefText
         }
 
         if let selectedPath,
