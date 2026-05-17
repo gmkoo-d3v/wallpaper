@@ -517,6 +517,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             performancePlanOnly: false,
             runtimeCapabilitiesOnly: false,
             interactionPlanOnly: false,
+            interactionProbePoint: nil,
+            interactionProbeButton: .left,
             spineAnimationPlanOnly: false,
             spineSnapshotURL: nil,
             spineSnapshotAction: "idle",

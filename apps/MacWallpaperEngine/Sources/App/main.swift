@@ -109,6 +109,19 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if let interactionProbePoint = config.interactionProbePoint {
+        let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
+        print(InteractionPlan.probeSummary(
+            interactions: runtime.manifest.interactions,
+            policy: runtime.manifest.interactionPolicy,
+            runtimeInteractive: runtime.config.interactive,
+            point: interactionProbePoint,
+            button: config.interactionProbeButton,
+            actionTailDurations: actionTailDurations
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.spineAnimationPlanOnly {
         print(try SpineAnimationDiagnostics.make(runtime: runtime))
         print(try SpineGeometryDiagnostics.make(runtime: runtime))

@@ -721,6 +721,33 @@ enum RuntimeSelfTest {
                 && missingPermissionInteractionSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false"),
             "interaction diagnostics must explain when desktop-item-safe interaction is blocked by missing Accessibility permission"
         )
+        let neutralProbeSummary = InteractionPlan.probeSummary(
+            interactions: manifest.interactions,
+            policy: manifest.interactionPolicy,
+            runtimeInteractive: runtime.config.interactive,
+            point: SpineInteractionAnimationRoles.lookNeutralPoint(from: manifest),
+            button: .left,
+            actionTailDurations: tapActionDurations
+        )
+        check(
+            neutralProbeSummary.contains("interaction probe OK")
+                && neutralProbeSummary.contains("moveCommand: idle")
+                && neutralProbeSummary.contains("neutralPoint: 0.500,0.420"),
+            "interaction probe diagnostics must expose one-coordinate look-direction resolution"
+        )
+        let bodyProbeSummary = InteractionPlan.probeSummary(
+            interactions: manifest.interactions,
+            policy: manifest.interactionPolicy,
+            runtimeInteractive: runtime.config.interactive,
+            point: CGPoint(x: 0.50, y: 0.70),
+            button: .left,
+            actionTailDurations: tapActionDurations
+        )
+        check(
+            bodyProbeSummary.contains("hit: zone=body action=boll trigger=hold")
+                && bodyProbeSummary.contains("downSnapshot: boll/1"),
+            "interaction probe diagnostics must expose hit-zone action and click timeline for one coordinate"
+        )
         for hitZoneSummary in hitZoneSummaries {
             check(
                 capabilitySummary.contains(hitZoneSummary.detailText),
@@ -2134,6 +2161,20 @@ enum RuntimeSelfTest {
         check(
             interactionPlanParse.foregroundMode == .automatic,
             "interaction diagnostics must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let interactionProbeParse = try EngineConfig.parse(["--probe-interaction", "0.5,0.42", "--probe-button", "left"])
+        check(
+            interactionProbeParse.interactionProbePoint == CGPoint(x: 0.5, y: 0.42)
+                && interactionProbeParse.interactionProbeButton == .left,
+            "EngineConfig must parse single-point interaction probes",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            interactionProbeParse.foregroundMode == .automatic,
+            "interaction probes must ignore persisted foreground mode",
             failures: &failures,
             checks: &checks
         )

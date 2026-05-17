@@ -74,6 +74,8 @@ struct EngineConfig {
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
     let interactionPlanOnly: Bool
+    let interactionProbePoint: CGPoint?
+    let interactionProbeButton: PointerButton
     let spineAnimationPlanOnly: Bool
     let spineSnapshotURL: URL?
     let spineSnapshotAction: String
@@ -124,6 +126,8 @@ struct EngineConfig {
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
         interactionPlanOnly: Bool? = nil,
+        interactionProbePoint: CGPoint? = nil,
+        interactionProbeButton: PointerButton? = nil,
         spineAnimationPlanOnly: Bool? = nil,
         spineSnapshotURL: URL? = nil,
         spineSnapshotAction: String? = nil,
@@ -162,6 +166,8 @@ struct EngineConfig {
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
             interactionPlanOnly: interactionPlanOnly ?? self.interactionPlanOnly,
+            interactionProbePoint: interactionProbePoint ?? self.interactionProbePoint,
+            interactionProbeButton: interactionProbeButton ?? self.interactionProbeButton,
             spineAnimationPlanOnly: spineAnimationPlanOnly ?? self.spineAnimationPlanOnly,
             spineSnapshotURL: spineSnapshotURL ?? self.spineSnapshotURL,
             spineSnapshotAction: spineSnapshotAction ?? self.spineSnapshotAction,
@@ -217,6 +223,8 @@ struct EngineConfig {
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
         var interactionPlanOnly = false
+        var interactionProbePoint: CGPoint?
+        var interactionProbeButton = PointerButton.left
         var spineAnimationPlanOnly = false
         var spineSnapshotURL: URL?
         var spineSnapshotAction = "idle"
@@ -341,6 +349,16 @@ struct EngineConfig {
                 runtimeCapabilitiesOnly = true
             case "--interaction-plan":
                 interactionPlanOnly = true
+            case "--probe-interaction":
+                index += 1
+                interactionProbePoint = try parseNormalizedPoint(try value(arguments, index, option: argument), option: argument)
+            case "--probe-button":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                guard let parsed = PointerButton(rawValue: raw) else {
+                    throw EngineError.invalidArgument("Unknown --probe-button: \(raw). Supported values: left, right")
+                }
+                interactionProbeButton = parsed
             case "--spine-animation-plan":
                 spineAnimationPlanOnly = true
             case "--spine-snapshot":
@@ -459,6 +477,7 @@ struct EngineConfig {
             || performancePlanOnly
             || runtimeCapabilitiesOnly
             || interactionPlanOnly
+            || interactionProbePoint != nil
             || spineAnimationPlanOnly
             || spineSnapshotURL != nil
             || wallpaperSnapshotURL != nil
@@ -546,6 +565,8 @@ struct EngineConfig {
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
             interactionPlanOnly: interactionPlanOnly,
+            interactionProbePoint: interactionProbePoint,
+            interactionProbeButton: interactionProbeButton,
             spineAnimationPlanOnly: spineAnimationPlanOnly,
             spineSnapshotURL: spineSnapshotURL,
             spineSnapshotAction: spineSnapshotAction,
@@ -598,6 +619,23 @@ struct EngineConfig {
         return (width, height)
     }
 
+    private static func parseNormalizedPoint(_ value: String, option: String) throws -> CGPoint {
+        let separators = CharacterSet(charactersIn: ",:")
+        let parts = value.components(separatedBy: separators)
+        guard parts.count == 2,
+              let x = Double(parts[0]),
+              let y = Double(parts[1]),
+              x.isFinite,
+              y.isFinite,
+              x >= 0,
+              x <= 1,
+              y >= 0,
+              y <= 1 else {
+            throw EngineError.invalidArgument("Invalid \(option): \(value). Expected normalized x,y in 0...1")
+        }
+        return CGPoint(x: CGFloat(x), y: CGFloat(y))
+    }
+
     static let help = """
     MacWallpaperEngine native runtime
 
@@ -627,6 +665,9 @@ struct EngineConfig {
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
       --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.
+      --probe-interaction <x,y>
+                              Probe one normalized content coordinate through move, hit-zone, and click timeline mapping, then exit.
+      --probe-button <button>  Button for --probe-interaction: left | right. Default: left.
       --spine-animation-plan   Print Spine animation durations, native geometry samples, and manifest action links, then exit.
       --spine-snapshot <png>   Render a native Spine diagnostic PNG on a white background, then exit.
       --wallpaper-snapshot <png>

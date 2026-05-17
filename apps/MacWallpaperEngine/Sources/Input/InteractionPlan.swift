@@ -351,6 +351,66 @@ struct InteractionPlan {
         return lines.joined(separator: "\n")
     }
 
+    static func probeSummary(
+        interactions: [InteractionConfig],
+        policy: InteractionPolicy?,
+        runtimeInteractive: Bool,
+        point: CGPoint,
+        button: PointerButton,
+        actionTailDurations: [String: CFTimeInterval] = [:]
+    ) -> String {
+        let plan = InteractionPlan(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations
+        )
+        let clampedPoint = plan.clamp(point)
+        let moveConfig = interactions.first { $0.event == .pointerMove }
+        let neutralPoint = Self.point(moveConfig?.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
+        let moveDeadZone = Self.point(moveConfig?.deadZone, fallback: CGPoint(x: plan.idleDeadZone, y: plan.idleDeadZone))
+        let moveCommand = plan.command(for: clampedPoint, previousCommand: "idle")
+        let stickyCommand = plan.command(for: clampedPoint, previousCommand: "Right")
+        let hit = plan.hitTest(point: clampedPoint, button: button)
+
+        let clock = InteractionDiagnosticClock()
+        let controller = InteractionController(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations,
+            clock: clock.now
+        )
+        controller.pointerMoved(to: clampedPoint)
+        var steadyMove = controller.snapshot()
+        for _ in 0..<20 {
+            clock.time += 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+            steadyMove = controller.snapshot()
+        }
+        controller.pointerDown(at: clampedPoint, button: button)
+        let down = controller.snapshot()
+        controller.pointerUp(at: clampedPoint, button: button)
+        let up = controller.snapshot()
+        let tailSeconds = max(hit?.tailSeconds ?? 0.20, 0.20)
+        clock.time += tailSeconds + 0.10
+        let expired = controller.snapshot()
+
+        return [
+            "interaction probe OK",
+            "runtimeInteractive: \(runtimeInteractive ? "enabled" : "disabled")",
+            "input: \(formatPoint(point))",
+            "clamped: \(formatPoint(clampedPoint))",
+            "button: \(button.rawValue)",
+            "neutralPoint: \(formatPoint(neutralPoint))",
+            "deadZone: \(formatPoint(moveDeadZone))",
+            "moveCommand: \(moveCommand)",
+            "stickyCommandFromRight: \(stickyCommand)",
+            "hit: \(hit.map(hitText) ?? "none")",
+            "steadyMoveAfter20Frames: \(snapshotText(steadyMove))",
+            "downSnapshot: \(snapshotText(down))",
+            "upSnapshot: \(snapshotText(up))",
+            "expiredSnapshot: \(snapshotText(expired))"
+        ].joined(separator: "\n")
+    }
+
     private static func desktopMonitorStatus(
         interactions: [InteractionConfig],
         policy: InteractionPolicy,
@@ -543,6 +603,10 @@ struct InteractionPlan {
 
     private static func snapshotText(_ snapshot: InteractionSnapshot) -> String {
         "\(snapshot.command)/\(formatInteractionNumber(Double(snapshot.clickPulse)))"
+    }
+
+    private static func hitText(_ hit: InteractionHitResult) -> String {
+        "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue) tail=\(formatInteractionNumber(hit.tailSeconds))"
     }
 
     func clamp(_ point: CGPoint) -> CGPoint {

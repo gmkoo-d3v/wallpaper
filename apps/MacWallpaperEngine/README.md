@@ -26,6 +26,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Bundle validation exercises interaction diagnostics for every discovered
   bundle, proving active desktop-gated hit-zone/click timelines for interactive
   bundles and passive no-interaction behavior for video/static samples.
+- `--probe-interaction <x,y>` resolves a single normalized content coordinate
+  through gaze, hit-zone, and click timeline handling so manifest-vs-runtime
+  interaction regressions can be reproduced without launching the wallpaper UI.
 - Bundle validation checks each manifest performance budget plan, including
   downgrade ladders, power-saving fallback FPS, telemetry fields, and
   display-refresh 120Hz planning.
@@ -338,6 +341,8 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode all
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --interaction-plan
+swift run MacWallpaperEngine --probe-interaction 0.5,0.42
+swift run MacWallpaperEngine --probe-interaction 0.5,0.70 --probe-button left
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
 swift run MacWallpaperEngine --spine-animation-plan
 swift run MacWallpaperEngine --wallpaper-golden-check
