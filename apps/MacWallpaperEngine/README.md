@@ -20,6 +20,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   primaryOnly/selected+policy/all-full display planning, composite quality, and
   native Spine geometry preflight over every discovered valid bundle without
   launching wallpaper windows.
+- Bundle validation also checks simulated Display Hz mode, proving 120Hz
+  primary and 60Hz secondary display FPS planning without depending on the
+  current physical monitor layout.
 - `--validate-bundles` also runs bundle-local `golden/wallpaper.golden.json`
   fixtures when present, so packaged sample static/video/native-Spine bundles
   prove renderer output instead of only manifest validity.

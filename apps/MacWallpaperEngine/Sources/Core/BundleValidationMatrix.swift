@@ -35,6 +35,7 @@ enum BundleValidationMatrix {
                 _ = runtime.runtimeCapabilitiesSummary()
                 _ = DisplayPlanner.headlessRenderSummary(runtime: runtime)
                 try validateSimulatedDisplayModes(runtime: runtime)
+                try validateDisplayRefreshMode(runtime: runtime)
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
                 let goldenStatus = try validateGoldenIfPresent(runtime: runtime)
@@ -44,6 +45,7 @@ enum BundleValidationMatrix {
                     bundle: bundle,
                     detail: bundle.capabilities.briefText
                         + " / displayModes: primaryOnly+selectedPolicy+allFull"
+                        + " / displayRefreshFps: primary120+secondary60"
                         + " / \(goldenStatus)"
                 ))
             } catch {
@@ -150,6 +152,24 @@ enum BundleValidationMatrix {
               allDisplays.contains("displayRefresh=120Hz") else {
             throw EngineError.invalidArgument(
                 "all-full simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+    }
+
+    private static func validateDisplayRefreshMode(runtime: NativeRuntimeCore) throws {
+        let displayRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            matchDisplayRefresh: true,
+            clearDuration: true
+        ))
+        let displayRefreshPlan = DisplayPlanner.simulatedMultiDisplayRenderSummary(
+            runtime: displayRuntime,
+            displayMode: .all
+        )
+        guard displayRefreshPlan.contains("displayMode: all"),
+              displayRefreshPlan.contains("fps=120\tfpsMode=display\tdisplayRefresh=120Hz"),
+              occurrenceCount("fps=60\tfpsMode=display\tdisplayRefresh=60Hz", in: displayRefreshPlan) == 2 else {
+            throw EngineError.invalidArgument(
+                "display-refresh simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
             )
         }
     }

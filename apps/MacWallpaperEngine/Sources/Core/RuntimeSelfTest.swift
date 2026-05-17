@@ -919,6 +919,10 @@ enum RuntimeSelfTest {
             "bundle validation matrix must cover native Spine/video, video-only, static-image, and multi-display simulated render plans"
         )
         check(
+            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 3,
+            "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
+        )
+        check(
             bundleMatrix.contains("golden: pass fixtures: 3")
                 && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 2,
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, and static-image samples"
