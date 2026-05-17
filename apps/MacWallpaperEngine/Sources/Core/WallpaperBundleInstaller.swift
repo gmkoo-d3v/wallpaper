@@ -12,13 +12,13 @@ enum WallpaperBundleInstaller {
         let requestedSourceRoot = sourceRoot.standardizedFileURL
         try WallpaperBundleFilesystemGuard.rejectSymlinkEntries(in: requestedSourceRoot)
 
-        let sourceRoot = requestedSourceRoot.resolvingSymlinksInPath()
-        let sourceBundle = try WallpaperBundleCatalog.requireValidBundle(sourceRoot)
+        let resolvedSourceRoot = requestedSourceRoot.resolvingSymlinksInPath()
+        let sourceBundle = try WallpaperBundleCatalog.requireValidBundle(requestedSourceRoot)
 
         let libraryDirectory = resolvedLibraryDirectory.standardizedFileURL
         try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
 
-        if sourceRoot.path.hasPrefix(libraryDirectory.resolvingSymlinksInPath().path + "/") {
+        if resolvedSourceRoot.path.hasPrefix(libraryDirectory.resolvingSymlinksInPath().path + "/") {
             return sourceBundle
         }
 
@@ -38,7 +38,7 @@ enum WallpaperBundleInstaller {
         }
 
         do {
-            try copyBundle(from: sourceRoot, to: destination)
+            try copyBundle(from: requestedSourceRoot, to: destination)
             return try WallpaperBundleCatalog.requireValidBundle(destination)
         } catch {
             try? FileManager.default.removeItem(at: destination)
@@ -60,7 +60,7 @@ enum WallpaperBundleInstaller {
 
         for case let sourceURL as URL in enumerator {
             if sourceURL.lastPathComponent == ".DS_Store" { continue }
-            let relativePath = String(sourceURL.path.dropFirst(source.path.count + 1))
+            let relativePath = try relativePath(for: sourceURL, under: source)
             let destinationURL = destination.appendingPathComponent(relativePath)
             let values = try sourceURL.resourceValues(forKeys: [.isDirectoryKey])
 
@@ -74,6 +74,25 @@ enum WallpaperBundleInstaller {
                 try fileManager.copyItem(at: sourceURL, to: destinationURL)
             }
         }
+    }
+
+    private static func relativePath(for url: URL, under root: URL) throws -> String {
+        let rootPaths = [
+            root.standardizedFileURL.path,
+            root.standardizedFileURL.resolvingSymlinksInPath().path
+        ]
+        let urlPaths = [
+            url.standardizedFileURL.path,
+            url.standardizedFileURL.resolvingSymlinksInPath().path
+        ]
+
+        for rootPath in rootPaths {
+            for urlPath in urlPaths where urlPath.hasPrefix(rootPath + "/") {
+                return String(urlPath.dropFirst(rootPath.count + 1))
+            }
+        }
+
+        throw EngineError.invalidArgument("Could not derive bundle-relative path for \(url.path) under \(root.path)")
     }
 
     private static func safeDirectoryName(for bundleId: String) -> String {

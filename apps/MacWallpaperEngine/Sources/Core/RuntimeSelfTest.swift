@@ -859,6 +859,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must cover native Spine/video, video-only, static-image, and multi-display simulated render plans"
         )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
+        try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
         try checkStaticImageBundle(from: runtime, failures: &failures, checks: &checks)
         try checkLinkedMeshSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
@@ -1774,6 +1775,79 @@ enum RuntimeSelfTest {
                     && ($0.errorMessage?.contains("Duplicate wallpaper bundle id \(activeBundle.id)") == true)
             },
             "bundle diagnostics must report duplicate bundle ids instead of silently hiding library entries",
+            failures: &failures,
+            checks: &checks
+        )
+    }
+
+    private static func checkBundleInstallerRoundTrip(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        let sourceImage = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)?.previewURL
+            ?? runtime.assetCatalog.staticImageAssetURL
+            ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        checks += 1
+        guard FileManager.default.fileExists(atPath: sourceImage.path) else {
+            failures.append("bundle installer fixture requires active bundle preview or staticImage asset")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let fixtureParent = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineInstallerSelfTest-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = fixtureParent.appendingPathComponent("source_bundle", isDirectory: true)
+        let libraryRoot = fixtureParent.appendingPathComponent("library", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureParent)
+        }
+
+        _ = try writeStaticImageBundleFixture(
+            root: sourceRoot,
+            imageSource: sourceImage,
+            id: "selftest_install_round_trip",
+            title: "Self Test Install Round Trip"
+        )
+        try Data().write(to: sourceRoot.appendingPathComponent(".DS_Store"), options: .atomic)
+
+        let installedBundle = try WallpaperBundleInstaller.install(
+            sourceRoot: sourceRoot,
+            libraryDirectory: libraryRoot
+        )
+        check(installedBundle.id == "selftest_install_round_trip", "bundle installer must preserve manifest metadata.id", failures: &failures, checks: &checks)
+        check(installedBundle.root.lastPathComponent == "selftest_install_round_trip", "bundle installer must use safe metadata id as destination directory", failures: &failures, checks: &checks)
+        check(FileManager.default.fileExists(atPath: installedBundle.manifestURL.path), "bundle installer must copy wallpaper.native.json", failures: &failures, checks: &checks)
+        check(
+            FileManager.default.fileExists(atPath: installedBundle.root.appendingPathComponent(".DS_Store").path) == false,
+            "bundle installer must skip .DS_Store metadata during import",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let discoveredInstalledBundles = WallpaperBundleCatalog.discover(in: libraryRoot)
+        check(
+            discoveredInstalledBundles.contains { $0.id == installedBundle.id && $0.root.path == installedBundle.root.path },
+            "bundle installer import must be discoverable from the target library",
+            failures: &failures,
+            checks: &checks
+        )
+
+        checks += 1
+        do {
+            _ = try WallpaperBundleInstaller.install(sourceRoot: sourceRoot, libraryDirectory: libraryRoot)
+            failures.append("bundle installer must reject duplicate manifest ids in the target library")
+        } catch {
+            // Expected: duplicate bundle ids are rejected before copying over an installed bundle.
+        }
+
+        let alreadyInstalled = try WallpaperBundleInstaller.install(
+            sourceRoot: installedBundle.root,
+            libraryDirectory: libraryRoot
+        )
+        check(
+            alreadyInstalled.root.path == installedBundle.root.path,
+            "bundle installer must treat already-library-local bundles as already installed",
             failures: &failures,
             checks: &checks
         )
