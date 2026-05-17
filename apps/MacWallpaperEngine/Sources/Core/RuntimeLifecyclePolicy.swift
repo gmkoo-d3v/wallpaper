@@ -109,4 +109,34 @@ enum RuntimeLifecyclePolicy {
             canRequestAccessibilityPermission: false
         )
     }
+
+    static func interactionControlPanelText(
+        permissionStatus: DesktopInteractionPermissionStatus,
+        isHostRunning: Bool,
+        monitorSnapshot: InteractionMonitorTelemetrySnapshot?
+    ) -> String {
+        guard permissionStatus.text.contains("INTERACTION READY") else {
+            return permissionStatus.text
+        }
+        guard isHostRunning else {
+            return "\(permissionStatus.text) / monitor stopped"
+        }
+        guard let monitorSnapshot else {
+            return "\(permissionStatus.text) / monitor starting"
+        }
+
+        let sourceState: String
+        if monitorSnapshot.eventTapActive {
+            sourceState = "tap:on"
+        } else if monitorSnapshot.localMonitorActive {
+            sourceState = "local:on"
+        } else if monitorSnapshot.globalMonitorCount > 0 {
+            sourceState = "global:\(monitorSnapshot.globalMonitorCount)"
+        } else {
+            sourceState = "monitor unavailable"
+        }
+
+        let activeState = monitorSnapshot.active ? "active" : "inactive"
+        return "\(permissionStatus.text) / \(activeState) \(sourceState) last:\(monitorSnapshot.lastSource)/\(monitorSnapshot.lastEvent)/\(monitorSnapshot.lastDecision) command:\(monitorSnapshot.lastCommand)"
+    }
 }

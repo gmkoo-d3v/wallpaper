@@ -1234,6 +1234,54 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let deliveredInteractionSnapshot = InteractionMonitorTelemetrySnapshot(
+            active: true,
+            eventTapActive: true,
+            localMonitorActive: false,
+            globalMonitorCount: 5,
+            lastSource: "cgevent",
+            lastEvent: "leftDown",
+            lastDecision: "delivered",
+            lastPoint: "0.535,0.305",
+            lastCommand: "act",
+            lastClickPulse: 1,
+            deliveredEvents: 1,
+            blockedEvents: 0
+        )
+        let deliveredControlPanelText = RuntimeLifecyclePolicy.interactionControlPanelText(
+            permissionStatus: readyPermissionStatus,
+            isHostRunning: true,
+            monitorSnapshot: deliveredInteractionSnapshot
+        )
+        check(
+            deliveredControlPanelText.contains("active tap:on")
+                && deliveredControlPanelText.contains("last:cgevent/leftDown/delivered")
+                && deliveredControlPanelText.contains("command:act"),
+            "control panel interaction status must surface live monitor delivery state",
+            failures: &failures,
+            checks: &checks
+        )
+        let waitingControlPanelText = RuntimeLifecyclePolicy.interactionControlPanelText(
+            permissionStatus: readyPermissionStatus,
+            isHostRunning: true,
+            monitorSnapshot: nil
+        )
+        check(
+            waitingControlPanelText.contains("monitor starting"),
+            "control panel interaction status must distinguish ready policy from missing monitor telemetry",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.interactionControlPanelText(
+                permissionStatus: blockedPermissionStatus,
+                isHostRunning: true,
+                monitorSnapshot: deliveredInteractionSnapshot
+            ) == blockedPermissionStatus.text,
+            "blocked interaction permission status must not be hidden by stale monitor telemetry",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
                 isVisible: true,

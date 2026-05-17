@@ -297,6 +297,11 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         if host != nil, interactionPermission.canRequestAccessibilityPermission == false {
             host?.refreshInteractionState()
         }
+        let interactionStatusText = RuntimeLifecyclePolicy.interactionControlPanelText(
+            permissionStatus: interactionPermission,
+            isHostRunning: host != nil,
+            monitorSnapshot: primaryInteractionSnapshot(for: runtime)
+        )
         return ControlPanelState(
             isRunning: host != nil,
             displayMode: runtime.config.displayMode,
@@ -308,7 +313,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             fitMode: runtime.config.fitMode,
             foregroundMode: runtime.config.foregroundMode,
             interactionDebugOverlay: runtime.config.interactionDebugOverlay,
-            interactionStatusText: interactionPermission.text,
+            interactionStatusText: interactionStatusText,
             canRequestInteractionPermission: interactionPermission.canRequestAccessibilityPermission,
             wallpaperRoot: runtime.config.wallpaperRoot,
             wallpaperPath: runtime.config.wallpaperRoot.path,
@@ -473,6 +478,12 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
+    }
+
+    private func primaryInteractionSnapshot(for runtime: NativeRuntimeCore) -> InteractionMonitorTelemetrySnapshot? {
+        runtime.telemetry.interactionSnapshot()
+            .first { $0.roleName.hasPrefix("primary:") }?
+            .snapshot
     }
 
     private func makeConfigForSelectedBundle(bundleRoot: URL, manifestURL: URL) -> EngineConfig {
