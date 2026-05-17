@@ -617,6 +617,7 @@ struct EngineConfig {
       --include-invalid        With --list-bundles, include invalid bundle diagnostics.
       --include-capabilities   With --list-bundles, include asset/layer/native fallback capability summary.
       --validate-bundles       Validate every discovered bundle through manifest, capability, render-plan, and native preflight gates.
+      --bundle-library <path>  With --list-bundles/--validate-bundles, scan this library instead of default locations.
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.

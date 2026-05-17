@@ -4,9 +4,11 @@ enum BundleValidationMatrix {
     static func make(
         projectRoot: URL?,
         strictCompositeQuality: Bool,
-        includeInvalid: Bool
+        includeInvalid: Bool,
+        bundleDirectories: [URL]? = nil
     ) throws -> String {
-        let diagnostics = WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
+        let diagnostics = bundleDirectories.map(WallpaperBundleCatalog.diagnose(in:))
+            ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
         guard bundles.isEmpty == false else {
             throw EngineError.invalidArgument("No valid wallpaper bundles found for validation matrix.")

@@ -30,7 +30,11 @@ do {
         let projectRoot = try? ProjectPaths.findProjectRoot()
         let includeInvalid = arguments.contains("--include-invalid")
         let includeCapabilities = arguments.contains("--include-capabilities")
-        let diagnostics = WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
+        let bundleLibrary = value(after: "--bundle-library", in: arguments).map {
+            URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL
+        }
+        let diagnostics = bundleLibrary.map { WallpaperBundleCatalog.diagnose(in: $0) }
+            ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
         guard bundles.isEmpty == false else {
             fputs("No valid wallpaper bundles found.\n", stderr)
@@ -54,7 +58,10 @@ do {
         print(try BundleValidationMatrix.make(
             projectRoot: try? ProjectPaths.findProjectRoot(),
             strictCompositeQuality: arguments.contains("--strict-composite-quality"),
-            includeInvalid: arguments.contains("--include-invalid")
+            includeInvalid: arguments.contains("--include-invalid"),
+            bundleDirectories: value(after: "--bundle-library", in: arguments).map {
+                [URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL]
+            }
         ))
         exit(EXIT_SUCCESS)
     }

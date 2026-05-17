@@ -17,6 +17,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   primaryOnly/selected+policy/all-full display planning, composite quality, and
   native Spine geometry preflight over every discovered valid bundle without
   launching wallpaper windows.
+- `--bundle-library <path>` lets `--list-bundles` and `--validate-bundles`
+  target a specific imported bundle library instead of default locations.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
@@ -258,11 +260,13 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryOnly
 swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryAnimated
 swift run MacWallpaperEngine --simulated-render-plan --display-mode all
 swift run MacWallpaperEngine --validate-bundles
+swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
 swift run MacWallpaperEngine --spine-animation-plan
 swift run MacWallpaperEngine --wallpaper-golden-check
 swift run MacWallpaperEngine --list-bundles --include-capabilities
+swift run MacWallpaperEngine --list-bundles --bundle-library /path/to/wallpapers --include-capabilities
 swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain
 swift run MacWallpaperEngine --foreground-mode native --fps display

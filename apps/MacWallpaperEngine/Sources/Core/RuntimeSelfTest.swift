@@ -631,6 +631,10 @@ enum RuntimeSelfTest {
             EngineConfig.help.contains("--simulated-render-plan"),
             "EngineConfig help must document simulated multi-display render plan diagnostics"
         )
+        check(
+            EngineConfig.help.contains("--bundle-library"),
+            "EngineConfig help must document bundle library diagnostics"
+        )
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
             "--spine-snapshot", "/tmp/native-spine-snapshot.png",
@@ -1829,6 +1833,18 @@ enum RuntimeSelfTest {
         check(
             discoveredInstalledBundles.contains { $0.id == installedBundle.id && $0.root.path == installedBundle.root.path },
             "bundle installer import must be discoverable from the target library",
+            failures: &failures,
+            checks: &checks
+        )
+        let installedLibraryMatrix = try BundleValidationMatrix.make(
+            projectRoot: nil,
+            strictCompositeQuality: false,
+            includeInvalid: false,
+            bundleDirectories: [libraryRoot]
+        )
+        check(
+            installedLibraryMatrix.contains("selftest_install_round_trip"),
+            "bundle validation matrix must support a caller-provided wallpaper library",
             failures: &failures,
             checks: &checks
         )
