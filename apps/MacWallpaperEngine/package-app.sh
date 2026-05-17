@@ -204,4 +204,9 @@ if ! "$MACOS_DIR/$APP_NAME" --self-test >/dev/null; then
   exit 1
 fi
 
+if ! "$MACOS_DIR/$APP_NAME" --validate-bundles --strict-composite-quality >/dev/null; then
+  echo "Packaged app bundle validation matrix failed: $APP_DIR" >&2
+  exit 1
+fi
+
 echo "$APP_DIR"

@@ -50,6 +50,15 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if arguments.contains("--validate-bundles") {
+        print(try BundleValidationMatrix.make(
+            projectRoot: try? ProjectPaths.findProjectRoot(),
+            strictCompositeQuality: arguments.contains("--strict-composite-quality"),
+            includeInvalid: arguments.contains("--include-invalid")
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     let config = try EngineConfig.parse(arguments)
     let runtime = try NativeRuntimeCore(config: config)
 

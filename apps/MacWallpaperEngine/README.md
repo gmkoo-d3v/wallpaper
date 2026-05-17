@@ -13,6 +13,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--list-bundles --include-invalid --include-capabilities` diagnostics for
   unsupported or malformed wallpaper folders and validated bundle capability
   summaries.
+- `--validate-bundles` runs manifest, capability, render-plan, composite
+  quality, and native Spine geometry preflight over every discovered valid
+  bundle without launching wallpaper windows.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
@@ -251,6 +254,7 @@ swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
 swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryOnly
 swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryAnimated
 swift run MacWallpaperEngine --simulated-render-plan --display-mode all
+swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
 swift run MacWallpaperEngine --spine-animation-plan
