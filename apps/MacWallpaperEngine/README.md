@@ -13,6 +13,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--list-bundles --include-invalid --include-capabilities` diagnostics for
   unsupported or malformed wallpaper folders and validated bundle capability
   summaries.
+- `--list-bundles` emits a structured bundle-list report with valid/invalid
+  counts and stable columns, so shell tooling and users can inspect the same
+  library state.
 - `--validate-bundles` runs manifest, capability, render-plan, simulated
   primaryOnly/selected+policy/all-full display planning, composite quality, and
   native Spine geometry preflight over every discovered valid bundle without

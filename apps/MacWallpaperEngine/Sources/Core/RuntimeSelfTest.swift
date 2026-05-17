@@ -1972,6 +1972,23 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let listReport = BundleListReport.make(
+            diagnostics: combinedDiagnostics,
+            includeInvalid: true,
+            includeCapabilities: true
+        )
+        check(
+            listReport.contains("bundle list")
+                && listReport.contains("validBundles:")
+                && listReport.contains("invalidDiagnostics:")
+                && listReport.contains("columns: status\tid\ttitle\troot\tcapabilities\terror")
+                && listReport.contains("quality: ok\tnone")
+                && listReport.contains("duplicate_id_bundle")
+                && listReport.contains("Duplicate wallpaper bundle id \(activeBundle.id)"),
+            "bundle list report must expose counts, stable columns, capabilities, and invalid diagnostic errors",
+            failures: &failures,
+            checks: &checks
+        )
         checks += 1
         do {
             _ = try BundleValidationMatrix.make(
