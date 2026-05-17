@@ -96,6 +96,11 @@ enum RuntimeSelfTest {
             "control panel FPS labels must expose only fixed 30/60 plus display refresh matching"
         )
         check(
+            ControlPanelWindowController.interactionStatusMaximumLines >= 2
+                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility"),
+            "control panel must preserve readable interaction diagnostics and explain permission requests"
+        )
+        check(
             ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
                 previousRuntimeAvailable: true,
                 previousLastError: nil,

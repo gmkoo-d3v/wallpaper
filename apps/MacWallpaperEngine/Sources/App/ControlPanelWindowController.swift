@@ -55,6 +55,8 @@ final class ControlPanelWindowController: NSWindowController {
         "All displays render the full wallpaper; secondary displays remain passive."
     ]
     static let fpsLabels = ["30", "60", "Display Hz"]
+    static let interactionStatusMaximumLines = 2
+    static let interactionPermissionButtonTooltip = "Grant macOS Accessibility permission so desktop-empty click interactions can run while Finder icons stay protected."
 
     static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
         "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)]"
@@ -161,6 +163,7 @@ final class ControlPanelWindowController: NSWindowController {
         renderPlanValue.stringValue = state.renderPlanText
         telemetryValue.stringValue = state.telemetryText
         interactionStatusValue.stringValue = state.interactionStatusText
+        interactionStatusValue.toolTip = state.interactionStatusText
         availableBundles = state.availableBundles
         displaySelectionOptions = state.displaySelectionOptions
         reloadBundlePopup(currentRoot: state.wallpaperRoot)
@@ -451,9 +454,12 @@ final class ControlPanelWindowController: NSWindowController {
         let caption = self.caption("INTERACTION")
         interactionStatusValue.font = .systemFont(ofSize: 13, weight: .light)
         interactionStatusValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
-        interactionStatusValue.lineBreakMode = .byTruncatingTail
+        interactionStatusValue.lineBreakMode = .byWordWrapping
+        interactionStatusValue.maximumNumberOfLines = Self.interactionStatusMaximumLines
         interactionStatusValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        interactionStatusValue.setContentHuggingPriority(.defaultLow, for: .horizontal)
         requestInteractionPermissionButton.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        requestInteractionPermissionButton.toolTip = Self.interactionPermissionButtonTooltip
 
         row.addArrangedSubview(caption)
         row.addArrangedSubview(interactionStatusValue)
