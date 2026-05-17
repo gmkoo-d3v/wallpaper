@@ -185,6 +185,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   still record direct NSResponder delivery for local click debugging.
 - Resource-budget pressure lowers FPS without silently replacing native Spine
   with composite video, preserving the selected foreground renderer.
+- Runtime self-test injects deterministic CPU/RSS samples into the governor to
+  prove sustained CPU downgrade, RSS target fallback, and RSS hard-limit pause
+  behavior without relying on the current machine load.
 - Native Spine compatibility gate falls back to `compositeVideo` when a bundle
   uses Spine feature classes the native renderer does not implement yet.
 - Runtime capability diagnostics report video/composite size, duration,

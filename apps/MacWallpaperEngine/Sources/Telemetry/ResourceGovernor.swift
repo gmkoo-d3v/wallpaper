@@ -105,6 +105,12 @@ struct RuntimePowerState: Equatable {
     }
 }
 
+struct ResourceGovernorSample {
+    let timestamp: TimeInterval
+    let cpuPercent: Double?
+    let rssMb: Int?
+}
+
 enum RuntimePowerStateProvider {
     static func current() -> RuntimePowerState {
         RuntimePowerState(
@@ -139,8 +145,9 @@ final class ResourceGovernor {
     private let plan: PerformancePlan
     private let videoOnlyFallbackEnabled: Bool
     private let powerStateProvider: () -> RuntimePowerState
+    private let resourceSampler: (TimeInterval) -> ResourceGovernorSample
     private var frameDurations: [TimeInterval] = []
-    private var resourceSamples: [ResourceSample] = []
+    private var resourceSamples: [ResourceGovernorSample] = []
     private var currentFps: Int
     private var resourceFpsCap: Int
     private var lastPowerState = RuntimePowerState(lowPowerModeEnabled: false, onBatteryPower: false)
@@ -156,11 +163,13 @@ final class ResourceGovernor {
         manifest: WallpaperNativeManifest,
         targetFps: Int,
         videoOnlyFallbackEnabled: Bool = false,
-        powerStateProvider: @escaping () -> RuntimePowerState = RuntimePowerStateProvider.current
+        powerStateProvider: @escaping () -> RuntimePowerState = RuntimePowerStateProvider.current,
+        resourceSampler: @escaping (TimeInterval) -> ResourceGovernorSample = ProcessResourceSampler.sample
     ) {
         self.plan = PerformancePlan.make(manifest: manifest, requestedFps: targetFps)
         self.videoOnlyFallbackEnabled = videoOnlyFallbackEnabled
         self.powerStateProvider = powerStateProvider
+        self.resourceSampler = resourceSampler
         self.currentFps = plan.effectiveTargetFps
         self.resourceFpsCap = plan.effectiveTargetFps
     }
@@ -235,7 +244,7 @@ final class ResourceGovernor {
             return
         }
         lastResourceSampleTime = now
-        resourceSamples.append(ProcessResourceSampler.sample(now: now))
+        resourceSamples.append(resourceSampler(now))
 
         let window = TimeInterval(max(plan.cpuDowngradeWindowSeconds, 1))
         resourceSamples.removeAll { now - $0.timestamp > window }
@@ -316,15 +325,9 @@ final class ResourceGovernor {
     }
 }
 
-private struct ResourceSample {
-    let timestamp: TimeInterval
-    let cpuPercent: Double?
-    let rssMb: Int?
-}
-
 private enum ProcessResourceSampler {
-    static func sample(now: TimeInterval) -> ResourceSample {
-        ResourceSample(
+    static func sample(now: TimeInterval) -> ResourceGovernorSample {
+        ResourceGovernorSample(
             timestamp: now,
             cpuPercent: currentCPUPercent(),
             rssMb: currentRSSMb()

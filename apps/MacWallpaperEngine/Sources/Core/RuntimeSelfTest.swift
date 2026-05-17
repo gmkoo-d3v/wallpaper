@@ -1042,6 +1042,73 @@ enum RuntimeSelfTest {
         let recoveredFps = powerGovernor.frameStarted(now: 2.0)
         check(recoveredFps == runtime.renderTargetFps, "power-saving FPS clamp must recover when power state clears", failures: &failures, checks: &checks)
 
+        let budgetPlan = runtime.performancePlan
+        let highCPUGovernor = ResourceGovernor(
+            manifest: runtime.manifest,
+            targetFps: runtime.renderTargetFps,
+            resourceSampler: { now in
+                ResourceGovernorSample(
+                    timestamp: now,
+                    cpuPercent: budgetPlan.cpuDowngradePercent + 5.0,
+                    rssMb: max(budgetPlan.rssTargetMb - 1, 1)
+                )
+            }
+        )
+        var highCPUFps = runtime.renderTargetFps
+        for second in 0...budgetPlan.cpuDowngradeWindowSeconds {
+            highCPUFps = highCPUGovernor.frameStarted(now: TimeInterval(second))
+        }
+        check(
+            highCPUFps <= budgetPlan.fallbackFps,
+            "sustained CPU budget pressure must downgrade FPS to the manifest fallback ladder",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let softMemoryGovernor = ResourceGovernor(
+            manifest: runtime.manifest,
+            targetFps: runtime.renderTargetFps,
+            videoOnlyFallbackEnabled: true,
+            resourceSampler: { now in
+                ResourceGovernorSample(
+                    timestamp: now,
+                    cpuPercent: budgetPlan.cpuTargetPercent,
+                    rssMb: budgetPlan.rssTargetMb
+                )
+            }
+        )
+        _ = softMemoryGovernor.frameStarted(now: 0)
+        _ = softMemoryGovernor.frameStarted(now: 1)
+        check(
+            softMemoryGovernor.snapshot.currentFps <= budgetPlan.fallbackFps
+                && softMemoryGovernor.snapshot.videoOnlyFallback,
+            "RSS target pressure must exhaust the FPS ladder before enabling video-only resource fallback",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let hardMemoryGovernor = ResourceGovernor(
+            manifest: runtime.manifest,
+            targetFps: runtime.renderTargetFps,
+            videoOnlyFallbackEnabled: true,
+            resourceSampler: { now in
+                ResourceGovernorSample(
+                    timestamp: now,
+                    cpuPercent: budgetPlan.cpuTargetPercent,
+                    rssMb: budgetPlan.rssHardMb
+                )
+            }
+        )
+        let hardMemoryFps = hardMemoryGovernor.frameStarted(now: 0)
+        check(
+            hardMemoryGovernor.snapshot.pauseForResourceBudget
+                && hardMemoryFps <= budgetPlan.fallbackFps
+                && hardMemoryGovernor.snapshot.videoOnlyFallback == false,
+            "RSS hard limit must pause for resource budget instead of silently switching renderer",
+            failures: &failures,
+            checks: &checks
+        )
+
         governor.recordSkippedFrame(reason: .commandBufferBackpressure)
         governor.recordSubmittedFrame()
         let updated = governor.snapshot
