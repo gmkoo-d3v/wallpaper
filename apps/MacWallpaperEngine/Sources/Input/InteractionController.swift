@@ -14,6 +14,7 @@ final class InteractionController {
     private let lock = NSLock()
     private var pointerState = CGPoint(x: 0.5, y: 0.5)
     private var smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
+    private var lastSmoothSampleAt: CFTimeInterval
     private var moveCommandState = "idle"
     private var clickCommandState: String?
     private var clickCommandExpiresAt: CFTimeInterval = 0
@@ -42,6 +43,7 @@ final class InteractionController {
             actionTailDurations: actionTailDurations
         )
         self.clock = clock
+        self.lastSmoothSampleAt = clock()
     }
 
     func snapshot() -> InteractionSnapshot {
@@ -88,7 +90,6 @@ final class InteractionController {
         let now = clock()
         lock.lock()
         pointerState = pointer
-        smoothedPointerState = pointer
         pressStartedAt = now
         pressedButton = button
         pressedHitAction = hitResult?.action
@@ -166,7 +167,14 @@ final class InteractionController {
     }
 
     private func advanceSmoothedPointerLocked() {
-        smoothedPointerState = plan.smooth(current: smoothedPointerState, target: pointerState)
+        let now = clock()
+        let elapsed = now - lastSmoothSampleAt
+        lastSmoothSampleAt = now
+        smoothedPointerState = plan.smooth(
+            current: smoothedPointerState,
+            target: pointerState,
+            elapsedSeconds: elapsed
+        )
         moveCommandState = plan.command(for: smoothedPointerState, previousCommand: moveCommandState)
     }
 }

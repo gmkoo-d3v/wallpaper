@@ -46,6 +46,9 @@ private final class InteractionDiagnosticClock {
 }
 
 struct InteractionPlan {
+    static let pointerSmoothingReferenceFps: Double = 60
+    static let maxPointerSmoothingElapsedSeconds: CFTimeInterval = 1.0 / 30.0
+
     private let interactions: [InteractionConfig]
     private let pointerSmoothing: CGFloat
     private let idleDeadZone: CGFloat
@@ -66,11 +69,21 @@ struct InteractionPlan {
         self.actionTailDurations = actionTailDurations
     }
 
-    func smooth(current: CGPoint, target: CGPoint) -> CGPoint {
+    func smooth(
+        current: CGPoint,
+        target: CGPoint,
+        elapsedSeconds: CFTimeInterval = 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+    ) -> CGPoint {
         let clampedTarget = clamp(target)
+        let clampedElapsed = min(
+            max(elapsedSeconds, 0),
+            InteractionPlan.maxPointerSmoothingElapsedSeconds
+        )
+        let frameEquivalent = clampedElapsed * InteractionPlan.pointerSmoothingReferenceFps
+        let alpha = CGFloat(1.0 - pow(1.0 - Double(pointerSmoothing), frameEquivalent))
         return CGPoint(
-            x: current.x + (clampedTarget.x - current.x) * pointerSmoothing,
-            y: current.y + (clampedTarget.y - current.y) * pointerSmoothing
+            x: current.x + (clampedTarget.x - current.x) * alpha,
+            y: current.y + (clampedTarget.y - current.y) * alpha
         )
     }
 
@@ -213,6 +226,7 @@ struct InteractionPlan {
             "blockApplicationWindows: \(policy?.blockApplicationWindows ?? true)",
             "blockDesktopItems: \(policy?.blockDesktopItems ?? true)",
             "pointerSmoothing: \(formatInteractionNumber(Double(policy?.pointerSmoothing ?? 0.18)))",
+            "pointerSmoothingCadence: time-based referenceFps=\(formatInteractionNumber(InteractionPlan.pointerSmoothingReferenceFps)) maxDeltaSeconds=\(formatInteractionNumber(InteractionPlan.maxPointerSmoothingElapsedSeconds))",
             "idleDeadZone: \(formatInteractionNumber(Double(policy?.idleDeadZone ?? 0.18)))",
             "directionSwitchMargin: \(formatInteractionNumber(Double(policy?.directionSwitchMargin ?? 0.10)))",
             "defaultClickTailSeconds: \(formatInteractionNumber(policy?.defaultClickTailSeconds ?? 1.15))",

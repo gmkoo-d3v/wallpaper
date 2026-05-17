@@ -397,19 +397,64 @@ enum RuntimeSelfTest {
                 interactionPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right") == "idle",
                 "look-direction interaction plan must honor idle dead zone"
             )
+            var convergenceClock: CFTimeInterval = 0
             let interactionController = InteractionController(
                 interactions: manifest.interactions,
                 policy: manifest.interactionPolicy,
-                actionTailDurations: tapActionDurations
+                actionTailDurations: tapActionDurations,
+                clock: { convergenceClock }
             )
             interactionController.pointerMoved(to: CGPoint(x: 0.10, y: 0.50))
             var smoothedCommand = interactionController.snapshot().command
             for _ in 0..<12 {
+                convergenceClock += 1.0 / 60.0
                 smoothedCommand = interactionController.snapshot().command
             }
             check(
                 smoothedCommand != "idle",
                 "interaction controller must continue smoothing toward the latest pointer target between mouse events"
+            )
+            let smoothingTarget = CGPoint(x: 0.10, y: 0.50)
+            func smoothedPointerAfter(samples: Int, step: CFTimeInterval) -> CGPoint {
+                var time: CFTimeInterval = 0
+                let controller = InteractionController(
+                    interactions: manifest.interactions,
+                    policy: manifest.interactionPolicy,
+                    actionTailDurations: tapActionDurations,
+                    clock: { time }
+                )
+                controller.pointerMoved(to: smoothingTarget)
+                var point = CGPoint(x: 0.5, y: 0.5)
+                for _ in 0..<samples {
+                    time += step
+                    point = controller.snapshot().pointer
+                }
+                return point
+            }
+            let smoothedAt60Hz = smoothedPointerAfter(samples: 12, step: 1.0 / 60.0)
+            let smoothedAt30Hz = smoothedPointerAfter(samples: 6, step: 1.0 / 30.0)
+            check(
+                abs(smoothedAt60Hz.x - smoothedAt30Hz.x) < 0.002
+                    && abs(smoothedAt60Hz.y - smoothedAt30Hz.y) < 0.002,
+                "interaction pointer smoothing must be time-based so 30Hz and 60Hz render cadences converge consistently"
+            )
+            var snapClock: CFTimeInterval = 0
+            let snapController = InteractionController(
+                interactions: manifest.interactions.filter { $0.event == .pointerMove },
+                policy: manifest.interactionPolicy,
+                actionTailDurations: tapActionDurations,
+                clock: { snapClock }
+            )
+            snapController.pointerMoved(to: CGPoint(x: 0.10, y: 0.50))
+            snapClock += 1.0 / 60.0
+            let beforePointerDown = snapController.snapshot().pointer
+            snapController.pointerDown(at: CGPoint(x: 0.90, y: 0.50))
+            snapClock += 1.0 / 60.0
+            let afterPointerDown = snapController.snapshot().pointer
+            check(
+                afterPointerDown.x > beforePointerDown.x
+                    && afterPointerDown.x < 0.90,
+                "pointerDown must not snap smoothed look-direction state to the raw click point"
             )
         } else {
             check(
@@ -433,6 +478,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("pointerDownButtons:")
                 && interactionSummary.contains("desktopMonitor: ready")
                 && interactionSummary.contains("clickTimeline:")
+                && interactionSummary.contains("pointerSmoothingCadence: time-based")
                 && interactionSummary.contains("coordinateProbes:")
                 && interactionSummary.contains("coordinateProbe: view=32:9"),
             "interaction diagnostics must expose move probes, click buttons, deterministic click timelines, and display-aspect coordinate probes"

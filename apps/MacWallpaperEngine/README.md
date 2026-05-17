@@ -156,6 +156,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Pointer movement and click command mapping.
 - Pointer smoothing advances on render snapshots, not only on macOS mouse
   events, so look-direction commands keep converging after the cursor stops.
+- Pointer smoothing is normalized against a 60Hz reference cadence, so fixed
+  30/60 FPS and Display Hz rendering converge at the same real-time speed
+  instead of making look-direction response depend on monitor refresh.
 - Native Spine look-direction poses are mixed by smoothed pointer distance from
   the idle dead zone, avoiding abrupt full-strength directional pose snaps.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
