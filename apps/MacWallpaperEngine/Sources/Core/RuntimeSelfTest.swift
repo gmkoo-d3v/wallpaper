@@ -251,6 +251,14 @@ enum RuntimeSelfTest {
                     .contains("/\(expectedInteractionRequirement)/"),
                 "control panel bundle popup title must expose interaction permission requirement before selection"
             )
+            let bundlePopupTooltip = ControlPanelWindowController.bundlePopupTooltip(for: validatedBundle)
+            check(
+                bundlePopupTooltip.contains(validatedBundle.id)
+                    && bundlePopupTooltip.contains(validatedBundle.root.path)
+                    && bundlePopupTooltip.contains(validatedBundle.manifestURL.path)
+                    && bundlePopupTooltip.contains(validatedBundle.capabilities.briefText),
+                "control panel bundle popup tooltip must expose identity, paths, and capabilities before selection"
+            )
         }
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
            let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),

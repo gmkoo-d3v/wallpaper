@@ -62,6 +62,28 @@ final class ControlPanelWindowController: NSWindowController {
         "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)]"
     }
 
+    static func bundlePopupTooltip(for bundle: WallpaperBundleSummary) -> String {
+        var lines = [
+            "\(bundle.displayName) (\(bundle.id))",
+            "root: \(bundle.root.path)",
+            "manifest: \(bundle.manifestURL.path)",
+            bundle.capabilities.briefText
+        ]
+        if let author = bundle.author {
+            lines.append("author: \(author)")
+        }
+        if let version = bundle.version {
+            lines.append("version: \(version)")
+        }
+        if let description = bundle.description {
+            lines.append(description)
+        }
+        if bundle.capabilities.qualityWarnings.isEmpty == false {
+            lines.append("quality warnings: \(bundle.capabilities.qualityWarnings.joined(separator: " / "))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     weak var delegate: ControlPanelDelegate?
 
     private let statusValue = NSTextField(labelWithString: "")
@@ -607,7 +629,7 @@ final class ControlPanelWindowController: NSWindowController {
         for bundle in availableBundles {
             bundlePopup.addItem(withTitle: Self.bundlePopupTitle(for: bundle))
             bundlePopup.lastItem?.representedObject = bundle.root.path
-            bundlePopup.lastItem?.toolTip = bundle.capabilities.briefText
+            bundlePopup.lastItem?.toolTip = Self.bundlePopupTooltip(for: bundle)
         }
 
         if let selectedPath,
