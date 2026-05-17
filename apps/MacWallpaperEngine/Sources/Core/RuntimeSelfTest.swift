@@ -991,7 +991,7 @@ enum RuntimeSelfTest {
                 active: true,
                 eventTapActive: false,
                 localMonitorActive: true,
-                globalMonitorCount: 4,
+                globalMonitorCount: 0,
                 lastSource: "nsevent",
                 lastEvent: "leftDown",
                 lastDecision: "delivered",
@@ -1009,6 +1009,45 @@ enum RuntimeSelfTest {
                 && interactionTelemetrySummary.contains("command:act/1.0")
                 && interactionTelemetrySummary.contains("delivered:1"),
             "runtime telemetry summary must expose live desktop interaction monitor status and active command",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.inputSources(
+                usesPassiveEventMonitoring: true,
+                eventTapStarted: true
+            ) == DesktopMouseInteractionMonitor.InputSources(
+                useEventTap: true,
+                useLocalMonitor: false,
+                useGlobalMonitors: false
+            ),
+            "desktop mouse monitor must avoid duplicate global monitors when passive event tap is active",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.inputSources(
+                usesPassiveEventMonitoring: true,
+                eventTapStarted: false
+            ) == DesktopMouseInteractionMonitor.InputSources(
+                useEventTap: false,
+                useLocalMonitor: false,
+                useGlobalMonitors: true
+            ),
+            "desktop mouse monitor must fall back to global monitors when passive event tap is unavailable",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.inputSources(
+                usesPassiveEventMonitoring: false,
+                eventTapStarted: false
+            ) == DesktopMouseInteractionMonitor.InputSources(
+                useEventTap: false,
+                useLocalMonitor: true,
+                useGlobalMonitors: false
+            ),
+            "active diagnostic windows must use local mouse monitoring without global duplicate sources",
             failures: &failures,
             checks: &checks
         )
@@ -1251,7 +1290,7 @@ enum RuntimeSelfTest {
             active: true,
             eventTapActive: true,
             localMonitorActive: false,
-            globalMonitorCount: 5,
+            globalMonitorCount: 0,
             lastSource: "cgevent",
             lastEvent: "leftDown",
             lastDecision: "delivered",

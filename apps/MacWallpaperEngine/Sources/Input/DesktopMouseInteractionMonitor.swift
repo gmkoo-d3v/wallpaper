@@ -52,6 +52,12 @@ final class DesktopMouseInteractionMonitor {
         }
     }
 
+    struct InputSources: Equatable {
+        let useEventTap: Bool
+        let useLocalMonitor: Bool
+        let useGlobalMonitors: Bool
+    }
+
     init(
         window: NSWindow,
         policy: InteractionPolicy,
@@ -84,17 +90,21 @@ final class DesktopMouseInteractionMonitor {
         }
         let usesPassiveEventMonitoring = window?.ignoresMouseEvents ?? true
         let eventTapStarted = usesPassiveEventMonitoring ? startEventTap() : false
+        let inputSources = Self.inputSources(
+            usesPassiveEventMonitoring: usesPassiveEventMonitoring,
+            eventTapStarted: eventTapStarted
+        )
         isActive = true
         guard localMonitor == nil, monitors.isEmpty else {
             publishTelemetry(
                 source: "lifecycle",
                 event: "start",
-                decision: startDecision(usesPassiveEventMonitoring: usesPassiveEventMonitoring, eventTapStarted: eventTapStarted)
+                decision: startDecision(inputSources: inputSources)
             )
             return
         }
 
-        if usesPassiveEventMonitoring == false {
+        if inputSources.useLocalMonitor {
             localMonitor = NSEvent.addLocalMonitorForEvents(
                 matching: [
                     .mouseMoved,
@@ -112,12 +122,14 @@ final class DesktopMouseInteractionMonitor {
             )
         }
 
-        addGlobalMoveMonitor()
-        addGlobalClickMonitors()
+        if inputSources.useGlobalMonitors {
+            addGlobalMoveMonitor()
+            addGlobalClickMonitors()
+        }
         publishTelemetry(
             source: "lifecycle",
             event: "start",
-            decision: startDecision(usesPassiveEventMonitoring: usesPassiveEventMonitoring, eventTapStarted: eventTapStarted)
+            decision: startDecision(inputSources: inputSources)
         )
     }
 
@@ -242,9 +254,32 @@ final class DesktopMouseInteractionMonitor {
         }
     }
 
-    private func startDecision(usesPassiveEventMonitoring: Bool, eventTapStarted: Bool) -> String {
-        guard usesPassiveEventMonitoring else { return "activeLocalMouse" }
-        return eventTapStarted ? "active" : "eventTapUnavailable"
+    static func inputSources(usesPassiveEventMonitoring: Bool, eventTapStarted: Bool) -> InputSources {
+        if usesPassiveEventMonitoring {
+            return InputSources(
+                useEventTap: eventTapStarted,
+                useLocalMonitor: false,
+                useGlobalMonitors: eventTapStarted == false
+            )
+        }
+        return InputSources(
+            useEventTap: false,
+            useLocalMonitor: true,
+            useGlobalMonitors: false
+        )
+    }
+
+    private func startDecision(inputSources: InputSources) -> String {
+        if inputSources.useEventTap {
+            return "activeEventTap"
+        }
+        if inputSources.useLocalMonitor {
+            return "activeLocalMouse"
+        }
+        if inputSources.useGlobalMonitors {
+            return "globalFallback"
+        }
+        return "eventTapUnavailable"
     }
 
     private func handleLocal(event: NSEvent) {
