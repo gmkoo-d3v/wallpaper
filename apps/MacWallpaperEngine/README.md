@@ -23,6 +23,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
+- Bundle validation exercises interaction diagnostics for every discovered
+  bundle, proving active desktop-gated hit-zone/click timelines for interactive
+  bundles and passive no-interaction behavior for video/static samples.
 - `--validate-bundles` also runs bundle-local `golden/wallpaper.golden.json`
   fixtures when present, so packaged sample static/video/native-Spine bundles
   prove renderer output instead of only manifest validity.

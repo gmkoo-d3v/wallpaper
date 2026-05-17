@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 enum BundleValidationMatrix {
@@ -36,6 +37,7 @@ enum BundleValidationMatrix {
                 _ = DisplayPlanner.headlessRenderSummary(runtime: runtime)
                 try validateSimulatedDisplayModes(runtime: runtime)
                 try validateDisplayRefreshMode(runtime: runtime)
+                let interactionStatus = try validateInteractionDiagnostics(runtime: runtime)
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
                 let goldenStatus = try validateGoldenIfPresent(runtime: runtime)
@@ -46,6 +48,7 @@ enum BundleValidationMatrix {
                     detail: bundle.capabilities.briefText
                         + " / displayModes: primaryOnly+selectedPolicy+allFull"
                         + " / displayRefreshFps: primary120+secondary60"
+                        + " / \(interactionStatus)"
                         + " / \(goldenStatus)"
                 ))
             } catch {
@@ -172,6 +175,104 @@ enum BundleValidationMatrix {
                 "display-refresh simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
             )
         }
+    }
+
+    private static func validateInteractionDiagnostics(runtime: NativeRuntimeCore) throws -> String {
+        let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
+        let summary = InteractionPlan.diagnosticSummary(
+            interactions: runtime.manifest.interactions,
+            policy: runtime.manifest.interactionPolicy,
+            runtimeInteractive: runtime.config.interactive,
+            actionTailDurations: actionTailDurations,
+            fitMode: runtime.config.fitMode,
+            contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
+            accessibilityTrusted: true
+        )
+        guard summary.contains("interaction plan OK"),
+              summary.contains("pointerMoveProbes:"),
+              summary.contains("pointerDownButtons:"),
+              summary.contains("coordinateProbes:"),
+              summary.contains("coordinateProbe: view=32:9") else {
+            throw EngineError.invalidArgument(
+                "interaction diagnostics are incomplete for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+
+        let hasInteractions = runtime.manifest.interactions.isEmpty == false
+        guard hasInteractions else {
+            guard summary.contains("desktopMonitor: passive(no-interactions)"),
+                  summary.contains("pointerDownButtons: none") else {
+                throw EngineError.invalidArgument(
+                    "passive interaction diagnostics are invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                )
+            }
+            return "interactionPlan: passive(no-interactions)"
+        }
+
+        let plan = InteractionPlan(
+            interactions: runtime.manifest.interactions,
+            policy: runtime.manifest.interactionPolicy,
+            actionTailDurations: actionTailDurations
+        )
+        let zones = plan.hitZoneSummaries()
+        let defaultAction = plan.defaultActionSummary()
+        if zones.isEmpty == false || defaultAction != nil {
+            guard summary.contains("clickTimeline:") else {
+                throw EngineError.invalidArgument(
+                    "pointerDown timeline diagnostics are missing for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                )
+            }
+        }
+
+        for zone in zones {
+            guard summary.contains("hitProbe: \(zone.id)"),
+                  summary.contains("clickProbe: \(zone.id)"),
+                  summary.contains("target=\(zone.id)") else {
+                throw EngineError.invalidArgument(
+                    "hit-zone diagnostics are incomplete for \(runtime.config.wallpaperRoot.lastPathComponent)#\(zone.id)"
+                )
+            }
+        }
+
+        if defaultAction != nil {
+            guard summary.contains("defaultHitProbe:"),
+                  summary.contains("defaultClickProbe:"),
+                  summary.contains("clickTimeline: default") else {
+                throw EngineError.invalidArgument(
+                    "default pointerDown diagnostics are incomplete for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                )
+            }
+        }
+
+        let effectivePolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
+            mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        if RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(effectivePolicy) {
+            let missingTrustSummary = InteractionPlan.diagnosticSummary(
+                interactions: runtime.manifest.interactions,
+                policy: runtime.manifest.interactionPolicy,
+                runtimeInteractive: runtime.config.interactive,
+                actionTailDurations: actionTailDurations,
+                fitMode: runtime.config.fitMode,
+                contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
+                accessibilityTrusted: false
+            )
+            guard missingTrustSummary.contains("desktopMonitor: blocked(accessibility-missing)") else {
+                throw EngineError.invalidArgument(
+                    "interaction diagnostics do not expose missing Accessibility trust for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                )
+            }
+            return "interactionPlan: active(desktop-empty-only+accessibility-gated)"
+        }
+
+        return "interactionPlan: active"
     }
 
     private static func occurrenceCount(_ needle: String, in haystack: String) -> Int {
