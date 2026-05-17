@@ -10,17 +10,12 @@ enum BundleValidationMatrix {
         let diagnostics = bundleDirectories.map(WallpaperBundleCatalog.diagnose(in:))
             ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
+        let invalidDiagnostics = diagnostics.filter { $0.status == .invalid }
         guard bundles.isEmpty == false else {
-            if includeInvalid {
-                let invalidDiagnostics = diagnostics.filter { $0.status == .invalid }
-                if invalidDiagnostics.isEmpty == false {
-                    let details = invalidDiagnostics.map {
-                        "- \($0.id): \($0.errorMessage ?? "invalid bundle") (\($0.root.path))"
-                    }.joined(separator: "\n")
-                    throw EngineError.invalidArgument(
-                        "No valid wallpaper bundles found for validation matrix.\nInvalid diagnostics:\n\(details)"
-                    )
-                }
+            if invalidDiagnostics.isEmpty == false {
+                throw EngineError.invalidArgument(
+                    "No valid wallpaper bundles found for validation matrix.\nInvalid diagnostics:\n\(invalidDiagnosticsDetails(invalidDiagnostics))"
+                )
             }
             throw EngineError.invalidArgument("No valid wallpaper bundles found for validation matrix.")
         }
@@ -60,7 +55,7 @@ enum BundleValidationMatrix {
         }
 
         if includeInvalid {
-            for diagnostic in diagnostics where diagnostic.status == .invalid {
+            for diagnostic in invalidDiagnostics {
                 rows.append([
                     "invalid",
                     diagnostic.id,
@@ -69,6 +64,10 @@ enum BundleValidationMatrix {
                     diagnostic.errorMessage ?? "invalid bundle"
                 ].joined(separator: "\t"))
             }
+        }
+
+        if invalidDiagnostics.isEmpty == false {
+            failures.append("Invalid bundle diagnostics:\n\(invalidDiagnosticsDetails(invalidDiagnostics))")
         }
 
         if failures.isEmpty == false {
@@ -94,6 +93,12 @@ enum BundleValidationMatrix {
             bundle.root.path,
             detail
         ].joined(separator: "\t")
+    }
+
+    private static func invalidDiagnosticsDetails(_ diagnostics: [WallpaperBundleDiagnostic]) -> String {
+        diagnostics.map {
+            "- \($0.id): \($0.errorMessage ?? "invalid bundle") (\($0.root.path))"
+        }.joined(separator: "\n")
     }
 
     private static func validateSimulatedDisplayModes(runtime: NativeRuntimeCore) throws {

@@ -1972,6 +1972,27 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        checks += 1
+        do {
+            _ = try BundleValidationMatrix.make(
+                projectRoot: nil,
+                strictCompositeQuality: false,
+                includeInvalid: false,
+                bundleDirectories: [
+                    runtime.config.wallpaperRoot.deletingLastPathComponent(),
+                    fixtureParent
+                ]
+            )
+            failures.append("bundle validation matrix must fail mixed valid+invalid libraries before packaging")
+        } catch {
+            check(
+                error.localizedDescription.contains("Duplicate wallpaper bundle id \(activeBundle.id)")
+                    && error.localizedDescription.contains("duplicate_id_bundle"),
+                "bundle validation matrix must fail mixed libraries when a duplicate id diagnostic exists",
+                failures: &failures,
+                checks: &checks
+            )
+        }
     }
 
     private static func checkBundleInstallerRoundTrip(

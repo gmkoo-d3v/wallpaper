@@ -27,7 +27,7 @@ do {
     }
 
     if arguments.contains("--list-bundles") {
-        let projectRoot = try? ProjectPaths.findProjectRoot()
+        let projectRoot = ProjectPaths.findCatalogProjectRoot()
         let includeInvalid = arguments.contains("--include-invalid")
         let includeCapabilities = arguments.contains("--include-capabilities")
         let bundleLibrary = value(after: "--bundle-library", in: arguments).map {
@@ -56,7 +56,7 @@ do {
 
     if arguments.contains("--validate-bundles") {
         print(try BundleValidationMatrix.make(
-            projectRoot: try? ProjectPaths.findProjectRoot(),
+            projectRoot: ProjectPaths.findCatalogProjectRoot(),
             strictCompositeQuality: arguments.contains("--strict-composite-quality"),
             includeInvalid: arguments.contains("--include-invalid"),
             bundleDirectories: value(after: "--bundle-library", in: arguments).map {

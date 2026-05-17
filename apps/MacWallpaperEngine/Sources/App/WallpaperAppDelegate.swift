@@ -497,7 +497,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         }
 
         return EngineConfig(
-            projectRoot: (try? ProjectPaths.findProjectRoot()) ?? bundleRoot.deletingLastPathComponent(),
+            projectRoot: ProjectPaths.findCatalogProjectRoot() ?? bundleRoot.deletingLastPathComponent(),
             wallpaperRoot: bundleRoot,
             manifestURL: manifestURL,
             level: .desktop,
@@ -544,7 +544,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
     }
 
     private func wallpaperBundleLibraryState() -> (bundles: [WallpaperBundleSummary], diagnosticsText: String) {
-        let projectRoot = runtime?.config.projectRoot ?? (try? ProjectPaths.findProjectRoot())
+        let projectRoot = runtime?.config.projectRoot ?? ProjectPaths.findCatalogProjectRoot()
         var diagnostics = WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
 
         if let currentRoot = runtime?.config.wallpaperRoot {

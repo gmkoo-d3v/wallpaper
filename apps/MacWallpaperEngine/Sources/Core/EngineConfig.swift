@@ -497,6 +497,7 @@ struct EngineConfig {
         let detectedRoot = try? ProjectPaths.findProjectRoot()
         let bundledWallpaperRoot = ProjectPaths.findBundledWallpaperRoot()
         let userWallpaperRoot = ProjectPaths.findUserWallpaperRoot()
+        let catalogProjectRoot = ProjectPaths.findCatalogProjectRoot(detectedProjectRoot: detectedRoot)
         let resolvedWallpaperRoot: URL
         if let wallpaperRoot {
             resolvedWallpaperRoot = wallpaperRoot.standardizedFileURL
@@ -525,7 +526,7 @@ struct EngineConfig {
             .standardizedFileURL
 
         return EngineConfig(
-            projectRoot: detectedRoot ?? bundledWallpaperRoot?.deletingLastPathComponent().deletingLastPathComponent() ?? resolvedWallpaperRoot,
+            projectRoot: catalogProjectRoot ?? resolvedWallpaperRoot,
             wallpaperRoot: resolvedWallpaperRoot,
             manifestURL: resolvedManifest,
             level: level,
@@ -701,6 +702,13 @@ enum ProjectPaths {
     static func findUserWallpaperRoot() -> URL? {
         guard let directory = findUserWallpapersDirectory() else { return nil }
         return findDefaultWallpaperRoot(in: directory)
+    }
+
+    static func findCatalogProjectRoot(detectedProjectRoot: URL? = try? findProjectRoot()) -> URL? {
+        if let bundledDirectory = findBundledWallpapersDirectory() {
+            return bundledDirectory.deletingLastPathComponent()
+        }
+        return detectedProjectRoot
     }
 
     static func findProjectRoot() throws -> URL {

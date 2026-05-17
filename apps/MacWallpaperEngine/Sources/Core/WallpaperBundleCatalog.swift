@@ -36,7 +36,7 @@ struct WallpaperBundleDiagnostic {
 }
 
 enum WallpaperBundleCatalog {
-    static func diagnoseDefaultBundles(projectRoot: URL? = try? ProjectPaths.findProjectRoot()) -> [WallpaperBundleDiagnostic] {
+    static func diagnoseDefaultBundles(projectRoot: URL? = ProjectPaths.findCatalogProjectRoot()) -> [WallpaperBundleDiagnostic] {
         var directories: [URL] = []
         if let bundledDirectory = ProjectPaths.findBundledWallpapersDirectory() {
             directories.append(bundledDirectory)
@@ -50,7 +50,7 @@ enum WallpaperBundleCatalog {
         return diagnose(in: directories)
     }
 
-    static func discoverDefaultBundles(projectRoot: URL? = try? ProjectPaths.findProjectRoot()) -> [WallpaperBundleSummary] {
+    static func discoverDefaultBundles(projectRoot: URL? = ProjectPaths.findCatalogProjectRoot()) -> [WallpaperBundleSummary] {
         diagnoseDefaultBundles(projectRoot: projectRoot).compactMap(\.bundle)
     }
 
