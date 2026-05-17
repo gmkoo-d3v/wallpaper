@@ -598,7 +598,10 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         let qualityLine = bundle.capabilities.qualityWarnings.isEmpty
             ? nil
             : "quality warnings: \(bundle.capabilities.qualityWarnings.joined(separator: " / "))"
-        let lines = [metadataLine, capabilityLine] + [qualityLine].compactMap { $0 }
+        let recommendationLine = bundle.capabilities.qualityRecommendations.isEmpty
+            ? nil
+            : "quality recommendations: \(bundle.capabilities.qualityRecommendations.joined(separator: " / "))"
+        let lines = [metadataLine, capabilityLine] + [qualityLine, recommendationLine].compactMap { $0 }
         guard let description = bundle.description else {
             return lines.joined(separator: "\n")
         }

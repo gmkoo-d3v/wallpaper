@@ -29,6 +29,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     let fallbackStatus: String
     let qualityStatus: String
     let qualityWarnings: [String]
+    let qualityRecommendations: [String]
 
     var briefText: String {
         [
@@ -43,7 +44,13 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     }
 
     var qualitySummary: String {
-        qualityWarnings.isEmpty ? qualityStatus : "\(qualityStatus)(\(qualityWarnings.count))"
+        if qualityWarnings.isEmpty == false {
+            return "\(qualityStatus)(\(qualityWarnings.count))"
+        }
+        if qualityRecommendations.isEmpty == false {
+            return "\(qualityStatus)+rec(\(qualityRecommendations.count))"
+        }
+        return qualityStatus
     }
 }
 
@@ -189,7 +196,11 @@ enum RuntimeCapabilities {
         } else {
             fallbackStatus = manifest.assets.compositeVideo == nil ? "blocked" : "composite"
         }
-        let qualityWarnings = bundleQualityWarnings(manifest: manifest, bundleRoot: bundleRoot)
+        let qualityReport = CompositeFallbackQualityReport.make(
+            manifest: manifest,
+            bundleRoot: bundleRoot
+        )
+        let qualityWarnings = qualityReport.warnings
         let qualityStatus = qualityWarnings.isEmpty ? "ok" : "warning"
 
         return WallpaperBundleCapabilityInfo(
@@ -200,18 +211,9 @@ enum RuntimeCapabilities {
             nativeSpineStatus: nativeSpineStatus,
             fallbackStatus: fallbackStatus,
             qualityStatus: qualityStatus,
-            qualityWarnings: qualityWarnings
+            qualityWarnings: qualityWarnings,
+            qualityRecommendations: qualityReport.recommendations
         )
-    }
-
-    private static func bundleQualityWarnings(
-        manifest: WallpaperNativeManifest,
-        bundleRoot: URL
-    ) -> [String] {
-        CompositeFallbackQualityReport.make(
-            manifest: manifest,
-            bundleRoot: bundleRoot
-        ).warnings
     }
 
     private static func assetRow(name: String, isPresent: Bool, detail: String?) -> RuntimeCapabilityRow {

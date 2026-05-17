@@ -46,19 +46,31 @@ case "$PACKAGE_VALIDATE_ONLY" in
     ;;
 esac
 
-print_composite_quality_warning() {
+print_composite_quality_notice() {
   local bundle_dir="$1"
   local bundle_name="$2"
   local context="$3"
   local quality_output
+  local has_warning=0
+  local has_recommendation=0
 
   quality_output="$("$VALIDATOR_BIN" --wallpaper-root "$bundle_dir" --composite-quality-plan)"
   if grep -q '^status: warning' <<< "$quality_output"; then
-    echo "$context composite fallback quality warning: $bundle_name" >&2
-    echo "$quality_output" >&2
-    if [ "$STRICT_COMPOSITE_QUALITY_ENABLED" -eq 1 ]; then
-      echo "STRICT_COMPOSITE_QUALITY is enabled; packaging will fail on this warning." >&2
+    has_warning=1
+  fi
+  if grep -q '^recommendations:$' <<< "$quality_output"; then
+    has_recommendation=1
+  fi
+  if [ "$has_warning" -eq 1 ] || [ "$has_recommendation" -eq 1 ]; then
+    if [ "$has_warning" -eq 1 ]; then
+      echo "$context composite fallback quality warning: $bundle_name" >&2
     else
+      echo "$context composite fallback quality recommendation: $bundle_name" >&2
+    fi
+    echo "$quality_output" >&2
+    if [ "$has_warning" -eq 1 ] && [ "$STRICT_COMPOSITE_QUALITY_ENABLED" -eq 1 ]; then
+      echo "STRICT_COMPOSITE_QUALITY is enabled; packaging will fail on this warning." >&2
+    elif [ "$has_warning" -eq 1 ]; then
       echo "Set STRICT_COMPOSITE_QUALITY=1 to fail packaging on this warning." >&2
     fi
   fi
@@ -74,7 +86,7 @@ validate_wallpaper_bundle() {
     exit 1
   fi
 
-  print_composite_quality_warning "$bundle_dir" "$bundle_name" "$context"
+  print_composite_quality_notice "$bundle_dir" "$bundle_name" "$context"
 
   if [ "$STRICT_COMPOSITE_QUALITY_ENABLED" -eq 1 ]; then
     if ! "$VALIDATOR_BIN" --wallpaper-root "$bundle_dir" --validate-only --strict-composite-quality >/dev/null; then

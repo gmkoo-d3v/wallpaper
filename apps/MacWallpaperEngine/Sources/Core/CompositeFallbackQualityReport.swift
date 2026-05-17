@@ -12,6 +12,7 @@ struct CompositeFallbackQualityReport {
     let sizeText: String
     let durationText: String
     let warnings: [String]
+    let recommendations: [String]
 
     var isAcceptable: Bool {
         warnings.isEmpty
@@ -42,6 +43,12 @@ struct CompositeFallbackQualityReport {
             lines.append(contentsOf: warnings.map { "- \($0)" })
             lines.append("action: regenerate the composite fallback from native/source animation with --export-composite-video at display refresh rate; do not merely duplicate low-FPS frames")
         }
+        if recommendations.isEmpty {
+            lines.append("recommendations: none")
+        } else {
+            lines.append("recommendations:")
+            lines.append(contentsOf: recommendations.map { "- \($0)" })
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -69,7 +76,8 @@ struct CompositeFallbackQualityReport {
                 playbackRateText: "none",
                 sizeText: "none",
                 durationText: "none",
-                warnings: []
+                warnings: [],
+                recommendations: []
             )
         }
 
@@ -86,18 +94,24 @@ struct CompositeFallbackQualityReport {
                 effectiveFps: effectiveFps,
                 targetFps: targetFps
             )
+            let recommendations = qualityRecommendations(
+                effectiveFps: effectiveFps,
+                targetFps: targetFps,
+                maxFps: maxFps
+            )
             return CompositeFallbackQualityReport(
                 status: warnings.isEmpty ? "ok" : "warning",
                 targetFps: targetFps,
                 maxFps: maxFps,
-                recommendedExportFps: warnings.isEmpty ? nil : recommended,
+                recommendedExportFps: warnings.isEmpty && recommendations.isEmpty ? nil : recommended,
                 assetPath: compositeVideo.path,
                 fpsText: formatNumber(Double(metadata.nominalFrameRate)),
                 effectiveFpsText: formatNumber(effectiveFps),
                 playbackRateText: "\(formatNumber(Double(playbackRate)))x",
                 sizeText: sizeText(metadata.presentationSize),
                 durationText: metadata.durationSeconds.map { "\(formatNumber($0))s" } ?? "unknown",
-                warnings: warnings
+                warnings: warnings,
+                recommendations: recommendations
             )
         } catch {
             return CompositeFallbackQualityReport(
@@ -111,7 +125,8 @@ struct CompositeFallbackQualityReport {
                 playbackRateText: "\(formatNumber(Double(playbackRate)))x",
                 sizeText: "unknown",
                 durationText: "unknown",
-                warnings: ["compositeVideo metadata unreadable: \(error.localizedDescription)"]
+                warnings: ["compositeVideo metadata unreadable: \(error.localizedDescription)"],
+                recommendations: []
             )
         }
     }
@@ -127,6 +142,18 @@ struct CompositeFallbackQualityReport {
             return ["compositeVideo effectiveFps=\(formatNumber(effectiveFps)) below target=\(targetFps)"]
         }
         return []
+    }
+
+    private static func qualityRecommendations(
+        effectiveFps: Double?,
+        targetFps: Int,
+        maxFps: Int
+    ) -> [String] {
+        guard maxFps > targetFps, let effectiveFps else { return [] }
+        guard effectiveFps + 0.5 < Double(maxFps) else { return [] }
+        return [
+            "compositeVideo effectiveFps=\(formatNumber(effectiveFps)) below maxFps=\(maxFps); regenerate at display-refresh if Composite fallback will be used on high-refresh displays"
+        ]
     }
 
     private static func sizeText(_ size: CGSize) -> String {

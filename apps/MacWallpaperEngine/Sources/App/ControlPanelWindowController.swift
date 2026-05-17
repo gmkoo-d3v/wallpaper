@@ -81,6 +81,9 @@ final class ControlPanelWindowController: NSWindowController {
         if bundle.capabilities.qualityWarnings.isEmpty == false {
             lines.append("quality warnings: \(bundle.capabilities.qualityWarnings.joined(separator: " / "))")
         }
+        if bundle.capabilities.qualityRecommendations.isEmpty == false {
+            lines.append("quality recommendations: \(bundle.capabilities.qualityRecommendations.joined(separator: " / "))")
+        }
         return lines.joined(separator: "\n")
     }
 

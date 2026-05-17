@@ -375,6 +375,27 @@ enum RuntimeSelfTest {
             runtime.validationSummary().contains("composite quality: \(compositeQualityReport.summaryLine)"),
             "validation summary must surface composite fallback quality"
         )
+        if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
+           let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
+           let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),
+           effectiveFps + 0.5 >= Double(runtime.manifest.runtime.targetFps),
+           effectiveFps + 0.5 < Double(runtime.manifest.runtime.maxFps) {
+            check(
+                compositeQualityReport.isAcceptable
+                    && compositeQualityReport.recommendedExportFps == "display-refresh"
+                    && compositeQualityReport.recommendations.contains(where: { $0.contains("below maxFps=\(runtime.manifest.runtime.maxFps)") }),
+                "target-FPS composite fallback must remain acceptable while recommending display-refresh regeneration for high-refresh displays"
+            )
+            check(
+                compositeQualityReport.text.contains("recommendations:")
+                    && compositeQualityReport.text.contains("below maxFps=\(runtime.manifest.runtime.maxFps)"),
+                "composite quality report must expose high-refresh recommendations even when target FPS passes"
+            )
+            check(
+                validatedBundle?.capabilities.qualityRecommendations.contains(where: { $0.contains("below maxFps=\(runtime.manifest.runtime.maxFps)") }) == true,
+                "bundle catalog capabilities must surface high-refresh composite fallback recommendations"
+            )
+        }
         check(
             CompositeVideoExporter.defaultDuration(runtime: runtime) > 0,
             "composite video export must derive a positive default duration from source assets"
