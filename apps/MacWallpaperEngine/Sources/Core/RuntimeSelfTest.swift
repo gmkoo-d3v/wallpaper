@@ -117,6 +117,24 @@ enum RuntimeSelfTest {
             RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle == .primaryOnly,
             "new or recovery-selected bundles must default to selected-display-only instead of touching secondary monitors"
         )
+        let timedConfig = runtime.config.replacing(
+            duration: 42,
+            launchControlPanel: false,
+            launchWallpaper: false
+        )
+        let displayChangedConfig = timedConfig.replacing(displayMode: .all)
+        check(
+            displayChangedConfig.duration == 42,
+            "EngineConfig.replacing must preserve duration when changing unrelated settings"
+        )
+        check(
+            displayChangedConfig.launchControlPanel == false && displayChangedConfig.launchWallpaper == false,
+            "EngineConfig.replacing must preserve launch flags when changing unrelated settings"
+        )
+        check(
+            timedConfig.replacing(clearDuration: true).duration == nil,
+            "EngineConfig.replacing must clear duration only when clearDuration is explicit"
+        )
         check(
             ControlPanelWindowController.displayModeLabels == ["Selected Only", "Selected+Policy", "All Full"],
             "control panel display mode labels must make selected-display-only the default"
