@@ -114,6 +114,10 @@ enum RuntimeSelfTest {
             "desktop item interaction policy must fail closed without Accessibility trust"
         )
         check(
+            RuntimeLifecyclePolicy.outsideContentTrackingPolicy == "ignore-same-window-outside-content-without-idle-reset",
+            "same-window outside-content moves must not reset gaze; application/monitor exits remain the tracking-stop boundary"
+        )
+        check(
             RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle == .primaryOnly,
             "new or recovery-selected bundles must default to selected-display-only instead of touching secondary monitors"
         )

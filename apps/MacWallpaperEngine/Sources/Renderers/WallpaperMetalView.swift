@@ -150,7 +150,6 @@ final class WallpaperMetalView: MTKView {
                 onMove: { [weak self] point in
                     guard let self else { return }
                     guard let contentPoint = self.interactionContentPoint(fromWindowNormalized: point) else {
-                        self.interaction.pointerTrackingStopped()
                         return
                     }
                     self.interaction.pointerMoved(to: contentPoint)
@@ -168,7 +167,6 @@ final class WallpaperMetalView: MTKView {
                         self.interaction.pointerUp(at: contentPoint, button: button)
                     } else {
                         self.interaction.pointerUp(at: CGPoint(x: 0.5, y: 0.5), button: button)
-                        self.interaction.pointerTrackingStopped()
                     }
                 },
                 onExit: { [weak self] in
@@ -249,8 +247,7 @@ final class WallpaperMetalView: MTKView {
     override func mouseMoved(with event: NSEvent) {
         guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else {
-            interaction.pointerTrackingStopped()
-            recordDirectInteraction(event: "move", decision: "outsideContent", point: nil, delivered: false)
+            recordDirectInteraction(event: "move", decision: "outsideContentIgnored", point: nil, delivered: false)
             return
         }
         interaction.pointerMoved(to: point)
@@ -260,8 +257,7 @@ final class WallpaperMetalView: MTKView {
     override func mouseDragged(with event: NSEvent) {
         guard shouldHandleDirectMouseEvents else { return }
         guard let point = interactionContentPoint(from: event) else {
-            interaction.pointerTrackingStopped()
-            recordDirectInteraction(event: "drag", decision: "outsideContent", point: nil, delivered: false)
+            recordDirectInteraction(event: "drag", decision: "outsideContentIgnored", point: nil, delivered: false)
             return
         }
         interaction.pointerMoved(to: point)

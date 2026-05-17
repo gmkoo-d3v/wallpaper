@@ -255,6 +255,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   windows, so UI clicks do not leak into the wallpaper.
 - Desktop interaction eligibility is centralized and self-tested for application
   window, desktop item, disabled mode, and missing Accessibility trust cases.
+- Same-window pointer movement outside the mapped wallpaper content rect is
+  ignored without resetting gaze; app-window, desktop-item, and monitor-exit
+  gates remain the tracking-stop boundary.
 - Desktop icon hit-testing fails closed without Accessibility trust when
   `blockDesktopItems` is enabled, instead of letting wallpaper reactions leak
   over Finder desktop items.
