@@ -5,6 +5,20 @@ struct DesktopInteractionPermissionStatus {
     let canRequestAccessibilityPermission: Bool
 }
 
+enum DisplayRebuildCommitDecision: Equatable {
+    case commit
+    case rollback(reason: String)
+
+    var shouldCommit: Bool {
+        switch self {
+        case .commit:
+            return true
+        case .rollback:
+            return false
+        }
+    }
+}
+
 enum RuntimeLifecyclePolicy {
     static let startupFailurePolicy = "control-panel-recovery"
     static let visibilityPausePolicy = "pause-when-occluded-or-fullscreen-obscured"
@@ -15,6 +29,19 @@ enum RuntimeLifecyclePolicy {
 
     static func shouldRecoverStartupFailureInControlPanel(launchControlPanel: Bool) -> Bool {
         launchControlPanel
+    }
+
+    static func displayRebuildCommitDecision(
+        existingWindowCount: Int,
+        replacementWindowCount: Int,
+        isInitialBuild: Bool
+    ) -> DisplayRebuildCommitDecision {
+        if replacementWindowCount > 0 || isInitialBuild || existingWindowCount == 0 {
+            return .commit
+        }
+        return .rollback(
+            reason: "display rebuild produced no replacement windows; preserving \(existingWindowCount) existing wallpaper window(s)"
+        )
     }
 
     static func shouldPauseForWindowVisibility(isVisible: Bool, displayPolicy: DisplayPolicy) -> Bool {

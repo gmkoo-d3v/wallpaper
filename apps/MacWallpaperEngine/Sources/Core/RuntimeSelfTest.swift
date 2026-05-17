@@ -71,6 +71,39 @@ enum RuntimeSelfTest {
                 && RuntimeLifecyclePolicy.displayRebuildDebounceSeconds <= 1,
             "display rebuild debounce must absorb notification bursts without feeling stale"
         )
+        check(
+            RuntimeLifecyclePolicy.displayRebuildCommitDecision(
+                existingWindowCount: 0,
+                replacementWindowCount: 0,
+                isInitialBuild: true
+            ).shouldCommit,
+            "initial display build may commit an empty plan so startup can surface control-panel recovery"
+        )
+        check(
+            RuntimeLifecyclePolicy.displayRebuildCommitDecision(
+                existingWindowCount: 2,
+                replacementWindowCount: 1,
+                isInitialBuild: false
+            ).shouldCommit,
+            "running display rebuild must commit valid non-empty replacement windows"
+        )
+        let emptyHotPlugRebuild = RuntimeLifecyclePolicy.displayRebuildCommitDecision(
+            existingWindowCount: 2,
+            replacementWindowCount: 0,
+            isInitialBuild: false
+        )
+        check(
+            emptyHotPlugRebuild.shouldCommit == false,
+            "running display rebuild must preserve existing windows when hot-plug probing returns zero replacements"
+        )
+        if case .rollback(let reason) = emptyHotPlugRebuild {
+            check(
+                reason.contains("preserving 2"),
+                "display rebuild rollback reason must keep the preserved-window count observable"
+            )
+        } else {
+            check(false, "empty hot-plug rebuild must produce a rollback decision")
+        }
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(
             RuntimeLifecyclePolicy.visibilityPausePolicy == "pause-when-occluded-or-fullscreen-obscured",

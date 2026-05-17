@@ -220,6 +220,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Debounced atomic display rebuild policy absorbs hot-plug notification bursts
   and keeps the previous wallpaper windows alive if a rebuild fails partway
   through.
+- A transient zero-window rebuild result during a running host is treated as a
+  rollback condition, so monitor reconnect churn cannot replace a live wallpaper
+  set with an empty one.
 - Window visibility loss from occlusion or fullscreen-obscured states pauses
   rendering when the manifest display policy requests `pause`.
 - Desktop interaction monitors are suspended whenever the wallpaper window is

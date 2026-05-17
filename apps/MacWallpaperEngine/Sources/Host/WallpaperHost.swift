@@ -66,8 +66,9 @@ final class WallpaperHost: NSObject {
     }
 
     private func rebuildWindows() throws {
+        let isInitialBuild = isRunning == false
         let replacementWindows = try makeReplacementWindows()
-        replaceWindows(with: replacementWindows)
+        try replaceWindows(with: replacementWindows, isInitialBuild: isInitialBuild)
     }
 
     private func makeReplacementWindows() throws -> [NSWindow] {
@@ -88,7 +89,19 @@ final class WallpaperHost: NSObject {
         }
     }
 
-    private func replaceWindows(with replacementWindows: [NSWindow]) {
+    private func replaceWindows(with replacementWindows: [NSWindow], isInitialBuild: Bool) throws {
+        switch RuntimeLifecyclePolicy.displayRebuildCommitDecision(
+            existingWindowCount: windows.count,
+            replacementWindowCount: replacementWindows.count,
+            isInitialBuild: isInitialBuild
+        ) {
+        case .commit:
+            break
+        case .rollback(let reason):
+            close(windows: replacementWindows)
+            throw EngineError.renderer(reason)
+        }
+
         let oldWindows = windows
         windows = replacementWindows
         close(windows: oldWindows)
