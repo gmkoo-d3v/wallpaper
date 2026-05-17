@@ -2170,6 +2170,78 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let missingPointerMoveMappingRoot = fixtureParent.appendingPathComponent("missing_pointer_move_mapping_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: missingPointerMoveMappingRoot,
+            imageSource: sourceImage,
+            id: "missing_pointer_move_mapping_bundle",
+            title: "Missing Pointer Move Mapping Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerMove",
+                "actions": {
+                  "left": "Left",
+                  "right": "Right",
+                  "up": "Up",
+                  "down": "Down",
+                  "idle": "idle"
+                }
+              }
+            ]
+            """
+        )
+        let missingPointerMoveMappingDiagnostic = WallpaperBundleCatalog.diagnoseBundle(missingPointerMoveMappingRoot)
+        check(
+            missingPointerMoveMappingDiagnostic.status == .invalid
+                && (missingPointerMoveMappingDiagnostic.errorMessage?.contains("pointerMove interaction requires mapping") == true),
+            "bundle diagnostics must reject pointerMove interactions whose mapping is implicit because the native schema only supports explicit lookDirection",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let duplicateHitZoneIDRoot = fixtureParent.appendingPathComponent("duplicate_hit_zone_id_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: duplicateHitZoneIDRoot,
+            imageSource: sourceImage,
+            id: "duplicate_hit_zone_id_bundle",
+            title: "Duplicate Hit Zone ID Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerDown",
+                "hitZones": [
+                  {
+                    "id": "target",
+                    "rect": [0.10, 0.10, 0.30, 0.30],
+                    "action": "act",
+                    "trigger": "tap",
+                    "tailSeconds": 0.5,
+                    "buttons": ["left"]
+                  },
+                  {
+                    "id": "target",
+                    "rect": [0.70, 0.70, 0.90, 0.90],
+                    "action": "boll",
+                    "trigger": "tap",
+                    "tailSeconds": 0.5,
+                    "buttons": ["left"]
+                  }
+                ]
+              }
+            ]
+            """
+        )
+        let duplicateHitZoneIDDiagnostic = WallpaperBundleCatalog.diagnoseBundle(duplicateHitZoneIDRoot)
+        check(
+            duplicateHitZoneIDDiagnostic.status == .invalid
+                && (duplicateHitZoneIDDiagnostic.errorMessage?.contains("hitZone ids must be unique") == true)
+                && (duplicateHitZoneIDDiagnostic.errorMessage?.contains("target") == true),
+            "bundle diagnostics must reject duplicate hit-zone ids before logs and probes become ambiguous",
+            failures: &failures,
+            checks: &checks
+        )
+
         let invalidInteractiveRoot = fixtureParent.appendingPathComponent("interactive_static_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: invalidInteractiveRoot,

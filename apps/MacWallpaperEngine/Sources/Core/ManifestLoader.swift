@@ -258,10 +258,11 @@ enum ManifestLoader {
         for interaction in interactions {
             switch interaction.event {
             case .pointerMove:
-                if let mapping = interaction.mapping {
-                    guard mapping == "lookDirection" else {
-                        throw EngineError.manifest("unsupported pointerMove mapping: \(mapping)")
-                    }
+                guard let mapping = interaction.mapping else {
+                    throw EngineError.manifest("pointerMove interaction requires mapping")
+                }
+                guard mapping == "lookDirection" else {
+                    throw EngineError.manifest("unsupported pointerMove mapping: \(mapping)")
                 }
                 if let neutralPoint = interaction.neutralPoint {
                     try validateInteractionPoint(
@@ -289,9 +290,7 @@ enum ManifestLoader {
                         }
                     }
                 }
-                if (interaction.mapping ?? "lookDirection") == "lookDirection" {
-                    try validateLookDirectionActions(interaction.actions)
-                }
+                try validateLookDirectionActions(interaction.actions)
             case .pointerDown:
                 if let buttons = interaction.buttons, buttons.isEmpty {
                     throw EngineError.manifest("pointerDown buttons must not be empty")
@@ -304,6 +303,7 @@ enum ManifestLoader {
                 for hitZone in hitZones {
                     try validateHitZone(hitZone)
                 }
+                try validateUniqueHitZoneIDs(hitZones)
                 try validateHitZoneTopology(hitZones, defaultButtons: defaultButtons)
                 if let defaultAction = interaction.defaultAction {
                     try validatePointerDownDefaultAction(defaultAction)
@@ -311,6 +311,15 @@ enum ManifestLoader {
             }
             if let buttons = interaction.buttons, buttons.isEmpty {
                 throw EngineError.manifest("\(interaction.event.rawValue) buttons must not be empty")
+            }
+        }
+    }
+
+    private static func validateUniqueHitZoneIDs(_ hitZones: [HitZone]) throws {
+        var seen = Set<String>()
+        for hitZone in hitZones {
+            guard seen.insert(hitZone.id).inserted else {
+                throw EngineError.manifest("hitZone ids must be unique within a pointerDown interaction: \(hitZone.id)")
             }
         }
     }

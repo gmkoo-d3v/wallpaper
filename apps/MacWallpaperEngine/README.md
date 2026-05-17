@@ -128,6 +128,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Manifest validation also rejects unsupported `lookDirection` action keys
   instead of silently ignoring directions the native interaction planner cannot
   produce.
+- Manifest validation requires pointerMove interactions to declare their
+  `mapping` explicitly; the native schema currently supports `lookDirection`.
+- Manifest validation rejects duplicate pointerDown hit-zone ids so diagnostics
+  and interaction probes stay unambiguous.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
