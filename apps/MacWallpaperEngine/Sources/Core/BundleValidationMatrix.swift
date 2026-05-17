@@ -38,6 +38,7 @@ enum BundleValidationMatrix {
                 try validateSimulatedDisplayModes(runtime: runtime)
                 try validateDisplayRefreshMode(runtime: runtime)
                 let interactionStatus = try validateInteractionDiagnostics(runtime: runtime)
+                let performanceStatus = try validatePerformancePlan(runtime: runtime)
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
                 let goldenStatus = try validateGoldenIfPresent(runtime: runtime)
@@ -49,6 +50,7 @@ enum BundleValidationMatrix {
                         + " / displayModes: primaryOnly+selectedPolicy+allFull"
                         + " / displayRefreshFps: primary120+secondary60"
                         + " / \(interactionStatus)"
+                        + " / \(performanceStatus)"
                         + " / \(goldenStatus)"
                 ))
             } catch {
@@ -273,6 +275,50 @@ enum BundleValidationMatrix {
         }
 
         return "interactionPlan: active"
+    }
+
+    private static func validatePerformancePlan(runtime: NativeRuntimeCore) throws -> String {
+        let plan = runtime.performancePlan
+        let summary = runtime.performanceSummary()
+        guard summary.contains("performance plan OK"),
+              summary.contains("exhaustedBudgetFallback: fps downgrade; renderer swap disabled by default"),
+              summary.contains("telemetryFields: currentFps, actualFps, p95FrameTimeMs"),
+              summary.contains("maxInFlightCommandBuffers: \(plan.maxInFlightCommandBuffers)") else {
+            throw EngineError.invalidArgument(
+                "performance diagnostics are incomplete for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+
+        guard plan.fallbackFps >= 1,
+              plan.fallbackFps <= plan.maxFps,
+              plan.effectiveTargetFps >= plan.fallbackFps,
+              plan.downgradeFpsLadder.first == plan.effectiveTargetFps,
+              plan.downgradeFpsLadder.last == plan.fallbackFps,
+              (1...3).contains(plan.maxInFlightCommandBuffers),
+              plan.cpuTargetPercent > 0,
+              plan.cpuDowngradePercent >= plan.cpuTargetPercent,
+              plan.cpuDowngradeWindowSeconds > 0,
+              plan.rssTargetMb > 0,
+              plan.rssHardMb >= plan.rssTargetMb else {
+            throw EngineError.invalidArgument(
+                "performance budget invariants are invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+
+        let displayRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            matchDisplayRefresh: true,
+            clearDuration: true
+        ))
+        let displayPlan = displayRuntime.performancePlan(displayRefreshFps: 120)
+        guard displayPlan.effectiveTargetFps == 120,
+              displayPlan.powerSavingFps == displayPlan.fallbackFps,
+              displayPlan.downgradeFpsLadder.contains(displayPlan.fallbackFps) else {
+            throw EngineError.invalidArgument(
+                "display-refresh performance budget is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+
+        return "performancePlan: target=\(plan.effectiveTargetFps) fallback=\(plan.fallbackFps) budgeted"
     }
 
     private static func occurrenceCount(_ needle: String, in haystack: String) -> Int {

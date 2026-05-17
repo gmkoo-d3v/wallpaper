@@ -928,6 +928,11 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate active desktop-gated interactions and passive no-interaction bundles"
         )
         check(
+            bundleMatrix.contains("performancePlan: target=60 fallback=30 budgeted")
+                && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 2,
+            "bundle validation matrix must validate performance budget plans for native Spine, video-only, and static-image bundles"
+        )
+        check(
             bundleMatrix.contains("golden: pass fixtures: 3")
                 && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 2,
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, and static-image samples"

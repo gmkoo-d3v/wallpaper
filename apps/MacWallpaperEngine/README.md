@@ -26,6 +26,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Bundle validation exercises interaction diagnostics for every discovered
   bundle, proving active desktop-gated hit-zone/click timelines for interactive
   bundles and passive no-interaction behavior for video/static samples.
+- Bundle validation checks each manifest performance budget plan, including
+  downgrade ladders, power-saving fallback FPS, telemetry fields, and
+  display-refresh 120Hz planning.
 - `--validate-bundles` also runs bundle-local `golden/wallpaper.golden.json`
   fixtures when present, so packaged sample static/video/native-Spine bundles
   prove renderer output instead of only manifest validity.
