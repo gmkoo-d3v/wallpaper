@@ -121,6 +121,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--interaction-plan` probes pointer-move commands, hit-zone/default-action
   resolution, and click command hold/tap state for every declared pointerDown
   path.
+- Manifest validation rejects same-button overlapping pointerDown hit zones
+  because explicit hit-zone priority is not yet part of the bundle schema.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.

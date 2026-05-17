@@ -2065,6 +2065,47 @@ enum RuntimeSelfTest {
             failures.append("bundle catalog fixtures require active bundle preview or staticImage asset")
             return
         }
+        let overlappingHitZoneRoot = fixtureParent.appendingPathComponent("overlapping_hit_zone_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: overlappingHitZoneRoot,
+            imageSource: sourceImage,
+            id: "overlapping_hit_zone_bundle",
+            title: "Overlapping Hit Zone Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerDown",
+                "hitZones": [
+                  {
+                    "id": "head",
+                    "rect": [0.20, 0.20, 0.70, 0.70],
+                    "action": "act",
+                    "trigger": "tap",
+                    "tailSeconds": 0.5,
+                    "buttons": ["left"]
+                  },
+                  {
+                    "id": "body",
+                    "rect": [0.50, 0.50, 0.90, 0.90],
+                    "action": "boll",
+                    "trigger": "tap",
+                    "tailSeconds": 0.5,
+                    "buttons": ["left"]
+                  }
+                ]
+              }
+            ]
+            """
+        )
+        let overlappingHitZoneDiagnostic = WallpaperBundleCatalog.diagnoseBundle(overlappingHitZoneRoot)
+        check(
+            overlappingHitZoneDiagnostic.status == .invalid
+                && (overlappingHitZoneDiagnostic.errorMessage?.contains("hitZones head and body overlap") == true),
+            "bundle diagnostics must reject ambiguous overlapping pointerDown hit zones before runtime hit-test order can hide them",
+            failures: &failures,
+            checks: &checks
+        )
+
         let invalidInteractiveRoot = fixtureParent.appendingPathComponent("interactive_static_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: invalidInteractiveRoot,

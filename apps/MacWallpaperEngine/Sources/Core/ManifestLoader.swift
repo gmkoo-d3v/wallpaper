@@ -290,6 +290,10 @@ enum ManifestLoader {
                     }
                 }
             case .pointerDown:
+                if let buttons = interaction.buttons, buttons.isEmpty {
+                    throw EngineError.manifest("pointerDown buttons must not be empty")
+                }
+                let defaultButtons = interaction.buttons ?? [.left]
                 let hitZones = interaction.hitZones ?? []
                 guard hitZones.isEmpty == false || interaction.defaultAction != nil else {
                     throw EngineError.manifest("pointerDown interaction requires at least one hitZone or defaultAction")
@@ -297,6 +301,7 @@ enum ManifestLoader {
                 for hitZone in hitZones {
                     try validateHitZone(hitZone)
                 }
+                try validateHitZoneTopology(hitZones, defaultButtons: defaultButtons)
                 if let defaultAction = interaction.defaultAction {
                     try validatePointerDownDefaultAction(defaultAction)
                 }
@@ -356,6 +361,38 @@ enum ManifestLoader {
         if let buttons = hitZone.buttons, buttons.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")
         }
+    }
+
+    private static func validateHitZoneTopology(
+        _ hitZones: [HitZone],
+        defaultButtons: [PointerButton]
+    ) throws {
+        guard hitZones.count > 1 else { return }
+        for leftIndex in hitZones.indices {
+            let left = hitZones[leftIndex]
+            for right in hitZones.dropFirst(leftIndex + 1) {
+                let leftButtons = Set(left.buttons ?? defaultButtons)
+                let rightButtons = Set(right.buttons ?? defaultButtons)
+                let sharedButtons = leftButtons.intersection(rightButtons)
+                guard sharedButtons.isEmpty == false else { continue }
+                guard hitZoneRectsOverlap(left.rect, right.rect) else { continue }
+
+                let buttonText = sharedButtons
+                    .map(\.rawValue)
+                    .sorted()
+                    .joined(separator: "+")
+                throw EngineError.manifest(
+                    "hitZones \(left.id) and \(right.id) overlap for button(s) \(buttonText); split the rects because hit-zone priority is not supported"
+                )
+            }
+        }
+    }
+
+    private static func hitZoneRectsOverlap(_ left: [Double], _ right: [Double]) -> Bool {
+        guard left.count == 4, right.count == 4 else { return false }
+        let xOverlap = max(left[0], right[0]) < min(left[2], right[2])
+        let yOverlap = max(left[1], right[1]) < min(left[3], right[3])
+        return xOverlap && yOverlap
     }
 
     private static func validatePointerDownDefaultAction(_ action: PointerDownDefaultAction) throws {
