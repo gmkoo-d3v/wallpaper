@@ -70,6 +70,7 @@ struct EngineConfig {
     let validateOnly: Bool
     let displayPlanOnly: Bool
     let renderPlanOnly: Bool
+    let simulatedRenderPlanOnly: Bool
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
     let interactionPlanOnly: Bool
@@ -119,6 +120,7 @@ struct EngineConfig {
         plainWindowStyle: Bool? = nil,
         displayPlanOnly: Bool? = nil,
         renderPlanOnly: Bool? = nil,
+        simulatedRenderPlanOnly: Bool? = nil,
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
         interactionPlanOnly: Bool? = nil,
@@ -156,6 +158,7 @@ struct EngineConfig {
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly ?? self.displayPlanOnly,
             renderPlanOnly: renderPlanOnly ?? self.renderPlanOnly,
+            simulatedRenderPlanOnly: simulatedRenderPlanOnly ?? self.simulatedRenderPlanOnly,
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
             interactionPlanOnly: interactionPlanOnly ?? self.interactionPlanOnly,
@@ -210,6 +213,7 @@ struct EngineConfig {
         var validateOnly = false
         var displayPlanOnly = false
         var renderPlanOnly = false
+        var simulatedRenderPlanOnly = false
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
         var interactionPlanOnly = false
@@ -329,6 +333,8 @@ struct EngineConfig {
                 displayPlanOnly = true
             case "--render-plan":
                 renderPlanOnly = true
+            case "--simulated-render-plan":
+                simulatedRenderPlanOnly = true
             case "--performance-plan":
                 performancePlanOnly = true
             case "--runtime-capabilities":
@@ -449,6 +455,7 @@ struct EngineConfig {
         let ignoresPersistedSettings = validateOnly
             || displayPlanOnly
             || renderPlanOnly
+            || simulatedRenderPlanOnly
             || performancePlanOnly
             || runtimeCapabilitiesOnly
             || interactionPlanOnly
@@ -534,6 +541,7 @@ struct EngineConfig {
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly,
             renderPlanOnly: renderPlanOnly,
+            simulatedRenderPlanOnly: simulatedRenderPlanOnly,
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
             interactionPlanOnly: interactionPlanOnly,
@@ -612,6 +620,7 @@ struct EngineConfig {
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.
       --render-plan            Print effective per-display background/foreground renderer path and exit.
+      --simulated-render-plan  Print the same renderer path over a deterministic three-display fixture and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
       --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.

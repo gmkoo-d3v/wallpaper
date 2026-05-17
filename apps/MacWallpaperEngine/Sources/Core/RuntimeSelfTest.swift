@@ -604,6 +604,18 @@ enum RuntimeSelfTest {
             parsedInteractionOverlay.interactionDebugOverlay,
             "EngineConfig must parse interaction debug overlay diagnostics"
         )
+        let parsedSimulatedRenderPlan = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--simulated-render-plan"
+        ])
+        check(
+            parsedSimulatedRenderPlan.simulatedRenderPlanOnly,
+            "EngineConfig must parse simulated multi-display render plan diagnostics"
+        )
+        check(
+            EngineConfig.help.contains("--simulated-render-plan"),
+            "EngineConfig help must document simulated multi-display render plan diagnostics"
+        )
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
             "--spine-snapshot", "/tmp/native-spine-snapshot.png",

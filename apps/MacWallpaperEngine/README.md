@@ -19,6 +19,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--render-plan` reports the effective per-display background video,
   foreground renderer, fallback, interaction path, FPS mode, display refresh,
   and planned render FPS before launching windows.
+- `--simulated-render-plan` reports the same renderer plan against a
+  deterministic three-display fixture so selected-only, selected+policy, and
+  all-full behavior can be checked without the real monitor layout.
 - CLI display/render plan diagnostics use a headless-safe display snapshot so
   validation commands do not trigger AppKit application registration.
 - Display/render plans include a macOS display id plus a hashed fallback
@@ -242,6 +245,9 @@ swift run MacWallpaperEngine --validate-only --strict-composite-quality
 swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode all
 swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode primaryAnimated
 swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
+swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryOnly
+swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryAnimated
+swift run MacWallpaperEngine --simulated-render-plan --display-mode all
 swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
 swift run MacWallpaperEngine --spine-animation-plan

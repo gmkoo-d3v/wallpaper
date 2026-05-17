@@ -58,8 +58,12 @@ do {
         exit(EXIT_SUCCESS)
     }
 
-    if config.renderPlanOnly {
-        print(DisplayPlanner.headlessRenderSummary(runtime: runtime))
+    if config.renderPlanOnly || config.simulatedRenderPlanOnly {
+        if config.simulatedRenderPlanOnly {
+            print(DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime))
+        } else {
+            print(DisplayPlanner.headlessRenderSummary(runtime: runtime))
+        }
         exit(EXIT_SUCCESS)
     }
 
