@@ -507,10 +507,10 @@ struct EngineConfig {
                   !explicitManifestURL,
                   let persistedRoot = RuntimeSettingsStore.validWallpaperRoot(from: persistedSettings) {
             resolvedWallpaperRoot = persistedRoot
-        } else if let bundledWallpaperRoot {
-            resolvedWallpaperRoot = bundledWallpaperRoot
         } else if let userWallpaperRoot {
             resolvedWallpaperRoot = userWallpaperRoot
+        } else if let bundledWallpaperRoot {
+            resolvedWallpaperRoot = bundledWallpaperRoot
         } else if let detectedRoot {
             guard let defaultWallpaperRoot = ProjectPaths.findDefaultWallpaperRoot(
                 in: detectedRoot.appendingPathComponent("wallpapers")

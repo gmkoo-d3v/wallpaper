@@ -121,6 +121,44 @@ enum RuntimeSelfTest {
             RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle == .primaryOnly,
             "new or recovery-selected bundles must default to selected-display-only instead of touching secondary monitors"
         )
+        let userDefaultRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineUserDefaultSelfTest-\(UUID().uuidString)", isDirectory: true)
+        let bundledDefaultRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineBundledDefaultSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: userDefaultRoot)
+            try? FileManager.default.removeItem(at: bundledDefaultRoot)
+        }
+        let userDefaultBundle = try writeStaticImageBundleFixture(
+            root: userDefaultRoot.appendingPathComponent("user_duplicate", isDirectory: true),
+            imageSource: runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg"),
+            id: "duplicate-default",
+            title: "User Duplicate Default"
+        )
+        _ = try writeStaticImageBundleFixture(
+            root: bundledDefaultRoot.appendingPathComponent("bundled_duplicate", isDirectory: true),
+            imageSource: runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg"),
+            id: "duplicate-default",
+            title: "Bundled Duplicate Default"
+        )
+        let precedenceDiagnostics = WallpaperBundleCatalog.diagnose(in: [userDefaultRoot, bundledDefaultRoot])
+        check(
+            precedenceDiagnostics.contains {
+                $0.status == .valid
+                    && $0.bundle?.id == "duplicate-default"
+                    && $0.root.standardizedFileURL.resolvingSymlinksInPath().path
+                        == userDefaultBundle.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath().path
+            },
+            "bundle catalog precedence must keep user-library bundles valid when a lower-priority bundled sample has the same id"
+        )
+        check(
+            precedenceDiagnostics.contains {
+                $0.status == .invalid
+                    && $0.root.lastPathComponent == "bundled_duplicate"
+                    && ($0.errorMessage?.contains("Duplicate wallpaper bundle id duplicate-default") == true)
+            },
+            "bundle catalog precedence must mark lower-priority duplicate bundled samples invalid"
+        )
         let timedConfig = runtime.config.replacing(
             duration: 42,
             launchControlPanel: false,

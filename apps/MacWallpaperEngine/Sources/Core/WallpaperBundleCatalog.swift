@@ -38,11 +38,11 @@ struct WallpaperBundleDiagnostic {
 enum WallpaperBundleCatalog {
     static func diagnoseDefaultBundles(projectRoot: URL? = ProjectPaths.findCatalogProjectRoot()) -> [WallpaperBundleDiagnostic] {
         var directories: [URL] = []
-        if let bundledDirectory = ProjectPaths.findBundledWallpapersDirectory() {
-            directories.append(bundledDirectory)
-        }
         if let userDirectory = ProjectPaths.findUserWallpapersDirectory() {
             directories.append(userDirectory)
+        }
+        if let bundledDirectory = ProjectPaths.findBundledWallpapersDirectory() {
+            directories.append(bundledDirectory)
         }
         if let projectRoot {
             directories.append(projectRoot.appendingPathComponent("wallpapers"))
