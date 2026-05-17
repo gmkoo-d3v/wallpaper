@@ -56,6 +56,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   buttons, hit zones, pointerDown default actions, effective
   animation-synchronized tail timing, and left/right click probes from the same
   interaction planner used by the renderer.
+- In the current native-metal manifest, declared pointer interactions require a
+  Spine asset because interaction actions resolve to native Spine animations;
+  video-only and static-image bundles must remain passive.
 - `--interaction-plan` also emits deterministic click timelines for tap and
   hold actions, making command hold duration and post-click look-direction
   resume behavior visible without launching desktop windows.

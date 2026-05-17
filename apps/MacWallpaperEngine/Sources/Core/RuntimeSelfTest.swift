@@ -866,6 +866,7 @@ enum RuntimeSelfTest {
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
         try checkStaticImageBundle(from: runtime, failures: &failures, checks: &checks)
+        try checkNonSpineInteractiveBundleRejected(from: runtime, failures: &failures, checks: &checks)
         try checkLinkedMeshSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
         try checkUnsupportedSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
 
@@ -2063,12 +2064,74 @@ enum RuntimeSelfTest {
         check(staticSummary.capabilities.briefText.contains("assets: static"), "static image bundle catalog must expose static capability", failures: &failures, checks: &checks)
     }
 
+    private static func checkNonSpineInteractiveBundleRejected(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        let sourceImage = WallpaperBundleCatalog.validateBundle(runtime.config.wallpaperRoot)?.previewURL
+            ?? runtime.assetCatalog.staticImageAssetURL
+            ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        checks += 1
+        guard FileManager.default.fileExists(atPath: sourceImage.path) else {
+            failures.append("interactive static fixture requires active bundle preview or staticImage asset")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let fixtureRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineInteractiveStaticSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureRoot)
+        }
+
+        let manifestURL = try writeStaticImageBundleFixture(
+            root: fixtureRoot,
+            imageSource: sourceImage,
+            id: "selftest_interactive_static_invalid",
+            title: "Self Test Interactive Static Invalid",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerDown",
+                "defaultAction": {
+                  "action": "act",
+                  "trigger": "tap",
+                  "tailSeconds": 0.5,
+                  "buttons": ["left"]
+                }
+              }
+            ]
+            """
+        )
+
+        checks += 1
+        do {
+            _ = try NativeRuntimeCore(config: runtime.config.replacing(
+                wallpaperRoot: fixtureRoot,
+                manifestURL: manifestURL,
+                clearDuration: true,
+                launchControlPanel: false,
+                launchWallpaper: false
+            ))
+            failures.append("native-metal bundles must reject declared interactions when no Spine asset is present")
+        } catch {
+            check(
+                error.localizedDescription.contains("interactions require a Spine asset"),
+                "non-Spine interaction rejection must explain the missing Spine action target",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+    }
+
     @discardableResult
     private static func writeStaticImageBundleFixture(
         root: URL,
         imageSource: URL,
         id: String,
-        title: String
+        title: String,
+        interactionsJSON: String = "[]"
     ) throws -> URL {
         let fileManager = FileManager.default
         let assetsRoot = root.appendingPathComponent("assets", isDirectory: true)
@@ -2134,7 +2197,7 @@ enum RuntimeSelfTest {
               "asset": "poster"
             }
           ],
-          "interactions": [],
+          "interactions": \(interactionsJSON),
           "validation": {
             "bundleRootOnly": true,
             "requirePremultipliedAlpha": false,

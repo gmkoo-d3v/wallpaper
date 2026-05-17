@@ -149,6 +149,8 @@ enum ManifestLoader {
                 referencedActions: referencedAnimationActions(in: manifest.interactions)
             )
             try validateNativeSpineFallbackReadiness(manifest, bundleRoot: bundleRoot)
+        } else if manifest.interactions.isEmpty == false {
+            throw EngineError.manifest("interactions require a Spine asset in the native-metal runtime")
         }
     }
 
