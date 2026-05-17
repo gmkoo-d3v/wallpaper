@@ -160,6 +160,24 @@ final class InteractionController {
         lock.unlock()
     }
 
+    func pointerTrackingInterrupted() {
+        lock.lock()
+        let now = clock()
+        if clickCommandHeld {
+            clickCommandHeld = false
+            activeClickTailDuration = releaseFadeDuration
+            clickCommandExpiresAt = now + releaseFadeDuration
+        } else if clickCommandState == nil || now >= clickCommandExpiresAt {
+            clickCommandState = nil
+            clickCommandExpiresAt = 0
+        }
+        pressedHitAction = nil
+        pressedHitTrigger = nil
+        pressedHitTailDuration = 0
+        pressedButton = nil
+        lock.unlock()
+    }
+
     private func clamp(_ point: CGPoint) -> CGPoint {
         plan.clamp(point)
     }

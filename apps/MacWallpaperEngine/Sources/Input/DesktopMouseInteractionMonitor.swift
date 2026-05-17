@@ -9,6 +9,7 @@ final class DesktopMouseInteractionMonitor {
     private let onDown: (CGPoint, PointerButton) -> Void
     private let onUp: (CGPoint, PointerButton) -> Void
     private let onExit: () -> Void
+    private let onInterrupted: () -> Void
     private let currentInteractionSnapshot: () -> InteractionSnapshot?
     private let onTelemetry: (InteractionMonitorTelemetrySnapshot) -> Void
     private var monitors: [Any] = []
@@ -65,6 +66,7 @@ final class DesktopMouseInteractionMonitor {
         onDown: @escaping (CGPoint, PointerButton) -> Void,
         onUp: @escaping (CGPoint, PointerButton) -> Void,
         onExit: @escaping () -> Void,
+        onInterrupted: @escaping () -> Void,
         currentInteractionSnapshot: @escaping () -> InteractionSnapshot? = { nil },
         onTelemetry: @escaping (InteractionMonitorTelemetrySnapshot) -> Void = { _ in }
     ) {
@@ -74,6 +76,7 @@ final class DesktopMouseInteractionMonitor {
         self.onDown = onDown
         self.onUp = onUp
         self.onExit = onExit
+        self.onInterrupted = onInterrupted
         self.currentInteractionSnapshot = currentInteractionSnapshot
         self.onTelemetry = onTelemetry
     }
@@ -325,7 +328,7 @@ final class DesktopMouseInteractionMonitor {
             let decision = eligibilityDecision(screenPoint: screenPoint, event: event)
             guard decision == .eligible else {
                 recordBlocked(source: "nsevent", kind: kind, decision: decision.rawValue, point: screenPoint)
-                onExit()
+                onInterrupted()
                 return
             }
         }
@@ -387,7 +390,7 @@ final class DesktopMouseInteractionMonitor {
             let decision = eligibilityDecision(screenPoint: screenPoint, event: nil)
             guard decision == .eligible else {
                 recordBlocked(source: "cgevent", kind: kind, decision: decision.rawValue, point: screenPoint)
-                onExit()
+                onInterrupted()
                 return
             }
         }

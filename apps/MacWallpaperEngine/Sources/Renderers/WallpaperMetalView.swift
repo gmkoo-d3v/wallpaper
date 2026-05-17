@@ -172,6 +172,9 @@ final class WallpaperMetalView: MTKView {
                 onExit: { [weak self] in
                     self?.interaction.pointerTrackingStopped()
                 },
+                onInterrupted: { [weak self] in
+                    self?.interaction.pointerTrackingInterrupted()
+                },
                 currentInteractionSnapshot: { [weak self] in
                     self?.interaction.snapshot()
                 },

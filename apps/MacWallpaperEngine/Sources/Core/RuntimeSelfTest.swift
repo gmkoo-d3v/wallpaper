@@ -118,6 +118,10 @@ enum RuntimeSelfTest {
             "same-window outside-content moves must not reset gaze; application/monitor exits remain the tracking-stop boundary"
         )
         check(
+            RuntimeLifecyclePolicy.blockedDesktopEventTrackingPolicy == "ignore-blocked-desktop-events-without-idle-reset",
+            "desktop-empty blocked events must not reset gaze while app-window and desktop-icon input is ignored"
+        )
+        check(
             RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle == .primaryOnly,
             "new or recovery-selected bundles must default to selected-display-only instead of touching secondary monitors"
         )
@@ -609,6 +613,28 @@ enum RuntimeSelfTest {
                     "interaction controller must resume current look-direction after pointerDown action tail expires"
                 )
             }
+            var interruptedClock: CFTimeInterval = 0
+            let interruptedController = InteractionController(
+                interactions: manifest.interactions,
+                policy: manifest.interactionPolicy,
+                actionTailDurations: tapActionDurations,
+                clock: { interruptedClock }
+            )
+            interruptedController.pointerMoved(to: CGPoint(x: 0.10, y: 0.42))
+            for _ in 0..<20 {
+                interruptedClock += 1.0 / 60.0
+                _ = interruptedController.snapshot()
+            }
+            check(
+                interruptedController.snapshot().command == "Left",
+                "interaction controller must establish look-direction before a desktop-empty eligibility interruption"
+            )
+            interruptedController.pointerTrackingInterrupted()
+            interruptedClock += 1.0 / 60.0
+            check(
+                interruptedController.snapshot().command == "Left",
+                "blocked app-window or desktop-icon events must not reset established look-direction state"
+            )
         } else {
             check(
                 interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") == "idle",
@@ -640,6 +666,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("eventGateProbes:")
                 && interactionSummary.contains("eventGateTrustedProbes:")
                 && interactionSummary.contains("outsideContentTracking: ignore-same-window-outside-content-without-idle-reset")
+                && interactionSummary.contains("blockedDesktopEventTracking: ignore-blocked-desktop-events-without-idle-reset")
                 && interactionSummary.contains("appWindow=blockedApplicationWindow")
                 && interactionSummary.contains("desktopItem=blockedDesktopItem")
                 && interactionSummary.contains("clickTimeline:")
