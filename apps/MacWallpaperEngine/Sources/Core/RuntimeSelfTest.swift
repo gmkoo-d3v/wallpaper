@@ -407,16 +407,31 @@ enum RuntimeSelfTest {
             runtimeInteractive: runtime.config.interactive,
             actionTailDurations: tapActionDurations,
             fitMode: runtime.config.fitMode,
-            contentAspect: CGFloat(runtime.assetCatalog.contentAspect)
+            contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
+            accessibilityTrusted: true
         )
         check(
             interactionSummary.contains("interaction plan OK")
                 && interactionSummary.contains("pointerMoveProbes:")
                 && interactionSummary.contains("pointerDownButtons:")
+                && interactionSummary.contains("desktopMonitor: ready")
                 && interactionSummary.contains("clickTimeline:")
                 && interactionSummary.contains("coordinateProbes:")
                 && interactionSummary.contains("coordinateProbe: view=32:9"),
             "interaction diagnostics must expose move probes, click buttons, deterministic click timelines, and display-aspect coordinate probes"
+        )
+        let missingPermissionInteractionSummary = InteractionPlan.diagnosticSummary(
+            interactions: manifest.interactions,
+            policy: manifest.interactionPolicy,
+            runtimeInteractive: runtime.config.interactive,
+            actionTailDurations: tapActionDurations,
+            fitMode: runtime.config.fitMode,
+            contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
+            accessibilityTrusted: false
+        )
+        check(
+            missingPermissionInteractionSummary.contains("desktopMonitor: blocked(accessibility-missing)"),
+            "interaction diagnostics must explain when desktop-item-safe interaction is blocked by missing Accessibility permission"
         )
         for hitZoneSummary in hitZoneSummaries {
             check(

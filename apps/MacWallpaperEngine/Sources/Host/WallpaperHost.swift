@@ -475,8 +475,21 @@ enum DisplayPlanner {
         guard runtime.manifest.interactions.isEmpty == false else { return "passive(no-interactions)" }
         guard runtime.config.interactive else { return "passive(config-disabled)" }
         guard role.allowsInteraction else { return "passive(display-role)" }
-        let mode = runtime.manifest.interactionPolicy?.mode ?? .desktopEmptyOnly
-        return mode == .disabled ? "passive(policy-disabled)" : mode.rawValue
+        let policy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
+            mode: .desktopEmptyOnly,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        guard policy.mode != .disabled else { return "passive(policy-disabled)" }
+        let permissionNote = RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(policy)
+            ? "(accessibility-required)"
+            : ""
+        return "\(policy.mode.rawValue)\(permissionNote)"
     }
 
     private static func assetLabel(_ kind: String, _ url: URL) -> String {

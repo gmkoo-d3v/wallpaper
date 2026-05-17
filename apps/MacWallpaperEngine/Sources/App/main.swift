@@ -101,7 +101,8 @@ do {
             runtimeInteractive: runtime.config.interactive,
             actionTailDurations: actionTailDurations,
             fitMode: runtime.config.fitMode,
-            contentAspect: CGFloat(runtime.assetCatalog.contentAspect)
+            contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
+            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
         ))
         exit(EXIT_SUCCESS)
     }

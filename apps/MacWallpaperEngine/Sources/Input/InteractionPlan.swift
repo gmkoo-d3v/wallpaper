@@ -163,14 +163,31 @@ struct InteractionPlan {
         runtimeInteractive: Bool,
         actionTailDurations: [String: CFTimeInterval] = [:],
         fitMode: RenderFitMode? = nil,
-        contentAspect: CGFloat? = nil
+        contentAspect: CGFloat? = nil,
+        accessibilityTrusted: Bool? = nil
     ) -> String {
         let plan = InteractionPlan(
             interactions: interactions,
             policy: policy,
             actionTailDurations: actionTailDurations
         )
+        let effectivePolicy = policy ?? InteractionPolicy(
+            mode: runtimeInteractive ? .desktopEmptyOnly : .disabled,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: nil,
+            idleDeadZone: nil,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
         let mode = policy?.mode.rawValue ?? (runtimeInteractive ? "desktop-empty-only(default)" : "disabled(default)")
+        let monitorStatus = desktopMonitorStatus(
+            interactions: interactions,
+            policy: effectivePolicy,
+            runtimeInteractive: runtimeInteractive,
+            accessibilityTrusted: accessibilityTrusted
+        )
         let moveConfig = interactions.first { $0.event == .pointerMove }
         let clickConfig = interactions.first { $0.event == .pointerDown }
         let moveMapping = moveConfig?.mapping ?? "none"
@@ -192,6 +209,7 @@ struct InteractionPlan {
             "interaction plan OK",
             "runtimeInteractive: \(runtimeInteractive ? "enabled" : "disabled")",
             "policyMode: \(mode)",
+            "desktopMonitor: \(monitorStatus)",
             "blockApplicationWindows: \(policy?.blockApplicationWindows ?? true)",
             "blockDesktopItems: \(policy?.blockDesktopItems ?? true)",
             "pointerSmoothing: \(formatInteractionNumber(Double(policy?.pointerSmoothing ?? 0.18)))",
@@ -304,6 +322,23 @@ struct InteractionPlan {
             ))
         }
         return lines.joined(separator: "\n")
+    }
+
+    private static func desktopMonitorStatus(
+        interactions: [InteractionConfig],
+        policy: InteractionPolicy,
+        runtimeInteractive: Bool,
+        accessibilityTrusted: Bool?
+    ) -> String {
+        guard runtimeInteractive else { return "disabled(runtime-settings)" }
+        guard interactions.isEmpty == false else { return "passive(no-interactions)" }
+        guard policy.mode != .disabled else { return "disabled(policy)" }
+        guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(policy) else {
+            return "ready(\(policy.mode.rawValue))"
+        }
+
+        let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
+        return trusted ? "ready(\(policy.mode.rawValue),accessibility-trusted)" : "blocked(accessibility-missing)"
     }
 
     private static func clickTimelineText(
