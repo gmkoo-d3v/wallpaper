@@ -44,7 +44,11 @@ final class WallpaperMetalView: MTKView {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
-        self.interactionPolicy = runtime.config.interactive && displayRole.allowsInteraction ? manifestInteractionPolicy : InteractionPolicy(
+        let hasDeclaredInteractions = runtime.manifest.interactions.isEmpty == false
+        let shouldEnableInteraction = runtime.config.interactive
+            && displayRole.allowsInteraction
+            && hasDeclaredInteractions
+        self.interactionPolicy = shouldEnableInteraction ? manifestInteractionPolicy : InteractionPolicy(
             mode: .disabled,
             blockApplicationWindows: true,
             blockDesktopItems: true,

@@ -303,12 +303,15 @@ enum RuntimeCapabilities {
         actionTailDurations: [String: CFTimeInterval]
     ) -> [RuntimeCapabilityRow] {
         var rows: [RuntimeCapabilityRow] = []
+        let hasInteractions = interactions.isEmpty == false
         let policyMode = policy?.mode.rawValue ?? "desktop-empty-only(default)"
         rows.append(RuntimeCapabilityRow(
             category: "interaction",
             name: "policy",
-            status: policy?.mode == .disabled ? "not-used" : "supported",
-            detail: "mode=\(policyMode) blockAppWindows=\(policy?.blockApplicationWindows ?? true) blockDesktopItems=\(policy?.blockDesktopItems ?? true) desktopItemGate=\(desktopItemGate(policy: policy))"
+            status: hasInteractions && policy?.mode != .disabled ? "supported" : "not-used",
+            detail: hasInteractions
+                ? "mode=\(policyMode) blockAppWindows=\(policy?.blockApplicationWindows ?? true) blockDesktopItems=\(policy?.blockDesktopItems ?? true) desktopItemGate=\(desktopItemGate(policy: policy))"
+                : "no declared interactions"
         ))
 
         let pointerMove = interactions.filter { $0.event == .pointerMove }

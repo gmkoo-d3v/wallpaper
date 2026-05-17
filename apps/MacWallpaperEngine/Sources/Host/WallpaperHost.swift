@@ -472,6 +472,7 @@ enum DisplayPlanner {
     }
 
     private static func plannedInteraction(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> String {
+        guard runtime.manifest.interactions.isEmpty == false else { return "passive(no-interactions)" }
         guard runtime.config.interactive else { return "passive(config-disabled)" }
         guard role.allowsInteraction else { return "passive(display-role)" }
         let mode = runtime.manifest.interactionPolicy?.mode ?? .desktopEmptyOnly
