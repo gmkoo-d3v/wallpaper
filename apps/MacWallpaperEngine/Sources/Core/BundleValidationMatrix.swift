@@ -26,6 +26,7 @@ enum BundleValidationMatrix {
                 _ = runtime.validationSummary()
                 _ = runtime.runtimeCapabilitiesSummary()
                 _ = DisplayPlanner.headlessRenderSummary(runtime: runtime)
+                try validateSimulatedDisplayModes(runtime: runtime)
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
 
@@ -33,6 +34,7 @@ enum BundleValidationMatrix {
                     status: "valid",
                     bundle: bundle,
                     detail: bundle.capabilities.briefText
+                        + " / displayModes: primaryOnly+selectedPolicy+allFull"
                 ))
             } catch {
                 failures.append("\(bundle.id): \(error.localizedDescription)")
@@ -79,5 +81,54 @@ enum BundleValidationMatrix {
             bundle.root.path,
             detail
         ].joined(separator: "\t")
+    }
+
+    private static func validateSimulatedDisplayModes(runtime: NativeRuntimeCore) throws {
+        let primaryOnly = DisplayPlanner.simulatedMultiDisplayRenderSummary(
+            runtime: runtime,
+            displayMode: .primaryOnly
+        )
+        guard primaryOnly.contains("displayMode: primaryOnly"),
+              occurrenceCount("primary:\(runtime.manifest.displayPolicy.primary.rawValue)", in: primaryOnly) == 1,
+              occurrenceCount("\tnone\tbackground=none\tforeground=none", in: primaryOnly) == 2 else {
+            throw EngineError.invalidArgument(
+                "primaryOnly simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+
+        let selectedPolicy = DisplayPlanner.simulatedMultiDisplayRenderSummary(
+            runtime: runtime,
+            displayMode: .primaryAnimated
+        )
+        guard selectedPolicy.contains("displayMode: primaryAnimated"),
+              occurrenceCount("secondary:\(runtime.manifest.displayPolicy.secondary.rawValue)", in: selectedPolicy) == 2,
+              selectedPolicy.contains("interaction=passive") else {
+            throw EngineError.invalidArgument(
+                "selected+policy simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+
+        let allDisplays = DisplayPlanner.simulatedMultiDisplayRenderSummary(
+            runtime: runtime,
+            displayMode: .all
+        )
+        guard allDisplays.contains("displayMode: all"),
+              occurrenceCount("secondary:full", in: allDisplays) == 2,
+              allDisplays.contains("displayRefresh=120Hz") else {
+            throw EngineError.invalidArgument(
+                "all-full simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+    }
+
+    private static func occurrenceCount(_ needle: String, in haystack: String) -> Int {
+        guard needle.isEmpty == false else { return 0 }
+        var count = 0
+        var searchRange = haystack.startIndex..<haystack.endIndex
+        while let range = haystack.range(of: needle, options: [], range: searchRange) {
+            count += 1
+            searchRange = range.upperBound..<haystack.endIndex
+        }
+        return count
     }
 }
