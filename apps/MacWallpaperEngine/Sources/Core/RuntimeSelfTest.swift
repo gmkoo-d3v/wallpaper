@@ -595,6 +595,13 @@ enum RuntimeSelfTest {
             )
         }
         let hitZoneSummaries = interactionPlan.hitZoneSummaries()
+        if manifest.metadata?.id == "sample_imported",
+           let headHitZone = hitZoneSummaries.first(where: { $0.id == "head" }) {
+            check(
+                headHitZone.trigger == .hold,
+                "Imported head interaction must stay active while the pointer is held for head-rub gestures"
+            )
+        }
         let interactionSummary = InteractionPlan.diagnosticSummary(
             interactions: manifest.interactions,
             policy: manifest.interactionPolicy,
