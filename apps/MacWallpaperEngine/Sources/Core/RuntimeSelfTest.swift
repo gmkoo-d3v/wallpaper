@@ -2843,6 +2843,12 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeRenderer\tunsupported\tfallback=compositeVideo"),
+            "unsupported Spine capability summary must mark nativeRenderer unsupported while naming the composite fallback",
+            failures: &failures,
+            checks: &checks
+        )
         let unsupportedSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(unsupportedSummary.capabilities.nativeSpineStatus == "unsupported", "catalog must surface unsupported native Spine status", failures: &failures, checks: &checks)
         check(unsupportedSummary.capabilities.fallbackStatus == "composite", "catalog must surface composite fallback for unsupported native Spine", failures: &failures, checks: &checks)

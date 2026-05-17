@@ -422,6 +422,19 @@ enum RuntimeCapabilities {
             : "unsupported"
         let timelineStatus = scan.unsupportedTimelineKeys.isEmpty ? "supported" : "unsupported"
 
+        let nativeRendererStatus: String
+        let nativeRendererDetail: String
+        if compatibility.isSupported {
+            nativeRendererStatus = "supported"
+            nativeRendererDetail = "Spine 4.2 setup/mesh renderer, placement=\(spine.placement.mode), pma=\(spine.premultipliedAlpha)"
+        } else {
+            nativeRendererStatus = "unsupported"
+            let fallback = runtime.assetCatalog.compositeVideoAsset == nil
+                ? "fallback=blocked(no-compositeVideo)"
+                : "fallback=compositeVideo"
+            nativeRendererDetail = "\(fallback); \(compatibility.reasonText)"
+        }
+
         return [
             RuntimeCapabilityRow(
                 category: "spine",
@@ -432,8 +445,8 @@ enum RuntimeCapabilities {
             RuntimeCapabilityRow(
                 category: "spine",
                 name: "nativeRenderer",
-                status: "supported",
-                detail: "Spine 4.2 setup/mesh renderer, placement=\(spine.placement.mode), pma=\(spine.premultipliedAlpha)"
+                status: nativeRendererStatus,
+                detail: nativeRendererDetail
             ),
             RuntimeCapabilityRow(
                 category: "spine",

@@ -22,6 +22,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
+- Runtime capability diagnostics mark the native Spine renderer itself as
+  unsupported when the compatibility gate requires a composite fallback, so
+  bundle authors can distinguish "renderer exists" from "this bundle can use
+  it".
 - `--render-plan` reports the effective per-display background video,
   foreground renderer, fallback, interaction path, FPS mode, display refresh,
   and planned render FPS before launching windows.
