@@ -228,6 +228,7 @@ struct InteractionPlan {
             "runtimeInteractive: \(runtimeInteractive ? "enabled" : "disabled")",
             "policyMode: \(mode)",
             "desktopMonitor: \(monitorStatus)",
+            "outsideContentTracking: \(RuntimeLifecyclePolicy.outsideContentTrackingPolicy)",
             "blockApplicationWindows: \(policy?.blockApplicationWindows ?? true)",
             "blockDesktopItems: \(policy?.blockDesktopItems ?? true)",
             "pointerSmoothing: \(formatInteractionNumber(Double(policy?.pointerSmoothing ?? 0.18)))",

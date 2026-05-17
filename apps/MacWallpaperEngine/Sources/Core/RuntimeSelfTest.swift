@@ -573,6 +573,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("desktopMonitor: ready")
                 && interactionSummary.contains("eventGateProbes:")
                 && interactionSummary.contains("eventGateTrustedProbes:")
+                && interactionSummary.contains("outsideContentTracking: ignore-same-window-outside-content-without-idle-reset")
                 && interactionSummary.contains("appWindow=blockedApplicationWindow")
                 && interactionSummary.contains("desktopItem=blockedDesktopItem")
                 && interactionSummary.contains("clickTimeline:")
