@@ -96,6 +96,30 @@ enum RuntimeSelfTest {
             "control panel FPS labels must expose only fixed 30/60 plus display refresh matching"
         )
         check(
+            ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
+                previousRuntimeAvailable: true,
+                previousLastError: nil,
+                failureDescription: "bad bundle"
+            ) == nil,
+            "failed bundle selection must not mark a healthy selected runtime as errored"
+        )
+        check(
+            ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
+                previousRuntimeAvailable: true,
+                previousLastError: "previous startup failure",
+                failureDescription: "bad bundle"
+            ) == "previous startup failure",
+            "failed bundle selection must preserve a pre-existing runtime error instead of overwriting it"
+        )
+        check(
+            ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
+                previousRuntimeAvailable: false,
+                previousLastError: nil,
+                failureDescription: "bad bundle"
+            ) == "bad bundle",
+            "failed bundle selection with no existing runtime must remain visible as the current status error"
+        )
+        check(
             RuntimeLifecyclePolicy.shouldRecoverStartupFailureInControlPanel(launchControlPanel: true),
             "startup host failures must surface in the control panel when UI is available"
         )

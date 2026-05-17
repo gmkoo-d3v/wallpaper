@@ -1,5 +1,15 @@
 import AppKit
 
+enum ControlPanelFailureStatusPolicy {
+    static func lastErrorAfterNonDegradingSelectionFailure(
+        previousRuntimeAvailable: Bool,
+        previousLastError: String?,
+        failureDescription: String
+    ) -> String? {
+        previousRuntimeAvailable ? previousLastError : failureDescription
+    }
+}
+
 final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: NativeRuntimeCore?
     private var host: WallpaperHost?
@@ -142,6 +152,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let wasRunning = host != nil
+        let previousLastError = lastError
         do {
             let nextConfig = currentRuntime.config.replacing(
                 displayMode: displayMode,
@@ -186,11 +197,8 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 persistSettings(for: nextRuntime.config)
             }
         } catch {
-            if wasRunning && host != nil {
-                lastError = nil
-            } else {
-                lastError = error.localizedDescription
-            }
+            runtime = currentRuntime
+            lastError = previousLastError
             showError(error)
         }
         controlPanel?.refresh()
@@ -210,6 +218,20 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func restoreNonDegradingSelectionFailure(
+        _ error: Error,
+        previousRuntime: NativeRuntimeCore?,
+        previousLastError: String?
+    ) {
+        runtime = previousRuntime
+        lastError = ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
+            previousRuntimeAvailable: previousRuntime != nil,
+            previousLastError: previousLastError,
+            failureDescription: error.localizedDescription
+        )
+        showError(error)
     }
 
     @objc private func openControlPanelFromStatusMenu() {
@@ -341,6 +363,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
 
     func controlPanelChooseWallpaperBundle(_ url: URL) {
         let oldRuntime = runtime
+        let oldLastError = lastError
         let wasRunning = host != nil
         do {
             let bundleRoot = url.standardizedFileURL
@@ -390,25 +413,27 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 persistSettings(for: nextRuntime.config)
             }
         } catch {
-            if !wasRunning || host == nil {
-                lastError = error.localizedDescription
-            } else {
-                lastError = nil
-            }
-            showError(error)
+            restoreNonDegradingSelectionFailure(
+                error,
+                previousRuntime: oldRuntime,
+                previousLastError: oldLastError
+            )
         }
         controlPanel?.refresh()
     }
 
     func controlPanelImportWallpaperBundle(_ url: URL) {
+        let oldRuntime = runtime
+        let oldLastError = lastError
         do {
             let installedBundle = try WallpaperBundleInstaller.install(sourceRoot: url)
             controlPanelChooseWallpaperBundle(installedBundle.root)
         } catch {
-            if host == nil {
-                lastError = error.localizedDescription
-            }
-            showError(error)
+            restoreNonDegradingSelectionFailure(
+                error,
+                previousRuntime: oldRuntime,
+                previousLastError: oldLastError
+            )
             controlPanel?.refresh()
         }
     }
