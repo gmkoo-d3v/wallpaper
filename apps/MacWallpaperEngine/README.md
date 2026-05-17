@@ -188,11 +188,11 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Desktop icon hit-testing fails closed without Accessibility trust when
   `blockDesktopItems` is enabled, instead of letting wallpaper reactions leak
   over Finder desktop items.
-- The bundled Imported sample keeps `blockDesktopItems=false` so its click
-  reaction works without requiring Accessibility trust; app-window blocking
-  remains enabled, desktop wallpaper windows stay mouse-passive, passive
-  monitors provide click delivery, and passive secondary windows stay
-  mouse-passive.
+- The bundled Imported sample keeps `blockDesktopItems=true` so Finder desktop
+  icons remain protected; click reaction requires macOS Accessibility trust,
+  app-window blocking remains enabled, desktop wallpaper windows stay
+  mouse-passive, passive monitors provide click delivery, and passive secondary
+  windows stay mouse-passive.
 - `desktop-empty-only` bundles that do not block Finder desktop items route
   direct NSResponder mouse events only in plain diagnostic windows; desktop
   wallpaper windows preserve pass-through click ownership.

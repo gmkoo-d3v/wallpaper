@@ -208,6 +208,10 @@ enum RuntimeSelfTest {
             validatedBundle?.capabilities.fallbackStatus == expectedFallbackStatus,
             "bundle catalog must expose active bundle fallback readiness"
         )
+        check(
+            validatedBundle?.capabilities.interactionRequirement == "accessibility-required",
+            "bundle catalog must expose active bundle desktop interaction permission requirement"
+        )
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
            let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
            let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),
@@ -1863,6 +1867,7 @@ enum RuntimeSelfTest {
         check(videoOnlyRuntime.validationSummary().contains("native spine geometry: not-used"), "video-only validation summary must skip native Spine geometry preflight", failures: &failures, checks: &checks)
         let videoOnlySummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(videoOnlySummary.capabilities.nativeSpineStatus == "not-used", "video-only bundle catalog must mark native Spine unused", failures: &failures, checks: &checks)
+        check(videoOnlySummary.capabilities.interactionRequirement == "none", "video-only bundle catalog must mark interaction permission as unused", failures: &failures, checks: &checks)
         check(videoOnlyRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeRenderer\tnot-used"), "video-only capability summary must mark Spine renderer unused", failures: &failures, checks: &checks)
         check(
             DisplayPlanner.role(isPrimary: false, displayMode: .primaryAnimated, manifest: videoOnlyRuntime.manifest)?.policy == .static,

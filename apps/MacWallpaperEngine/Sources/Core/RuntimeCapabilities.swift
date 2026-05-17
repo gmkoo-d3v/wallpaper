@@ -24,6 +24,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     let assetKinds: [String]
     let layerKinds: [String]
     let interactionKinds: [String]
+    let interactionRequirement: String
     let nativeSpineStatus: String
     let fallbackStatus: String
     let qualityStatus: String
@@ -34,6 +35,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             "assets: \(assetKinds.joined(separator: "+"))",
             "layers: \(layerKinds.joined(separator: "+"))",
             "interactions: \(interactionKinds.joined(separator: "+"))",
+            "input: \(interactionRequirement)",
             "native: \(nativeSpineStatus)",
             "fallback: \(fallbackStatus)",
             "quality: \(qualitySummary)"
@@ -191,6 +193,7 @@ enum RuntimeCapabilities {
             assetKinds: assetKinds,
             layerKinds: layerKinds.isEmpty ? ["none"] : layerKinds,
             interactionKinds: interactionKinds,
+            interactionRequirement: interactionRequirement(for: manifest.interactions, policy: manifest.interactionPolicy),
             nativeSpineStatus: nativeSpineStatus,
             fallbackStatus: fallbackStatus,
             qualityStatus: qualityStatus,
@@ -357,6 +360,23 @@ enum RuntimeCapabilities {
             kinds.append("pointerDown")
         }
         return kinds.isEmpty ? ["none"] : kinds
+    }
+
+    private static func interactionRequirement(
+        for interactions: [InteractionConfig],
+        policy: InteractionPolicy?
+    ) -> String {
+        guard interactions.isEmpty == false else { return "none" }
+        let mode = policy?.mode ?? .desktopEmptyOnly
+        switch mode {
+        case .disabled:
+            return "disabled"
+        case .always:
+            return "always"
+        case .desktopEmptyOnly:
+            let blocksDesktopItems = policy?.blockDesktopItems ?? true
+            return blocksDesktopItems ? "accessibility-required" : "desktop-empty"
+        }
     }
 
     private static func desktopItemGate(policy: InteractionPolicy?) -> String {
