@@ -263,6 +263,25 @@ enum ManifestLoader {
                         throw EngineError.manifest("unsupported pointerMove mapping: \(mapping)")
                     }
                 }
+                if let neutralPoint = interaction.neutralPoint {
+                    try validateInteractionPoint(
+                        neutralPoint,
+                        label: "pointerMove neutralPoint",
+                        min: 0,
+                        max: 1,
+                        allowZero: true
+                    )
+                }
+                if let deadZone = interaction.deadZone {
+                    try validateInteractionPoint(
+                        deadZone,
+                        label: "pointerMove deadZone",
+                        min: 0,
+                        max: 0.5,
+                        allowZero: true,
+                        allowMax: false
+                    )
+                }
                 if let actions = interaction.actions {
                     for (key, action) in actions {
                         guard key.isEmpty == false, action.isEmpty == false else {
@@ -354,6 +373,32 @@ enum ManifestLoader {
     private static func validateInteractionDuration(_ value: Double, label: String) throws {
         guard value.isFinite, value >= 0, value <= 10 else {
             throw EngineError.manifest("\(label) must satisfy 0 <= value <= 10")
+        }
+    }
+
+    private static func validateInteractionPoint(
+        _ point: InteractionPoint,
+        label: String,
+        min: Double,
+        max: Double,
+        allowZero: Bool,
+        allowMax: Bool = true
+    ) throws {
+        let values = [point.x, point.y]
+        guard values.allSatisfy(\.isFinite) else {
+            throw EngineError.manifest("\(label) must contain finite x/y values")
+        }
+        let upperBoundIsValid: (Double) -> Bool = allowMax ? { $0 <= max } : { $0 < max }
+        if allowZero {
+            guard values.allSatisfy({ $0 >= min && upperBoundIsValid($0) }) else {
+                let upper = allowMax ? "<=" : "<"
+                throw EngineError.manifest("\(label) values must satisfy \(min) <= value \(upper) \(max)")
+            }
+        } else {
+            guard values.allSatisfy({ $0 > min && upperBoundIsValid($0) }) else {
+                let upper = allowMax ? "<=" : "<"
+                throw EngineError.manifest("\(label) values must satisfy \(min) < value \(upper) \(max)")
+            }
         }
     }
 

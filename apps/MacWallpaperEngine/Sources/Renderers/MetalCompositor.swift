@@ -142,6 +142,11 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 playbackRate: runtime.selectedPlaybackRate,
                 poseSampleFps: displayTargetFps,
                 lookAnimationNames: SpineInteractionAnimationRoles.lookAnimationNames(from: runtime.manifest),
+                lookNeutralPoint: SpineInteractionAnimationRoles.lookNeutralPoint(from: runtime.manifest),
+                lookDeadZone: SpineInteractionAnimationRoles.lookDeadZone(
+                    from: runtime.manifest,
+                    fallback: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18
+                ),
                 lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
                 oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)

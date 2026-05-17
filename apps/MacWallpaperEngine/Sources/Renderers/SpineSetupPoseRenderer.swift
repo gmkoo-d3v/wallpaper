@@ -375,7 +375,8 @@ final class SpineSetupPoseRenderer {
     private let playbackRate: Double
     private let poseSampleFps: Double
     private let lookAnimationNames: Set<String>
-    private let lookIdleDeadZone: Double
+    private let lookNeutralPoint: CGPoint
+    private let lookDeadZone: CGPoint
     private let loopingAnimationNames: Set<String>
     private let oneShotAnimationNames: Set<String>
     private let rendererStartedAt: CFTimeInterval
@@ -403,6 +404,8 @@ final class SpineSetupPoseRenderer {
         playbackRate: Float = 1.0,
         poseSampleFps: Int = 60,
         lookAnimationNames: Set<String> = [],
+        lookNeutralPoint: CGPoint = CGPoint(x: 0.5, y: 0.5),
+        lookDeadZone: CGPoint? = nil,
         lookIdleDeadZone: Double = 0.18,
         loopingAnimationNames: Set<String> = ["idle"],
         oneShotAnimationNames: Set<String> = []
@@ -469,7 +472,13 @@ final class SpineSetupPoseRenderer {
         self.playbackRate = max(0.01, Double(playbackRate))
         self.poseSampleFps = Double(max(1, min(poseSampleFps, 240)))
         self.lookAnimationNames = lookAnimationNames
-        self.lookIdleDeadZone = min(max(lookIdleDeadZone, 0), 0.49)
+        self.lookNeutralPoint = Self.clampPoint(lookNeutralPoint, minValue: 0, maxValue: 1)
+        let fallbackDeadZone = min(max(lookIdleDeadZone, 0), 0.49)
+        self.lookDeadZone = Self.clampPoint(
+            lookDeadZone ?? CGPoint(x: fallbackDeadZone, y: fallbackDeadZone),
+            minValue: 0,
+            maxValue: 0.49
+        )
         self.loopingAnimationNames = loopingAnimationNames.union(["idle"])
         self.oneShotAnimationNames = oneShotAnimationNames.subtracting(loopingAnimationNames)
         self.referenceScale = referenceScale
@@ -681,11 +690,20 @@ final class SpineSetupPoseRenderer {
     }
 
     private func pointerLookMix(_ pointer: CGPoint) -> Double {
-        let dx = abs(Double(pointer.x) - 0.5)
-        let dy = abs(Double(pointer.y) - 0.5)
-        let axisDistance = max(dx, dy)
-        let range = max(0.001, 0.5 - lookIdleDeadZone)
-        return min(max((axisDistance - lookIdleDeadZone) / range, 0), 1)
+        let dx = abs(Double(pointer.x - lookNeutralPoint.x))
+        let dy = abs(Double(pointer.y - lookNeutralPoint.y))
+        let xEdgeDistance = max(Double(lookNeutralPoint.x), 1.0 - Double(lookNeutralPoint.x))
+        let yEdgeDistance = max(Double(lookNeutralPoint.y), 1.0 - Double(lookNeutralPoint.y))
+        let xMix = (dx - Double(lookDeadZone.x)) / max(0.001, xEdgeDistance - Double(lookDeadZone.x))
+        let yMix = (dy - Double(lookDeadZone.y)) / max(0.001, yEdgeDistance - Double(lookDeadZone.y))
+        return min(max(max(xMix, yMix), 0), 1)
+    }
+
+    private static func clampPoint(_ point: CGPoint, minValue: CGFloat, maxValue: CGFloat) -> CGPoint {
+        CGPoint(
+            x: min(max(point.x, minValue), maxValue),
+            y: min(max(point.y, minValue), maxValue)
+        )
     }
 
     private func cachedVertexBatches(for key: String) -> [VertexBatch]? {

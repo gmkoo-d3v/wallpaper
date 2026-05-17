@@ -94,9 +94,11 @@ struct InteractionPlan {
               let actions = config.actions else {
             return "idle"
         }
-        let dx = pointer.x - 0.5
-        let dy = pointer.y - 0.5
-        if abs(dx) < idleDeadZone, abs(dy) < idleDeadZone {
+        let neutral = Self.point(config.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
+        let deadZone = Self.point(config.deadZone, fallback: CGPoint(x: idleDeadZone, y: idleDeadZone))
+        let dx = pointer.x - neutral.x
+        let dy = pointer.y - neutral.y
+        if abs(dx) < deadZone.x, abs(dy) < deadZone.y {
             return actions["idle"] ?? "idle"
         }
         if abs(dx) > abs(dy) + directionSwitchMargin {
@@ -208,6 +210,8 @@ struct InteractionPlan {
             .sorted { $0.key < $1.key }
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: ",") ?? "none"
+        let neutralPoint = Self.point(moveConfig?.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
+        let moveDeadZone = Self.point(moveConfig?.deadZone, fallback: CGPoint(x: plan.idleDeadZone, y: plan.idleDeadZone))
         let clickButtons = (clickConfig?.buttons ?? [.left]).map(\.rawValue).joined(separator: "+")
         let zones = plan.hitZoneSummaries()
         let defaultAction = plan.defaultActionSummary()
@@ -216,7 +220,8 @@ struct InteractionPlan {
             "right=\(plan.command(for: CGPoint(x: 0.90, y: 0.50), previousCommand: "idle"))",
             "up=\(plan.command(for: CGPoint(x: 0.50, y: 0.10), previousCommand: "idle"))",
             "down=\(plan.command(for: CGPoint(x: 0.50, y: 0.90), previousCommand: "idle"))",
-            "center=\(plan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right"))"
+            "center=\(plan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right"))",
+            "neutral=\(plan.command(for: neutralPoint, previousCommand: "Right"))"
         ].joined(separator: " ")
         var lines = [
             "interaction plan OK",
@@ -228,12 +233,18 @@ struct InteractionPlan {
             "pointerSmoothing: \(formatInteractionNumber(Double(policy?.pointerSmoothing ?? 0.18)))",
             "pointerSmoothingCadence: time-based referenceFps=\(formatInteractionNumber(InteractionPlan.pointerSmoothingReferenceFps)) maxDeltaSeconds=\(formatInteractionNumber(InteractionPlan.maxPointerSmoothingElapsedSeconds))",
             "idleDeadZone: \(formatInteractionNumber(Double(policy?.idleDeadZone ?? 0.18)))",
+            "pointerMoveNeutralPoint: \(formatPoint(neutralPoint))",
+            "pointerMoveDeadZone: \(formatPoint(moveDeadZone))",
             "directionSwitchMargin: \(formatInteractionNumber(Double(policy?.directionSwitchMargin ?? 0.10)))",
             "defaultClickTailSeconds: \(formatInteractionNumber(policy?.defaultClickTailSeconds ?? 1.15))",
             "releaseFadeSeconds: \(formatInteractionNumber(policy?.releaseFadeSeconds ?? 0.20))",
             "pointerMove: \(moveMapping)",
             "pointerMoveActions: \(moveActions)",
-            "pointerMoveProbes: \(moveProbeText)",
+            "pointerMoveProbes: \(moveProbeText)"
+        ] + eventGateProbeLines(
+            policy: effectivePolicy,
+            accessibilityTrusted: accessibilityTrusted
+        ) + [
             "pointerDownButtons: \(clickConfig == nil ? "none" : clickButtons)",
             "defaultAction: \(defaultAction?.detailText ?? "none")",
             "hitZones: \(zones.count)"
@@ -353,6 +364,32 @@ struct InteractionPlan {
 
         let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
         return trusted ? "ready(\(policy.mode.rawValue),accessibility-trusted)" : "blocked(accessibility-missing)"
+    }
+
+    private static func eventGateProbeLines(
+        policy: InteractionPolicy,
+        accessibilityTrusted: Bool?
+    ) -> [String] {
+        let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
+        return [
+            eventGateProbeText(label: "eventGateProbes", policy: policy, accessibilityTrusted: trusted),
+            eventGateProbeText(label: "eventGateTrustedProbes", policy: policy, accessibilityTrusted: true),
+            eventGateProbeText(label: "eventGateMissingTrustProbes", policy: policy, accessibilityTrusted: false)
+        ]
+    }
+
+    private static func eventGateProbeText(
+        label: String,
+        policy: InteractionPolicy,
+        accessibilityTrusted: Bool
+    ) -> String {
+        [
+            "\(label):",
+            "accessibilityTrusted=\(accessibilityTrusted)",
+            "emptyDesktop=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: false).rawValue)",
+            "appWindow=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: true, likelyDesktopItem: false).rawValue)",
+            "desktopItem=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: true).rawValue)"
+        ].joined(separator: " ")
     }
 
     private static func clickTimelineText(
@@ -541,6 +578,11 @@ struct InteractionPlan {
             return declaredTail
         }
         return max(declaredTail, animationTail)
+    }
+
+    private static func point(_ point: InteractionPoint?, fallback: CGPoint) -> CGPoint {
+        guard let point else { return fallback }
+        return CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))
     }
 }
 

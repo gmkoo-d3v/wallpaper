@@ -430,6 +430,13 @@ enum RuntimeSelfTest {
                 interactionPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right") == "idle",
                 "look-direction interaction plan must honor idle dead zone"
             )
+            check(
+                interactionPlan.command(
+                    for: SpineInteractionAnimationRoles.lookNeutralPoint(from: manifest),
+                    previousCommand: "Right"
+                ) == "idle",
+                "look-direction interaction plan must honor pointerMove neutralPoint"
+            )
             var convergenceClock: CFTimeInterval = 0
             let interactionController = InteractionController(
                 interactions: manifest.interactions,
@@ -489,6 +496,38 @@ enum RuntimeSelfTest {
                     && afterPointerDown.x < 0.90,
                 "pointerDown must not snap smoothed look-direction state to the raw click point"
             )
+            if let defaultActionSummary = interactionPlan.defaultActionSummary() {
+                var resumeClock: CFTimeInterval = 0
+                let resumeController = InteractionController(
+                    interactions: manifest.interactions,
+                    policy: manifest.interactionPolicy,
+                    actionTailDurations: tapActionDurations,
+                    clock: { resumeClock }
+                )
+                let gazePoint = CGPoint(x: 0.10, y: 0.42)
+                resumeController.pointerMoved(to: gazePoint)
+                for _ in 0..<20 {
+                    resumeClock += 1.0 / 60.0
+                    _ = resumeController.snapshot()
+                }
+                check(
+                    resumeController.snapshot().command == "Left",
+                    "interaction controller must establish look-direction state before pointerDown actions"
+                )
+                let button = defaultActionSummary.buttons.first ?? .left
+                resumeController.pointerDown(at: gazePoint, button: button)
+                resumeClock += 1.0 / 60.0
+                check(
+                    resumeController.snapshot().command == defaultActionSummary.action,
+                    "interaction controller must show pointerDown action before returning to gaze state"
+                )
+                resumeController.pointerUp(at: gazePoint, button: button)
+                resumeClock += max(defaultActionSummary.tailSeconds, 0.60) + 0.20
+                check(
+                    resumeController.snapshot().command == "Left",
+                    "interaction controller must resume current look-direction after pointerDown action tail expires"
+                )
+            }
         } else {
             check(
                 interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") == "idle",
@@ -510,11 +549,18 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("pointerMoveProbes:")
                 && interactionSummary.contains("pointerDownButtons:")
                 && interactionSummary.contains("desktopMonitor: ready")
+                && interactionSummary.contains("eventGateProbes:")
+                && interactionSummary.contains("eventGateTrustedProbes:")
+                && interactionSummary.contains("appWindow=blockedApplicationWindow")
+                && interactionSummary.contains("desktopItem=blockedDesktopItem")
                 && interactionSummary.contains("clickTimeline:")
                 && interactionSummary.contains("pointerSmoothingCadence: time-based")
+                && interactionSummary.contains("pointerMoveNeutralPoint:")
+                && interactionSummary.contains("pointerMoveDeadZone:")
+                && interactionSummary.contains("neutral=idle")
                 && interactionSummary.contains("coordinateProbes:")
                 && interactionSummary.contains("coordinateProbe: view=32:9"),
-            "interaction diagnostics must expose move probes, click buttons, deterministic click timelines, and display-aspect coordinate probes"
+            "interaction diagnostics must expose move probes, neutral/dead-zone values, click buttons, event-gate decisions, deterministic click timelines, and display-aspect coordinate probes"
         )
         let missingPermissionInteractionSummary = InteractionPlan.diagnosticSummary(
             interactions: manifest.interactions,
@@ -526,7 +572,9 @@ enum RuntimeSelfTest {
             accessibilityTrusted: false
         )
         check(
-            missingPermissionInteractionSummary.contains("desktopMonitor: blocked(accessibility-missing)"),
+            missingPermissionInteractionSummary.contains("desktopMonitor: blocked(accessibility-missing)")
+                && missingPermissionInteractionSummary.contains("emptyDesktop=blockedAccessibilityTrust")
+                && missingPermissionInteractionSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false"),
             "interaction diagnostics must explain when desktop-item-safe interaction is blocked by missing Accessibility permission"
         )
         for hitZoneSummary in hitZoneSummaries {

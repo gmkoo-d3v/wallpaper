@@ -150,6 +150,8 @@ struct InteractionConfig: Decodable {
     let event: InteractionEvent
     let mapping: String?
     let actions: [String: String]?
+    let neutralPoint: InteractionPoint?
+    let deadZone: InteractionPoint?
     let hitZones: [HitZone]?
     let defaultAction: PointerDownDefaultAction?
     let buttons: [PointerButton]?
@@ -168,6 +170,11 @@ enum PointerButton: String, Decodable {
 enum HitZoneTrigger: String, Decodable {
     case tap
     case hold
+}
+
+struct InteractionPoint: Decodable {
+    let x: Double
+    let y: Double
 }
 
 struct HitZone: Decodable {

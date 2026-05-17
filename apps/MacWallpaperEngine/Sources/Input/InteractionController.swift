@@ -105,7 +105,6 @@ final class InteractionController {
             clickCommandState = hitAction
             clickCommandHeld = trigger == .hold
             clickCommandExpiresAt = now + (trigger == .hold ? releaseFadeDuration : pressedHitTailDuration)
-            moveCommandState = "idle"
         } else {
             moveCommandState = plan.command(for: pointer, previousCommand: moveCommandState)
         }
@@ -137,7 +136,6 @@ final class InteractionController {
         pressedHitTrigger = nil
         pressedHitTailDuration = 0
         pressedButton = nil
-        moveCommandState = "idle"
         lock.unlock()
     }
 

@@ -294,6 +294,10 @@ enum BundleValidationMatrix {
         guard summary.contains("interaction plan OK"),
               summary.contains("pointerMoveProbes:"),
               summary.contains("pointerDownButtons:"),
+              summary.contains("eventGateProbes:"),
+              summary.contains("eventGateTrustedProbes:"),
+              summary.contains("pointerMoveNeutralPoint:"),
+              summary.contains("pointerMoveDeadZone:"),
               summary.contains("coordinateProbes:"),
               summary.contains("coordinateProbe: view=32:9") else {
             throw EngineError.invalidArgument(
@@ -367,7 +371,9 @@ enum BundleValidationMatrix {
                 contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
                 accessibilityTrusted: false
             )
-            guard missingTrustSummary.contains("desktopMonitor: blocked(accessibility-missing)") else {
+            guard missingTrustSummary.contains("desktopMonitor: blocked(accessibility-missing)"),
+                  missingTrustSummary.contains("emptyDesktop=blockedAccessibilityTrust"),
+                  missingTrustSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false") else {
                 throw EngineError.invalidArgument(
                     "interaction diagnostics do not expose missing Accessibility trust for \(runtime.config.wallpaperRoot.lastPathComponent)"
                 )
