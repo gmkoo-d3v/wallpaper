@@ -111,6 +111,10 @@ final class WallpaperMetalView: MTKView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    func refreshInteractionState() {
+        updatePauseStateFromOcclusion()
+    }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         interactionPolicy.mode != .disabled
     }

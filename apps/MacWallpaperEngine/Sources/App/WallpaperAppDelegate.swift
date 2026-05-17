@@ -272,6 +272,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         }
         let selectedBundle = currentBundleSummary(from: libraryState.bundles, currentRoot: runtime.config.wallpaperRoot)
         let interactionPermission = interactionPermissionStatus(for: runtime)
+        if host != nil, interactionPermission.canRequestAccessibilityPermission == false {
+            host?.refreshInteractionState()
+        }
         return ControlPanelState(
             isRunning: host != nil,
             displayMode: runtime.config.displayMode,
@@ -412,6 +415,11 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
 
     func controlPanelRequestInteractionPermission() {
         _ = DesktopInteractionGate.requestAccessibilityTrustPrompt()
+        host?.refreshInteractionState()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.host?.refreshInteractionState()
+            self?.controlPanel?.refresh()
+        }
         controlPanel?.refresh()
     }
 

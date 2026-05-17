@@ -32,6 +32,12 @@ final class WallpaperHost: NSObject {
         windows.removeAll()
     }
 
+    func refreshInteractionState() {
+        for window in windows {
+            (window.contentView as? WallpaperMetalView)?.refreshInteractionState()
+        }
+    }
+
     deinit {
         stop()
     }
