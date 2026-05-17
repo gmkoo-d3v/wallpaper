@@ -68,6 +68,14 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if arguments.contains("--recovery-plan") {
+        let recoveryURL = value(after: "--recovery-store", in: arguments).map {
+            URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL
+        } ?? RendererRecoveryStore.defaultRecoveryURL()
+        print(RendererRecoveryStore.report(recoveryURL: recoveryURL))
+        exit(EXIT_SUCCESS)
+    }
+
     let config = try EngineConfig.parse(arguments)
     let runtime = try NativeRuntimeCore(config: config)
 

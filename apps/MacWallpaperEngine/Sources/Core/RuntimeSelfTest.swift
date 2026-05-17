@@ -162,11 +162,22 @@ enum RuntimeSelfTest {
             reloadedRecoveryTracker.decisionBeforeStart(key: rendererRecoveryKey, now: 121)?.shouldYieldToSystemWallpaper == true,
             "renderer safe-mode quarantine must persist across app relaunch"
         )
+        let recoveryReport = RendererRecoveryStore.report(recoveryURL: recoveryStoreURL, now: 121)
+        check(
+            recoveryReport.contains("renderer recovery plan OK")
+                && recoveryReport.contains("state\twallpaper\tdisplay\trenderer\tfailureClass\trecentFailures\tretryAfter")
+                && recoveryReport.contains("safe-mode\t\(rendererRecoveryKey.wallpaperID)\tdisplay:self-test\tnative\thost-start\t3\t299s"),
+            "renderer recovery report must expose persisted safe-mode quarantine state"
+        )
         reloadedRecoveryTracker.recordSuccess(key: rendererRecoveryKey)
         let clearedRecoveryTracker = RendererRecoveryTracker(storeURL: recoveryStoreURL)
         check(
             clearedRecoveryTracker.decisionBeforeStart(key: rendererRecoveryKey, now: 122) == nil,
             "renderer safe-mode persistence must clear after a successful renderer start"
+        )
+        check(
+            RendererRecoveryStore.report(recoveryURL: recoveryStoreURL, now: 122).contains("empty\tnone\tnone\tnone\tnone\t0\t0s"),
+            "renderer recovery report must expose an empty state after quarantine is cleared"
         )
         check(
             RuntimeLifecyclePolicy.visibilityPausePolicy == "pause-when-occluded-or-fullscreen-obscured",
@@ -1051,6 +1062,10 @@ enum RuntimeSelfTest {
         check(
             EngineConfig.help.contains("--bundle-library"),
             "EngineConfig help must document bundle library diagnostics"
+        )
+        check(
+            EngineConfig.help.contains("--recovery-plan"),
+            "EngineConfig help must document renderer recovery diagnostics"
         )
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,

@@ -123,6 +123,79 @@ enum RendererRecoveryStore {
         }
         return ProjectPaths.applicationSupportDirectory()?.appendingPathComponent("renderer-recovery.json")
     }
+
+    static func report(recoveryURL: URL? = defaultRecoveryURL(), now: TimeInterval = Date.timeIntervalSinceReferenceDate) -> String {
+        let state: PersistedRendererRecoveryState
+        let storeText: String
+        if let recoveryURL {
+            storeText = recoveryURL.path
+            state = (try? load(from: recoveryURL)) ?? PersistedRendererRecoveryState(
+                schemaVersion: PersistedRendererRecoveryState.currentSchemaVersion,
+                entries: []
+            )
+        } else {
+            storeText = "none"
+            state = PersistedRendererRecoveryState(
+                schemaVersion: PersistedRendererRecoveryState.currentSchemaVersion,
+                entries: []
+            )
+        }
+
+        var lines = [
+            "renderer recovery plan OK",
+            "store: \(storeText)",
+            "policy: \(RendererRecoveryPolicy.policyName)",
+            "threshold: \(RendererRecoveryPolicy.failureThreshold) failures / \(formatRecoverySeconds(RendererRecoveryPolicy.failureWindowSeconds))",
+            "safeModeCooldown: \(formatRecoverySeconds(RendererRecoveryPolicy.safeModeCooldownSeconds))",
+            "entries: \(state.entries.count)",
+            "columns: state\twallpaper\tdisplay\trenderer\tfailureClass\trecentFailures\tretryAfter"
+        ]
+
+        if state.entries.isEmpty {
+            lines.append("empty\tnone\tnone\tnone\tnone\t0\t0s")
+            return lines.joined(separator: "\n")
+        }
+
+        for entry in sortedEntries(state.entries) {
+            let recentFailures = RendererRecoveryPolicy.normalizedRecentFailureTimes(entry.failureTimes, now: now)
+            let retryAfter = max((entry.safeModeUntil ?? 0) - now, 0)
+            let stateText: String
+            if retryAfter > 0 {
+                stateText = "safe-mode"
+            } else if recentFailures.isEmpty {
+                stateText = "expired"
+            } else {
+                stateText = "tracking"
+            }
+            lines.append([
+                stateText,
+                entry.key.wallpaperID,
+                entry.key.displayFingerprint,
+                entry.key.rendererKind,
+                entry.key.failureClass,
+                "\(recentFailures.count)",
+                formatRecoverySeconds(retryAfter)
+            ].joined(separator: "\t"))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func sortedEntries(_ entries: [PersistedRendererRecoveryEntry]) -> [PersistedRendererRecoveryEntry] {
+        entries.sorted {
+            [
+                $0.key.wallpaperID,
+                $0.key.displayFingerprint,
+                $0.key.rendererKind,
+                $0.key.failureClass
+            ].joined(separator: "\u{1F}")
+                < [
+                    $1.key.wallpaperID,
+                    $1.key.displayFingerprint,
+                    $1.key.rendererKind,
+                    $1.key.failureClass
+                ].joined(separator: "\u{1F}")
+        }
+    }
 }
 
 final class RendererRecoveryTracker {
@@ -227,4 +300,9 @@ final class RendererRecoveryTracker {
             entries: entries
         )
     }
+}
+
+private func formatRecoverySeconds(_ seconds: TimeInterval) -> String {
+    guard seconds.isFinite else { return "unknown" }
+    return "\(Int(ceil(max(seconds, 0))))s"
 }

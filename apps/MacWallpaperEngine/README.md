@@ -269,6 +269,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   wallpaper/display/renderer key and enter safe mode after bounded retries,
   yielding to the system wallpaper instead of looping window creation across
   app relaunches.
+- `--recovery-plan` prints the persisted renderer safe-mode/quarantine state
+  without opening the selected wallpaper bundle, so recovery can be inspected
+  even when the current bundle is broken.
 - Pass-through mode for desktop click safety.
 - Desktop-empty-only interaction gate so app windows do not trigger wallpaper reactions.
 - The interaction gate ignores the wallpaper host window itself but still treats
@@ -344,6 +347,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryAnima
 swift run MacWallpaperEngine --simulated-render-plan --display-mode all
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
+swift run MacWallpaperEngine --recovery-plan
 swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --probe-interaction 0.5,0.42
 swift run MacWallpaperEngine --probe-interaction 0.5,0.70 --probe-button left
