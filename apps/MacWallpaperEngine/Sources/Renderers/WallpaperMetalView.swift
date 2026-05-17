@@ -166,7 +166,7 @@ final class WallpaperMetalView: MTKView {
                     if let contentPoint = self.interactionContentPoint(fromWindowNormalized: point) {
                         self.interaction.pointerUp(at: contentPoint, button: button)
                     } else {
-                        self.interaction.pointerUp(at: CGPoint(x: 0.5, y: 0.5), button: button)
+                        self.interaction.pointerUp(button: button)
                     }
                 },
                 onExit: { [weak self] in

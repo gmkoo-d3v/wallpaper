@@ -112,30 +112,16 @@ final class InteractionController {
     }
 
     func pointerUp(at normalizedPoint: CGPoint, button: PointerButton = .left) {
-        _ = button
         let pointer = clamp(normalizedPoint)
-        let now = clock()
         lock.lock()
         pointerState = pointer
-        guard pressedButton == nil || pressedButton == button else {
-            lock.unlock()
-            return
-        }
-        if let pressedHitAction, pressedHitTrigger == .tap {
-            clickCommandState = pressedHitAction
-            clickCommandHeld = false
-            activeClickTailDuration = pressedHitTailDuration
-            clickCommandExpiresAt = max(clickCommandExpiresAt, now + pressedHitTailDuration)
-        } else if let pressedHitAction, pressedHitTrigger == .hold {
-            clickCommandState = pressedHitAction
-            clickCommandHeld = false
-            activeClickTailDuration = max(pressedHitTailDuration, releaseFadeDuration)
-            clickCommandExpiresAt = now + activeClickTailDuration
-        }
-        pressedHitAction = nil
-        pressedHitTrigger = nil
-        pressedHitTailDuration = 0
-        pressedButton = nil
+        finishPointerUpLocked(button: button)
+        lock.unlock()
+    }
+
+    func pointerUp(button: PointerButton = .left) {
+        lock.lock()
+        finishPointerUpLocked(button: button)
         lock.unlock()
     }
 
@@ -192,5 +178,27 @@ final class InteractionController {
             elapsedSeconds: elapsed
         )
         moveCommandState = plan.command(for: smoothedPointerState, previousCommand: moveCommandState)
+    }
+
+    private func finishPointerUpLocked(button: PointerButton) {
+        let now = clock()
+        guard pressedButton == nil || pressedButton == button else {
+            return
+        }
+        if let pressedHitAction, pressedHitTrigger == .tap {
+            clickCommandState = pressedHitAction
+            clickCommandHeld = false
+            activeClickTailDuration = pressedHitTailDuration
+            clickCommandExpiresAt = max(clickCommandExpiresAt, now + pressedHitTailDuration)
+        } else if let pressedHitAction, pressedHitTrigger == .hold {
+            clickCommandState = pressedHitAction
+            clickCommandHeld = false
+            activeClickTailDuration = max(pressedHitTailDuration, releaseFadeDuration)
+            clickCommandExpiresAt = now + activeClickTailDuration
+        }
+        pressedHitAction = nil
+        pressedHitTrigger = nil
+        pressedHitTailDuration = 0
+        pressedButton = nil
     }
 }

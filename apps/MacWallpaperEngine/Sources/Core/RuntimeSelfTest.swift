@@ -612,6 +612,34 @@ enum RuntimeSelfTest {
                     resumeController.snapshot().command == "Left",
                     "interaction controller must resume current look-direction after pointerDown action tail expires"
                 )
+                var outsideReleaseClock: CFTimeInterval = 0
+                let outsideReleaseController = InteractionController(
+                    interactions: manifest.interactions,
+                    policy: manifest.interactionPolicy,
+                    actionTailDurations: tapActionDurations,
+                    clock: { outsideReleaseClock }
+                )
+                outsideReleaseController.pointerMoved(to: gazePoint)
+                for _ in 0..<20 {
+                    outsideReleaseClock += 1.0 / 60.0
+                    _ = outsideReleaseController.snapshot()
+                }
+                check(
+                    outsideReleaseController.snapshot().command == "Left",
+                    "interaction controller must establish look-direction before a pointerUp outside content"
+                )
+                outsideReleaseController.pointerDown(at: gazePoint, button: button)
+                outsideReleaseClock += 1.0 / 60.0
+                check(
+                    outsideReleaseController.snapshot().command == defaultActionSummary.action,
+                    "interaction controller must show pointerDown action before an outside-content release"
+                )
+                outsideReleaseController.pointerUp(button: button)
+                outsideReleaseClock += max(defaultActionSummary.tailSeconds, 0.60) + 0.20
+                check(
+                    outsideReleaseController.snapshot().command == "Left",
+                    "pointerUp outside content must release click state without recentering look-direction"
+                )
             }
             var interruptedClock: CFTimeInterval = 0
             let interruptedController = InteractionController(
