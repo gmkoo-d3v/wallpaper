@@ -32,6 +32,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Bundle validation also checks the bundle library list report, so discovery
   counts, invalid diagnostics, stable columns, and capability rows stay aligned
   with the control panel library picker and `--list-bundles`.
+- Bundle validation imports each discovered valid bundle into a temporary user
+  library, re-discovers it, and reloads the installed copy so user import/install
+  paths are covered by the same release matrix.
 - `--validate-bundles` also runs bundle-local `golden/wallpaper.golden.json`
   fixtures when present, so packaged sample static/video/native-Spine bundles
   prove renderer output instead of only manifest validity.

@@ -941,6 +941,10 @@ enum RuntimeSelfTest {
                 && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 2,
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, and static-image samples"
         )
+        check(
+            occurrenceCount("installer: importable", in: bundleMatrix) == 3,
+            "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
+        )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)

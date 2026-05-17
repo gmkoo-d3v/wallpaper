@@ -22,6 +22,10 @@ enum BundleValidationMatrix {
         }
 
         let libraryStatus = try validateBundleListReport(diagnostics: diagnostics, bundles: bundles)
+        let installerValidationLibrary = try makeTemporaryInstallerLibrary()
+        defer {
+            try? FileManager.default.removeItem(at: installerValidationLibrary)
+        }
         var rows: [String] = []
         var failures: [String] = []
 
@@ -43,6 +47,10 @@ enum BundleValidationMatrix {
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
                 let goldenStatus = try validateGoldenIfPresent(runtime: runtime)
+                let installerStatus = try validateInstallerRoundTrip(
+                    bundle: bundle,
+                    libraryDirectory: installerValidationLibrary
+                )
 
                 rows.append(row(
                     status: "valid",
@@ -54,6 +62,7 @@ enum BundleValidationMatrix {
                         + " / \(performanceStatus)"
                         + " / \(libraryStatus)"
                         + " / \(goldenStatus)"
+                        + " / \(installerStatus)"
                 ))
             } catch {
                 failures.append("\(bundle.id): \(error.localizedDescription)")
@@ -123,6 +132,61 @@ enum BundleValidationMatrix {
             .first { $0.hasPrefix("fixtures: ") }
             .map(String.init) ?? "fixtures: unknown"
         return "golden: pass \(fixtureLine)"
+    }
+
+    private static func makeTemporaryInstallerLibrary() throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineBundleMatrix-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    private static func validateInstallerRoundTrip(
+        bundle: WallpaperBundleSummary,
+        libraryDirectory: URL
+    ) throws -> String {
+        let installedBundle = try WallpaperBundleInstaller.install(
+            sourceRoot: bundle.root,
+            libraryDirectory: libraryDirectory
+        )
+        let libraryPath = libraryDirectory.standardizedFileURL.resolvingSymlinksInPath().path
+        let installedPath = installedBundle.root.standardizedFileURL.resolvingSymlinksInPath().path
+
+        guard installedBundle.id == bundle.id else {
+            throw EngineError.invalidArgument(
+                "bundle installer changed metadata.id for \(bundle.id): \(installedBundle.id)"
+            )
+        }
+        guard installedPath.hasPrefix(libraryPath + "/") else {
+            throw EngineError.invalidArgument(
+                "bundle installer wrote outside the requested library for \(bundle.id): \(installedBundle.root.path)"
+            )
+        }
+        guard FileManager.default.fileExists(atPath: installedBundle.manifestURL.path) else {
+            throw EngineError.invalidArgument(
+                "bundle installer did not copy wallpaper.native.json for \(bundle.id)"
+            )
+        }
+
+        let discoveredBundles = WallpaperBundleCatalog.discover(in: libraryDirectory)
+        guard discoveredBundles.contains(where: {
+            $0.id == installedBundle.id
+                && $0.root.standardizedFileURL.resolvingSymlinksInPath().path == installedPath
+        }) else {
+            throw EngineError.invalidArgument(
+                "installed bundle is not discoverable from the target library for \(bundle.id)"
+            )
+        }
+
+        let installedConfig = try EngineConfig.parse([
+            "--wallpaper-root", installedBundle.root.path,
+            "--manifest", installedBundle.manifestURL.path,
+            "--validate-only"
+        ])
+        let installedRuntime = try NativeRuntimeCore(config: installedConfig)
+        _ = installedRuntime.validationSummary()
+
+        return "installer: importable"
     }
 
     private static func validateBundleListReport(
