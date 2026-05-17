@@ -81,6 +81,10 @@ enum RuntimeSelfTest {
             "desktop item interaction policy must fail closed without Accessibility trust"
         )
         check(
+            RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle == .primaryOnly,
+            "new or recovery-selected bundles must default to selected-display-only instead of touching secondary monitors"
+        )
+        check(
             ControlPanelWindowController.displayModeLabels == ["Selected Only", "Selected+Policy", "All Full"],
             "control panel display mode labels must make selected-display-only the default"
         )

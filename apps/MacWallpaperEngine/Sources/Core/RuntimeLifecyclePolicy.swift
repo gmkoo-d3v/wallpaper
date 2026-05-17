@@ -11,6 +11,7 @@ enum RuntimeLifecyclePolicy {
     static let desktopItemTrustPolicy = "fail-closed-without-accessibility-trust"
     static let displayRebuildPolicy = "debounced-atomic-rollback"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
+    static let defaultDisplayModeForNewBundle: DisplayMode = .primaryOnly
 
     static func shouldRecoverStartupFailureInControlPanel(launchControlPanel: Bool) -> Bool {
         launchControlPanel

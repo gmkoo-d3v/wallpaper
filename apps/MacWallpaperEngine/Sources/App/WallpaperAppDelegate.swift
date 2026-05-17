@@ -262,7 +262,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         guard let runtime else {
             return ControlPanelState(
                 isRunning: false,
-                displayMode: .primaryAnimated,
+                displayMode: RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle,
                 primaryDisplaySelector: nil,
                 interactive: true,
                 renderFps: 60,
@@ -501,7 +501,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             wallpaperRoot: bundleRoot,
             manifestURL: manifestURL,
             level: .desktop,
-            displayMode: .primaryAnimated,
+            displayMode: RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle,
             primaryDisplaySelector: nil,
             duration: nil,
             renderFps: 60,
