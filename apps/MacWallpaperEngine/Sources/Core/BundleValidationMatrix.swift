@@ -37,12 +37,14 @@ enum BundleValidationMatrix {
                 try validateSimulatedDisplayModes(runtime: runtime)
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
+                let goldenStatus = try validateGoldenIfPresent(runtime: runtime)
 
                 rows.append(row(
                     status: "valid",
                     bundle: bundle,
                     detail: bundle.capabilities.briefText
                         + " / displayModes: primaryOnly+selectedPolicy+allFull"
+                        + " / \(goldenStatus)"
                 ))
             } catch {
                 failures.append("\(bundle.id): \(error.localizedDescription)")
@@ -99,6 +101,19 @@ enum BundleValidationMatrix {
         diagnostics.map {
             "- \($0.id): \($0.errorMessage ?? "invalid bundle") (\($0.root.path))"
         }.joined(separator: "\n")
+    }
+
+    private static func validateGoldenIfPresent(runtime: NativeRuntimeCore) throws -> String {
+        let goldenURL = runtime.config.wallpaperRoot.appendingPathComponent("golden/wallpaper.golden.json")
+        guard FileManager.default.fileExists(atPath: goldenURL.path) else {
+            return "golden: none"
+        }
+        let report = try WallpaperGoldenDiagnostics.make(runtime: runtime, goldenURL: goldenURL)
+        let fixtureLine = report
+            .split(separator: "\n")
+            .first { $0.hasPrefix("fixtures: ") }
+            .map(String.init) ?? "fixtures: unknown"
+        return "golden: pass \(fixtureLine)"
     }
 
     private static func validateSimulatedDisplayModes(runtime: NativeRuntimeCore) throws {

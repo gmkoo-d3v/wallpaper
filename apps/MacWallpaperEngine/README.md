@@ -20,6 +20,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   primaryOnly/selected+policy/all-full display planning, composite quality, and
   native Spine geometry preflight over every discovered valid bundle without
   launching wallpaper windows.
+- `--validate-bundles` also runs bundle-local `golden/wallpaper.golden.json`
+  fixtures when present, so packaged sample static/video/native-Spine bundles
+  prove renderer output instead of only manifest validity.
 - `--bundle-library <path>` lets `--list-bundles` and `--validate-bundles`
   target a specific imported bundle library instead of default locations.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,

@@ -918,6 +918,11 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains("displayModes: primaryOnly+selectedPolicy+allFull"),
             "bundle validation matrix must cover native Spine/video, video-only, static-image, and multi-display simulated render plans"
         )
+        check(
+            bundleMatrix.contains("golden: pass fixtures: 3")
+                && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 2,
+            "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, and static-image samples"
+        )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)
