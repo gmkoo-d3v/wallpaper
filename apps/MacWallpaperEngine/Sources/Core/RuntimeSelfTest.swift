@@ -2137,6 +2137,39 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let unknownLookDirectionRoot = fixtureParent.appendingPathComponent("unknown_look_direction_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: unknownLookDirectionRoot,
+            imageSource: sourceImage,
+            id: "unknown_look_direction_bundle",
+            title: "Unknown Look Direction Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerMove",
+                "mapping": "lookDirection",
+                "actions": {
+                  "left": "Left",
+                  "right": "Right",
+                  "up": "Up",
+                  "down": "Down",
+                  "idle": "idle",
+                  "diagonal": "Diagonal"
+                }
+              }
+            ]
+            """
+        )
+        let unknownLookDirectionDiagnostic = WallpaperBundleCatalog.diagnoseBundle(unknownLookDirectionRoot)
+        check(
+            unknownLookDirectionDiagnostic.status == .invalid
+                && (unknownLookDirectionDiagnostic.errorMessage?.contains("pointerMove lookDirection actions contain unsupported key") == true)
+                && (unknownLookDirectionDiagnostic.errorMessage?.contains("diagonal") == true),
+            "bundle diagnostics must reject unsupported lookDirection action keys before unknown directions are ignored",
+            failures: &failures,
+            checks: &checks
+        )
+
         let invalidInteractiveRoot = fixtureParent.appendingPathComponent("interactive_static_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: invalidInteractiveRoot,

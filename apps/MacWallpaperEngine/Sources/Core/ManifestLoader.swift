@@ -322,6 +322,10 @@ enum ManifestLoader {
         guard missingActions.isEmpty else {
             throw EngineError.manifest("pointerMove lookDirection actions missing required key(s): \(missingActions.joined(separator: ","))")
         }
+        let unsupportedActions = declaredActions.subtracting(requiredActions).sorted()
+        guard unsupportedActions.isEmpty else {
+            throw EngineError.manifest("pointerMove lookDirection actions contain unsupported key(s): \(unsupportedActions.joined(separator: ","))")
+        }
     }
 
     private static func validateInteractionPolicy(_ policy: InteractionPolicy?) throws {

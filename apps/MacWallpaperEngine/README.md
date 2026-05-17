@@ -125,6 +125,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   because explicit hit-zone priority is not yet part of the bundle schema.
 - Manifest validation rejects incomplete `lookDirection` action maps; bundles
   must declare `left`, `right`, `up`, `down`, and `idle` explicitly.
+- Manifest validation also rejects unsupported `lookDirection` action keys
+  instead of silently ignoring directions the native interaction planner cannot
+  produce.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
