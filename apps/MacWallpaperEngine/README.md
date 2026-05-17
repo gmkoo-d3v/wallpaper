@@ -162,6 +162,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Native Spine look-direction poses are mixed by smoothed pointer distance from
   the idle dead zone, avoiding abrupt full-strength directional pose snaps.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
+- Non-visual Spine event timelines are tolerated and ignored by the native
+  renderer instead of forcing a composite fallback; audio events and sequence
+  attachments remain explicit unsupported feature gates.
 - Shared interaction plan for deterministic hit-zone, default-action, button, and
   look-direction diagnostics.
 - Interaction hit testing resolves the wallpaper content aspect from Spine
@@ -253,7 +256,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Events/audio, sequence attachments, and non-region non-mesh attachment paths.
+- Audio event playback, sequence attachments, and non-region non-mesh attachment paths.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.

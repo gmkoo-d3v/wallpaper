@@ -2777,6 +2777,144 @@ enum RuntimeSelfTest {
         try Data("texture.jpg\nsize: 64,64\n".utf8).write(to: fixtureAtlas, options: .atomic)
 
         let fixtureSpineJSON = assetsRoot.appendingPathComponent("character.json")
+        let eventOnlySpineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43"
+          },
+          "animations": {
+            "idle": {
+              "events": [
+                {
+                  "time": 0,
+                  "name": "marker"
+                }
+              ]
+            }
+          },
+          "events": {
+            "marker": {}
+          }
+        }
+        """
+        try Data(eventOnlySpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+
+        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let eventOnlyManifestJSON = """
+        {
+          "schemaVersion": "macos-wallpaper-native.v2",
+          "metadata": {
+            "id": "selftest_event_only_spine",
+            "title": "Self Test Event Only Spine"
+          },
+          "runtime": {
+            "kind": "native-metal",
+            "targetFps": 30,
+            "maxFps": 60,
+            "fallbackFps": 15,
+            "scheduler": {
+              "maxInFlightCommandBuffers": 1,
+              "lateFramePolicy": "drop",
+              "catchUp": false
+            }
+          },
+          "displayPolicy": {
+            "primary": "full",
+            "secondary": "video-only",
+            "fullscreenObscured": "pause",
+            "occluded": "pause"
+          },
+          "thermalPolicy": {
+            "nominal": "30fps",
+            "serious": "15fps-or-video-only",
+            "critical": "pause"
+          },
+          "layerBudgets": {
+            "maxTexturePages": 1,
+            "maxTextureDimension": 4096,
+            "rssTargetMb": 250,
+            "rssHardMb": 500,
+            "primaryCpuTargetPercent": 10,
+            "cpuDowngradePercent": 20,
+            "cpuDowngradeWindowSeconds": 10
+          },
+          "assets": {
+            "video": {
+              "id": "backgroundVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+            "spine": {
+              "id": "eventOnlyCharacter",
+              "version": "4.2.43",
+              "json": "assets/character.json",
+              "atlas": "assets/character.atlas",
+              "textures": [
+                "assets/texture.jpg"
+              ],
+              "premultipliedAlpha": true
+            }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "video",
+              "asset": "backgroundVideo"
+            },
+            {
+              "id": "character",
+              "type": "spine",
+              "asset": "eventOnlyCharacter",
+              "renderingMode": "setup-mesh"
+            }
+          ],
+          "interactions": [],
+          "validation": {
+            "bundleRootOnly": true,
+            "requirePremultipliedAlpha": false,
+            "requireSpineVersion": "4.2.x",
+            "rejectUnknownLayerTypes": true
+          }
+        }
+        """
+        try Data(eventOnlyManifestJSON.utf8).write(to: manifestURL, options: .atomic)
+        let eventOnlyManifest = try ManifestLoader.load(url: manifestURL, bundleRoot: fixtureRoot)
+        let eventOnlyCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
+        check(
+            eventOnlyCompatibility.isSupported,
+            "non-visual Spine event timelines must not force composite fallback",
+            failures: &failures,
+            checks: &checks
+        )
+        let eventOnlySummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
+        check(
+            eventOnlySummary.capabilities.nativeSpineStatus == "supported"
+                && eventOnlySummary.capabilities.fallbackStatus == "not-needed",
+            "catalog must keep event-only Spine bundles native-supported without requiring a composite fallback",
+            failures: &failures,
+            checks: &checks
+        )
+        let eventOnlyRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            displayMode: .primaryAnimated,
+            renderFps: 30,
+            foregroundMode: .automatic,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        check(
+            eventOnlyRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored"),
+            "capability diagnostics must mark non-visual Spine events as ignored instead of unsupported",
+            failures: &failures,
+            checks: &checks
+        )
+
         let spineJSON = """
         {
           "skeleton": {
@@ -2814,7 +2952,6 @@ enum RuntimeSelfTest {
         """
         try Data(spineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
 
-        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
         let manifestJSON = """
         {
           "schemaVersion": "macos-wallpaper-native.v2",
@@ -2924,7 +3061,8 @@ enum RuntimeSelfTest {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: unsupportedRuntime)
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
-        check(compatibility.reasonText.contains("events/audio/sequence"), "compatibility gate must report events/audio/sequence limits", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("audio event playback"), "compatibility gate must report unsupported audio event playback", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("sequence attachments"), "compatibility gate must report unsupported sequence attachments", failures: &failures, checks: &checks)
         check(unsupportedRuntime.validationSummary().contains("native spine geometry: skipped(native-unsupported)"), "unsupported native Spine validation summary must skip geometry preflight", failures: &failures, checks: &checks)
         try unsupportedRuntime.requireNativeSpineGeometryIfSupported()
         check(

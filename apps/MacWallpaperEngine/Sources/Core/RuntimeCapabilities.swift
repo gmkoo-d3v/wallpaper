@@ -152,8 +152,11 @@ enum RuntimeCapabilities {
         if scan.unsupportedTimelineKeys.isEmpty == false {
             reasons.append("unsupported timeline keys: \(scan.unsupportedTimelineKeys.listOrNone)")
         }
-        if scan.hasEventsOrAudioOrSequence {
-            reasons.append("events/audio/sequence data is not implemented")
+        if scan.hasAudioData {
+            reasons.append("audio event playback is not implemented")
+        }
+        if scan.hasSequenceData {
+            reasons.append("sequence attachments are not implemented")
         }
 
         return NativeSpineCompatibility(isSupported: reasons.isEmpty, reasons: reasons)
@@ -421,6 +424,19 @@ enum RuntimeCapabilities {
             ? "supported"
             : "unsupported"
         let timelineStatus = scan.unsupportedTimelineKeys.isEmpty ? "supported" : "unsupported"
+        let eventFeatureStatus: String
+        if scan.hasAudioData || scan.hasSequenceData {
+            eventFeatureStatus = "unsupported"
+        } else if scan.hasEventData {
+            eventFeatureStatus = "supported"
+        } else {
+            eventFeatureStatus = "not-used"
+        }
+        let eventFeatureDetail = [
+            scan.hasEventData ? "events=ignored(non-visual)" : "events=none",
+            scan.hasAudioData ? "audio=unsupported" : "audio=none",
+            scan.hasSequenceData ? "sequence=unsupported" : "sequence=none"
+        ].joined(separator: " ")
 
         let nativeRendererStatus: String
         let nativeRendererDetail: String
@@ -469,8 +485,8 @@ enum RuntimeCapabilities {
             RuntimeCapabilityRow(
                 category: "spine",
                 name: "eventsAudioSequence",
-                status: scan.hasEventsOrAudioOrSequence ? "unsupported" : "not-used",
-                detail: scan.hasEventsOrAudioOrSequence ? "events/audio/sequence data detected" : "none"
+                status: eventFeatureStatus,
+                detail: eventFeatureDetail
             )
         ]
     }
@@ -481,7 +497,9 @@ private struct SpineFeatureScan {
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
     var unsupportedLinkedMeshReferences: Set<String> = []
-    var hasEventsOrAudioOrSequence = false
+    var hasEventData = false
+    var hasAudioData = false
+    var hasSequenceData = false
 
     var unsupportedAttachmentTypes: Set<String> {
         attachmentTypes.subtracting(["region", "mesh", "linkedmesh", "path", "clipping"])
@@ -499,7 +517,9 @@ private struct SpineFeatureScan {
             "slots.attachment",
             "attachments.deform",
             "drawOrder",
-            "draworder"
+            "draworder",
+            "events",
+            "event"
         ])
     }
 
@@ -513,7 +533,10 @@ private struct SpineFeatureScan {
         scan.collectAttachmentTypes(root: root)
         scan.collectAnimationTimelines(root: root)
         scan.collectConstraintKeys(root: root)
-        scan.hasEventsOrAudioOrSequence = containsAnyKey(root, keys: ["events", "event", "audio", "sequence"])
+        scan.hasEventData = containsAnyKey(root, keys: ["events", "event"])
+        scan.hasAudioData = containsAnyKey(root, keys: ["audio"])
+        scan.hasSequenceData = containsAnyKey(root, keys: ["sequence"])
+            || scan.attachmentTypes.contains("sequence")
         return scan
     }
 
