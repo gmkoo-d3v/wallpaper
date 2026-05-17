@@ -853,8 +853,9 @@ enum RuntimeSelfTest {
         check(
             bundleMatrix.contains("bundle validation matrix OK")
                 && bundleMatrix.contains("sample_imported")
+                && bundleMatrix.contains("sample_video")
                 && bundleMatrix.contains("sample_static"),
-            "bundle validation matrix must cover both native Spine/video and static-image packaged samples"
+            "bundle validation matrix must cover native Spine/video, video-only, and static-image packaged samples"
         )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)

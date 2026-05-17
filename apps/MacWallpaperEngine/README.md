@@ -34,9 +34,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   fallback fingerprint, arrangement hash, or display name selector.
 - Control panel library diagnostics show invalid wallpaper folders without
   hiding valid bundles.
-- Packaged resources include both the Imported native Spine/video sample and a
-  minimal `sample_static` image-only bundle, so discovery, validation, and
-  packaging exercise more than one wallpaper renderer family.
+- Packaged resources include the Imported native Spine/video sample, a minimal
+  `sample_video` video-only bundle, and a minimal `sample_static` image-only
+  bundle, so discovery, validation, and packaging exercise multiple wallpaper
+  renderer families.
 - Bundle discovery reports duplicate `metadata.id` entries in diagnostics
   instead of silently hiding imported or project-local bundles.
 - Control panel bundle library shows selected bundle metadata and preview art
