@@ -2106,6 +2106,37 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let incompleteLookDirectionRoot = fixtureParent.appendingPathComponent("incomplete_look_direction_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: incompleteLookDirectionRoot,
+            imageSource: sourceImage,
+            id: "incomplete_look_direction_bundle",
+            title: "Incomplete Look Direction Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerMove",
+                "mapping": "lookDirection",
+                "actions": {
+                  "left": "Left",
+                  "right": "Right",
+                  "idle": "idle"
+                }
+              }
+            ]
+            """
+        )
+        let incompleteLookDirectionDiagnostic = WallpaperBundleCatalog.diagnoseBundle(incompleteLookDirectionRoot)
+        check(
+            incompleteLookDirectionDiagnostic.status == .invalid
+                && (incompleteLookDirectionDiagnostic.errorMessage?.contains("pointerMove lookDirection actions missing required key") == true)
+                && (incompleteLookDirectionDiagnostic.errorMessage?.contains("down") == true)
+                && (incompleteLookDirectionDiagnostic.errorMessage?.contains("up") == true),
+            "bundle diagnostics must reject incomplete lookDirection action maps before missing directions silently fall back to idle",
+            failures: &failures,
+            checks: &checks
+        )
+
         let invalidInteractiveRoot = fixtureParent.appendingPathComponent("interactive_static_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: invalidInteractiveRoot,

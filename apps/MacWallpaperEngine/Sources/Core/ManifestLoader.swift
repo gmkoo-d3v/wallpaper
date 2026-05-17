@@ -289,6 +289,9 @@ enum ManifestLoader {
                         }
                     }
                 }
+                if (interaction.mapping ?? "lookDirection") == "lookDirection" {
+                    try validateLookDirectionActions(interaction.actions)
+                }
             case .pointerDown:
                 if let buttons = interaction.buttons, buttons.isEmpty {
                     throw EngineError.manifest("pointerDown buttons must not be empty")
@@ -309,6 +312,15 @@ enum ManifestLoader {
             if let buttons = interaction.buttons, buttons.isEmpty {
                 throw EngineError.manifest("\(interaction.event.rawValue) buttons must not be empty")
             }
+        }
+    }
+
+    private static func validateLookDirectionActions(_ actions: [String: String]?) throws {
+        let requiredActions: Set<String> = ["left", "right", "up", "down", "idle"]
+        let declaredActions = Set(actions?.keys.map { $0 } ?? [])
+        let missingActions = requiredActions.subtracting(declaredActions).sorted()
+        guard missingActions.isEmpty else {
+            throw EngineError.manifest("pointerMove lookDirection actions missing required key(s): \(missingActions.joined(separator: ","))")
         }
     }
 
