@@ -2494,6 +2494,15 @@ enum RuntimeSelfTest {
             title: "Self Test Install Round Trip"
         )
         try Data().write(to: sourceRoot.appendingPathComponent(".DS_Store"), options: .atomic)
+        try Data().write(to: sourceRoot.appendingPathComponent("._preview.jpg"), options: .atomic)
+        try fileManager.createDirectory(at: sourceRoot.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try Data().write(to: sourceRoot.appendingPathComponent(".git/config"), options: .atomic)
+        try fileManager.createSymbolicLink(
+            at: sourceRoot.appendingPathComponent(".git/metadata-link"),
+            withDestinationURL: sourceRoot.appendingPathComponent("preview.jpg")
+        )
+        try fileManager.createDirectory(at: sourceRoot.appendingPathComponent("__MACOSX"), withIntermediateDirectories: true)
+        try Data().write(to: sourceRoot.appendingPathComponent("__MACOSX/._wallpaper.native.json"), options: .atomic)
 
         let installedBundle = try WallpaperBundleInstaller.install(
             sourceRoot: sourceRoot,
@@ -2505,6 +2514,14 @@ enum RuntimeSelfTest {
         check(
             FileManager.default.fileExists(atPath: installedBundle.root.appendingPathComponent(".DS_Store").path) == false,
             "bundle installer must skip .DS_Store metadata during import",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            FileManager.default.fileExists(atPath: installedBundle.root.appendingPathComponent("._preview.jpg").path) == false
+                && FileManager.default.fileExists(atPath: installedBundle.root.appendingPathComponent(".git").path) == false
+                && FileManager.default.fileExists(atPath: installedBundle.root.appendingPathComponent("__MACOSX").path) == false,
+            "bundle installer must skip development/archive metadata during import",
             failures: &failures,
             checks: &checks
         )

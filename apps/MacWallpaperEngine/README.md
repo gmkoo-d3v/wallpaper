@@ -144,6 +144,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Bundle import into the user Application Support wallpaper library with
   manifest validation, symlink rejection, duplicate-id protection, and self-tested
   library rediscovery.
+- Bundle import and release packaging skip macOS archive metadata and VCS
+  directories such as `.DS_Store`, AppleDouble `._*`, `__MACOSX`, and `.git`.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime
   does not require a Imported-style Spine layer for every bundle.
 - Static image wallpaper bundles can declare a manifest `static_image` layer

@@ -18,11 +18,30 @@ enum WallpaperBundleFilesystemGuard {
         }
 
         for case let url as URL in enumerator {
-            if url.lastPathComponent == ".DS_Store" { continue }
+            if shouldSkipMetadataEntry(url) {
+                if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                    enumerator.skipDescendants()
+                }
+                continue
+            }
             let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey])
             if values.isSymbolicLink == true {
                 throw EngineError.manifest("Wallpaper bundle rejects symlinked entries: \(url.path)")
             }
         }
+    }
+
+    static func shouldSkipMetadataEntry(_ url: URL) -> Bool {
+        let name = url.lastPathComponent
+        let ignoredNames: Set<String> = [
+            ".DS_Store",
+            ".git",
+            ".hg",
+            ".svn",
+            ".Spotlight-V100",
+            ".Trashes",
+            "__MACOSX"
+        ]
+        return ignoredNames.contains(name) || name.hasPrefix("._")
     }
 }

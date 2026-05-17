@@ -59,7 +59,12 @@ enum WallpaperBundleInstaller {
         }
 
         for case let sourceURL as URL in enumerator {
-            if sourceURL.lastPathComponent == ".DS_Store" { continue }
+            if WallpaperBundleFilesystemGuard.shouldSkipMetadataEntry(sourceURL) {
+                if (try? sourceURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                    enumerator.skipDescendants()
+                }
+                continue
+            }
             let relativePath = try relativePath(for: sourceURL, under: source)
             let destinationURL = destination.appendingPathComponent(relativePath)
             let values = try sourceURL.resourceValues(forKeys: [.isDirectoryKey])

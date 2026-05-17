@@ -84,6 +84,13 @@ validate_wallpaper_bundle() {
   fi
 }
 
+find_bundle_symlink_entries() {
+  local bundle_dir="$1"
+  find "$bundle_dir" \
+    \( -name ".DS_Store" -o -name "._*" -o -name ".git" -o -name ".hg" -o -name ".svn" -o -name ".Spotlight-V100" -o -name ".Trashes" -o -name "__MACOSX" \) -prune \
+    -o -type l -print
+}
+
 if [ ! -d "$WALLPAPER_SOURCE" ]; then
   echo "Wallpaper source directory is missing: $WALLPAPER_SOURCE" >&2
   exit 1
@@ -102,7 +109,7 @@ if [ "$PACKAGE_VALIDATE_ONLY_ENABLED" -eq 1 ]; then
       echo "Skipping symlinked wallpaper bundle: $bundle_name" >&2
       continue
     fi
-    symlink_path="$(find "$bundle_dir" -type l -print)"
+    symlink_path="$(find_bundle_symlink_entries "$bundle_dir")"
     if [ -n "$symlink_path" ]; then
       first_symlink="${symlink_path%%$'\n'*}"
       echo "Invalid wallpaper bundle contains symlinked entry: $bundle_name ($first_symlink)" >&2
@@ -138,7 +145,7 @@ for bundle_dir in "$WALLPAPER_SOURCE"/*; do
     echo "Skipping symlinked wallpaper bundle: $bundle_name" >&2
     continue
   fi
-  symlink_path="$(find "$bundle_dir" -type l -print)"
+  symlink_path="$(find_bundle_symlink_entries "$bundle_dir")"
   if [ -n "$symlink_path" ]; then
     first_symlink="${symlink_path%%$'\n'*}"
     echo "Invalid wallpaper bundle contains symlinked entry: $bundle_name ($first_symlink)" >&2
@@ -148,7 +155,16 @@ for bundle_dir in "$WALLPAPER_SOURCE"/*; do
   validate_wallpaper_bundle "$bundle_dir" "$bundle_name" "Source"
 
   mkdir -p "$WALLPAPER_DEST/$bundle_name"
-  rsync -a --exclude ".DS_Store" "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
+  rsync -a \
+    --exclude ".DS_Store" \
+    --exclude "._*" \
+    --exclude ".git/" \
+    --exclude ".hg/" \
+    --exclude ".svn/" \
+    --exclude ".Spotlight-V100/" \
+    --exclude ".Trashes/" \
+    --exclude "__MACOSX/" \
+    "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
 
   validate_wallpaper_bundle "$WALLPAPER_DEST/$bundle_name" "$bundle_name" "Packaged"
 
