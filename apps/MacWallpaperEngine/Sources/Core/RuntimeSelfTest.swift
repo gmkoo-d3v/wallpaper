@@ -115,7 +115,7 @@ enum RuntimeSelfTest {
             rendererKind: "native",
             failureClass: "host-start"
         )
-        let recoveryTracker = RendererRecoveryTracker()
+        let recoveryTracker = RendererRecoveryTracker(storeURL: nil)
         let firstRendererFailure = recoveryTracker.recordFailure(key: rendererRecoveryKey, now: 10)
         let secondRendererFailure = recoveryTracker.recordFailure(key: rendererRecoveryKey, now: 20)
         let thirdRendererFailure = recoveryTracker.recordFailure(key: rendererRecoveryKey, now: 30)
@@ -146,6 +146,27 @@ enum RuntimeSelfTest {
         check(
             recoveryTracker.decisionBeforeStart(key: rendererRecoveryKey, now: 41) == nil,
             "successful renderer start must clear safe-mode quarantine for that wallpaper/display/renderer key"
+        )
+        let recoveryStoreRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineRecoverySelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: recoveryStoreRoot)
+        }
+        let recoveryStoreURL = recoveryStoreRoot.appendingPathComponent("renderer-recovery.json")
+        let persistedRecoveryTracker = RendererRecoveryTracker(storeURL: recoveryStoreURL)
+        _ = persistedRecoveryTracker.recordFailure(key: rendererRecoveryKey, now: 100)
+        _ = persistedRecoveryTracker.recordFailure(key: rendererRecoveryKey, now: 110)
+        _ = persistedRecoveryTracker.recordFailure(key: rendererRecoveryKey, now: 120)
+        let reloadedRecoveryTracker = RendererRecoveryTracker(storeURL: recoveryStoreURL)
+        check(
+            reloadedRecoveryTracker.decisionBeforeStart(key: rendererRecoveryKey, now: 121)?.shouldYieldToSystemWallpaper == true,
+            "renderer safe-mode quarantine must persist across app relaunch"
+        )
+        reloadedRecoveryTracker.recordSuccess(key: rendererRecoveryKey)
+        let clearedRecoveryTracker = RendererRecoveryTracker(storeURL: recoveryStoreURL)
+        check(
+            clearedRecoveryTracker.decisionBeforeStart(key: rendererRecoveryKey, now: 122) == nil,
+            "renderer safe-mode persistence must clear after a successful renderer start"
         )
         check(
             RuntimeLifecyclePolicy.visibilityPausePolicy == "pause-when-occluded-or-fullscreen-obscured",

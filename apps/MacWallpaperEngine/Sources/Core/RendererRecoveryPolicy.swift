@@ -1,10 +1,42 @@
 import Foundation
 
-struct RendererRecoveryKey: Hashable {
+struct RendererRecoveryKey: Codable, Hashable {
     let wallpaperID: String
     let displayFingerprint: String
     let rendererKind: String
     let failureClass: String
+}
+
+struct PersistedRendererRecoveryEntry: Codable, Equatable {
+    let key: RendererRecoveryKey
+    let failureTimes: [TimeInterval]
+    let safeModeUntil: TimeInterval?
+}
+
+struct PersistedRendererRecoveryState: Codable, Equatable {
+    let schemaVersion: Int
+    let entries: [PersistedRendererRecoveryEntry]
+
+    static let currentSchemaVersion = 1
+
+    var sanitized: PersistedRendererRecoveryState {
+        PersistedRendererRecoveryState(
+            schemaVersion: Self.currentSchemaVersion,
+            entries: entries.compactMap { entry in
+                let failureTimes = entry.failureTimes
+                    .filter(\.isFinite)
+                    .sorted()
+                guard failureTimes.isEmpty == false || entry.safeModeUntil?.isFinite == true else {
+                    return nil
+                }
+                return PersistedRendererRecoveryEntry(
+                    key: entry.key,
+                    failureTimes: failureTimes,
+                    safeModeUntil: entry.safeModeUntil?.isFinite == true ? entry.safeModeUntil : nil
+                )
+            }
+        )
+    }
 }
 
 enum RendererRecoveryDecision: Equatable {
@@ -62,16 +94,62 @@ enum RendererRecoveryPolicy {
     }
 }
 
+enum RendererRecoveryStore {
+    static let environmentRecoveryPath = "MAC_WALLPAPER_ENGINE_RECOVERY_PATH"
+
+    static func load() -> PersistedRendererRecoveryState? {
+        guard let recoveryURL = defaultRecoveryURL() else { return nil }
+        return try? load(from: recoveryURL)
+    }
+
+    static func load(from recoveryURL: URL) throws -> PersistedRendererRecoveryState {
+        let data = try Data(contentsOf: recoveryURL)
+        return try JSONDecoder().decode(PersistedRendererRecoveryState.self, from: data).sanitized
+    }
+
+    static func save(_ state: PersistedRendererRecoveryState, to recoveryURL: URL) throws {
+        let directory = recoveryURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(state.sanitized)
+        try data.write(to: recoveryURL, options: .atomic)
+    }
+
+    static func defaultRecoveryURL() -> URL? {
+        if let override = ProcessInfo.processInfo.environment[environmentRecoveryPath]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           override.isEmpty == false {
+            return URL(fileURLWithPath: override, relativeTo: nil).standardizedFileURL
+        }
+        return ProjectPaths.applicationSupportDirectory()?.appendingPathComponent("renderer-recovery.json")
+    }
+}
+
 final class RendererRecoveryTracker {
     private var failureTimesByKey: [RendererRecoveryKey: [TimeInterval]] = [:]
     private var safeModeUntilByKey: [RendererRecoveryKey: TimeInterval] = [:]
+    private let storeURL: URL?
+
+    init(storeURL: URL? = RendererRecoveryStore.defaultRecoveryURL()) {
+        self.storeURL = storeURL
+        guard let storeURL,
+              let state = try? RendererRecoveryStore.load(from: storeURL) else {
+            return
+        }
+        for entry in state.entries {
+            failureTimesByKey[entry.key] = entry.failureTimes
+            safeModeUntilByKey[entry.key] = entry.safeModeUntil
+        }
+    }
 
     func decisionBeforeStart(
         key: RendererRecoveryKey,
         now: TimeInterval = Date.timeIntervalSinceReferenceDate
     ) -> RendererRecoveryDecision? {
-        guard let safeModeUntil = safeModeUntilByKey[key], safeModeUntil > now else {
+        guard let safeModeUntil = safeModeUntilByKey[key] else { return nil }
+        guard safeModeUntil > now else {
             safeModeUntilByKey[key] = nil
+            persist()
             return nil
         }
         let retryAfter = safeModeUntil - now
@@ -98,11 +176,55 @@ final class RendererRecoveryTracker {
         if case .safeMode = decision {
             safeModeUntilByKey[key] = now + RendererRecoveryPolicy.safeModeCooldownSeconds
         }
+        persist()
         return decision
     }
 
     func recordSuccess(key: RendererRecoveryKey) {
         failureTimesByKey[key] = nil
         safeModeUntilByKey[key] = nil
+        persist()
+    }
+
+    private func persist() {
+        guard let storeURL else { return }
+        do {
+            try RendererRecoveryStore.save(persistedState, to: storeURL)
+        } catch {
+            fputs("Failed to save renderer recovery state: \(error.localizedDescription)\n", stderr)
+        }
+    }
+
+    private var persistedState: PersistedRendererRecoveryState {
+        let keys = Set(failureTimesByKey.keys).union(safeModeUntilByKey.keys)
+        let entries = keys
+            .sorted {
+                [
+                    $0.wallpaperID,
+                    $0.displayFingerprint,
+                    $0.rendererKind,
+                    $0.failureClass
+                ].joined(separator: "\u{1F}")
+                    < [
+                        $1.wallpaperID,
+                        $1.displayFingerprint,
+                        $1.rendererKind,
+                        $1.failureClass
+                    ].joined(separator: "\u{1F}")
+            }
+            .compactMap { key -> PersistedRendererRecoveryEntry? in
+                let failureTimes = failureTimesByKey[key] ?? []
+                let safeModeUntil = safeModeUntilByKey[key]
+                guard failureTimes.isEmpty == false || safeModeUntil != nil else { return nil }
+                return PersistedRendererRecoveryEntry(
+                    key: key,
+                    failureTimes: failureTimes,
+                    safeModeUntil: safeModeUntil
+                )
+            }
+        return PersistedRendererRecoveryState(
+            schemaVersion: PersistedRendererRecoveryState.currentSchemaVersion,
+            entries: entries
+        )
     }
 }
