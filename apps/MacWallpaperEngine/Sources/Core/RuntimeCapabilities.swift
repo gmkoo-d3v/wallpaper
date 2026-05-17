@@ -26,6 +26,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     let interactionKinds: [String]
     let interactionRequirement: String
     let nativeSpineStatus: String
+    let nativeSpineReasons: [String]
     let fallbackStatus: String
     let qualityStatus: String
     let qualityWarnings: [String]
@@ -37,10 +38,17 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             "layers: \(layerKinds.joined(separator: "+"))",
             "interactions: \(interactionKinds.joined(separator: "+"))",
             "input: \(interactionRequirement)",
-            "native: \(nativeSpineStatus)",
+            "native: \(nativeSpineSummary)",
             "fallback: \(fallbackStatus)",
             "quality: \(qualitySummary)"
         ].joined(separator: " / ")
+    }
+
+    var nativeSpineSummary: String {
+        guard nativeSpineStatus == "unsupported", nativeSpineReasons.isEmpty == false else {
+            return nativeSpineStatus
+        }
+        return "\(nativeSpineStatus)(\(nativeSpineReasons.joined(separator: "; ")))"
     }
 
     var qualitySummary: String {
@@ -209,6 +217,7 @@ enum RuntimeCapabilities {
             interactionKinds: interactionKinds,
             interactionRequirement: interactionRequirement(for: manifest.interactions, policy: manifest.interactionPolicy),
             nativeSpineStatus: nativeSpineStatus,
+            nativeSpineReasons: compatibility.reasons,
             fallbackStatus: fallbackStatus,
             qualityStatus: qualityStatus,
             qualityWarnings: qualityWarnings,

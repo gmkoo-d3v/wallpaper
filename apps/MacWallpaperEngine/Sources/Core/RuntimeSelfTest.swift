@@ -3775,6 +3775,13 @@ enum RuntimeSelfTest {
         )
         let unsupportedSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(unsupportedSummary.capabilities.nativeSpineStatus == "unsupported", "catalog must surface unsupported native Spine status", failures: &failures, checks: &checks)
+        check(
+            unsupportedSummary.capabilities.nativeSpineSummary.contains("audio event playback")
+                && unsupportedSummary.capabilities.briefText.contains("native: unsupported("),
+            "catalog capability summaries must explain why native Spine is unsupported",
+            failures: &failures,
+            checks: &checks
+        )
         check(unsupportedSummary.capabilities.fallbackStatus == "composite", "catalog must surface composite fallback for unsupported native Spine", failures: &failures, checks: &checks)
         let unsupportedAutoRuntime = try NativeRuntimeCore(config: unsupportedRuntime.config.replacing(
             foregroundMode: .automatic,
