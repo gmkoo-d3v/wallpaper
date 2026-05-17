@@ -21,6 +21,7 @@ enum BundleValidationMatrix {
             throw EngineError.invalidArgument("No valid wallpaper bundles found for validation matrix.")
         }
 
+        let libraryStatus = try validateBundleListReport(diagnostics: diagnostics, bundles: bundles)
         var rows: [String] = []
         var failures: [String] = []
 
@@ -51,6 +52,7 @@ enum BundleValidationMatrix {
                         + " / displayRefreshFps: primary120+secondary60"
                         + " / \(interactionStatus)"
                         + " / \(performanceStatus)"
+                        + " / \(libraryStatus)"
                         + " / \(goldenStatus)"
                 ))
             } catch {
@@ -121,6 +123,41 @@ enum BundleValidationMatrix {
             .first { $0.hasPrefix("fixtures: ") }
             .map(String.init) ?? "fixtures: unknown"
         return "golden: pass \(fixtureLine)"
+    }
+
+    private static func validateBundleListReport(
+        diagnostics: [WallpaperBundleDiagnostic],
+        bundles: [WallpaperBundleSummary]
+    ) throws -> String {
+        let report = BundleListReport.make(
+            diagnostics: diagnostics,
+            includeInvalid: true,
+            includeCapabilities: true
+        )
+        let invalidCount = diagnostics.filter { $0.status == .invalid }.count
+        guard report.contains("bundle list"),
+              report.contains("validBundles: \(bundles.count)"),
+              report.contains("invalidDiagnostics: \(invalidCount)"),
+              report.contains("includeInvalid: true"),
+              report.contains("includeCapabilities: true"),
+              report.contains("columns: status\tid\ttitle\troot\tcapabilities\terror") else {
+            throw EngineError.invalidArgument("bundle list report header is invalid")
+        }
+
+        for bundle in bundles {
+            guard report.contains("valid\t\(bundle.id)\t\(bundle.displayName)\t\(bundle.root.path)\t\(bundle.capabilities.briefText)") else {
+                throw EngineError.invalidArgument("bundle list report is missing valid row for \(bundle.id)")
+            }
+        }
+
+        for diagnostic in diagnostics where diagnostic.status == .invalid {
+            guard let errorMessage = diagnostic.errorMessage,
+                  report.contains("invalid\t\(diagnostic.id)\t\(diagnostic.displayName)\t\(diagnostic.root.path)\tnone\t\(errorMessage)") else {
+                throw EngineError.invalidArgument("bundle list report is missing invalid diagnostic row for \(diagnostic.id)")
+            }
+        }
+
+        return "libraryReport: listed=\(bundles.count) invalid=\(invalidCount) capabilities"
     }
 
     private static func validateSimulatedDisplayModes(runtime: NativeRuntimeCore) throws {

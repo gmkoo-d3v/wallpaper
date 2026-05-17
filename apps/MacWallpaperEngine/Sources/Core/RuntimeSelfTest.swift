@@ -933,6 +933,10 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate performance budget plans for native Spine, video-only, and static-image bundles"
         )
         check(
+            occurrenceCount("libraryReport: listed=3 invalid=0 capabilities", in: bundleMatrix) == 3,
+            "bundle validation matrix must validate the bundle library list report and capability rows"
+        )
+        check(
             bundleMatrix.contains("golden: pass fixtures: 3")
                 && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 2,
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, and static-image samples"
