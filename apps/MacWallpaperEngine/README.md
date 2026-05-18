@@ -240,6 +240,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Frame/drop telemetry snapshot for submitted frames, skipped frames, last skip
   reason, actual FPS, and p95 frame time.
 - Runtime telemetry is aggregated per display and surfaced in the control panel.
+- Display lifecycle telemetry records hot-plug/display rebuild scheduling,
+  commit, rollback, and failure status so Finder-launched apps do not hide
+  rebuild outcomes in stderr-only logs.
 - Desktop interaction telemetry reports whether the mouse monitor is active,
   whether the CGEvent tap is installed, the last delivered or blocked click
   path, the current interaction command/pulse, and delivered/blocked event

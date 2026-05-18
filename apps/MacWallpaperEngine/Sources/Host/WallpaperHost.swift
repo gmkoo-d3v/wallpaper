@@ -55,6 +55,11 @@ final class WallpaperHost: NSObject {
     @objc private func screenParametersChanged() {
         guard isRunning else { return }
         pendingDisplayRebuild?.cancel()
+        runtime.telemetry.recordDisplayLifecycle(
+            event: "display-rebuild",
+            status: "scheduled",
+            detail: "screen parameters changed; debounce=\(RuntimeLifecyclePolicy.displayRebuildDebounceSeconds)s"
+        )
         let work = DispatchWorkItem { [weak self] in
             self?.performDisplayRebuild()
         }
@@ -71,6 +76,11 @@ final class WallpaperHost: NSObject {
         do {
             try rebuildWindows()
         } catch {
+            runtime.telemetry.recordDisplayLifecycle(
+                event: "display-rebuild",
+                status: "failed",
+                detail: error.localizedDescription
+            )
             fputs("Display rebuild failed: \(error.localizedDescription)\n", stderr)
         }
     }
@@ -109,6 +119,11 @@ final class WallpaperHost: NSObject {
             break
         case .rollback(let reason):
             close(windows: replacementWindows)
+            runtime.telemetry.recordDisplayLifecycle(
+                event: isInitialBuild ? "initial-build" : "display-rebuild",
+                status: "rollback",
+                detail: reason
+            )
             throw EngineError.renderer(reason)
         }
 
@@ -116,6 +131,11 @@ final class WallpaperHost: NSObject {
         windows = replacementWindows
         show(windows: replacementWindows)
         retire(windows: oldWindows)
+        runtime.telemetry.recordDisplayLifecycle(
+            event: isInitialBuild ? "initial-build" : "display-rebuild",
+            status: "committed",
+            detail: "windows=\(replacementWindows.count) retired=\(oldWindows.count)"
+        )
     }
 
     private func close(windows targetWindows: [NSWindow]) {

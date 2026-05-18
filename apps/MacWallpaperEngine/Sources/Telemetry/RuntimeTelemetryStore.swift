@@ -27,10 +27,19 @@ struct InteractionTelemetryEntry {
     let snapshot: InteractionMonitorTelemetrySnapshot
 }
 
+struct DisplayLifecycleTelemetryEntry {
+    let event: String
+    let status: String
+    let detail: String
+}
+
 final class RuntimeTelemetryStore {
+    private static let maxLifecycleEntries = 5
+
     private let lock = NSLock()
     private var entriesByDisplay: [String: RuntimeTelemetryEntry] = [:]
     private var interactionEntriesByDisplay: [String: InteractionTelemetryEntry] = [:]
+    private var displayLifecycleEntries: [DisplayLifecycleTelemetryEntry] = []
 
     func record(displayName: String, role: RenderDisplayRole, snapshot: ResourceGovernorSnapshot) {
         let entry = RuntimeTelemetryEntry(
@@ -60,6 +69,17 @@ final class RuntimeTelemetryStore {
         lock.unlock()
     }
 
+    func recordDisplayLifecycle(event: String, status: String, detail: String) {
+        let entry = DisplayLifecycleTelemetryEntry(event: event, status: status, detail: detail)
+
+        lock.lock()
+        displayLifecycleEntries.append(entry)
+        if displayLifecycleEntries.count > Self.maxLifecycleEntries {
+            displayLifecycleEntries.removeFirst(displayLifecycleEntries.count - Self.maxLifecycleEntries)
+        }
+        lock.unlock()
+    }
+
     func snapshot() -> [RuntimeTelemetryEntry] {
         lock.lock()
         let entries = Array(entriesByDisplay.values)
@@ -68,6 +88,14 @@ final class RuntimeTelemetryStore {
         return entries.sorted {
             $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
         }
+    }
+
+    func displayLifecycleSnapshot() -> [DisplayLifecycleTelemetryEntry] {
+        lock.lock()
+        let entries = displayLifecycleEntries
+        lock.unlock()
+
+        return entries
     }
 
     func interactionSnapshot() -> [InteractionTelemetryEntry] {
@@ -83,7 +111,8 @@ final class RuntimeTelemetryStore {
     func summary() -> String {
         let entries = snapshot()
         let interactionEntries = interactionSnapshot()
-        guard entries.isEmpty == false || interactionEntries.isEmpty == false else {
+        let lifecycleEntries = displayLifecycleSnapshot()
+        guard entries.isEmpty == false || interactionEntries.isEmpty == false || lifecycleEntries.isEmpty == false else {
             return "No runtime telemetry yet"
         }
 
@@ -103,7 +132,10 @@ final class RuntimeTelemetryStore {
             let local = data.localMonitorActive ? "local:on" : "local:off"
             return "\(entry.displayName) \(entry.roleName) interaction \(active) \(tap) \(local) global:\(data.globalMonitorCount) last:\(data.lastSource)/\(data.lastEvent)/\(data.lastDecision) point:\(data.lastPoint) command:\(data.lastCommand)/\(format(data.lastClickPulse)) delivered:\(data.deliveredEvents) blocked:\(data.blockedEvents)"
         }
-        return (renderSummary + interactionSummary).joined(separator: "\n")
+        let lifecycleSummary = lifecycleEntries.map {
+            "display lifecycle \($0.event) \($0.status): \($0.detail)"
+        }
+        return (renderSummary + interactionSummary + lifecycleSummary).joined(separator: "\n")
     }
 
     private func format(_ value: Double) -> String {

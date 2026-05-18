@@ -1768,6 +1768,17 @@ enum RuntimeSelfTest {
         check(telemetry.summary().contains("power-saving"), "runtime telemetry summary must label active power-saving policy", failures: &failures, checks: &checks)
         telemetry.record(displayName: "Self Test Display", role: role, snapshot: powerGovernor.snapshot)
         check(telemetry.summary().contains("power-saving") == false, "runtime telemetry summary must clear power-saving label after recovery", failures: &failures, checks: &checks)
+        telemetry.recordDisplayLifecycle(
+            event: "display-rebuild",
+            status: "committed",
+            detail: "windows=3 retired=2"
+        )
+        check(
+            telemetry.summary().contains("display lifecycle display-rebuild committed: windows=3 retired=2"),
+            "runtime telemetry summary must expose display lifecycle rebuild results for control-panel diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
         telemetry.recordInteraction(
             displayName: "Self Test Display",
             role: role,
