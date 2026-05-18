@@ -27,6 +27,7 @@ final class DesktopMouseInteractionMonitor {
     private var lastDiscreteEventPoint: CGPoint?
     private var lastEligibilityCheckAt: CFTimeInterval = 0
     private var lastEligibilityPoint: CGPoint?
+    private var lastEligibilityEventLabel: String?
     private var lastEligibilityDecision: DesktopInteractionGate.EligibilityDecision = .blockedDisabled
     private var isActive = false
     private var lastSource = "none"
@@ -56,7 +57,12 @@ final class DesktopMouseInteractionMonitor {
     struct InputSources: Equatable {
         let useEventTap: Bool
         let useLocalMonitor: Bool
-        let useGlobalMonitors: Bool
+        let useGlobalMoveMonitor: Bool
+        let useGlobalClickMonitors: Bool
+
+        var useGlobalMonitors: Bool {
+            useGlobalMoveMonitor || useGlobalClickMonitors
+        }
     }
 
     init(
@@ -132,8 +138,10 @@ final class DesktopMouseInteractionMonitor {
             )
         }
 
-        if inputSources.useGlobalMonitors {
+        if inputSources.useGlobalMoveMonitor {
             addGlobalMoveMonitor()
+        }
+        if inputSources.useGlobalClickMonitors {
             addGlobalClickMonitors()
         }
         publishTelemetry(
@@ -273,13 +281,15 @@ final class DesktopMouseInteractionMonitor {
             return InputSources(
                 useEventTap: eventTapStarted,
                 useLocalMonitor: false,
-                useGlobalMonitors: accessibilityTrusted && eventTapStarted == false
+                useGlobalMoveMonitor: eventTapStarted == false,
+                useGlobalClickMonitors: accessibilityTrusted && eventTapStarted == false
             )
         }
         return InputSources(
             useEventTap: false,
             useLocalMonitor: true,
-            useGlobalMonitors: false
+            useGlobalMoveMonitor: false,
+            useGlobalClickMonitors: false
         )
     }
 
@@ -297,8 +307,14 @@ final class DesktopMouseInteractionMonitor {
         if inputSources.useLocalMonitor {
             return "activeLocalMouse"
         }
-        if inputSources.useGlobalMonitors {
+        if inputSources.useGlobalMoveMonitor && inputSources.useGlobalClickMonitors {
             return "globalFallback"
+        }
+        if inputSources.useGlobalMoveMonitor {
+            return "globalMoveOnly"
+        }
+        if inputSources.useGlobalClickMonitors {
+            return "globalClickOnly"
         }
         return "eventTapUnavailable"
     }
@@ -343,7 +359,7 @@ final class DesktopMouseInteractionMonitor {
             isMouseUpEvent = false
         }
         if !isMouseUpEvent {
-            let decision = eligibilityDecision(screenPoint: screenPoint, event: event)
+            let decision = eligibilityDecision(screenPoint: screenPoint, event: event, kind: kind)
             guard decision == .eligible else {
                 recordBlocked(source: "nsevent", kind: kind, decision: decision.rawValue, point: screenPoint)
                 onInterrupted()
@@ -405,7 +421,7 @@ final class DesktopMouseInteractionMonitor {
             isMouseUpEvent = false
         }
         if !isMouseUpEvent {
-            let decision = eligibilityDecision(screenPoint: screenPoint, event: nil)
+            let decision = eligibilityDecision(screenPoint: screenPoint, event: nil, kind: kind)
             guard decision == .eligible else {
                 recordBlocked(source: "cgevent", kind: kind, decision: decision.rawValue, point: screenPoint)
                 onInterrupted()
@@ -493,18 +509,19 @@ final class DesktopMouseInteractionMonitor {
 
     private func eligibilityDecision(
         screenPoint: CGPoint,
-        event: NSEvent?
+        event: NSEvent?,
+        kind: EventKind
     ) -> DesktopInteractionGate.EligibilityDecision {
-        if let cached = cachedEligibility(screenPoint: screenPoint) {
+        if let cached = cachedEligibility(screenPoint: screenPoint, kind: kind) {
             return cached
         }
 
         if policy.mode == .always {
-            cacheEligibility(.eligible, screenPoint: screenPoint)
+            cacheEligibility(.eligible, screenPoint: screenPoint, kind: kind)
             return .eligible
         }
         if policy.mode == .disabled {
-            cacheEligibility(.blockedDisabled, screenPoint: screenPoint)
+            cacheEligibility(.blockedDisabled, screenPoint: screenPoint, kind: kind)
             return .blockedDisabled
         }
 
@@ -517,13 +534,23 @@ final class DesktopMouseInteractionMonitor {
                 event.map { DesktopInteractionGate.isLikelyDesktopItem(event: $0, screenPoint: screenPoint) } ?? false
                     || DesktopInteractionGate.isLikelyDesktopItem(screenPoint: screenPoint)
             )
-        let decision = DesktopInteractionGate.eligibilityDecision(
-            policy: policy,
-            accessibilityTrusted: accessibilityTrusted,
-            coveredByApplicationWindow: coveredByApplicationWindow,
-            likelyDesktopItem: likelyDesktopItem
-        )
-        cacheEligibility(decision, screenPoint: screenPoint)
+        let decision: DesktopInteractionGate.EligibilityDecision
+        if case .move = kind {
+            decision = DesktopInteractionGate.pointerMoveEligibilityDecision(
+                policy: policy,
+                accessibilityTrusted: accessibilityTrusted,
+                coveredByApplicationWindow: coveredByApplicationWindow,
+                likelyDesktopItem: likelyDesktopItem
+            )
+        } else {
+            decision = DesktopInteractionGate.eligibilityDecision(
+                policy: policy,
+                accessibilityTrusted: accessibilityTrusted,
+                coveredByApplicationWindow: coveredByApplicationWindow,
+                likelyDesktopItem: likelyDesktopItem
+            )
+        }
+        cacheEligibility(decision, screenPoint: screenPoint, kind: kind)
         return decision
     }
 
@@ -550,27 +577,34 @@ final class DesktopMouseInteractionMonitor {
         return true
     }
 
-    private func cachedEligibility(screenPoint: CGPoint) -> DesktopInteractionGate.EligibilityDecision? {
+    private func cachedEligibility(screenPoint: CGPoint, kind: EventKind) -> DesktopInteractionGate.EligibilityDecision? {
         guard let lastEligibilityPoint else { return nil }
         let now = CACurrentMediaTime()
         let dx = screenPoint.x - lastEligibilityPoint.x
         let dy = screenPoint.y - lastEligibilityPoint.y
-        guard now - lastEligibilityCheckAt < eligibilityCacheInterval,
+        guard lastEligibilityEventLabel == kind.label,
+              now - lastEligibilityCheckAt < eligibilityCacheInterval,
               (dx * dx) + (dy * dy) < eligibilityCacheDistanceSquared else {
             return nil
         }
         return lastEligibilityDecision
     }
 
-    private func cacheEligibility(_ decision: DesktopInteractionGate.EligibilityDecision, screenPoint: CGPoint) {
+    private func cacheEligibility(
+        _ decision: DesktopInteractionGate.EligibilityDecision,
+        screenPoint: CGPoint,
+        kind: EventKind
+    ) {
         lastEligibilityCheckAt = CACurrentMediaTime()
         lastEligibilityPoint = screenPoint
+        lastEligibilityEventLabel = kind.label
         lastEligibilityDecision = decision
     }
 
     private func resetEligibilityCache() {
         lastEligibilityCheckAt = 0
         lastEligibilityPoint = nil
+        lastEligibilityEventLabel = nil
         lastEligibilityDecision = .blockedDisabled
         lastMoveEventAt = 0
         lastDiscreteEventAt = 0
@@ -670,6 +704,28 @@ enum DesktopInteractionGate {
             }
             return .eligible
         }
+    }
+
+    static func pointerMoveEligibilityDecision(
+        policy: InteractionPolicy,
+        accessibilityTrusted: Bool,
+        coveredByApplicationWindow: Bool,
+        likelyDesktopItem: Bool
+    ) -> EligibilityDecision {
+        guard accessibilityTrusted == false,
+              policy.mode == .desktopEmptyOnly,
+              policy.blockDesktopItems else {
+            return eligibilityDecision(
+                policy: policy,
+                accessibilityTrusted: accessibilityTrusted,
+                coveredByApplicationWindow: coveredByApplicationWindow,
+                likelyDesktopItem: likelyDesktopItem
+            )
+        }
+        if policy.blockApplicationWindows && coveredByApplicationWindow {
+            return .blockedApplicationWindow
+        }
+        return .eligible
     }
 
     static func hasAccessibilityTrust() -> Bool {

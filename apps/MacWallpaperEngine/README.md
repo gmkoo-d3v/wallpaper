@@ -325,12 +325,14 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   ignored without resetting gaze; app-window, desktop-item, and monitor-exit
   gates remain the tracking-stop boundary.
 - Desktop icon hit-testing fails closed without Accessibility trust when
-  `blockDesktopItems` is enabled, instead of letting wallpaper reactions leak
-  over Finder desktop items.
+  `blockDesktopItems` is enabled for click/touch actions, while pointer-move
+  gaze tracking degrades to hover-only when no application window covers the
+  cursor.
 - The bundled Imported sample keeps `blockDesktopItems=true` so Finder desktop
   icons remain protected; click reaction requires macOS Accessibility trust,
   app-window blocking remains enabled, desktop wallpaper windows stay
-  mouse-passive, passive monitors provide click delivery, and passive secondary
+  mouse-passive, passive monitors provide click delivery after trust is granted,
+  hover-only tracking remains available before trust, and passive secondary
   windows stay mouse-passive.
 - `desktop-empty-only` bundles that do not block Finder desktop items route
   direct NSResponder mouse events only in plain diagnostic windows; desktop
@@ -339,9 +341,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   global-monitor clicks while honoring the manifest `pointerSampleFps` move cap
   (30Hz default, 60Hz for the bundled Imported interaction profile).
 - When desktop-item hit-testing needs Accessibility trust, wallpaper startup
-  fails closed with an explicit no-prompt trust probe; the control panel exposes
-  the current trust state and requests permission only after the user presses
-  the Accessibility action.
+  uses an explicit no-prompt trust probe; click/touch actions stay blocked until
+  trust is granted, hover-only tracking can remain active, and the control panel
+  requests permission only after the user presses the Accessibility action.
 - Renderer warmup, video-loop gaps, and first-frame pause/resource paths submit
   one preview/last-frame/neutral fallback drawable before pausing, instead of
   leaving a newly created wallpaper window black.

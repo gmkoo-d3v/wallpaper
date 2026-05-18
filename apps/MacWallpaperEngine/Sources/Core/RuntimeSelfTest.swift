@@ -626,7 +626,7 @@ enum RuntimeSelfTest {
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
             runtime: runtime,
-            interactionStatus: "INTERACTION BLOCKED / grant macOS Accessibility permission"
+            interactionStatus: "INTERACTION DEGRADED / hover tracking only; grant macOS Accessibility permission"
         )
         check(
             doctorReport.contains("wallpaper doctor OK")
@@ -935,10 +935,11 @@ enum RuntimeSelfTest {
             accessibilityTrusted: false
         )
         check(
-            missingPermissionInteractionSummary.contains("desktopMonitor: blocked(accessibility-missing)")
+            missingPermissionInteractionSummary.contains("desktopMonitor: degraded(desktop-empty-only,hover-only-accessibility-missing)")
+                && missingPermissionInteractionSummary.contains("emptyDesktopMove=eligible")
                 && missingPermissionInteractionSummary.contains("emptyDesktop=blockedAccessibilityTrust")
                 && missingPermissionInteractionSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false"),
-            "interaction diagnostics must explain when desktop-item-safe interaction is blocked by missing Accessibility permission"
+            "interaction diagnostics must explain hover-only degradation when desktop-item-safe click interaction lacks Accessibility permission"
         )
         let neutralProbeSummary = InteractionPlan.probeSummary(
             interactions: manifest.interactions,
@@ -1703,7 +1704,8 @@ enum RuntimeSelfTest {
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: true,
                 useLocalMonitor: false,
-                useGlobalMonitors: false
+                useGlobalMoveMonitor: false,
+                useGlobalClickMonitors: false
             ),
             "desktop mouse monitor must avoid duplicate global monitors when passive event tap is active",
             failures: &failures,
@@ -1717,7 +1719,8 @@ enum RuntimeSelfTest {
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: false,
                 useLocalMonitor: false,
-                useGlobalMonitors: true
+                useGlobalMoveMonitor: true,
+                useGlobalClickMonitors: true
             ),
             "desktop mouse monitor may fall back to global monitors only after Accessibility trust exists",
             failures: &failures,
@@ -1731,9 +1734,10 @@ enum RuntimeSelfTest {
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: false,
                 useLocalMonitor: false,
-                useGlobalMonitors: false
+                useGlobalMoveMonitor: true,
+                useGlobalClickMonitors: false
             ),
-            "desktop mouse monitor must not attach passive global monitors at startup before Accessibility trust",
+            "desktop mouse monitor may attach hover-only global move monitoring before Accessibility trust without enabling click delivery",
             failures: &failures,
             checks: &checks
         )
@@ -1745,7 +1749,8 @@ enum RuntimeSelfTest {
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: false,
                 useLocalMonitor: true,
-                useGlobalMonitors: false
+                useGlobalMoveMonitor: false,
+                useGlobalClickMonitors: false
             ),
             "active diagnostic windows must use local mouse monitoring without global duplicate sources",
             failures: &failures,
@@ -1935,9 +1940,10 @@ enum RuntimeSelfTest {
         )
         check(
             blockedPermissionStatus.canRequestAccessibilityPermission
-                && blockedPermissionStatus.text.contains("INTERACTION BLOCKED")
+                && blockedPermissionStatus.text.contains("INTERACTION DEGRADED")
+                && blockedPermissionStatus.text.contains("hover tracking only")
                 && blockedPermissionStatus.text.contains("Accessibility"),
-            "control panel interaction status must explain Accessibility-blocked desktop interaction",
+            "control panel interaction status must explain Accessibility-degraded desktop interaction",
             failures: &failures,
             checks: &checks
         )
@@ -1971,8 +1977,8 @@ enum RuntimeSelfTest {
                 displayRole: primaryRole,
                 interactionPolicy: interactivePolicy,
                 accessibilityTrusted: false
-            ) == false,
-            "desktop-empty interaction with desktop item blocking must fail closed without Accessibility trust",
+            ),
+            "desktop-empty interaction with desktop item blocking must keep hover tracking active without Accessibility trust",
             failures: &failures,
             checks: &checks
         )
@@ -2048,13 +2054,16 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let degradedControlPanelText = RuntimeLifecyclePolicy.interactionControlPanelText(
+            permissionStatus: blockedPermissionStatus,
+            isHostRunning: true,
+            monitorSnapshot: deliveredInteractionSnapshot
+        )
         check(
-            RuntimeLifecyclePolicy.interactionControlPanelText(
-                permissionStatus: blockedPermissionStatus,
-                isHostRunning: true,
-                monitorSnapshot: deliveredInteractionSnapshot
-            ) == blockedPermissionStatus.text,
-            "blocked interaction permission status must not be hidden by stale monitor telemetry",
+            degradedControlPanelText.contains("INTERACTION DEGRADED")
+                && degradedControlPanelText.contains("active tap:on")
+                && degradedControlPanelText.contains("command:act"),
+            "degraded interaction permission status must remain visible while surfacing live hover monitor telemetry",
             failures: &failures,
             checks: &checks
         )
@@ -2197,6 +2206,28 @@ enum RuntimeSelfTest {
                 likelyDesktopItem: false
             ) == .blockedAccessibilityTrust,
             "desktop interaction gate must fail closed when desktop item blocking requires missing Accessibility trust",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.pointerMoveEligibilityDecision(
+                policy: interactivePolicy,
+                accessibilityTrusted: false,
+                coveredByApplicationWindow: false,
+                likelyDesktopItem: false
+            ) == .eligible,
+            "desktop pointer move gate may keep hover tracking active without Accessibility trust",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.pointerMoveEligibilityDecision(
+                policy: interactivePolicy,
+                accessibilityTrusted: false,
+                coveredByApplicationWindow: true,
+                likelyDesktopItem: false
+            ) == .blockedApplicationWindow,
+            "desktop pointer move gate must still block hover tracking over application windows without Accessibility trust",
             failures: &failures,
             checks: &checks
         )

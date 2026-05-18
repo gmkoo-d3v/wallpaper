@@ -374,7 +374,8 @@ enum BundleValidationMatrix {
                 contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
                 accessibilityTrusted: false
             )
-            guard missingTrustSummary.contains("desktopMonitor: blocked(accessibility-missing)"),
+            guard missingTrustSummary.contains("desktopMonitor: degraded(desktop-empty-only,hover-only-accessibility-missing)"),
+                  missingTrustSummary.contains("emptyDesktopMove=eligible"),
                   missingTrustSummary.contains("emptyDesktop=blockedAccessibilityTrust"),
                   missingTrustSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false") else {
                 throw EngineError.invalidArgument(

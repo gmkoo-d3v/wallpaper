@@ -23,6 +23,7 @@ enum RuntimeLifecyclePolicy {
     static let startupFailurePolicy = "control-panel-recovery"
     static let visibilityPausePolicy = "pause-when-occluded-or-fullscreen-obscured"
     static let desktopItemTrustPolicy = "fail-closed-without-accessibility-trust"
+    static let missingTrustInteractionDegradePolicy = "hover-only-without-accessibility-trust"
     static let displayRebuildPolicy = "debounced-atomic-rollback"
     static let runningHostReplacementPolicy = "start-replacement-before-retiring-current-host"
     static let rendererFailureRecoveryPolicy = RendererRecoveryPolicy.policyName
@@ -78,9 +79,6 @@ enum RuntimeLifecyclePolicy {
         accessibilityTrusted: Bool = true
     ) -> Bool {
         guard isVisible, displayRole.allowsInteraction, interactionPolicy.mode != .disabled else {
-            return false
-        }
-        guard requiresAccessibilityTrustForDesktopItems(interactionPolicy) == false || accessibilityTrusted else {
             return false
         }
         return true
@@ -150,7 +148,7 @@ enum RuntimeLifecyclePolicy {
         }
         guard accessibilityTrusted else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION BLOCKED / grant macOS Accessibility permission for desktop icon-safe mode",
+                text: "INTERACTION DEGRADED / hover tracking only; grant macOS Accessibility permission for desktop icon-safe clicks",
                 canRequestAccessibilityPermission: true
             )
         }
@@ -165,7 +163,8 @@ enum RuntimeLifecyclePolicy {
         isHostRunning: Bool,
         monitorSnapshot: InteractionMonitorTelemetrySnapshot?
     ) -> String {
-        guard permissionStatus.text.contains("INTERACTION READY") else {
+        guard permissionStatus.text.contains("INTERACTION READY")
+            || permissionStatus.text.contains("INTERACTION DEGRADED") else {
             return permissionStatus.text
         }
         guard isHostRunning else {

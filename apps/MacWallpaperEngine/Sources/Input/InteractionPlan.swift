@@ -444,7 +444,9 @@ struct InteractionPlan {
         }
 
         let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
-        return trusted ? "ready(\(policy.mode.rawValue),accessibility-trusted)" : "blocked(accessibility-missing)"
+        return trusted
+            ? "ready(\(policy.mode.rawValue),accessibility-trusted)"
+            : "degraded(\(policy.mode.rawValue),hover-only-accessibility-missing)"
     }
 
     private static func eventGateProbeLines(
@@ -467,6 +469,7 @@ struct InteractionPlan {
         [
             "\(label):",
             "accessibilityTrusted=\(accessibilityTrusted)",
+            "emptyDesktopMove=\(DesktopInteractionGate.pointerMoveEligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: false).rawValue)",
             "emptyDesktop=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: false).rawValue)",
             "appWindow=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: true, likelyDesktopItem: false).rawValue)",
             "desktopItem=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: true).rawValue)"
