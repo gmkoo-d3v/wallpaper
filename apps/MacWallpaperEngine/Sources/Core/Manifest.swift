@@ -45,8 +45,30 @@ struct RuntimeConfig: Decodable {
     let targetFps: Int
     let maxFps: Int
     let fallbackFps: Int
+    let audioPolicy: AudioPolicy?
     let performanceTiers: [PerformanceTier]?
     let scheduler: SchedulerConfig
+
+    var effectiveAudioPolicy: AudioPolicy {
+        audioPolicy ?? .muted
+    }
+}
+
+enum AudioPolicy: String, Decodable {
+    case muted
+    case userControlled
+    case disabled
+
+    var runtimeOutputSummary: String {
+        switch self {
+        case .muted:
+            return "muted"
+        case .userControlled:
+            return "muted-until-user-opt-in"
+        case .disabled:
+            return "disabled-muted"
+        }
+    }
 }
 
 struct PerformanceTier: Decodable {

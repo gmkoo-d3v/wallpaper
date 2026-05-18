@@ -313,11 +313,14 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   - `Native Spine`: background video plus native Spine mesh/timeline foreground.
 - Foreground renderer selection is centralized so render diagnostics and the
   Metal compositor use the same native/composite/fallback decision.
+- Manifest `runtime.audioPolicy` is enforced for video-backed renderers; bundled
+  wallpapers default to `muted`, and `userControlled` remains muted until a
+  future explicit user opt-in control enables sound.
 
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Audio event playback, sequence attachments, and non-region non-mesh attachment paths.
+- Spine audio event playback, sequence attachments, and non-region non-mesh attachment paths.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.

@@ -7,6 +7,7 @@ final class VideoFrameSource: NSObject {
     private let item: AVPlayerItem
     private let output: AVPlayerItemVideoOutput
     private let playbackRate: Float
+    private let audioPolicy: AudioPolicy
     private let lock = NSLock()
     private var textureCache: CVMetalTextureCache?
     private var lastTexture: CVMetalTexture?
@@ -14,8 +15,14 @@ final class VideoFrameSource: NSObject {
     private var isLooping = false
     private var shouldPlay = false
 
-    init(url: URL, device: MTLDevice, playbackRate: Float = 1.0) throws {
+    init(
+        url: URL,
+        device: MTLDevice,
+        playbackRate: Float = 1.0,
+        audioPolicy: AudioPolicy = .muted
+    ) throws {
         self.playbackRate = playbackRate
+        self.audioPolicy = audioPolicy
         let asset = AVURLAsset(url: url)
         self.item = AVPlayerItem(asset: asset)
         self.output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
@@ -33,6 +40,7 @@ final class VideoFrameSource: NSObject {
         }
         self.textureCache = cache
         super.init()
+        configureAudioPolicy()
 
         NotificationCenter.default.addObserver(
             self,
@@ -136,6 +144,14 @@ final class VideoFrameSource: NSObject {
             if shouldResume {
                 self.player.rate = self.playbackRate
             }
+        }
+    }
+
+    private func configureAudioPolicy() {
+        switch audioPolicy {
+        case .muted, .userControlled, .disabled:
+            player.isMuted = true
+            player.volume = 0
         }
     }
 }

@@ -454,6 +454,11 @@ enum RuntimeSelfTest {
             runtime.validationSummary().contains("composite quality: \(compositeQualityReport.summaryLine)"),
             "validation summary must surface composite fallback quality"
         )
+        let effectiveAudioPolicy = runtime.manifest.runtime.effectiveAudioPolicy
+        check(
+            runtime.validationSummary().contains("audioPolicy: \(effectiveAudioPolicy.rawValue) (\(effectiveAudioPolicy.runtimeOutputSummary))"),
+            "validation summary must surface the effective runtime audio policy"
+        )
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
            let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
            let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),
@@ -530,6 +535,11 @@ enum RuntimeSelfTest {
         check(
             capabilitySummary.contains("render\tcontentAspect\tsupported"),
             "runtime capabilities summary must expose the resolved wallpaper content aspect"
+        )
+        let effectiveAudioStatus = effectiveAudioPolicy == .disabled ? "disabled" : "muted"
+        check(
+            capabilitySummary.contains("audio\tpolicy\t\(effectiveAudioStatus)\tpolicy=\(effectiveAudioPolicy.rawValue) output=\(effectiveAudioPolicy.runtimeOutputSummary)"),
+            "runtime capabilities summary must expose effective audio output policy"
         )
         check(
             capabilitySummary.contains("columns: category\tname\tstatus\tdetail"),
@@ -3669,6 +3679,12 @@ enum RuntimeSelfTest {
             launchControlPanel: false,
             launchWallpaper: false
         ))
+        check(
+            eventOnlyRuntime.manifest.runtime.effectiveAudioPolicy == .muted,
+            "runtime audio policy must default to muted when the manifest omits audioPolicy",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             eventOnlyRuntime.runtimeCapabilitiesSummary()
                 .contains("spine\teventsAudioSequence\tsupported\tevents=ignored"),

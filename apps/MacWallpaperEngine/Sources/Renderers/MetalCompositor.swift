@@ -94,7 +94,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             self.videoSource = try VideoFrameSource(
                 url: selectedVideo.url,
                 device: device,
-                playbackRate: runtime.config.playbackRateOverride ?? selectedVideo.playbackRate
+                playbackRate: runtime.config.playbackRateOverride ?? selectedVideo.playbackRate,
+                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy
             )
         }
         if runtime.config.videoEnabled,
@@ -105,7 +106,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             self.deskOcclusionSource = try VideoFrameSource(
                 url: backgroundVideo.url,
                 device: device,
-                playbackRate: runtime.config.playbackRateOverride ?? backgroundVideo.playbackRate
+                playbackRate: runtime.config.playbackRateOverride ?? backgroundVideo.playbackRate,
+                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy
             )
         }
         if runtime.config.videoEnabled,
@@ -117,7 +119,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             let fallbackSource = try VideoFrameSource(
                 url: compositeVideo.url,
                 device: device,
-                playbackRate: runtime.config.playbackRateOverride ?? compositeVideo.playbackRate
+                playbackRate: runtime.config.playbackRateOverride ?? compositeVideo.playbackRate,
+                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy
             )
             fallbackSource.pause()
             self.resourceFallbackVideoSource = fallbackSource
