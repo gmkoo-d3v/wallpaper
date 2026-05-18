@@ -44,6 +44,7 @@ enum BundleValidationMatrix {
                 try validateDisplayRefreshMode(runtime: runtime)
                 let interactionStatus = try validateInteractionDiagnostics(runtime: runtime)
                 let performanceStatus = try validatePerformancePlan(runtime: runtime)
+                let doctorStatus = try validateDoctorReport(runtime: runtime)
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
                 let goldenStatus = try validateGoldenIfPresent(runtime: runtime)
@@ -60,6 +61,7 @@ enum BundleValidationMatrix {
                         + " / displayRefreshFps: primary120+secondary60"
                         + " / \(interactionStatus)"
                         + " / \(performanceStatus)"
+                        + " / \(doctorStatus)"
                         + " / \(libraryStatus)"
                         + " / \(goldenStatus)"
                         + " / \(installerStatus)"
@@ -426,6 +428,28 @@ enum BundleValidationMatrix {
         }
 
         return "performancePlan: target=\(plan.effectiveTargetFps) fallback=\(plan.fallbackFps) budgeted"
+    }
+
+    private static func validateDoctorReport(runtime: NativeRuntimeCore) throws -> String {
+        let report = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
+        let requiredSections = [
+            "wallpaper doctor OK",
+            "== validation ==",
+            "== runtime-capabilities ==",
+            "== render-plan ==",
+            "== simulated-render-plan ==",
+            "== performance-plan ==",
+            "== interaction-plan ==",
+            "== renderer-recovery =="
+        ]
+        guard requiredSections.allSatisfy({ report.contains($0) }),
+              report.contains(runtime.config.wallpaperRoot.path),
+              report.contains(runtime.config.manifestURL.path) else {
+            throw EngineError.invalidArgument(
+                "doctor diagnostics are incomplete for \(runtime.config.wallpaperRoot.lastPathComponent)"
+            )
+        }
+        return "doctor: pass"
     }
 
     private static func occurrenceCount(_ needle: String, in haystack: String) -> Int {

@@ -1325,6 +1325,10 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate performance budget plans for native Spine, video-only, and static-image bundles"
         )
         check(
+            occurrenceCount("doctor: pass", in: bundleMatrix) == 3,
+            "bundle validation matrix must validate the combined runtime doctor report for every bundled renderer family"
+        )
+        check(
             occurrenceCount("libraryReport: listed=3 invalid=0 capabilities", in: bundleMatrix) == 3,
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
