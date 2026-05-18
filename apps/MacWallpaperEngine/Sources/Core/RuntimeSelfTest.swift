@@ -422,7 +422,8 @@ enum RuntimeSelfTest {
             displayMode: .primaryOnly
         )
         check(
-            occurrenceCount("primary:\(manifest.displayPolicy.primary.rawValue)", in: primaryOnlySimulatedPlan) == 1,
+            primaryOnlySimulatedPlan.contains("displayMode: selectedOnly")
+                && occurrenceCount("primary:\(manifest.displayPolicy.primary.rawValue)", in: primaryOnlySimulatedPlan) == 1,
             "selected-only simulated plan must render exactly one primary display"
         )
         check(
@@ -434,7 +435,8 @@ enum RuntimeSelfTest {
             displayMode: .primaryAnimated
         )
         check(
-            occurrenceCount("secondary:\(manifest.displayPolicy.secondary.rawValue)", in: selectedPolicySimulatedPlan) == 2,
+            selectedPolicySimulatedPlan.contains("displayMode: selectedPolicy")
+                && occurrenceCount("secondary:\(manifest.displayPolicy.secondary.rawValue)", in: selectedPolicySimulatedPlan) == 2,
             "selected+policy simulated plan must apply manifest secondary policy to both secondary displays"
         )
         check(
@@ -447,7 +449,8 @@ enum RuntimeSelfTest {
             displayMode: .all
         )
         check(
-            occurrenceCount("secondary:full", in: allDisplaysSimulatedPlan) == 2,
+            allDisplaysSimulatedPlan.contains("displayMode: allFull")
+                && occurrenceCount("secondary:full", in: allDisplaysSimulatedPlan) == 2,
             "all-full simulated plan must render both secondary displays with full foreground policy"
         )
         check(
@@ -1494,7 +1497,7 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains("sample_imported")
                 && bundleMatrix.contains("sample_video")
                 && bundleMatrix.contains("sample_static")
-                && bundleMatrix.contains("displayModes: primaryOnly+selectedPolicy+allFull"),
+                && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
             "bundle validation matrix must cover native Spine/video, video-only, static-image, and multi-display simulated render plans"
         )
         check(

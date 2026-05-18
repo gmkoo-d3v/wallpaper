@@ -57,7 +57,7 @@ enum BundleValidationMatrix {
                     status: "valid",
                     bundle: bundle,
                     detail: bundle.capabilities.briefText
-                        + " / displayModes: primaryOnly+selectedPolicy+allFull"
+                        + " / displayModes: selectedOnly+selectedPolicy+allFull"
                         + " / displayRefreshFps: primary120+secondary60"
                         + " / \(interactionStatus)"
                         + " / \(performanceStatus)"
@@ -231,11 +231,11 @@ enum BundleValidationMatrix {
             runtime: runtime,
             displayMode: .primaryOnly
         )
-        guard primaryOnly.contains("displayMode: primaryOnly"),
+        guard primaryOnly.contains("displayMode: selectedOnly"),
               occurrenceCount("primary:\(runtime.manifest.displayPolicy.primary.rawValue)", in: primaryOnly) == 1,
               occurrenceCount("\tnone\tbackground=none\tforeground=none", in: primaryOnly) == 2 else {
             throw EngineError.invalidArgument(
-                "primaryOnly simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                "selectedOnly simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
             )
         }
 
@@ -243,7 +243,7 @@ enum BundleValidationMatrix {
             runtime: runtime,
             displayMode: .primaryAnimated
         )
-        guard selectedPolicy.contains("displayMode: primaryAnimated"),
+        guard selectedPolicy.contains("displayMode: selectedPolicy"),
               occurrenceCount("secondary:\(runtime.manifest.displayPolicy.secondary.rawValue)", in: selectedPolicy) == 2,
               selectedPolicy.contains("interaction=passive") else {
             throw EngineError.invalidArgument(
@@ -255,7 +255,7 @@ enum BundleValidationMatrix {
             runtime: runtime,
             displayMode: .all
         )
-        guard allDisplays.contains("displayMode: all"),
+        guard allDisplays.contains("displayMode: allFull"),
               occurrenceCount("secondary:full", in: allDisplays) == 2,
               allDisplays.contains("displayRefresh=120Hz") else {
             throw EngineError.invalidArgument(
@@ -273,7 +273,7 @@ enum BundleValidationMatrix {
             runtime: displayRuntime,
             displayMode: .all
         )
-        guard displayRefreshPlan.contains("displayMode: all"),
+        guard displayRefreshPlan.contains("displayMode: allFull"),
               displayRefreshPlan.contains("fps=120\tfpsMode=display\tdisplayRefresh=120Hz"),
               occurrenceCount("fps=60\tfpsMode=display\tdisplayRefresh=60Hz", in: displayRefreshPlan) == 2 else {
             throw EngineError.invalidArgument(

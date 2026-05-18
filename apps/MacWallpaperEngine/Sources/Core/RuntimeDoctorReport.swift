@@ -9,7 +9,7 @@ enum RuntimeDoctorReport {
         return [
             "doctor: OK / native=\(nativeStatus)",
             "quality: \(quality) / fps=\(runtime.renderTargetFps) max=\(runtime.manifest.runtime.maxFps)",
-            "display: \(runtime.config.displayMode.rawValue) / foreground=\(runtime.config.foregroundMode.rawValue)",
+            "display: \(runtime.config.displayMode.cliName) / foreground=\(runtime.config.foregroundMode.rawValue)",
             "interaction: \(shorten(interactionStatus.replacingOccurrences(of: "\n", with: " / "), limit: 96))"
         ].joined(separator: "\n")
     }

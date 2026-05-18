@@ -342,7 +342,7 @@ enum DisplayPlanner {
 
         return """
         display plan OK
-        displayMode: \(runtime.config.displayMode.rawValue)
+        displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         rebuildPolicy: \(rebuildPolicy)
         manifest primary: \(runtime.manifest.displayPolicy.primary.rawValue)
@@ -366,7 +366,7 @@ enum DisplayPlanner {
         return """
         display plan OK
         displayProbe: skipped(cli-safe)
-        displayMode: \(runtime.config.displayMode.rawValue)
+        displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: display, runtime: runtime))
         rebuildPolicy: \(rebuildPolicy)
         manifest primary: \(runtime.manifest.displayPolicy.primary.rawValue)
@@ -396,7 +396,7 @@ enum DisplayPlanner {
         return """
         render plan OK
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
-        displayMode: \(runtime.config.displayMode.rawValue)
+        displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
         \(lines.joined(separator: "\n"))
@@ -417,7 +417,7 @@ enum DisplayPlanner {
         render plan OK
         displayProbe: skipped(cli-safe)
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
-        displayMode: \(runtime.config.displayMode.rawValue)
+        displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: display, runtime: runtime))
         nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
         \(line)
@@ -452,7 +452,7 @@ enum DisplayPlanner {
         render plan OK
         displayProbe: simulated(cli-safe)
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
-        displayMode: \(effectiveDisplayMode.rawValue)
+        displayMode: \(effectiveDisplayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
         \(lines.joined(separator: "\n"))

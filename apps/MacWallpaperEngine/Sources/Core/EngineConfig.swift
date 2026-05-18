@@ -53,6 +53,17 @@ enum DisplayMode: String, Codable {
             return nil
         }
     }
+
+    var cliName: String {
+        switch self {
+        case .primaryOnly:
+            return "selectedOnly"
+        case .primaryAnimated:
+            return "selectedPolicy"
+        case .all:
+            return "allFull"
+        }
+    }
 }
 
 enum RenderFitMode: String, Codable {

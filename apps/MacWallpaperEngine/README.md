@@ -17,7 +17,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   counts and stable columns, so shell tooling and users can inspect the same
   library state.
 - `--validate-bundles` runs manifest, capability, render-plan, simulated
-  primaryOnly/selected+policy/all-full display planning, composite quality, and
+  selectedOnly/selectedPolicy/allFull display planning, composite quality, and
   native Spine geometry preflight over every discovered valid bundle without
   launching wallpaper windows.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
