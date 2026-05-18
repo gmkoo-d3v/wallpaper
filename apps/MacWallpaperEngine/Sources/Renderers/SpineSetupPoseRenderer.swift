@@ -1375,6 +1375,9 @@ final class SpineSetupPoseRenderer {
                     if let raw = timelineSet["rgba"] {
                         timelines.rgba = parseColorFrames(raw)
                     }
+                    if let raw = timelineSet["color"], timelines.rgba.isEmpty {
+                        timelines.rgba = parseColorFrames(raw)
+                    }
                     if let raw = timelineSet["rgb"] {
                         timelines.rgb = parseRGBColorFrames(raw)
                     }

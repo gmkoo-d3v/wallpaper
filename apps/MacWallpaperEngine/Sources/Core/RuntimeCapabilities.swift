@@ -565,6 +565,7 @@ private struct SpineFeatureScan {
             "bones.translatey",
             "bones.scale",
             "bones.shear",
+            "slots.color",
             "slots.rgba",
             "slots.rgb",
             "slots.alpha",

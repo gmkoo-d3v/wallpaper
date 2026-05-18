@@ -49,6 +49,7 @@ struct SpineAnimationDiagnostics {
         "bone.translatey",
         "bone.scale",
         "bone.shear",
+        "slot.color",
         "slot.rgba",
         "slot.rgb",
         "slot.alpha",

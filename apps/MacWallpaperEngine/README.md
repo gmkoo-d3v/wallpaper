@@ -182,7 +182,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   geometry for native rendering; missing parents are blocked by compatibility
   diagnostics.
 - Spine animation slice for bone `rotate`, `translate`, `translatex`,
-  `translatey`, `scale`, `shear`, slot `rgba` and `attachment` timelines.
+  `translatey`, `scale`, `shear`, slot `color`/`rgba`, and `attachment`
+  timelines.
 - Bezier/stepped curve sampling for Spine timelines.
 - Spine draw order timeline application.
 - Spine clipping attachment CPU triangle clipping.
@@ -202,8 +203,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Native Spine look-direction poses are mixed by smoothed pointer distance from
   the idle dead zone, avoiding abrupt full-strength directional pose snaps.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
-- Spine slot `rgb` and `alpha` component timelines are applied by the native
-  renderer instead of forcing a composite fallback.
+- Spine slot `color`, `rgb`, and `alpha` component timelines are applied by the
+  native renderer instead of forcing a composite fallback.
 - Spine skin parsing prefers the `default` skin when present and accepts both
   array-form and legacy object-form `skins` exports.
 - Non-visual Spine event timelines are tolerated and ignored by the native
@@ -356,7 +357,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Spine edge-case attachment and timeline parity beyond the currently accepted
   region, mesh, linkedmesh, path, clipping, point, boundingbox, and sequence
   paths plus default/legacy skin parsing, external-skin linkedmesh parent
-  lookup, and slot rgba/rgb/alpha component color timelines.
+  lookup, and slot color/rgba/rgb/alpha component color timelines.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Visual hit-zone editor for authoring new bundles.

@@ -3682,6 +3682,16 @@ enum RuntimeSelfTest {
             "idle": {
               "slots": {
                 "slot": {
+                  "color": [
+                    {
+                      "time": 0,
+                      "color": "ffffffff"
+                    },
+                    {
+                      "time": 0.05,
+                      "color": "ff8080bf"
+                    }
+                  ],
                   "rgb": [
                     {
                       "time": 0,
@@ -3841,8 +3851,8 @@ enum RuntimeSelfTest {
         )
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.rgb"),
-            "runtime capabilities must report slot rgb/alpha component timelines as supported",
+                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.color,slots.rgb"),
+            "runtime capabilities must report legacy slot color plus rgb/alpha component timelines as supported",
             failures: &failures,
             checks: &checks
         )
@@ -3851,9 +3861,10 @@ enum RuntimeSelfTest {
             linkedMeshAnimationPlan.contains("unsupportedActionTimelines: none")
                 && linkedMeshAnimationPlan.contains("animation\tidle\tavailable")
                 && linkedMeshAnimationPlan.contains("slot.alpha=1")
+                && linkedMeshAnimationPlan.contains("slot.color=1")
                 && linkedMeshAnimationPlan.contains("slot.rgb=1")
                 && linkedMeshAnimationPlan.contains("attachment.sequence=1"),
-            "Spine animation diagnostics must align with native runtime support for slot rgb/alpha and sequence timelines",
+            "Spine animation diagnostics must align with native runtime support for slot color/rgb/alpha and sequence timelines",
             failures: &failures,
             checks: &checks
         )
