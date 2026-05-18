@@ -520,6 +520,11 @@ enum RuntimeCapabilities {
 }
 
 private struct SpineFeatureScan {
+    private struct SkinAttachmentSource {
+        let name: String
+        let attachments: [String: Any]
+    }
+
     var attachmentTypes: Set<String> = []
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
@@ -571,10 +576,9 @@ private struct SpineFeatureScan {
     }
 
     private mutating func collectAttachmentTypes(root: [String: Any]) {
-        guard let skins = root["skins"] as? [[String: Any]] else { return }
-        for skin in skins {
-            let skinName = skin["name"] as? String ?? "default"
-            guard let attachmentsBySlot = skin["attachments"] as? [String: Any] else { continue }
+        for skin in skinAttachmentSources(root: root) {
+            let skinName = skin.name
+            let attachmentsBySlot = skin.attachments
             for (slotName, rawSlotAttachments) in attachmentsBySlot {
                 guard let slotAttachments = rawSlotAttachments as? [String: Any] else { continue }
                 let attachmentNames = Set(slotAttachments.keys)
@@ -608,6 +612,28 @@ private struct SpineFeatureScan {
                 }
             }
         }
+    }
+
+    private func skinAttachmentSources(root: [String: Any]) -> [SkinAttachmentSource] {
+        if let skins = root["skins"] as? [[String: Any]] {
+            return skins.compactMap { skin in
+                guard let attachments = skin["attachments"] as? [String: Any] else { return nil }
+                return SkinAttachmentSource(
+                    name: skin["name"] as? String ?? "default",
+                    attachments: attachments
+                )
+            }
+        }
+
+        if let skins = root["skins"] as? [String: Any] {
+            return skins.compactMap { skinName, rawSkin in
+                guard let skin = rawSkin as? [String: Any] else { return nil }
+                let attachments = skin["attachments"] as? [String: Any] ?? skin
+                return SkinAttachmentSource(name: skinName, attachments: attachments)
+            }
+        }
+
+        return []
     }
 
     private mutating func collectAnimationTimelines(root: [String: Any]) {

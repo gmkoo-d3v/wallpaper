@@ -196,6 +196,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Spine slot `rgb` and `alpha` component timelines are applied by the native
   renderer instead of forcing a composite fallback.
+- Spine skin parsing prefers the `default` skin when present and accepts both
+  array-form and legacy object-form `skins` exports.
 - Non-visual Spine event timelines are tolerated and ignored by the native
   renderer instead of forcing a composite fallback.
 - Spine audio event timelines are scheduled by the native renderer for
@@ -341,7 +343,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Full Spine 4.2 runtime parity.
 - Spine edge-case attachment and timeline parity beyond the currently accepted
   region, mesh, linkedmesh, path, clipping, point, boundingbox, and sequence
-  paths plus slot rgba/rgb/alpha component color timelines.
+  paths plus default/legacy skin parsing and slot rgba/rgb/alpha component
+  color timelines.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Visual hit-zone editor for authoring new bundles.

@@ -3511,6 +3511,10 @@ enum RuntimeSelfTest {
           ],
           "skins": [
             {
+              "name": "alternate",
+              "attachments": {}
+            },
+            {
               "name": "default",
               "attachments": {
                 "slot": {
@@ -3720,6 +3724,69 @@ enum RuntimeSelfTest {
         )
         if SpineGeometryDiagnostics.validationStatus(runtime: linkedMeshRuntime) == "required" {
             try linkedMeshRuntime.requireNativeSpineGeometryIfSupported()
+        }
+
+        let legacySkinSpineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -50,
+            "y": -50,
+            "width": 100,
+            "height": 100
+          },
+          "bones": [
+            {
+              "name": "root"
+            }
+          ],
+          "slots": [
+            {
+              "name": "slot",
+              "bone": "root",
+              "attachment": "base"
+            }
+          ],
+          "skins": {
+            "default": {
+              "slot": {
+                "base": {
+                  "type": "mesh",
+                  "path": "base",
+                  "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+                  "triangles": [0, 1, 2, 2, 3, 0],
+                  "vertices": [-50, -50, 50, -50, 50, 50, -50, 50],
+                  "hull": 4
+                }
+              }
+            }
+          },
+          "animations": {
+            "idle": {}
+          }
+        }
+        """
+        try Data(legacySkinSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let legacySkinRuntime = try NativeRuntimeCore(config: linkedMeshRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let legacySkinCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: legacySkinRuntime)
+        check(
+            legacySkinCompatibility.isSupported,
+            "legacy object-form Spine skins must pass native compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            legacySkinRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\tused=mesh"),
+            "runtime capabilities must scan legacy object-form Spine skins",
+            failures: &failures,
+            checks: &checks
+        )
+        if SpineGeometryDiagnostics.validationStatus(runtime: legacySkinRuntime) == "required" {
+            try legacySkinRuntime.requireNativeSpineGeometryIfSupported()
         }
     }
 

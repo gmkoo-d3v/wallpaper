@@ -217,6 +217,11 @@ final class SpineSetupPoseRenderer {
         let balance: Double?
     }
 
+    private struct SkinAttachmentSource {
+        let name: String
+        let attachments: [String: Any]
+    }
+
     private struct SpineEventDefinition {
         let name: String
         let audioPath: String?
@@ -3305,17 +3310,46 @@ final class SpineSetupPoseRenderer {
         }
     }
 
-    private static func parseAttachments(root: [String: Any]) throws -> [String: [String: Attachment]] {
-        guard let skins = root["skins"] as? [[String: Any]],
-              let firstSkin = skins.first,
-              let rawAttachments = firstSkin["attachments"] as? [String: Any] else {
+    private static func selectedSkinAttachmentSource(root: [String: Any]) throws -> SkinAttachmentSource {
+        let sources = skinAttachmentSources(root: root)
+        guard sources.isEmpty == false else {
             throw EngineError.asset("Spine JSON missing skin attachments")
         }
+        return sources.first { $0.name == "default" } ?? sources[0]
+    }
 
-        let firstSkinName = firstSkin["name"] as? String ?? "default"
+    private static func skinAttachmentSources(root: [String: Any]) -> [SkinAttachmentSource] {
+        if let skins = root["skins"] as? [[String: Any]] {
+            return skins.compactMap { skin in
+                guard let attachments = skin["attachments"] as? [String: Any] else { return nil }
+                return SkinAttachmentSource(
+                    name: skin["name"] as? String ?? "default",
+                    attachments: attachments
+                )
+            }
+        }
+
+        if let skins = root["skins"] as? [String: Any] {
+            return skins.compactMap { skinName, rawSkin in
+                guard let skin = rawSkin as? [String: Any] else { return nil }
+                let attachments = skin["attachments"] as? [String: Any] ?? skin
+                return SkinAttachmentSource(name: skinName, attachments: attachments)
+            }
+            .sorted { lhs, rhs in
+                if lhs.name == "default" { return true }
+                if rhs.name == "default" { return false }
+                return lhs.name < rhs.name
+            }
+        }
+
+        return []
+    }
+
+    private static func parseAttachments(root: [String: Any]) throws -> [String: [String: Attachment]] {
+        let skin = try selectedSkinAttachmentSource(root: root)
         var bySlot: [String: [String: Attachment]] = [:]
         var pendingLinkedMeshes: [(slotName: String, attachmentName: String, raw: [String: Any])] = []
-        for (slotName, slotValue) in rawAttachments {
+        for (slotName, slotValue) in skin.attachments {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
@@ -3360,7 +3394,7 @@ final class SpineSetupPoseRenderer {
             for linkedMesh in pendingLinkedMeshes {
                 if let referencedSkin = linkedMesh.raw["skin"] as? String,
                    referencedSkin.isEmpty == false,
-                   referencedSkin != firstSkinName {
+                   referencedSkin != skin.name {
                     throw EngineError.asset(
                         "Spine linkedmesh attachment \(linkedMesh.slotName)/\(linkedMesh.attachmentName) references unsupported external skin \(referencedSkin)"
                     )
@@ -3468,14 +3502,9 @@ final class SpineSetupPoseRenderer {
     }
 
     private static func parsePathAttachments(root: [String: Any]) throws -> [String: [String: PathAttachment]] {
-        guard let skins = root["skins"] as? [[String: Any]],
-              let firstSkin = skins.first,
-              let rawAttachments = firstSkin["attachments"] as? [String: Any] else {
-            throw EngineError.asset("Spine JSON missing skin attachments")
-        }
-
+        let skin = try selectedSkinAttachmentSource(root: root)
         var bySlot: [String: [String: PathAttachment]] = [:]
-        for (slotName, slotValue) in rawAttachments {
+        for (slotName, slotValue) in skin.attachments {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
@@ -3502,14 +3531,9 @@ final class SpineSetupPoseRenderer {
     }
 
     private static func parseClippingAttachments(root: [String: Any]) throws -> [String: [String: ClippingAttachment]] {
-        guard let skins = root["skins"] as? [[String: Any]],
-              let firstSkin = skins.first,
-              let rawAttachments = firstSkin["attachments"] as? [String: Any] else {
-            throw EngineError.asset("Spine JSON missing skin attachments")
-        }
-
+        let skin = try selectedSkinAttachmentSource(root: root)
         var bySlot: [String: [String: ClippingAttachment]] = [:]
-        for (slotName, slotValue) in rawAttachments {
+        for (slotName, slotValue) in skin.attachments {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
