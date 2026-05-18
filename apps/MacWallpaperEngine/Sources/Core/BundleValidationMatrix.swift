@@ -382,7 +382,7 @@ enum BundleValidationMatrix {
                     "interaction diagnostics do not expose missing Accessibility trust for \(runtime.config.wallpaperRoot.lastPathComponent)"
                 )
             }
-            return "interactionPlan: active(desktop-empty-only+accessibility-gated)"
+            return "interactionPlan: active(desktop-empty-only+accessibility-gated+hover-only-without-trust)"
         }
 
         return "interactionPlan: active"

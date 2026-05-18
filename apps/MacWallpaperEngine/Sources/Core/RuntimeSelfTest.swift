@@ -1481,7 +1481,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
-            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+accessibility-gated)")
+            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+accessibility-gated+hover-only-without-trust)")
                 && occurrenceCount("interactionPlan: passive(no-interactions)", in: bundleMatrix) >= 2,
             "bundle validation matrix must validate active desktop-gated interactions and passive no-interaction bundles"
         )

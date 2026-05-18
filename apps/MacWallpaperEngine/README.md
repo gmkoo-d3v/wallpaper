@@ -348,8 +348,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   one preview/last-frame/neutral fallback drawable before pausing, instead of
   leaving a newly created wallpaper window black.
 - Wallpaper windows also request an immediate first Metal draw after ordering
-  front, and display rebuilds keep the old window visible long enough for the
-  replacement drawable to arrive.
+  front, and display rebuilds keep the old window visible for a 0.5s warmup
+  overlap so slower replacement drawables do not expose a black-screen gap.
 - Running settings changes and bundle switches start the replacement wallpaper
   host before retiring the current host, reducing black-screen gaps while the
   new renderer warms up.

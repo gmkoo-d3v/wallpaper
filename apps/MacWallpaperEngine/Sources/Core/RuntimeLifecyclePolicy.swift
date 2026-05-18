@@ -33,7 +33,7 @@ enum RuntimeLifecyclePolicy {
     static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background-before-first-pause"
     static let visibleWindowFirstDrawPolicy = "order-front-with-immediate-mtkview-draw"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
-    static let displayReplacementOverlapSeconds: TimeInterval = 0.25
+    static let displayReplacementOverlapSeconds: TimeInterval = 0.5
     static let defaultDisplayModeForNewBundle: DisplayMode = .primaryOnly
 
     static func shouldRecoverStartupFailureInControlPanel(launchControlPanel: Bool) -> Bool {
