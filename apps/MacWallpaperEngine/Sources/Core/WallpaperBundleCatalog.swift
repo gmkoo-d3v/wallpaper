@@ -145,6 +145,17 @@ enum WallpaperBundleCatalog {
         return "Invalid bundles: " + shown.joined(separator: " / ") + suffix
     }
 
+    static func controlPanelLibrarySummary(for diagnostics: [WallpaperBundleDiagnostic]) -> String {
+        let validCount = diagnostics.filter { $0.status == .valid }.count
+        let invalidCount = diagnostics.filter { $0.status == .invalid }.count
+        let status = "Library: \(validCount) valid / \(invalidCount) invalid"
+        let invalidSummary = invalidDiagnosticsSummary(for: diagnostics)
+        guard invalidSummary.isEmpty == false else {
+            return status
+        }
+        return "\(status) / \(invalidSummary)"
+    }
+
     private static func candidateBundleDirectories(in wallpapersDirectory: URL) -> [URL] {
         let directory = wallpapersDirectory.standardizedFileURL
         guard ProjectPaths.directoryExists(directory),

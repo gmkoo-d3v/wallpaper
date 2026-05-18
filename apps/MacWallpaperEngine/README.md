@@ -74,8 +74,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   diagnosed.
 - `--primary-display` can pin the runtime's primary display using a display id,
   fallback fingerprint, arrangement hash, or display name selector.
-- Control panel library diagnostics show invalid wallpaper folders without
-  hiding valid bundles.
+- Control panel library diagnostics always show valid/invalid bundle counts and
+  include invalid wallpaper folder reasons without hiding valid bundles.
 - Control panel bundle selection uses the same catalog validation path as CLI
   discovery/import, so malformed folders are rejected before replacing a
   running wallpaper.

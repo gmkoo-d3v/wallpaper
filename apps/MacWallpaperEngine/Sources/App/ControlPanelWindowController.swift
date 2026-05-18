@@ -197,6 +197,10 @@ final class ControlPanelWindowController: NSWindowController {
         bundleInfoValue.stringValue = state.bundleInfoText
         updatePreviewImage(state.bundlePreviewURL)
         bundleDiagnosticsValue.stringValue = state.bundleDiagnosticsText
+        bundleDiagnosticsValue.toolTip = state.bundleDiagnosticsText
+        bundleDiagnosticsValue.textColor = state.bundleDiagnosticsText.contains("Invalid bundles:")
+            ? NSColor(red: 0.65, green: 0.12, blue: 0.12, alpha: 1)
+            : NSColor(red: 0.42, green: 0.42, blue: 0.42, alpha: 1)
         bundleDiagnosticsValue.isHidden = state.bundleDiagnosticsText.isEmpty
         doctorValue.stringValue = state.doctorText
         doctorValue.toolTip = state.doctorText
@@ -382,7 +386,7 @@ final class ControlPanelWindowController: NSWindowController {
         pathValue.lineBreakMode = .byTruncatingMiddle
         pathValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         bundleDiagnosticsValue.font = .systemFont(ofSize: 12, weight: .light)
-        bundleDiagnosticsValue.textColor = NSColor(red: 0.65, green: 0.12, blue: 0.12, alpha: 1)
+        bundleDiagnosticsValue.textColor = NSColor(red: 0.42, green: 0.42, blue: 0.42, alpha: 1)
         bundleDiagnosticsValue.lineBreakMode = .byTruncatingMiddle
         bundleDiagnosticsValue.maximumNumberOfLines = 2
         bundlePopup.widthAnchor.constraint(equalToConstant: 220).isActive = true

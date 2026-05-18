@@ -2761,6 +2761,14 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let invalidControlPanelSummary = WallpaperBundleCatalog.controlPanelLibrarySummary(for: diagnostics)
+        check(
+            invalidControlPanelSummary.contains("Library: 0 valid / 1 invalid")
+                && invalidControlPanelSummary.contains("Invalid bundles: missing_manifest_bundle"),
+            "control panel library summary must show counts and invalid reasons",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             WallpaperBundleCatalog.discover(in: fixtureParent).isEmpty,
             "bundle discovery must exclude invalid diagnostics",
@@ -2769,6 +2777,20 @@ enum RuntimeSelfTest {
         )
 
         let activeBundle = try WallpaperBundleCatalog.requireValidBundle(runtime.config.wallpaperRoot)
+        let validControlPanelSummary = WallpaperBundleCatalog.controlPanelLibrarySummary(for: [
+            WallpaperBundleDiagnostic(
+                root: activeBundle.root,
+                status: .valid,
+                bundle: activeBundle,
+                errorMessage: nil
+            )
+        ])
+        check(
+            validControlPanelSummary == "Library: 1 valid / 0 invalid",
+            "control panel library summary must stay visible when every bundle is valid",
+            failures: &failures,
+            checks: &checks
+        )
         let sourceImage = activeBundle.previewURL
             ?? runtime.assetCatalog.staticImageAssetURL
             ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")

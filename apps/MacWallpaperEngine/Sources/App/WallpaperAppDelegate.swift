@@ -632,7 +632,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         }
 
         let bundles = diagnostics.compactMap(\.bundle)
-        return (bundles, WallpaperBundleCatalog.invalidDiagnosticsSummary(for: diagnostics))
+        return (bundles, WallpaperBundleCatalog.controlPanelLibrarySummary(for: diagnostics))
     }
 
     private func currentBundleSummary(from bundles: [WallpaperBundleSummary], currentRoot: URL) -> WallpaperBundleSummary? {
