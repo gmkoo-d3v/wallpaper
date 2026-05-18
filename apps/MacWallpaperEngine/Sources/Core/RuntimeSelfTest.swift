@@ -246,6 +246,12 @@ enum RuntimeSelfTest {
             "renderer must submit a fallback drawable before pause/resource paths can leave a new window black"
         )
         check(
+            RenderBlendMode(spineBlend: " Additive ") == .additive
+                && RenderBlendMode(spineBlend: "") == .normal
+                && RenderBlendMode(spineBlend: "hard-light") == nil,
+            "Spine blend mode parsing must normalize supported values while rejecting unsupported values"
+        )
+        check(
             SpineSetupPoseRenderer.timelineSamplingPolicy == "parse-sorted/no-per-sample-sort",
             "native Spine renderer must sort timeline frames once during parse instead of sorting every sampled pose"
         )

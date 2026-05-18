@@ -25,7 +25,8 @@ enum RenderBlendMode: String, Hashable {
     case screen
 
     init?(spineBlend rawValue: String?) {
-        let normalized = (rawValue ?? "normal").lowercased()
+        let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = ((trimmed?.isEmpty == false ? trimmed : nil) ?? "normal").lowercased()
         switch normalized {
         case "normal":
             self = .normal

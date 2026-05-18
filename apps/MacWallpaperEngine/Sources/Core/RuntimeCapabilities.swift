@@ -614,7 +614,13 @@ private struct SpineFeatureScan {
     private mutating func collectSlotBlendModes(root: [String: Any]) {
         guard let slots = root["slots"] as? [[String: Any]] else { return }
         for slot in slots {
-            let rawBlend = (slot["blend"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "normal"
+            let trimmedBlend = (slot["blend"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let rawBlend: String
+            if let trimmedBlend, trimmedBlend.isEmpty == false {
+                rawBlend = trimmedBlend
+            } else {
+                rawBlend = "normal"
+            }
             blendModes.insert(rawBlend.lowercased())
         }
     }

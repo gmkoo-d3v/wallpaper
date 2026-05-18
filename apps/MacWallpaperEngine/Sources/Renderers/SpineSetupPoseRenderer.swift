@@ -3381,19 +3381,25 @@ final class SpineSetupPoseRenderer {
         guard let rawSlots = root["slots"] as? [[String: Any]] else {
             throw EngineError.asset("Spine JSON missing slots")
         }
-        return rawSlots.compactMap { raw in
-            guard let name = raw["name"] as? String else { return nil }
+        var slots: [Slot] = []
+        for raw in rawSlots {
+            guard let name = raw["name"] as? String else { continue }
             if raw["bone"] == nil {
                 fputs("Spine slot \(name) has no bone; unweighted attachments will use local coordinates\n", stderr)
             }
-            return Slot(
+            let rawBlend = raw["blend"] as? String
+            guard let blendMode = RenderBlendMode(spineBlend: rawBlend) else {
+                throw EngineError.asset("Spine slot \(name) uses unsupported blend mode: \(rawBlend ?? "unknown")")
+            }
+            slots.append(Slot(
                 name: name,
                 boneName: raw["bone"] as? String,
                 attachment: raw["attachment"] as? String,
                 color: parseColor(raw["color"] as? String),
-                blendMode: RenderBlendMode(spineBlend: raw["blend"] as? String) ?? .normal
-            )
+                blendMode: blendMode
+            ))
         }
+        return slots
     }
 
     private static func selectedSkinAttachmentSource(root: [String: Any]) throws -> SkinAttachmentSource {
