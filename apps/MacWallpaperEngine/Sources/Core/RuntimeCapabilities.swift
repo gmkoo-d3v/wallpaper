@@ -181,6 +181,9 @@ enum RuntimeCapabilities {
         if scan.unsupportedConstraintUsages.isEmpty == false {
             reasons.append("unsupported constraint usages: \(scan.unsupportedConstraintUsages.listOrNone)")
         }
+        if scan.unsupportedBlendModes.isEmpty == false {
+            reasons.append("unsupported blend modes: \(scan.unsupportedBlendModes.listOrNone)")
+        }
         return NativeSpineCompatibility(isSupported: reasons.isEmpty, reasons: reasons)
     }
 
@@ -506,6 +509,12 @@ enum RuntimeCapabilities {
                 status: timelineStatus,
                 detail: "used=\(scan.timelineKeys.listOrNone) unsupported=\(scan.unsupportedTimelineKeys.listOrNone)"
             ),
+            RuntimeCapabilityRow(
+                category: "spine",
+                name: "blendModes",
+                status: scan.unsupportedBlendModes.isEmpty ? "supported" : "unsupported",
+                detail: "used=\(scan.blendModes.listOrNone) unsupported=\(scan.unsupportedBlendModes.listOrNone)"
+            ),
             constraintCapabilityRow(scan),
             RuntimeCapabilityRow(
                 category: "spine",
@@ -547,6 +556,7 @@ private struct SpineFeatureScan {
     var attachmentTypes: Set<String> = []
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
+    var blendModes: Set<String> = []
     var unsupportedConstraintUsages: Set<String> = []
     var unsupportedLinkedMeshReferences: Set<String> = []
     var hasEventData = false
@@ -579,6 +589,10 @@ private struct SpineFeatureScan {
         ])
     }
 
+    var unsupportedBlendModes: Set<String> {
+        Set(blendModes.filter { RenderBlendMode(spineBlend: $0) == nil })
+    }
+
     static func scan(url: URL) -> SpineFeatureScan {
         guard let data = try? Data(contentsOf: url),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -587,6 +601,7 @@ private struct SpineFeatureScan {
 
         var scan = SpineFeatureScan()
         scan.collectAttachmentTypes(root: root)
+        scan.collectSlotBlendModes(root: root)
         scan.collectAnimationTimelines(root: root)
         scan.collectConstraintKeys(root: root)
         scan.hasEventData = containsAnyKey(root, keys: ["events", "event"])
@@ -594,6 +609,14 @@ private struct SpineFeatureScan {
         scan.hasSequenceData = containsAnyKey(root, keys: ["sequence"])
             || scan.attachmentTypes.contains("sequence")
         return scan
+    }
+
+    private mutating func collectSlotBlendModes(root: [String: Any]) {
+        guard let slots = root["slots"] as? [[String: Any]] else { return }
+        for slot in slots {
+            let rawBlend = (slot["blend"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "normal"
+            blendModes.insert(rawBlend.lowercased())
+        }
     }
 
     private mutating func collectAttachmentTypes(root: [String: Any]) {

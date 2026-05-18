@@ -673,7 +673,8 @@ enum DesktopInteractionGate {
     }
 
     static func hasAccessibilityTrust() -> Bool {
-        AXIsProcessTrusted()
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        return AXIsProcessTrustedWithOptions([promptKey: false] as CFDictionary)
     }
 
     static func requestAccessibilityTrustPrompt() -> Bool {
@@ -747,7 +748,7 @@ enum DesktopInteractionGate {
             return false
         }
 
-        guard AXIsProcessTrusted() else {
+        guard hasAccessibilityTrust() else {
             return false
         }
 
@@ -755,7 +756,7 @@ enum DesktopInteractionGate {
     }
 
     static func isLikelyDesktopItem(screenPoint: CGPoint) -> Bool {
-        guard AXIsProcessTrusted() else {
+        guard hasAccessibilityTrust() else {
             return false
         }
 

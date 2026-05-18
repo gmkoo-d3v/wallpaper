@@ -20,7 +20,9 @@ struct WallpaperSnapshotDiagnostics {
         private let textureLoader: MTKTextureLoader
         private let renderTexture: MTLTexture
         private let normalPipelineState: MTLRenderPipelineState
+        private let additivePipelineState: MTLRenderPipelineState
         private let multiplyPipelineState: MTLRenderPipelineState
+        private let screenPipelineState: MTLRenderPipelineState
         private let foregroundPlan: ForegroundRenderPlan
         private let spineRenderer: SpineSetupPoseRenderer?
 
@@ -47,7 +49,9 @@ struct WallpaperSnapshotDiagnostics {
             self.textureLoader = MTKTextureLoader(device: device)
             self.renderTexture = try MetalSnapshotImage.makeRenderTexture(device: device, width: width, height: height)
             self.normalPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .normal)
+            self.additivePipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .additive)
             self.multiplyPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .multiply)
+            self.screenPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .screen)
 
             let role = RenderDisplayRole(kind: .primary, policy: .full)
             self.foregroundPlan = ForegroundRenderPlan.make(
@@ -119,7 +123,9 @@ struct WallpaperSnapshotDiagnostics {
                     time: time,
                     encoder: encoder,
                     normalPipelineState: normalPipelineState,
-                    multiplyPipelineState: multiplyPipelineState
+                    additivePipelineState: additivePipelineState,
+                    multiplyPipelineState: multiplyPipelineState,
+                    screenPipelineState: screenPipelineState
                 )
                 foreground = "nativeSpine"
             } else if foregroundPlan.usesCompositeVideo || background.usesCompositeVideo {

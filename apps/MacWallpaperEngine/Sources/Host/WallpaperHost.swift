@@ -147,6 +147,7 @@ final class WallpaperHost: NSObject {
             } else {
                 window.orderFrontRegardless()
             }
+            (window.contentView as? WallpaperMetalView)?.warmUpVisibleFrame()
         }
     }
 

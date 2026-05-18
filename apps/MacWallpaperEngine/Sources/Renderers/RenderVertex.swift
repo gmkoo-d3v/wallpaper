@@ -20,5 +20,23 @@ struct RenderUniforms {
 
 enum RenderBlendMode: String, Hashable {
     case normal
+    case additive
     case multiply
+    case screen
+
+    init?(spineBlend rawValue: String?) {
+        let normalized = (rawValue ?? "normal").lowercased()
+        switch normalized {
+        case "normal":
+            self = .normal
+        case "add", "additive":
+            self = .additive
+        case "multiply":
+            self = .multiply
+        case "screen":
+            self = .screen
+        default:
+            return nil
+        }
+    }
 }

@@ -203,6 +203,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Native Spine look-direction poses are mixed by smoothed pointer distance from
   the idle dead zone, avoiding abrupt full-strength directional pose snaps.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
+- Spine slot blend modes `normal`, `additive`/`add`, `multiply`, and `screen`
+  are rendered by dedicated Metal pipeline states instead of being silently
+  collapsed to normal blending.
 - Spine slot `color`, `rgb`, and `alpha` component timelines are applied by the
   native renderer instead of forcing a composite fallback.
 - Spine skin parsing prefers the `default` skin when present and accepts both
@@ -249,6 +252,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Native Spine compatibility also rejects unsupported constraint usages such as
   multi-bone IK or local/relative transform constraints instead of silently
   skipping them and rendering a broken foreground.
+- Native Spine compatibility rejects unsupported slot blend modes instead of
+  silently rendering them with normal blending.
 - Runtime capability diagnostics report video/composite size, duration,
   playback rate, and effective FPS; low-FPS composite fallback is flagged so it
   can be regenerated at the display refresh rate instead of being mistaken for
@@ -334,12 +339,15 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   global-monitor clicks while honoring the manifest `pointerSampleFps` move cap
   (30Hz default, 60Hz for the bundled Imported interaction profile).
 - When desktop-item hit-testing needs Accessibility trust, wallpaper startup
-  fails closed without showing or registering for the macOS prompt; the control
-  panel exposes the current trust state and requests permission only after the
-  user presses the Accessibility action.
+  fails closed with an explicit no-prompt trust probe; the control panel exposes
+  the current trust state and requests permission only after the user presses
+  the Accessibility action.
 - Renderer warmup, video-loop gaps, and first-frame pause/resource paths submit
   one preview/last-frame/neutral fallback drawable before pausing, instead of
   leaving a newly created wallpaper window black.
+- Wallpaper windows also request an immediate first Metal draw after ordering
+  front, and display rebuilds keep the old window visible long enough for the
+  replacement drawable to arrive.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.

@@ -15,7 +15,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let normalPipelineState: MTLRenderPipelineState
+    private let additivePipelineState: MTLRenderPipelineState
     private let multiplyPipelineState: MTLRenderPipelineState
+    private let screenPipelineState: MTLRenderPipelineState
     private let textureLoader: MTKTextureLoader
     private let runtime: NativeRuntimeCore
     private let displayRole: RenderDisplayRole
@@ -78,7 +80,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         )
         self.semaphore = DispatchSemaphore(value: displayPerformancePlan.maxInFlightCommandBuffers)
         self.normalPipelineState = try Self.makePipeline(device: device, blendMode: .normal)
+        self.additivePipelineState = try Self.makePipeline(device: device, blendMode: .additive)
         self.multiplyPipelineState = try Self.makePipeline(device: device, blendMode: .multiply)
+        self.screenPipelineState = try Self.makePipeline(device: device, blendMode: .screen)
         super.init()
 
         if foregroundPlan.isBlocked {
@@ -192,6 +196,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         paused && hasSubmittedDrawable == false
     }
 
+    func needsVisibleWarmupDrawable() -> Bool {
+        hasSubmittedDrawable == false
+    }
+
     func draw(in view: MTKView) {
         let hostPausedBeforeFirstDrawable = isPausedByHost && hasSubmittedDrawable == false
         guard isPausedByHost == false || hostPausedBeforeFirstDrawable else { return }
@@ -300,7 +308,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 contentRect: foregroundContentRect,
                 encoder: encoder,
                 normalPipelineState: normalPipelineState,
-                multiplyPipelineState: multiplyPipelineState
+                additivePipelineState: additivePipelineState,
+                multiplyPipelineState: multiplyPipelineState,
+                screenPipelineState: screenPipelineState
             )
         }
         drawInteractionOverlay(
@@ -658,12 +668,18 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         case .normal:
             descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
             descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        case .additive:
+            descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
+            descriptor.colorAttachments[0].destinationRGBBlendFactor = .one
         case .multiply:
             descriptor.colorAttachments[0].sourceRGBBlendFactor = .destinationColor
             descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        case .screen:
+            descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
+            descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceColor
         }
         descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
-        descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        descriptor.colorAttachments[0].destinationAlphaBlendFactor = blendMode == .additive ? .one : .oneMinusSourceAlpha
         let state = try device.makeRenderPipelineState(descriptor: descriptor)
         pipelineStates[cacheKey] = state
         return state

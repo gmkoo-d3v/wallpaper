@@ -628,7 +628,9 @@ final class SpineSetupPoseRenderer {
         contentRect: CGRect,
         encoder: MTLRenderCommandEncoder,
         normalPipelineState: MTLRenderPipelineState,
-        multiplyPipelineState: MTLRenderPipelineState
+        additivePipelineState: MTLRenderPipelineState,
+        multiplyPipelineState: MTLRenderPipelineState,
+        screenPipelineState: MTLRenderPipelineState
     ) {
         _ = drawableSize
         _ = contentRect
@@ -645,8 +647,12 @@ final class SpineSetupPoseRenderer {
             switch batch.blendMode {
             case .normal:
                 encoder.setRenderPipelineState(normalPipelineState)
+            case .additive:
+                encoder.setRenderPipelineState(additivePipelineState)
             case .multiply:
                 encoder.setRenderPipelineState(multiplyPipelineState)
+            case .screen:
+                encoder.setRenderPipelineState(screenPipelineState)
             }
             encoder.setVertexBuffer(batch.vertexBuffer, offset: 0, index: 0)
             encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)
@@ -720,7 +726,9 @@ final class SpineSetupPoseRenderer {
         time: Double,
         encoder: MTLRenderCommandEncoder,
         normalPipelineState: MTLRenderPipelineState,
-        multiplyPipelineState: MTLRenderPipelineState
+        additivePipelineState: MTLRenderPipelineState,
+        multiplyPipelineState: MTLRenderPipelineState,
+        screenPipelineState: MTLRenderPipelineState
     ) throws {
         guard let animation = animations[actionName] else {
             throw EngineError.renderer("Missing Spine animation for snapshot action: \(actionName)")
@@ -731,7 +739,9 @@ final class SpineSetupPoseRenderer {
             device: device,
             encoder: encoder,
             normalPipelineState: normalPipelineState,
-            multiplyPipelineState: multiplyPipelineState
+            additivePipelineState: additivePipelineState,
+            multiplyPipelineState: multiplyPipelineState,
+            screenPipelineState: screenPipelineState
         )
     }
 
@@ -3381,7 +3391,7 @@ final class SpineSetupPoseRenderer {
                 boneName: raw["bone"] as? String,
                 attachment: raw["attachment"] as? String,
                 color: parseColor(raw["color"] as? String),
-                blendMode: RenderBlendMode(rawValue: raw["blend"] as? String ?? "normal") ?? .normal
+                blendMode: RenderBlendMode(spineBlend: raw["blend"] as? String) ?? .normal
             )
         }
     }
@@ -4102,7 +4112,9 @@ final class SpineSetupPoseRenderer {
             throw EngineError.renderer("Could not create Metal command buffer for Spine snapshot")
         }
         let normalPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .normal)
+        let additivePipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .additive)
         let multiplyPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .multiply)
+        let screenPipelineState = try MetalCompositor.makePipeline(device: device, blendMode: .screen)
 
         let passDescriptor = MTLRenderPassDescriptor()
         passDescriptor.colorAttachments[0].texture = renderTexture
@@ -4118,7 +4130,9 @@ final class SpineSetupPoseRenderer {
             device: device,
             encoder: encoder,
             normalPipelineState: normalPipelineState,
-            multiplyPipelineState: multiplyPipelineState
+            additivePipelineState: additivePipelineState,
+            multiplyPipelineState: multiplyPipelineState,
+            screenPipelineState: screenPipelineState
         )
         encoder.endEncoding()
         return try MetalSnapshotImage.readImage(texture: renderTexture, device: device, commandBuffer: commandBuffer)
@@ -4129,7 +4143,9 @@ final class SpineSetupPoseRenderer {
         device: MTLDevice,
         encoder: MTLRenderCommandEncoder,
         normalPipelineState: MTLRenderPipelineState,
-        multiplyPipelineState: MTLRenderPipelineState
+        additivePipelineState: MTLRenderPipelineState,
+        multiplyPipelineState: MTLRenderPipelineState,
+        screenPipelineState: MTLRenderPipelineState
     ) throws {
         var uniforms = RenderUniforms.make(
             scale: 1,
@@ -4140,8 +4156,12 @@ final class SpineSetupPoseRenderer {
             switch batch.blendMode {
             case .normal:
                 encoder.setRenderPipelineState(normalPipelineState)
+            case .additive:
+                encoder.setRenderPipelineState(additivePipelineState)
             case .multiply:
                 encoder.setRenderPipelineState(multiplyPipelineState)
+            case .screen:
+                encoder.setRenderPipelineState(screenPipelineState)
             }
             guard let vertexBuffer = device.makeBuffer(
                 bytes: batch.vertices,

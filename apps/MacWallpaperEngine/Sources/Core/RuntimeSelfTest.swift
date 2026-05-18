@@ -77,6 +77,10 @@ enum RuntimeSelfTest {
             "display replacement overlap must keep the old wallpaper visible briefly while replacement windows warm up"
         )
         check(
+            RuntimeLifecyclePolicy.displayReplacementOverlapSeconds >= 0.2,
+            "display replacement overlap must leave enough time for replacement Metal views to submit a first drawable"
+        )
+        check(
             RuntimeLifecyclePolicy.displayRebuildCommitDecision(
                 existingWindowCount: 0,
                 replacementWindowCount: 0,
@@ -232,6 +236,10 @@ enum RuntimeSelfTest {
         check(
             RuntimeLifecyclePolicy.rendererWarmupFallbackPolicy == "preview-last-frame-or-neutral-background-before-first-pause",
             "renderer warmup must avoid transient black frames while the first video frame is unavailable or the first pause arrives early"
+        )
+        check(
+            RuntimeLifecyclePolicy.visibleWindowFirstDrawPolicy == "order-front-with-immediate-mtkview-draw",
+            "wallpaper windows must request a visible first drawable immediately after ordering front"
         )
         check(
             MetalCompositor.pausedFirstFramePolicy == "draw-static-fallback-before-pausing",
@@ -3622,11 +3630,13 @@ enum RuntimeSelfTest {
             {
               "name": "slot",
               "bone": "root",
-              "attachment": "linked"
+              "attachment": "linked",
+              "blend": "additive"
             },
             {
               "name": "markers",
-              "bone": "root"
+              "bone": "root",
+              "blend": "screen"
             }
           ],
           "skins": [
@@ -3853,6 +3863,13 @@ enum RuntimeSelfTest {
             linkedMeshRuntime.runtimeCapabilitiesSummary()
                 .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.color,slots.rgb"),
             "runtime capabilities must report legacy slot color plus rgb/alpha component timelines as supported",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            linkedMeshRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\tblendModes\tsupported\tused=additive,screen unsupported=none"),
+            "runtime capabilities must report additive and screen Spine blend modes as native-supported",
             failures: &failures,
             checks: &checks
         )
@@ -4211,6 +4228,14 @@ enum RuntimeSelfTest {
             { "name": "target", "parent": "root" },
             { "name": "child", "parent": "root" }
           ],
+          "slots": [
+            {
+              "name": "face",
+              "bone": "root",
+              "attachment": "animated-sequence",
+              "blend": "hard-light"
+            }
+          ],
           "ik": [
             {
               "name": "unsupported-multi-bone-ik",
@@ -4368,6 +4393,7 @@ enum RuntimeSelfTest {
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported constraint usages"), "compatibility gate must report unsupported constraint usages", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("unsupported blend modes"), "compatibility gate must report unsupported Spine blend modes", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("audio event playback") == false, "audio event playback must not force composite fallback when native visual rendering is otherwise compatible", failures: &failures, checks: &checks)
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("audio=playback"),
@@ -4386,6 +4412,13 @@ enum RuntimeSelfTest {
                 && unsupportedRuntime.runtimeCapabilitiesSummary().contains("transform/unsupported-local-transform:local")
                 && unsupportedRuntime.runtimeCapabilitiesSummary().contains("ik/unsupported-multi-bone-ik:multi-bone"),
             "capability diagnostics must expose unsupported native Spine constraint usages",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tblendModes\tunsupported")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("hard-light"),
+            "capability diagnostics must expose unsupported native Spine blend modes",
             failures: &failures,
             checks: &checks
         )

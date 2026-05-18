@@ -130,6 +130,21 @@ final class WallpaperMetalView: MTKView {
         updatePauseStateFromOcclusion()
     }
 
+    func warmUpVisibleFrame() {
+        updateDrawableSize()
+        guard compositor.needsVisibleWarmupDrawable() else { return }
+        isPaused = false
+        draw()
+        if compositor.needsVisibleWarmupDrawable() {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window?.isVisible == true else { return }
+                self.updateDrawableSize()
+                self.isPaused = false
+                self.draw()
+            }
+        }
+    }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         interactionPolicy.mode != .disabled
     }
