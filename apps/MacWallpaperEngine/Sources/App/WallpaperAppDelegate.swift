@@ -113,16 +113,22 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         guard let runtime else {
             throw EngineError.invalidArgument("Select a valid wallpaper bundle before starting wallpaper.")
         }
+        host = try makeStartedHost(for: runtime)
+        lastError = nil
+        controlPanel?.refresh()
+    }
+
+    private func makeStartedHost(for runtime: NativeRuntimeCore) throws -> WallpaperHost {
         let recoveryKey = rendererRecoveryKey(for: runtime)
         if let safeModeDecision = recoveryTracker.decisionBeforeStart(key: recoveryKey) {
             throw EngineError.renderer(safeModeDecision.message)
         }
 
-        let host = try WallpaperHost(runtime: runtime)
+        let newHost = try WallpaperHost(runtime: runtime)
         do {
-            try host.start()
+            try newHost.start()
         } catch {
-            host.stop()
+            newHost.stop()
             let recoveryDecision = recoveryTracker.recordFailure(key: recoveryKey)
             if recoveryDecision.shouldYieldToSystemWallpaper {
                 throw EngineError.renderer(recoveryDecision.message)
@@ -130,8 +136,16 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
             throw error
         }
         recoveryTracker.recordSuccess(key: recoveryKey)
-        self.host = host
+        return newHost
+    }
+
+    private func replaceRunningHost(with nextRuntime: NativeRuntimeCore) throws {
+        let previousHost = host
+        let nextHost = try makeStartedHost(for: nextRuntime)
+        runtime = nextRuntime
+        host = nextHost
         lastError = nil
+        previousHost?.stop()
         controlPanel?.refresh()
     }
 
@@ -201,27 +215,16 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
             let nextRuntime = try NativeRuntimeCore(config: nextConfig)
             try applyLaunchAtLoginSetting(nextRuntime.config.launchAtLogin)
             if wasRunning {
-                stopHost()
-                runtime = nextRuntime
                 do {
-                    try startHost()
-                    lastError = nil
+                    try replaceRunningHost(with: nextRuntime)
                     persistSettings(for: nextRuntime.config)
                 } catch let restartError {
                     runtime = currentRuntime
-                    do {
-                        try startHost()
-                        lastError = nil
-                        showError(EngineError.renderer(
-                            "Updated settings failed to start, so the previous wallpaper was restored. "
-                                + "Original failure: \(restartError.localizedDescription)"
-                        ))
-                    } catch let rollbackError {
-                        let message = "Updated settings failed to start: \(restartError.localizedDescription). "
-                            + "Rollback also failed: \(rollbackError.localizedDescription)"
-                        lastError = message
-                        showError(EngineError.renderer(message))
-                    }
+                    lastError = previousLastError
+                    showError(EngineError.renderer(
+                        "Updated settings failed to start, so the previous wallpaper kept running. "
+                            + "Original failure: \(restartError.localizedDescription)"
+                    ))
                 }
             } else {
                 runtime = nextRuntime
@@ -442,28 +445,17 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 guard let oldRuntime else {
                     throw EngineError.renderer("Internal state error: wallpaper host is running without a runtime.")
                 }
-                stopHost()
-                runtime = nextRuntime
                 do {
-                    try startHost()
-                    lastError = nil
+                    try replaceRunningHost(with: nextRuntime)
                     persistSettings(for: nextRuntime.config)
                 } catch let newBundleError {
                     runtime = oldRuntime
-                    do {
-                        try startHost()
-                        lastError = nil
-                        showError(EngineError.renderer(
-                            "Selected bundle failed to start, so the previous wallpaper was restored. "
-                                + "Selected bundle: \(nextRuntime.config.wallpaperRoot.path). "
-                                + "Original failure: \(newBundleError.localizedDescription)"
-                        ))
-                    } catch let rollbackError {
-                        let message = "Selected bundle failed to start: \(newBundleError.localizedDescription). "
-                            + "Rollback also failed: \(rollbackError.localizedDescription)"
-                        lastError = message
-                        showError(EngineError.renderer(message))
-                    }
+                    lastError = oldLastError
+                    showError(EngineError.renderer(
+                        "Selected bundle failed to start, so the previous wallpaper kept running. "
+                            + "Selected bundle: \(nextRuntime.config.wallpaperRoot.path). "
+                            + "Original failure: \(newBundleError.localizedDescription)"
+                    ))
                 }
             } else {
                 runtime = nextRuntime

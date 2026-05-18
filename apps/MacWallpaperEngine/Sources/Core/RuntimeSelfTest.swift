@@ -115,6 +115,10 @@ enum RuntimeSelfTest {
         }
         check(RuntimeLifecyclePolicy.startupFailurePolicy == "control-panel-recovery", "startup host failures must have an explicit recovery policy")
         check(
+            RuntimeLifecyclePolicy.runningHostReplacementPolicy == "start-replacement-before-retiring-current-host",
+            "running host replacement must start the new wallpaper before retiring the current host to avoid black-screen gaps"
+        )
+        check(
             RuntimeLifecyclePolicy.rendererFailureRecoveryPolicy == "yield-to-system-wallpaper-after-repeated-renderer-failures",
             "repeated renderer failures must have an explicit safe-mode recovery policy"
         )
@@ -4239,7 +4243,8 @@ enum RuntimeSelfTest {
               "name": "face",
               "bone": "root",
               "attachment": "animated-sequence",
-              "blend": "hard-light"
+              "blend": "hard-light",
+              "dark": "222222ff"
             }
           ],
           "ik": [
@@ -4399,6 +4404,7 @@ enum RuntimeSelfTest {
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported constraint usages"), "compatibility gate must report unsupported constraint usages", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("unsupported slot features"), "compatibility gate must report unsupported Spine slot setup features", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported blend modes"), "compatibility gate must report unsupported Spine blend modes", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("audio event playback") == false, "audio event playback must not force composite fallback when native visual rendering is otherwise compatible", failures: &failures, checks: &checks)
         check(
@@ -4425,6 +4431,13 @@ enum RuntimeSelfTest {
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tblendModes\tunsupported")
                 && unsupportedRuntime.runtimeCapabilitiesSummary().contains("hard-light"),
             "capability diagnostics must expose unsupported native Spine blend modes",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tslotFeatures\tunsupported")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("slot/face:two-color-tint"),
+            "capability diagnostics must expose unsupported native Spine slot features",
             failures: &failures,
             checks: &checks
         )

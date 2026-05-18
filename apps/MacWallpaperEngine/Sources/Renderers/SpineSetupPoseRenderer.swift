@@ -3387,6 +3387,9 @@ final class SpineSetupPoseRenderer {
             if raw["bone"] == nil {
                 fputs("Spine slot \(name) has no bone; unweighted attachments will use local coordinates\n", stderr)
             }
+            if raw["dark"] != nil {
+                throw EngineError.asset("Spine slot \(name) uses unsupported two-color tint")
+            }
             let rawBlend = raw["blend"] as? String
             guard let blendMode = RenderBlendMode(spineBlend: rawBlend) else {
                 throw EngineError.asset("Spine slot \(name) uses unsupported blend mode: \(rawBlend ?? "unknown")")

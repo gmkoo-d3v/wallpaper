@@ -181,6 +181,9 @@ enum RuntimeCapabilities {
         if scan.unsupportedConstraintUsages.isEmpty == false {
             reasons.append("unsupported constraint usages: \(scan.unsupportedConstraintUsages.listOrNone)")
         }
+        if scan.unsupportedSlotFeatures.isEmpty == false {
+            reasons.append("unsupported slot features: \(scan.unsupportedSlotFeatures.listOrNone)")
+        }
         if scan.unsupportedBlendModes.isEmpty == false {
             reasons.append("unsupported blend modes: \(scan.unsupportedBlendModes.listOrNone)")
         }
@@ -515,6 +518,12 @@ enum RuntimeCapabilities {
                 status: scan.unsupportedBlendModes.isEmpty ? "supported" : "unsupported",
                 detail: "used=\(scan.blendModes.listOrNone) unsupported=\(scan.unsupportedBlendModes.listOrNone)"
             ),
+            RuntimeCapabilityRow(
+                category: "spine",
+                name: "slotFeatures",
+                status: scan.unsupportedSlotFeatures.isEmpty ? "supported" : "unsupported",
+                detail: "unsupported=\(scan.unsupportedSlotFeatures.listOrNone)"
+            ),
             constraintCapabilityRow(scan),
             RuntimeCapabilityRow(
                 category: "spine",
@@ -557,6 +566,7 @@ private struct SpineFeatureScan {
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
     var blendModes: Set<String> = []
+    var unsupportedSlotFeatures: Set<String> = []
     var unsupportedConstraintUsages: Set<String> = []
     var unsupportedLinkedMeshReferences: Set<String> = []
     var hasEventData = false
@@ -602,6 +612,7 @@ private struct SpineFeatureScan {
         var scan = SpineFeatureScan()
         scan.collectAttachmentTypes(root: root)
         scan.collectSlotBlendModes(root: root)
+        scan.collectSlotFeatures(root: root)
         scan.collectAnimationTimelines(root: root)
         scan.collectConstraintKeys(root: root)
         scan.hasEventData = containsAnyKey(root, keys: ["events", "event"])
@@ -622,6 +633,16 @@ private struct SpineFeatureScan {
                 rawBlend = "normal"
             }
             blendModes.insert(rawBlend.lowercased())
+        }
+    }
+
+    private mutating func collectSlotFeatures(root: [String: Any]) {
+        guard let slots = root["slots"] as? [[String: Any]] else { return }
+        for slot in slots {
+            let name = slot["name"] as? String ?? "unnamed"
+            if slot["dark"] != nil {
+                unsupportedSlotFeatures.insert("slot/\(name):two-color-tint")
+            }
         }
     }
 

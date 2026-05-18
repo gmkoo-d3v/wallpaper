@@ -348,6 +348,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Wallpaper windows also request an immediate first Metal draw after ordering
   front, and display rebuilds keep the old window visible long enough for the
   replacement drawable to arrive.
+- Running settings changes and bundle switches start the replacement wallpaper
+  host before retiring the current host, reducing black-screen gaps while the
+  new renderer warms up.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.
@@ -365,7 +368,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Spine edge-case attachment and timeline parity beyond the currently accepted
   region, mesh, linkedmesh, path, clipping, point, boundingbox, and sequence
   paths plus default/legacy skin parsing, external-skin linkedmesh parent
-  lookup, and slot color/rgba/rgb/alpha component color timelines.
+  lookup, and slot color/rgba/rgb/alpha component color timelines. Unsupported
+  setup features such as two-color slot tint are detected and routed to
+  fallback instead of being silently approximated.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Visual hit-zone editor for authoring new bundles.
