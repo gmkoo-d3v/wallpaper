@@ -1196,6 +1196,27 @@ enum RuntimeSelfTest {
             parsedPrimaryOverride.primaryDisplaySelector == "fingerprint:abc123",
             "EngineConfig must parse --primary-display selector"
         )
+        let parsedSelectedOnlyDisplayMode = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--display-mode", "selectedOnly",
+            "--validate-only"
+        ])
+        let parsedSelectedPolicyDisplayMode = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--display-mode", "selectedPolicy",
+            "--validate-only"
+        ])
+        let parsedAllFullDisplayMode = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--display-mode", "allFull",
+            "--validate-only"
+        ])
+        check(
+            parsedSelectedOnlyDisplayMode.displayMode == .primaryOnly
+                && parsedSelectedPolicyDisplayMode.displayMode == .primaryAnimated
+                && parsedAllFullDisplayMode.displayMode == .all,
+            "EngineConfig must parse user-facing display mode aliases"
+        )
         let parsedDefaultForeground = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
             "--validate-only"

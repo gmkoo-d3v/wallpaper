@@ -40,6 +40,19 @@ enum DisplayMode: String, Codable {
     case all
     case primaryAnimated
     case primaryOnly
+
+    static func parseCLI(_ raw: String) -> DisplayMode? {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines) {
+        case "primaryOnly", "selectedOnly":
+            return .primaryOnly
+        case "primaryAnimated", "selectedPolicy":
+            return .primaryAnimated
+        case "all", "allFull":
+            return .all
+        default:
+            return nil
+        }
+    }
 }
 
 enum RenderFitMode: String, Codable {
@@ -289,7 +302,7 @@ struct EngineConfig {
             case "--display-mode":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
-                guard let parsed = DisplayMode(rawValue: raw) else {
+                guard let parsed = DisplayMode.parseCLI(raw) else {
                     throw EngineError.invalidArgument("Unknown --display-mode: \(raw)")
                 }
                 displayMode = parsed
@@ -688,7 +701,7 @@ struct EngineConfig {
     Options:
       --wallpaper-root <path>   Wallpaper bundle root. Defaults to the first valid bundle under wallpapers/.
       --manifest <path>         Native manifest path. Defaults to wallpaper.native.json under root.
-      --display-mode <mode>     primaryOnly | primaryAnimated | all. Default primaryOnly touches only the selected display.
+      --display-mode <mode>     selectedOnly | selectedPolicy | allFull. Legacy aliases: primaryOnly | primaryAnimated | all. Default selectedOnly touches only the selected display.
       --primary-display <sel>   Treat a matching display as primary. Accepts displayID:<id>, fingerprint:<hash>, arrangement:<hash>, name:<name>, or raw id/hash/name.
       --level <level>           normal | desktop | desktopMinusOne | desktopPlusOne | backstop. Default: desktop.
       --duration <seconds>      Auto-quit after a short smoke run.

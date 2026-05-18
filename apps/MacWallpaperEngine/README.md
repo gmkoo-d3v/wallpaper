@@ -59,6 +59,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--render-plan` reports the effective per-display background video,
   foreground renderer, fallback, interaction path, FPS mode, display refresh,
   and planned render FPS before launching windows.
+- Display mode CLI aliases match the control panel wording:
+  `selectedOnly` touches only the chosen primary display, `selectedPolicy`
+  applies the manifest secondary policy, and `allFull` renders the full
+  wallpaper on every display.
 - `--simulated-render-plan` reports the same renderer plan against a
   deterministic three-display fixture so selected-only, selected+policy, and
   all-full behavior can be checked without the real monitor layout.
@@ -402,12 +406,12 @@ swift run MacWallpaperEngine --runtime-capabilities
 swift run MacWallpaperEngine --composite-quality-plan
 swift run MacWallpaperEngine --export-composite-video /tmp/imported-composite-60fps.mp4 --export-composite-fps 60 --snapshot-size 1280x720
 swift run MacWallpaperEngine --validate-only --strict-composite-quality
-swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode all
-swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode primaryAnimated
+swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode allFull
+swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode selectedPolicy
 swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
-swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryOnly
-swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryAnimated
-swift run MacWallpaperEngine --simulated-render-plan --display-mode all
+swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedOnly
+swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedPolicy
+swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --doctor
@@ -423,7 +427,7 @@ swift run MacWallpaperEngine --spine-profile
 swift run MacWallpaperEngine --wallpaper-golden-check
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --list-bundles --bundle-library /path/to/wallpapers --include-capabilities
-swift run MacWallpaperEngine --duration 20 --display-mode primaryAnimated
+swift run MacWallpaperEngine --duration 20 --display-mode selectedPolicy
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain
 swift run MacWallpaperEngine --foreground-mode native --fps display
 ```
