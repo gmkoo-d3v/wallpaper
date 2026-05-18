@@ -391,6 +391,11 @@ enum ManifestLoader {
         if let buttons = hitZone.buttons, buttons.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")
         }
+        if let priority = hitZone.priority {
+            guard abs(priority) <= 1_000 else {
+                throw EngineError.manifest("hitZone \(hitZone.id) priority must satisfy -1000 <= priority <= 1000")
+            }
+        }
     }
 
     private static func validateHitZoneTopology(
@@ -406,13 +411,16 @@ enum ManifestLoader {
                 let sharedButtons = leftButtons.intersection(rightButtons)
                 guard sharedButtons.isEmpty == false else { continue }
                 guard hitZoneRectsOverlap(left.rect, right.rect) else { continue }
+                let leftPriority = left.priority ?? 0
+                let rightPriority = right.priority ?? 0
+                guard leftPriority == rightPriority else { continue }
 
                 let buttonText = sharedButtons
                     .map(\.rawValue)
                     .sorted()
                     .joined(separator: "+")
                 throw EngineError.manifest(
-                    "hitZones \(left.id) and \(right.id) overlap for button(s) \(buttonText); split the rects because hit-zone priority is not supported"
+                    "hitZones \(left.id) and \(right.id) overlap for button(s) \(buttonText) at priority \(leftPriority); split the rects or assign distinct hit-zone priorities"
                 )
             }
         }

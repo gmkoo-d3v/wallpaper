@@ -2539,8 +2539,55 @@ enum RuntimeSelfTest {
         let overlappingHitZoneDiagnostic = WallpaperBundleCatalog.diagnoseBundle(overlappingHitZoneRoot)
         check(
             overlappingHitZoneDiagnostic.status == .invalid
-                && (overlappingHitZoneDiagnostic.errorMessage?.contains("hitZones head and body overlap") == true),
-            "bundle diagnostics must reject ambiguous overlapping pointerDown hit zones before runtime hit-test order can hide them",
+                && (overlappingHitZoneDiagnostic.errorMessage?.contains("hitZones head and body overlap") == true)
+                && (overlappingHitZoneDiagnostic.errorMessage?.contains("assign distinct hit-zone priorities") == true),
+            "bundle diagnostics must reject ambiguous same-priority overlapping pointerDown hit zones before runtime hit-test order can hide them",
+            failures: &failures,
+            checks: &checks
+        )
+        let prioritizedOverlapPlan = InteractionPlan(
+            interactions: [
+                InteractionConfig(
+                    event: .pointerDown,
+                    mapping: nil,
+                    actions: nil,
+                    neutralPoint: nil,
+                    deadZone: nil,
+                    hitZones: [
+                        HitZone(
+                            id: "body",
+                            rect: [0.20, 0.20, 0.90, 0.90],
+                            action: "boll",
+                            trigger: .tap,
+                            tailSeconds: 0.5,
+                            buttons: [.left],
+                            priority: 0
+                        ),
+                        HitZone(
+                            id: "head",
+                            rect: [0.35, 0.20, 0.65, 0.55],
+                            action: "act",
+                            trigger: .hold,
+                            tailSeconds: 1.15,
+                            buttons: [.left],
+                            priority: 10
+                        )
+                    ],
+                    defaultAction: nil,
+                    buttons: [.left]
+                )
+            ],
+            policy: nil
+        )
+        check(
+            prioritizedOverlapPlan.hitTest(point: CGPoint(x: 0.50, y: 0.35), button: .left)?.zoneID == "head",
+            "interaction hit testing must resolve overlapping hit zones by explicit higher priority for generic bundles",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            prioritizedOverlapPlan.hitTest(point: CGPoint(x: 0.50, y: 0.75), button: .left)?.zoneID == "body",
+            "interaction hit testing must still resolve the lower-priority zone outside the priority overlap",
             failures: &failures,
             checks: &checks
         )

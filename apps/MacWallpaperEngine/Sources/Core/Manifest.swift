@@ -207,6 +207,7 @@ struct HitZone: Decodable {
     let trigger: HitZoneTrigger?
     let tailSeconds: Double?
     let buttons: [PointerButton]?
+    let priority: Int?
 }
 
 struct PointerDownDefaultAction: Decodable {

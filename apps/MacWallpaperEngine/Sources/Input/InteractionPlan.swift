@@ -15,12 +15,13 @@ struct InteractionHitZoneSummary {
     let tailSeconds: CFTimeInterval
     let buttons: [PointerButton]
     let rect: [Double]
+    let priority: Int
 
     var detailText: String {
         let buttonText = buttons.map(\.rawValue).joined(separator: "+")
         let rectText = rect.map { String(format: "%.3f", $0) }.joined(separator: ",")
         let tailText = String(format: "%.2fs", tailSeconds)
-        return "\(id):\(action) trigger=\(trigger.rawValue) buttons=\(buttonText) rect=[\(rectText)] tail=\(tailText)"
+        return "\(id):\(action) trigger=\(trigger.rawValue) buttons=\(buttonText) priority=\(priority) rect=[\(rectText)] tail=\(tailText)"
     }
 }
 
@@ -117,14 +118,29 @@ struct InteractionPlan {
         }
         let interactionButtons = config.buttons ?? [.left]
         guard interactionButtons.contains(button) else { return nil }
-        for hitZone in config.hitZones ?? [] {
+        let matches = (config.hitZones ?? []).enumerated().compactMap { index, hitZone -> (index: Int, hitZone: HitZone)? in
             let zoneButtons = hitZone.buttons ?? interactionButtons
-            guard zoneButtons.contains(button), contains(point: pointer, in: hitZone.rect) else { continue }
+            guard zoneButtons.contains(button), contains(point: pointer, in: hitZone.rect) else { return nil }
+            return (index, hitZone)
+        }
+        if let selected = matches.max(by: { left, right in
+            let leftPriority = left.hitZone.priority ?? 0
+            let rightPriority = right.hitZone.priority ?? 0
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            let leftArea = area(of: left.hitZone.rect)
+            let rightArea = area(of: right.hitZone.rect)
+            if leftArea != rightArea {
+                return leftArea > rightArea
+            }
+            return left.index > right.index
+        })?.hitZone {
             return InteractionHitResult(
-                zoneID: hitZone.id,
-                action: hitZone.action,
-                trigger: hitZone.trigger ?? .tap,
-                tailSeconds: resolvedTailSeconds(for: hitZone)
+                zoneID: selected.id,
+                action: selected.action,
+                trigger: selected.trigger ?? .tap,
+                tailSeconds: resolvedTailSeconds(for: selected)
             )
         }
         if let defaultAction = config.defaultAction {
@@ -153,7 +169,8 @@ struct InteractionPlan {
                 trigger: hitZone.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: hitZone),
                 buttons: hitZone.buttons ?? interactionButtons,
-                rect: hitZone.rect
+                rect: hitZone.rect,
+                priority: hitZone.priority ?? 0
             )
         }
     }
@@ -624,6 +641,11 @@ struct InteractionPlan {
             && Double(point.x) <= rect[2]
             && Double(point.y) >= rect[1]
             && Double(point.y) <= rect[3]
+    }
+
+    private func area(of rect: [Double]) -> Double {
+        guard rect.count == 4 else { return .greatestFiniteMagnitude }
+        return max(0, rect[2] - rect[0]) * max(0, rect[3] - rect[1])
     }
 
     private func resolvedTailSeconds(for hitZone: HitZone) -> CFTimeInterval {

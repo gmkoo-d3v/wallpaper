@@ -131,7 +131,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   resolution, and click command hold/tap state for every declared pointerDown
   path.
 - Manifest validation rejects same-button overlapping pointerDown hit zones
-  because explicit hit-zone priority is not yet part of the bundle schema.
+  unless they declare distinct `priority` values; runtime hit testing chooses
+  the highest priority, then the smallest rect, then declaration order.
 - Manifest validation rejects incomplete `lookDirection` action maps; bundles
   must declare `left`, `right`, `up`, `down`, and `idle` explicitly.
 - Manifest validation also rejects unsupported `lookDirection` action keys
