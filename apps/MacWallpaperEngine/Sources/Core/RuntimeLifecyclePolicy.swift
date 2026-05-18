@@ -31,9 +31,11 @@ enum RuntimeLifecyclePolicy {
     static let blockedDesktopEventTrackingPolicy = "ignore-blocked-desktop-events-without-idle-reset"
     static let accessibilityPromptPolicy = "user-initiated-only"
     static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background-before-first-pause"
-    static let visibleWindowFirstDrawPolicy = "order-front-with-immediate-mtkview-draw"
+    static let visibleWindowFirstDrawPolicy = "order-front-with-bounded-visible-draw-retries"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
     static let displayReplacementOverlapSeconds: TimeInterval = 0.5
+    static let visibleWindowWarmupRetryCount = 6
+    static let visibleWindowWarmupRetryInterval: TimeInterval = 0.05
     static let defaultDisplayModeForNewBundle: DisplayMode = .primaryOnly
 
     static func shouldRecoverStartupFailureInControlPanel(launchControlPanel: Bool) -> Bool {

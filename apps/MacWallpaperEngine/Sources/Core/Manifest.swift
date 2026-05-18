@@ -204,8 +204,11 @@ struct HitZone: Decodable {
     let id: String
     let rect: [Double]
     let action: String
+    let tapAction: String?
     let trigger: HitZoneTrigger?
     let tailSeconds: Double?
+    let tapTailSeconds: Double?
+    let holdStartSeconds: Double?
     let buttons: [PointerButton]?
     let priority: Int?
 }

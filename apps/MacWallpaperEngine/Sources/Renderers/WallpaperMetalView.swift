@@ -20,6 +20,7 @@ final class WallpaperMetalView: MTKView {
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
     private var hasPresentedVisibleWindow = false
+    private var visibleWarmupAttempts = 0
     private var directDeliveredEvents = 0
     private var directBlockedEvents = 0
 
@@ -131,17 +132,25 @@ final class WallpaperMetalView: MTKView {
     }
 
     func warmUpVisibleFrame() {
+        visibleWarmupAttempts = 0
+        requestVisibleWarmupDrawable()
+    }
+
+    private func requestVisibleWarmupDrawable() {
         updateDrawableSize()
         guard compositor.needsVisibleWarmupDrawable() else { return }
         isPaused = false
         draw()
-        if compositor.needsVisibleWarmupDrawable() {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.window?.isVisible == true else { return }
-                self.updateDrawableSize()
-                self.isPaused = false
-                self.draw()
-            }
+        guard compositor.needsVisibleWarmupDrawable() else { return }
+        visibleWarmupAttempts += 1
+        guard visibleWarmupAttempts < RuntimeLifecyclePolicy.visibleWindowWarmupRetryCount else {
+            return
+        }
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + RuntimeLifecyclePolicy.visibleWindowWarmupRetryInterval
+        ) { [weak self] in
+            guard let self, self.window?.isVisible == true else { return }
+            self.requestVisibleWarmupDrawable()
         }
     }
 
@@ -175,12 +184,16 @@ final class WallpaperMetalView: MTKView {
             mouseMonitor = DesktopMouseInteractionMonitor(
                 window: window,
                 policy: interactionPolicy,
-                onMove: { [weak self] point in
+                onMove: { [weak self] point, button in
                     guard let self else { return }
                     guard let contentPoint = self.interactionContentPoint(fromWindowNormalized: point) else {
                         return
                     }
-                    self.interaction.pointerMoved(to: contentPoint)
+                    if let button {
+                        self.interaction.pointerDragged(to: contentPoint, button: button)
+                    } else {
+                        self.interaction.pointerMoved(to: contentPoint)
+                    }
                 },
                 onDown: { [weak self] point, button in
                     guard let self,
@@ -294,8 +307,18 @@ final class WallpaperMetalView: MTKView {
             recordDirectInteraction(event: "drag", decision: "outsideContentIgnored", point: nil, delivered: false)
             return
         }
-        interaction.pointerMoved(to: point)
+        interaction.pointerDragged(to: point, button: .left)
         recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
+    }
+
+    override func rightMouseDragged(with event: NSEvent) {
+        guard shouldHandleDirectMouseEvents else { return }
+        guard let point = interactionContentPoint(from: event) else {
+            recordDirectInteraction(event: "rightDrag", decision: "outsideContentIgnored", point: nil, delivered: false)
+            return
+        }
+        interaction.pointerDragged(to: point, button: .right)
+        recordDirectInteraction(event: "rightDrag", decision: "delivered", point: point, delivered: true)
     }
 
     override func mouseDown(with event: NSEvent) {

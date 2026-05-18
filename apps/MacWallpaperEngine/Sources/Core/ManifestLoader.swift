@@ -374,6 +374,9 @@ enum ManifestLoader {
         guard hitZone.action.isEmpty == false else {
             throw EngineError.manifest("hitZone \(hitZone.id) action must not be empty")
         }
+        if let tapAction = hitZone.tapAction, tapAction.isEmpty {
+            throw EngineError.manifest("hitZone \(hitZone.id) tapAction must not be empty")
+        }
         guard hitZone.rect.count == 4, hitZone.rect.allSatisfy(\.isFinite) else {
             throw EngineError.manifest("hitZone \(hitZone.id) rect must contain four finite numbers")
         }
@@ -387,6 +390,15 @@ enum ManifestLoader {
         }
         if let tailSeconds = hitZone.tailSeconds {
             try validateInteractionDuration(tailSeconds, label: "hitZone \(hitZone.id) tailSeconds")
+        }
+        if let tapTailSeconds = hitZone.tapTailSeconds {
+            try validateInteractionDuration(tapTailSeconds, label: "hitZone \(hitZone.id) tapTailSeconds")
+        }
+        if let holdStartSeconds = hitZone.holdStartSeconds {
+            try validateInteractionDuration(holdStartSeconds, label: "hitZone \(hitZone.id) holdStartSeconds")
+        }
+        if hitZone.tapAction != nil, (hitZone.trigger ?? .tap) != .hold {
+            throw EngineError.manifest("hitZone \(hitZone.id) tapAction requires trigger=hold")
         }
         if let buttons = hitZone.buttons, buttons.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")
@@ -542,7 +554,12 @@ enum ManifestLoader {
         var actions = Set<String>()
         for interaction in interactions {
             interaction.actions?.values.forEach { actions.insert($0) }
-            interaction.hitZones?.forEach { actions.insert($0.action) }
+            interaction.hitZones?.forEach {
+                actions.insert($0.action)
+                if let tapAction = $0.tapAction {
+                    actions.insert(tapAction)
+                }
+            }
             if let defaultAction = interaction.defaultAction {
                 actions.insert(defaultAction.action)
             }

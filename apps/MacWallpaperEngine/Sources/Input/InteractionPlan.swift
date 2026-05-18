@@ -4,15 +4,21 @@ import Foundation
 struct InteractionHitResult {
     let zoneID: String
     let action: String
+    let tapAction: String?
     let trigger: HitZoneTrigger
     let tailSeconds: CFTimeInterval
+    let tapTailSeconds: CFTimeInterval
+    let holdStartSeconds: CFTimeInterval
 }
 
 struct InteractionHitZoneSummary {
     let id: String
     let action: String
+    let tapAction: String?
     let trigger: HitZoneTrigger
     let tailSeconds: CFTimeInterval
+    let tapTailSeconds: CFTimeInterval
+    let holdStartSeconds: CFTimeInterval
     let buttons: [PointerButton]
     let rect: [Double]
     let priority: Int
@@ -21,7 +27,10 @@ struct InteractionHitZoneSummary {
         let buttonText = buttons.map(\.rawValue).joined(separator: "+")
         let rectText = rect.map { String(format: "%.3f", $0) }.joined(separator: ",")
         let tailText = String(format: "%.2fs", tailSeconds)
-        return "\(id):\(action) trigger=\(trigger.rawValue) buttons=\(buttonText) priority=\(priority) rect=[\(rectText)] tail=\(tailText)"
+        let tapText = tapAction.map {
+            " tapAction=\($0) tapTail=\(String(format: "%.2fs", tapTailSeconds)) holdStart=\(String(format: "%.2fs", holdStartSeconds))"
+        } ?? ""
+        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText) buttons=\(buttonText) priority=\(priority) rect=[\(rectText)] tail=\(tailText)"
     }
 }
 
@@ -111,6 +120,24 @@ struct InteractionPlan {
         return previousCommand
     }
 
+    func allowsPointerMove(button: PointerButton?) -> Bool {
+        guard let config = interactions.first(where: { $0.event == .pointerMove }) else {
+            return false
+        }
+        guard let buttons = config.buttons else {
+            return true
+        }
+        guard let button else {
+            return false
+        }
+        return buttons.contains(button)
+    }
+
+    func lookNeutralPoint() -> CGPoint {
+        let config = interactions.first(where: { $0.event == .pointerMove })
+        return Self.point(config?.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
+    }
+
     func hitTest(point: CGPoint, button: PointerButton) -> InteractionHitResult? {
         let pointer = clamp(point)
         guard let config = interactions.first(where: { $0.event == .pointerDown }) else {
@@ -139,8 +166,11 @@ struct InteractionPlan {
             return InteractionHitResult(
                 zoneID: selected.id,
                 action: selected.action,
+                tapAction: selected.tapAction,
                 trigger: selected.trigger ?? .tap,
-                tailSeconds: resolvedTailSeconds(for: selected)
+                tailSeconds: resolvedTailSeconds(for: selected),
+                tapTailSeconds: resolvedTapTailSeconds(for: selected),
+                holdStartSeconds: selected.holdStartSeconds ?? 0
             )
         }
         if let defaultAction = config.defaultAction {
@@ -149,8 +179,11 @@ struct InteractionPlan {
             return InteractionHitResult(
                 zoneID: "default",
                 action: defaultAction.action,
+                tapAction: nil,
                 trigger: defaultAction.trigger ?? .tap,
-                tailSeconds: resolvedTailSeconds(for: defaultAction)
+                tailSeconds: resolvedTailSeconds(for: defaultAction),
+                tapTailSeconds: resolvedTailSeconds(for: defaultAction),
+                holdStartSeconds: 0
             )
         }
         return nil
@@ -166,8 +199,11 @@ struct InteractionPlan {
             InteractionHitZoneSummary(
                 id: hitZone.id,
                 action: hitZone.action,
+                tapAction: hitZone.tapAction,
                 trigger: hitZone.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: hitZone),
+                tapTailSeconds: resolvedTapTailSeconds(for: hitZone),
+                holdStartSeconds: hitZone.holdStartSeconds ?? 0,
                 buttons: hitZone.buttons ?? interactionButtons,
                 rect: hitZone.rect,
                 priority: hitZone.priority ?? 0
@@ -228,6 +264,9 @@ struct InteractionPlan {
             .sorted { $0.key < $1.key }
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: ",") ?? "none"
+        let moveButtons = moveConfig.map { config in
+            (config.buttons ?? []).map(\.rawValue).joined(separator: "+")
+        } ?? "none"
         let neutralPoint = Self.point(moveConfig?.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
         let moveDeadZone = Self.point(moveConfig?.deadZone, fallback: CGPoint(x: plan.idleDeadZone, y: plan.idleDeadZone))
         let clickButtons = (clickConfig?.buttons ?? [.left]).map(\.rawValue).joined(separator: "+")
@@ -260,6 +299,7 @@ struct InteractionPlan {
             "defaultClickTailSeconds: \(formatInteractionNumber(policy?.defaultClickTailSeconds ?? 1.15))",
             "releaseFadeSeconds: \(formatInteractionNumber(policy?.releaseFadeSeconds ?? 0.20))",
             "pointerMove: \(moveMapping)",
+            "pointerMoveButtons: \(moveButtons.isEmpty ? "any" : moveButtons)",
             "pointerMoveActions: \(moveActions)",
             "pointerMoveProbes: \(moveProbeText)"
         ] + eventGateProbeLines(
@@ -628,7 +668,10 @@ struct InteractionPlan {
     }
 
     private static func hitText(_ hit: InteractionHitResult) -> String {
-        "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue) tail=\(formatInteractionNumber(hit.tailSeconds))"
+        let tapText = hit.tapAction.map {
+            " tapAction=\($0) tapTail=\(formatInteractionNumber(hit.tapTailSeconds)) holdStart=\(formatInteractionNumber(hit.holdStartSeconds))"
+        } ?? ""
+        return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText) tail=\(formatInteractionNumber(hit.tailSeconds))"
     }
 
     func clamp(_ point: CGPoint) -> CGPoint {
@@ -655,6 +698,17 @@ struct InteractionPlan {
         let declaredTail = hitZone.tailSeconds ?? defaultClickTailDuration
         guard (hitZone.trigger ?? .tap) == .tap,
               let animationTail = actionTailDurations[hitZone.action],
+              animationTail.isFinite,
+              animationTail > 0 else {
+            return declaredTail
+        }
+        return max(declaredTail, animationTail)
+    }
+
+    private func resolvedTapTailSeconds(for hitZone: HitZone) -> CFTimeInterval {
+        let declaredTail = hitZone.tapTailSeconds ?? defaultClickTailDuration
+        guard let tapAction = hitZone.tapAction,
+              let animationTail = actionTailDurations[tapAction],
               animationTail.isFinite,
               animationTail > 0 else {
             return declaredTail

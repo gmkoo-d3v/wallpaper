@@ -65,9 +65,16 @@ struct SpineAnimationDiagnostics {
     static func tapActionDurations(runtime: NativeRuntimeCore) throws -> [String: TimeInterval] {
         let tapActions = Set(runtime.manifest.interactions.flatMap { interaction -> [String] in
             guard interaction.event == .pointerDown else { return [] }
-            var actions = (interaction.hitZones ?? [])
-                .filter { ($0.trigger ?? .tap) == .tap }
-                .map(\.action)
+            var actions = (interaction.hitZones ?? []).flatMap { hitZone -> [String] in
+                var names: [String] = []
+                if (hitZone.trigger ?? .tap) == .tap {
+                    names.append(hitZone.action)
+                }
+                if let tapAction = hitZone.tapAction {
+                    names.append(tapAction)
+                }
+                return names
+            }
             if (interaction.defaultAction?.trigger ?? .tap) == .tap,
                let action = interaction.defaultAction?.action {
                 actions.append(action)

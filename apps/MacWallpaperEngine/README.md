@@ -347,14 +347,17 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Passive wallpaper click delivery deduplicates near-simultaneous event-tap and
   global-monitor clicks while honoring the manifest `pointerSampleFps` move cap
   (30Hz default, 60Hz for the bundled Imported interaction profile).
+- Interaction manifests can gate look-direction movement by mouse button; the
+  bundled Imported profile keeps hover idle, uses left-drag for look direction,
+  maps a short head touch to `boll`, and promotes head rub/hold to `act`.
 - When desktop-item hit-testing needs Accessibility trust, wallpaper startup
-  uses an explicit no-prompt trust probe; click/touch actions stay blocked until
+  uses a no-prompt trust check; click/touch actions stay blocked until
   trust is granted, hover-only tracking can remain active, and the control panel
   requests permission only after the user presses the Accessibility action.
 - Renderer warmup, video-loop gaps, and first-frame pause/resource paths submit
   one preview/last-frame/neutral fallback drawable before pausing, instead of
   leaving a newly created wallpaper window black.
-- Wallpaper windows also request an immediate first Metal draw after ordering
+- Wallpaper windows also request bounded first-draw retries after ordering
   front, and display rebuilds keep the old window visible for a 0.5s warmup
   overlap so slower replacement drawables do not expose a black-screen gap.
 - Running settings changes and bundle switches start the replacement wallpaper

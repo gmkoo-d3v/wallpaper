@@ -5,7 +5,7 @@ import QuartzCore
 final class DesktopMouseInteractionMonitor {
     private weak var window: NSWindow?
     private let policy: InteractionPolicy
-    private let onMove: (CGPoint) -> Void
+    private let onMove: (CGPoint, PointerButton?) -> Void
     private let onDown: (CGPoint, PointerButton) -> Void
     private let onUp: (CGPoint, PointerButton) -> Void
     private let onExit: () -> Void
@@ -68,7 +68,7 @@ final class DesktopMouseInteractionMonitor {
     init(
         window: NSWindow,
         policy: InteractionPolicy,
-        onMove: @escaping (CGPoint) -> Void,
+        onMove: @escaping (CGPoint, PointerButton?) -> Void,
         onDown: @escaping (CGPoint, PointerButton) -> Void,
         onUp: @escaping (CGPoint, PointerButton) -> Void,
         onExit: @escaping () -> Void,
@@ -382,7 +382,7 @@ final class DesktopMouseInteractionMonitor {
         case .up(let button):
             onUp(normalized, button)
         case .move:
-            onMove(normalized)
+            onMove(normalized, Self.dragButton(for: event.type))
         }
         recordDelivered(source: "nsevent", kind: kind, normalized: normalized)
     }
@@ -444,7 +444,7 @@ final class DesktopMouseInteractionMonitor {
         case .up(let button):
             onUp(normalized, button)
         case .move:
-            onMove(normalized)
+            onMove(normalized, Self.dragButton(for: type))
         }
         recordDelivered(source: "cgevent", kind: kind, normalized: normalized)
         _ = event
@@ -502,6 +502,28 @@ final class DesktopMouseInteractionMonitor {
             return .down(.right)
         case .rightMouseUp:
             return .up(.right)
+        default:
+            return nil
+        }
+    }
+
+    private static func dragButton(for type: NSEvent.EventType) -> PointerButton? {
+        switch type {
+        case .leftMouseDragged:
+            return .left
+        case .rightMouseDragged:
+            return .right
+        default:
+            return nil
+        }
+    }
+
+    private static func dragButton(for type: CGEventType) -> PointerButton? {
+        switch type {
+        case .leftMouseDragged:
+            return .left
+        case .rightMouseDragged:
+            return .right
         default:
             return nil
         }
@@ -671,7 +693,7 @@ final class DesktopMouseInteractionMonitor {
 }
 
 enum DesktopInteractionGate {
-    static let accessibilityTrustCheckPolicy = "check-without-prompt-or-registration"
+    static let accessibilityTrustCheckPolicy = "check-without-prompt"
 
     enum EligibilityDecision: String {
         case eligible
@@ -729,8 +751,7 @@ enum DesktopInteractionGate {
     }
 
     static func hasAccessibilityTrust() -> Bool {
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        return AXIsProcessTrustedWithOptions([promptKey: false] as CFDictionary)
+        AXIsProcessTrusted()
     }
 
     static func requestAccessibilityTrustPrompt() -> Bool {

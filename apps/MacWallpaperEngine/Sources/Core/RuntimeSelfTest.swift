@@ -81,6 +81,16 @@ enum RuntimeSelfTest {
             "display replacement overlap must leave enough time for replacement Metal views to submit a first drawable"
         )
         check(
+            RuntimeLifecyclePolicy.visibleWindowWarmupRetryCount >= 3
+                && RuntimeLifecyclePolicy.visibleWindowWarmupRetryCount <= 12,
+            "visible window warmup must retry enough times for slow Metal drawable creation without looping indefinitely"
+        )
+        check(
+            RuntimeLifecyclePolicy.visibleWindowWarmupRetryInterval > 0
+                && RuntimeLifecyclePolicy.visibleWindowWarmupRetryInterval <= 0.1,
+            "visible window warmup retry interval must stay short enough to avoid visible black-screen gaps"
+        )
+        check(
             RuntimeLifecyclePolicy.displayRebuildCommitDecision(
                 existingWindowCount: 0,
                 replacementWindowCount: 0,
@@ -213,8 +223,8 @@ enum RuntimeSelfTest {
             "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
         )
         check(
-            DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt-or-registration",
-            "startup Accessibility trust checks must use no-prompt probes that do not request registration"
+            DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt",
+            "startup Accessibility trust checks must use no-prompt probes"
         )
         check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
@@ -242,8 +252,8 @@ enum RuntimeSelfTest {
             "renderer warmup must avoid transient black frames while the first video frame is unavailable or the first pause arrives early"
         )
         check(
-            RuntimeLifecyclePolicy.visibleWindowFirstDrawPolicy == "order-front-with-immediate-mtkview-draw",
-            "wallpaper windows must request a visible first drawable immediately after ordering front"
+            RuntimeLifecyclePolicy.visibleWindowFirstDrawPolicy == "order-front-with-bounded-visible-draw-retries",
+            "wallpaper windows must retry visible first draw briefly after ordering front"
         )
         check(
             MetalCompositor.pausedFirstFramePolicy == "draw-static-fallback-before-pausing",
@@ -691,6 +701,16 @@ enum RuntimeSelfTest {
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"
         }
+        let lookMoveButton = manifest.interactions.first {
+            $0.event == .pointerMove && $0.mapping == "lookDirection"
+        }?.buttons?.first
+        func sendLookMove(_ controller: InteractionController, to point: CGPoint) {
+            if let lookMoveButton {
+                controller.pointerDragged(to: point, button: lookMoveButton)
+            } else {
+                controller.pointerMoved(to: point)
+            }
+        }
         if hasLookDirection {
             check(
                 SpineInteractionAnimationRoles.lookAnimationNames(from: manifest).isSubset(
@@ -723,7 +743,7 @@ enum RuntimeSelfTest {
                 actionTailDurations: tapActionDurations,
                 clock: { convergenceClock }
             )
-            interactionController.pointerMoved(to: CGPoint(x: 0.10, y: 0.50))
+            sendLookMove(interactionController, to: CGPoint(x: 0.10, y: 0.50))
             var smoothedCommand = interactionController.snapshot().command
             for _ in 0..<12 {
                 convergenceClock += 1.0 / 60.0
@@ -742,7 +762,7 @@ enum RuntimeSelfTest {
                     actionTailDurations: tapActionDurations,
                     clock: { time }
                 )
-                controller.pointerMoved(to: smoothingTarget)
+                sendLookMove(controller, to: smoothingTarget)
                 var point = CGPoint(x: 0.5, y: 0.5)
                 for _ in 0..<samples {
                     time += step
@@ -764,7 +784,7 @@ enum RuntimeSelfTest {
                 actionTailDurations: tapActionDurations,
                 clock: { snapClock }
             )
-            snapController.pointerMoved(to: CGPoint(x: 0.10, y: 0.50))
+            sendLookMove(snapController, to: CGPoint(x: 0.10, y: 0.50))
             snapClock += 1.0 / 60.0
             let beforePointerDown = snapController.snapshot().pointer
             snapController.pointerDown(at: CGPoint(x: 0.90, y: 0.50))
@@ -784,7 +804,7 @@ enum RuntimeSelfTest {
                     clock: { resumeClock }
                 )
                 let gazePoint = CGPoint(x: 0.10, y: 0.42)
-                resumeController.pointerMoved(to: gazePoint)
+                sendLookMove(resumeController, to: gazePoint)
                 for _ in 0..<20 {
                     resumeClock += 1.0 / 60.0
                     _ = resumeController.snapshot()
@@ -813,7 +833,7 @@ enum RuntimeSelfTest {
                     actionTailDurations: tapActionDurations,
                     clock: { outsideReleaseClock }
                 )
-                outsideReleaseController.pointerMoved(to: gazePoint)
+                sendLookMove(outsideReleaseController, to: gazePoint)
                 for _ in 0..<20 {
                     outsideReleaseClock += 1.0 / 60.0
                     _ = outsideReleaseController.snapshot()
@@ -842,7 +862,7 @@ enum RuntimeSelfTest {
                 actionTailDurations: tapActionDurations,
                 clock: { interruptedClock }
             )
-            interruptedController.pointerMoved(to: CGPoint(x: 0.10, y: 0.42))
+            sendLookMove(interruptedController, to: CGPoint(x: 0.10, y: 0.42))
             for _ in 0..<20 {
                 interruptedClock += 1.0 / 60.0
                 _ = interruptedController.snapshot()
@@ -864,7 +884,7 @@ enum RuntimeSelfTest {
                 actionTailDurations: tapActionDurations,
                 clock: { stoppedClock }
             )
-            stoppedController.pointerMoved(to: CGPoint(x: 0.10, y: 0.42))
+            sendLookMove(stoppedController, to: CGPoint(x: 0.10, y: 0.42))
             for _ in 0..<20 {
                 stoppedClock += 1.0 / 60.0
                 _ = stoppedController.snapshot()
@@ -897,6 +917,31 @@ enum RuntimeSelfTest {
                 headHitZone.trigger == .hold,
                 "Imported head interaction must stay active while the pointer is held for head-rub gestures"
             )
+            check(
+                headHitZone.tapAction == "boll"
+                    && headHitZone.holdStartSeconds > 0,
+                "Imported head interaction must map a brief head touch to the body-touch action before a hold/rub becomes the head action"
+            )
+            check(
+                lookMoveButton == .left,
+                "Imported look-direction interaction must be gated to left-drag, matching Wallpaper Engine behavior"
+            )
+            var hoverClock: CFTimeInterval = 0
+            let hoverController = InteractionController(
+                interactions: manifest.interactions,
+                policy: manifest.interactionPolicy,
+                actionTailDurations: tapActionDurations,
+                clock: { hoverClock }
+            )
+            hoverController.pointerMoved(to: CGPoint(x: 0.10, y: 0.42))
+            for _ in 0..<20 {
+                hoverClock += 1.0 / 60.0
+                _ = hoverController.snapshot()
+            }
+            check(
+                hoverController.snapshot().command == "idle",
+                "Imported hover movement must stay idle; look-direction should engage only during left drag"
+            )
         }
         let interactionSummary = InteractionPlan.diagnosticSummary(
             interactions: manifest.interactions,
@@ -921,6 +966,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("clickTimeline:")
                 && interactionSummary.contains("pointerSmoothingCadence: time-based")
                 && interactionSummary.contains("pointerSampleFps:")
+                && interactionSummary.contains("pointerMoveButtons:")
                 && interactionSummary.contains("pointerMoveNeutralPoint:")
                 && interactionSummary.contains("pointerMoveDeadZone:")
                 && interactionSummary.contains("neutral=idle")
@@ -986,7 +1032,12 @@ enum RuntimeSelfTest {
         var manifestActionNames = Set<String>()
         for interaction in manifest.interactions {
             interaction.actions?.values.forEach { manifestActionNames.insert($0) }
-            interaction.hitZones?.forEach { manifestActionNames.insert($0.action) }
+            interaction.hitZones?.forEach {
+                manifestActionNames.insert($0.action)
+                if let tapAction = $0.tapAction {
+                    manifestActionNames.insert(tapAction)
+                }
+            }
             if let defaultAction = interaction.defaultAction {
                 manifestActionNames.insert(defaultAction.action)
             }
@@ -1098,20 +1149,37 @@ enum RuntimeSelfTest {
                 let downSnapshot = clickController.snapshot()
                 clickController.pointerTrackingStopped()
                 let stoppedSnapshot = clickController.snapshot()
+                let shortTouchAction = hitZone.tapAction ?? hitZone.action
                 check(
-                    downSnapshot.command == hitZone.action && downSnapshot.clickPulse > 0,
-                    "interaction controller must emit click action \(hitZone.action) on pointerDown for hit zone \(hitZone.id)"
+                    downSnapshot.command == shortTouchAction && downSnapshot.clickPulse > 0,
+                    "interaction controller must emit initial click action \(shortTouchAction) on pointerDown for hit zone \(hitZone.id)"
                 )
                 check(
-                    stoppedSnapshot.command == hitZone.action && stoppedSnapshot.clickPulse > 0,
-                    "interaction controller must preserve click action \(hitZone.action) when desktop tracking stops after pointerDown"
+                    stoppedSnapshot.command == shortTouchAction && stoppedSnapshot.clickPulse > 0,
+                    "interaction controller must preserve initial click action \(shortTouchAction) when desktop tracking stops after pointerDown"
                 )
                 clickController.pointerUp(at: center, button: acceptedButton)
                 let upSnapshot = clickController.snapshot()
                 check(
-                    upSnapshot.command == hitZone.action && upSnapshot.clickPulse > 0,
-                    "interaction controller must keep click action \(hitZone.action) visible after pointerUp for hit zone \(hitZone.id)"
+                    upSnapshot.command == shortTouchAction && upSnapshot.clickPulse > 0,
+                    "interaction controller must keep initial click action \(shortTouchAction) visible after pointerUp for hit zone \(hitZone.id)"
                 )
+                if hitZone.tapAction != nil {
+                    var scratchClock: CFTimeInterval = 0
+                    let scratchController = InteractionController(
+                        interactions: manifest.interactions,
+                        policy: manifest.interactionPolicy,
+                        actionTailDurations: tapActionDurations,
+                        clock: { scratchClock }
+                    )
+                    scratchController.pointerDown(at: center, button: acceptedButton)
+                    scratchController.pointerDragged(to: CGPoint(x: min(center.x + 0.01, 1.0), y: center.y), button: acceptedButton)
+                    scratchClock += 1.0 / 60.0
+                    check(
+                        scratchController.snapshot().command == hitZone.action,
+                        "interaction controller must promote hit zone \(hitZone.id) from tapAction to hold action \(hitZone.action) when the pointer rubs/drags"
+                    )
+                }
                 let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
                     .right
                 } else if hitZone.buttons.contains(.right), hitZone.buttons.contains(.left) == false {
@@ -2759,8 +2827,11 @@ enum RuntimeSelfTest {
                             id: "body",
                             rect: [0.20, 0.20, 0.90, 0.90],
                             action: "boll",
+                            tapAction: nil,
                             trigger: .tap,
                             tailSeconds: 0.5,
+                            tapTailSeconds: nil,
+                            holdStartSeconds: nil,
                             buttons: [.left],
                             priority: 0
                         ),
@@ -2768,8 +2839,11 @@ enum RuntimeSelfTest {
                             id: "head",
                             rect: [0.35, 0.20, 0.65, 0.55],
                             action: "act",
+                            tapAction: nil,
                             trigger: .hold,
                             tailSeconds: 1.15,
+                            tapTailSeconds: nil,
+                            holdStartSeconds: nil,
                             buttons: [.left],
                             priority: 10
                         )
