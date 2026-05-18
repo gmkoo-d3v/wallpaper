@@ -111,8 +111,8 @@ final class WallpaperHost: NSObject {
 
         let oldWindows = windows
         windows = replacementWindows
-        close(windows: oldWindows)
         show(windows: replacementWindows)
+        close(windows: oldWindows)
     }
 
     private func close(windows targetWindows: [NSWindow]) {

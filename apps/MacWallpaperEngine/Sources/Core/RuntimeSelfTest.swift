@@ -200,6 +200,27 @@ enum RuntimeSelfTest {
             "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
         )
         check(
+            DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
+                usesPassiveEventMonitoring: true,
+                accessibilityTrusted: false
+            ) == false,
+            "passive wallpaper input must not create a CGEvent tap before Accessibility trust is already granted"
+        )
+        check(
+            DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
+                usesPassiveEventMonitoring: true,
+                accessibilityTrusted: true
+            ),
+            "passive wallpaper input may use a CGEvent tap only after Accessibility trust is already granted"
+        )
+        check(
+            DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
+                usesPassiveEventMonitoring: false,
+                accessibilityTrusted: true
+            ) == false,
+            "plain diagnostic windows must use local NSResponder mouse delivery instead of a CGEvent tap"
+        )
+        check(
             RuntimeLifecyclePolicy.rendererWarmupFallbackPolicy == "preview-last-frame-or-neutral-background",
             "renderer warmup must avoid transient black frames while the first video frame is unavailable"
         )

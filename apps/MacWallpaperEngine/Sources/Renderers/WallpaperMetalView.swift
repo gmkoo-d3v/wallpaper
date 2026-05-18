@@ -2,6 +2,13 @@ import AppKit
 import MetalKit
 
 final class WallpaperMetalView: MTKView {
+    private static let warmupLayerBackground = CGColor(
+        red: 0.95,
+        green: 0.95,
+        blue: 0.965,
+        alpha: 1.0
+    )
+
     private let compositor: MetalCompositor
     private let interaction: InteractionController
     private let interactionPolicy: InteractionPolicy
@@ -85,6 +92,8 @@ final class WallpaperMetalView: MTKView {
         delegate = compositor
 
         wantsLayer = true
+        layer?.backgroundColor = Self.warmupLayerBackground
+        layer?.isOpaque = true
         window?.acceptsMouseMovedEvents = true
     }
 
@@ -126,6 +135,8 @@ final class WallpaperMetalView: MTKView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        layer?.backgroundColor = Self.warmupLayerBackground
+        layer?.isOpaque = true
         updateDrawableSize()
 
         if let observedWindow {
