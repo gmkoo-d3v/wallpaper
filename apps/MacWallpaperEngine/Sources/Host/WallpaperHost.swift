@@ -1,6 +1,13 @@
 import AppKit
 
 final class WallpaperHost: NSObject {
+    private static let rendererWarmupBackgroundColor = NSColor(
+        calibratedRed: 0.95,
+        green: 0.95,
+        blue: 0.965,
+        alpha: 1.0
+    )
+
     private let runtime: NativeRuntimeCore
     private var windows: [NSWindow] = []
     private var pendingDisplayRebuild: DispatchWorkItem?
@@ -172,7 +179,7 @@ final class WallpaperHost: NSObject {
             window.contentView = view
             view.frame = window.contentView?.bounds ?? CGRect(origin: .zero, size: contentRect.size)
             window.level = runtime.config.plainWindowStyle ? .normal : runtime.config.level.windowLevel
-            window.backgroundColor = .black
+            window.backgroundColor = Self.rendererWarmupBackgroundColor
             window.isOpaque = true
             window.hasShadow = runtime.config.plainWindowStyle
             window.animationBehavior = .none
@@ -854,7 +861,7 @@ final class PlainWallpaperView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.backgroundColor = NSColor(calibratedRed: 0.95, green: 0.95, blue: 0.965, alpha: 1.0).cgColor
     }
 
     convenience init() {

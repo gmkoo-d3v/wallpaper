@@ -195,8 +195,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   the idle dead zone, avoiding abrupt full-strength directional pose snaps.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Non-visual Spine event timelines are tolerated and ignored by the native
-  renderer instead of forcing a composite fallback; audio events and sequence
-  attachments remain explicit unsupported feature gates.
+  renderer instead of forcing a composite fallback.
+- Spine `sequence` metadata on otherwise supported region/mesh attachments is
+  tolerated as static setup-frame data instead of forcing a composite fallback.
+  Actual sequence attachment types/timelines remain an explicit unsupported gate.
 - Shared interaction plan for deterministic hit-zone, default-action, button, and
   look-direction diagnostics.
 - Interaction hit testing resolves the wallpaper content aspect from Spine
@@ -309,9 +311,12 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Passive wallpaper click delivery deduplicates near-simultaneous event-tap and
   global-monitor clicks while honoring the manifest `pointerSampleFps` move cap
   (30Hz default, 60Hz for the bundled Imported interaction profile).
-- When desktop-item hit-testing needs Accessibility trust, the runtime requests
-  the macOS Accessibility permission prompt and exposes the current trust state
-  in capability diagnostics.
+- When desktop-item hit-testing needs Accessibility trust, wallpaper startup
+  fails closed without showing the macOS prompt; the control panel exposes the
+  current trust state and requests permission only after the user presses the
+  Accessibility action.
+- Renderer warmup and video-loop gaps retain the last usable video frame, then
+  fall back to preview art or a neutral background instead of flashing black.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.
@@ -326,7 +331,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Spine audio event playback, sequence attachments, and non-region non-mesh attachment paths.
+- Spine audio event playback, animated sequence attachment/timeline playback, and non-region non-mesh attachment paths.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.

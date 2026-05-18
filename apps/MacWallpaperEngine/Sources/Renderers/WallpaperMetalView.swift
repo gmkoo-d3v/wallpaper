@@ -12,7 +12,6 @@ final class WallpaperMetalView: MTKView {
     private let displayName: String
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
-    private var didRequestAccessibilityTrust = false
     private var directDeliveredEvents = 0
     private var directBlockedEvents = 0
 
@@ -82,7 +81,7 @@ final class WallpaperMetalView: MTKView {
         enableSetNeedsDisplay = false
         isPaused = false
         preferredFramesPerSecond = runtime.renderTargetFps(displayRefreshFps: displayRefreshFps)
-        clearColor = MTLClearColor(red: 0.02, green: 0.02, blue: 0.025, alpha: 1.0)
+        clearColor = MTLClearColor(red: 0.95, green: 0.95, blue: 0.965, alpha: 1.0)
         delegate = compositor
 
         wantsLayer = true
@@ -230,14 +229,7 @@ final class WallpaperMetalView: MTKView {
         guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(interactionPolicy) else {
             return true
         }
-        guard DesktopInteractionGate.hasAccessibilityTrust() == false else {
-            return true
-        }
-        guard didRequestAccessibilityTrust == false else {
-            return false
-        }
-        didRequestAccessibilityTrust = true
-        return DesktopInteractionGate.requestAccessibilityTrustPrompt()
+        return DesktopInteractionGate.hasAccessibilityTrust()
     }
 
     private func setMouseMonitorActive(_ active: Bool) {

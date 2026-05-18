@@ -23,6 +23,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var solidOverlayTexture: MTLTexture?
     private var usingCompositeVideo = false
     private var fallbackBackground: MTLTexture?
+    private var lastPrimaryVideoTexture: MTLTexture?
+    private var lastResourceFallbackVideoTexture: MTLTexture?
+    private var lastDeskOcclusionTexture: MTLTexture?
     private var spineRenderer: SpineSetupPoseRenderer?
     private var isPausedByHost = false
     private var isPausedByThermal = false
@@ -133,10 +136,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         let fallbackImageURL = runtime.assetCatalog.staticImageAssetURL
             ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
-        self.fallbackBackground = try? textureLoader.newTexture(
+        self.fallbackBackground = (try? textureLoader.newTexture(
             URL: fallbackImageURL,
             options: [.SRGB: false]
-        )
+        )) ?? Self.makeSolidBackgroundTexture(device: device)
 
         if foregroundPlan.usesNativeSpine,
            usingCompositeVideo == false,
@@ -236,9 +239,20 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         encoder.setRenderPipelineState(normalPipelineState)
         let interactionSnapshot = interaction.snapshot()
 
-        let baseVideoTexture = isUsingResourceFallbackVideo
-            ? resourceFallbackVideoSource?.copyTextureForCurrentTime()
-            : videoSource?.copyTextureForCurrentTime()
+        let baseVideoTexture: MTLTexture?
+        if isUsingResourceFallbackVideo {
+            let freshTexture = resourceFallbackVideoSource?.copyTextureForCurrentTime()
+            if let freshTexture {
+                lastResourceFallbackVideoTexture = freshTexture
+            }
+            baseVideoTexture = freshTexture ?? lastResourceFallbackVideoTexture
+        } else {
+            let freshTexture = videoSource?.copyTextureForCurrentTime()
+            if let freshTexture {
+                lastPrimaryVideoTexture = freshTexture
+            }
+            baseVideoTexture = freshTexture ?? lastPrimaryVideoTexture
+        }
         let foregroundContentRect: CGRect
         if let videoTexture = baseVideoTexture {
             drawVideo(texture: videoTexture, drawableSize: view.drawableSize, interaction: interactionSnapshot, encoder: encoder)
@@ -422,7 +436,11 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         encoder: MTLRenderCommandEncoder
     ) {
         guard displayRole.rendersForeground, usingCompositeVideo == false else { return }
-        guard let texture = baseVideoTexture ?? deskOcclusionSource?.copyTextureForCurrentTime() else { return }
+        let freshOcclusionTexture = deskOcclusionSource?.copyTextureForCurrentTime()
+        if let freshOcclusionTexture {
+            lastDeskOcclusionTexture = freshOcclusionTexture
+        }
+        guard let texture = baseVideoTexture ?? freshOcclusionTexture ?? lastDeskOcclusionTexture else { return }
 
         let fullRect: CGRect
         switch runtime.config.fitMode {
@@ -529,6 +547,14 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     }
 
     private static func makeSolidOverlayTexture(device: MTLDevice) -> MTLTexture? {
+        makeSolidTexture(device: device, pixel: [255, 255, 255, 255])
+    }
+
+    private static func makeSolidBackgroundTexture(device: MTLDevice) -> MTLTexture? {
+        makeSolidTexture(device: device, pixel: [242, 242, 246, 255])
+    }
+
+    private static func makeSolidTexture(device: MTLDevice, pixel: [UInt8]) -> MTLTexture? {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba8Unorm,
             width: 1,
@@ -537,7 +563,6 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         )
         descriptor.usage = [.shaderRead]
         guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
-        let pixel: [UInt8] = [255, 255, 255, 255]
         texture.replace(
             region: MTLRegionMake2D(0, 0, 1, 1),
             mipmapLevel: 0,

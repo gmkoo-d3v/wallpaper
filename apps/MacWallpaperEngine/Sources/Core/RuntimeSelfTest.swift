@@ -196,6 +196,14 @@ enum RuntimeSelfTest {
             "desktop-empty blocked events must not reset gaze while app-window and desktop-icon input is ignored"
         )
         check(
+            RuntimeLifecyclePolicy.accessibilityPromptPolicy == "user-initiated-only",
+            "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
+        )
+        check(
+            RuntimeLifecyclePolicy.rendererWarmupFallbackPolicy == "preview-last-frame-or-neutral-background",
+            "renderer warmup must avoid transient black frames while the first video frame is unavailable"
+        )
+        check(
             RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle == .primaryOnly,
             "new or recovery-selected bundles must default to selected-display-only instead of touching secondary monitors"
         )
@@ -3497,6 +3505,12 @@ enum RuntimeSelfTest {
                   "base": {
                     "type": "mesh",
                     "path": "base",
+                    "sequence": {
+                      "count": 2,
+                      "start": 0,
+                      "digits": 1,
+                      "setupIndex": 0
+                    },
                     "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
                     "triangles": [0, 1, 2, 2, 3, 0],
                     "vertices": [-50, -50, 50, -50, 50, 50, -50, 50],
@@ -3620,6 +3634,13 @@ enum RuntimeSelfTest {
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\tused=linkedmesh,mesh"),
             "runtime capabilities must report same-skin linkedmesh attachments as supported",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            linkedMeshRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\teventsAudioSequence\tsupported\tevents=none audio=none sequence=ignored(static-setup)"),
+            "runtime capabilities must tolerate Spine sequence metadata as static setup-frame data instead of forcing composite fallback",
             failures: &failures,
             checks: &checks
         )
@@ -4013,7 +4034,12 @@ enum RuntimeSelfTest {
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("audio event playback"), "compatibility gate must report unsupported audio event playback", failures: &failures, checks: &checks)
-        check(compatibility.reasonText.contains("sequence attachments"), "compatibility gate must report unsupported sequence attachments", failures: &failures, checks: &checks)
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("sequence=unsupported-attachment"),
+            "capability diagnostics must distinguish unsupported sequence attachment types from tolerated sequence metadata",
+            failures: &failures,
+            checks: &checks
+        )
         check(unsupportedRuntime.validationSummary().contains("native spine geometry: skipped(native-unsupported)"), "unsupported native Spine validation summary must skip geometry preflight", failures: &failures, checks: &checks)
         try unsupportedRuntime.requireNativeSpineGeometryIfSupported()
         check(
