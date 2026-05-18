@@ -3347,44 +3347,20 @@ final class SpineSetupPoseRenderer {
 
     private static func parseAttachments(root: [String: Any]) throws -> [String: [String: Attachment]] {
         let skin = try selectedSkinAttachmentSource(root: root)
-        var bySlot: [String: [String: Attachment]] = [:]
+        var allSkinParentAttachments: [String: [String: [String: Attachment]]] = [:]
+        for source in skinAttachmentSources(root: root) {
+            allSkinParentAttachments[source.name] = try parseDirectRenderableAttachments(from: source)
+        }
+        var bySlot = allSkinParentAttachments[skin.name] ?? [:]
         var pendingLinkedMeshes: [(slotName: String, attachmentName: String, raw: [String: Any])] = []
         for (slotName, slotValue) in skin.attachments {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
                 let type = (raw["type"] as? String ?? "region").lowercased()
-                let atlasRegionName = raw["path"] as? String ?? attachmentName
-                if type == "region" {
-                    let attachment = makeRegionAttachment(
-                        name: atlasRegionName,
-                        slotName: slotName,
-                        raw: raw
-                    )
-                    bySlot[slotName, default: [:]][attachmentName] = attachment
-                    continue
-                }
                 if type == "linkedmesh" {
                     pendingLinkedMeshes.append((slotName: slotName, attachmentName: attachmentName, raw: raw))
-                    continue
                 }
-                guard type == "mesh" else {
-                    continue
-                }
-                guard let uvs = raw["uvs"] as? [Double],
-                      let triangles = raw["triangles"] as? [Int],
-                      let vertices = raw["vertices"] as? [Double] else {
-                    throw EngineError.asset("Spine mesh attachment \(slotName)/\(attachmentName) missing uvs, triangles, or vertices")
-                }
-                let attachment = Attachment(
-                    name: atlasRegionName,
-                    slotName: slotName,
-                    uvs: uvs,
-                    triangles: triangles,
-                    vertices: vertices,
-                    sequence: parseSequenceInfo(raw["sequence"])
-                )
-                bySlot[slotName, default: [:]][attachmentName] = attachment
             }
         }
 
@@ -3392,20 +3368,17 @@ final class SpineSetupPoseRenderer {
             var remaining: [(slotName: String, attachmentName: String, raw: [String: Any])] = []
             var resolvedAtLeastOne = false
             for linkedMesh in pendingLinkedMeshes {
-                if let referencedSkin = linkedMesh.raw["skin"] as? String,
-                   referencedSkin.isEmpty == false,
-                   referencedSkin != skin.name {
-                    throw EngineError.asset(
-                        "Spine linkedmesh attachment \(linkedMesh.slotName)/\(linkedMesh.attachmentName) references unsupported external skin \(referencedSkin)"
-                    )
-                }
+                let referencedSkin = (linkedMesh.raw["skin"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? skin.name
                 guard let parentName = linkedMesh.raw["parent"] as? String,
                       parentName.isEmpty == false else {
                     throw EngineError.asset(
                         "Spine linkedmesh attachment \(linkedMesh.slotName)/\(linkedMesh.attachmentName) missing parent"
                     )
                 }
-                guard let parent = bySlot[linkedMesh.slotName]?[parentName] else {
+                let parent = referencedSkin == skin.name
+                    ? bySlot[linkedMesh.slotName]?[parentName]
+                    : allSkinParentAttachments[referencedSkin]?[linkedMesh.slotName]?[parentName]
+                guard let parent else {
                     remaining.append(linkedMesh)
                     continue
                 }
@@ -3428,6 +3401,43 @@ final class SpineSetupPoseRenderer {
                 throw EngineError.asset("Spine linkedmesh attachment(s) missing parent mesh: \(unresolved)")
             }
             pendingLinkedMeshes = remaining
+        }
+        return bySlot
+    }
+
+    private static func parseDirectRenderableAttachments(from skin: SkinAttachmentSource) throws -> [String: [String: Attachment]] {
+        var bySlot: [String: [String: Attachment]] = [:]
+        for (slotName, slotValue) in skin.attachments {
+            guard let slotAttachments = slotValue as? [String: Any] else { continue }
+            for (attachmentName, attachmentValue) in slotAttachments {
+                guard let raw = attachmentValue as? [String: Any] else { continue }
+                let type = (raw["type"] as? String ?? "region").lowercased()
+                let atlasRegionName = raw["path"] as? String ?? attachmentName
+                if type == "region" {
+                    bySlot[slotName, default: [:]][attachmentName] = makeRegionAttachment(
+                        name: atlasRegionName,
+                        slotName: slotName,
+                        raw: raw
+                    )
+                    continue
+                }
+                guard type == "mesh" else {
+                    continue
+                }
+                guard let uvs = raw["uvs"] as? [Double],
+                      let triangles = raw["triangles"] as? [Int],
+                      let vertices = raw["vertices"] as? [Double] else {
+                    throw EngineError.asset("Spine mesh attachment \(slotName)/\(attachmentName) missing uvs, triangles, or vertices")
+                }
+                bySlot[slotName, default: [:]][attachmentName] = Attachment(
+                    name: atlasRegionName,
+                    slotName: slotName,
+                    uvs: uvs,
+                    triangles: triangles,
+                    vertices: vertices,
+                    sequence: parseSequenceInfo(raw["sequence"])
+                )
+            }
         }
         return bySlot
     }

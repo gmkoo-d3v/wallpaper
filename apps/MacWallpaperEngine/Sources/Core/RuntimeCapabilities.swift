@@ -576,12 +576,16 @@ private struct SpineFeatureScan {
     }
 
     private mutating func collectAttachmentTypes(root: [String: Any]) {
-        for skin in skinAttachmentSources(root: root) {
+        let skins = skinAttachmentSources(root: root)
+        var skinsByName: [String: SkinAttachmentSource] = [:]
+        for skin in skins {
+            skinsByName[skin.name] = skin
+        }
+        for skin in skins {
             let skinName = skin.name
             let attachmentsBySlot = skin.attachments
             for (slotName, rawSlotAttachments) in attachmentsBySlot {
                 guard let slotAttachments = rawSlotAttachments as? [String: Any] else { continue }
-                let attachmentNames = Set(slotAttachments.keys)
                 for (attachmentName, rawAttachment) in slotAttachments {
                     guard let attachment = rawAttachment as? [String: Any] else { continue }
                     let type: String
@@ -596,18 +600,19 @@ private struct SpineFeatureScan {
                         attachmentTypes.insert("region")
                     }
                     guard type == "linkedmesh" else { continue }
-                    if let referencedSkin = attachment["skin"] as? String,
-                       referencedSkin.isEmpty == false,
-                       referencedSkin != skinName {
-                        unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):external-skin=\(referencedSkin)")
-                    }
                     guard let parentName = attachment["parent"] as? String,
                           parentName.isEmpty == false else {
                         unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):missing-parent")
                         continue
                     }
-                    if attachmentNames.contains(parentName) == false {
-                        unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):missing-parent=\(parentName)")
+                    let parentSkinName = (attachment["skin"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? skinName
+                    guard let parentSkin = skinsByName[parentSkinName],
+                          let parentSlotAttachments = parentSkin.attachments[slotName] as? [String: Any] else {
+                        unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):missing-parent-skin=\(parentSkinName)")
+                        continue
+                    }
+                    if parentSlotAttachments[parentName] == nil {
+                        unsupportedLinkedMeshReferences.insert("\(skinName)/\(slotName)/\(attachmentName):missing-parent=\(parentSkinName)/\(parentName)")
                     }
                 }
             }

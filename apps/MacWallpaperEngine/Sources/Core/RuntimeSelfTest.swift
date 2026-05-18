@@ -3512,10 +3512,6 @@ enum RuntimeSelfTest {
           "skins": [
             {
               "name": "alternate",
-              "attachments": {}
-            },
-            {
-              "name": "default",
               "attachments": {
                 "slot": {
                   "base": {
@@ -3531,10 +3527,18 @@ enum RuntimeSelfTest {
                     "triangles": [0, 1, 2, 2, 3, 0],
                     "vertices": [-50, -50, 50, -50, 50, 50, -50, 50],
                     "hull": 4
-                  },
+                  }
+                }
+              }
+            },
+            {
+              "name": "default",
+              "attachments": {
+                "slot": {
                   "linked": {
                     "type": "linkedmesh",
                     "path": "linked",
+                    "skin": "alternate",
                     "parent": "base"
                   }
                 },
@@ -3699,12 +3703,12 @@ enum RuntimeSelfTest {
         ))
 
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: linkedMeshRuntime)
-        check(compatibility.isSupported, "same-skin linkedmesh fixture must pass native compatibility gate", failures: &failures, checks: &checks)
-        check(compatibility.reasonText == "supported", "same-skin linkedmesh compatibility must not report unsupported reasons", failures: &failures, checks: &checks)
+        check(compatibility.isSupported, "external-skin linkedmesh fixture must pass native compatibility gate", failures: &failures, checks: &checks)
+        check(compatibility.reasonText == "supported", "external-skin linkedmesh compatibility must not report unsupported reasons", failures: &failures, checks: &checks)
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
                 .contains("spine\tattachments\tsupported\tused=boundingbox,linkedmesh,mesh,point"),
-            "runtime capabilities must report same-skin linkedmesh and non-visual point/boundingbox attachments as supported",
+            "runtime capabilities must report external-skin linkedmesh and non-visual point/boundingbox attachments as supported",
             failures: &failures,
             checks: &checks
         )
