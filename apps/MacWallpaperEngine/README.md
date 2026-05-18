@@ -331,12 +331,12 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   global-monitor clicks while honoring the manifest `pointerSampleFps` move cap
   (30Hz default, 60Hz for the bundled Imported interaction profile).
 - When desktop-item hit-testing needs Accessibility trust, wallpaper startup
-  fails closed without showing the macOS prompt; the control panel exposes the
-  current trust state and requests permission only after the user presses the
-  Accessibility action.
-- Renderer warmup, video-loop gaps, and first-frame pause/resource paths retain
-  the last usable video frame, then fall back to preview art or a neutral
-  background instead of flashing black.
+  fails closed without showing or registering for the macOS prompt; the control
+  panel exposes the current trust state and requests permission only after the
+  user presses the Accessibility action.
+- Renderer warmup, video-loop gaps, and first-frame pause/resource paths submit
+  one preview/last-frame/neutral fallback drawable before pausing, instead of
+  leaving a newly created wallpaper window black.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.

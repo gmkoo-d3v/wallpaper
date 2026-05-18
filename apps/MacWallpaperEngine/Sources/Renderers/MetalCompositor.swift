@@ -188,21 +188,29 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
     }
 
+    func needsPausedWarmupDrawable(ifHostPaused paused: Bool) -> Bool {
+        paused && hasSubmittedDrawable == false
+    }
+
     func draw(in view: MTKView) {
-        guard isPausedByHost == false else { return }
+        let hostPausedBeforeFirstDrawable = isPausedByHost && hasSubmittedDrawable == false
+        guard isPausedByHost == false || hostPausedBeforeFirstDrawable else { return }
 
         let now = CACurrentMediaTime()
-        let currentFps = governor.frameStarted(now: now)
+        let currentFps = hostPausedBeforeFirstDrawable ? 1 : governor.frameStarted(now: now)
         publishTelemetry()
-        let thermalPaused = governor.shouldPauseForThermal
-        let resourcePaused = governor.shouldPauseForResourceBudget
-        let shouldPause = thermalPaused || resourcePaused
-        if shouldPause != isPausedByThermal {
-            isPausedByThermal = shouldPause
-            if shouldPause {
-                pauseAllVideoSources()
-            } else {
-                resumeActiveVideoSources()
+        let thermalPaused = hostPausedBeforeFirstDrawable ? false : governor.shouldPauseForThermal
+        let resourcePaused = hostPausedBeforeFirstDrawable ? false : governor.shouldPauseForResourceBudget
+        let shouldPauseForThermalOrResource = thermalPaused || resourcePaused
+        let shouldPause = hostPausedBeforeFirstDrawable || shouldPauseForThermalOrResource
+        if hostPausedBeforeFirstDrawable == false {
+            if shouldPauseForThermalOrResource != isPausedByThermal {
+                isPausedByThermal = shouldPauseForThermalOrResource
+                if shouldPauseForThermalOrResource {
+                    pauseAllVideoSources()
+                } else {
+                    resumeActiveVideoSources()
+                }
             }
         }
         if shouldPause {
@@ -306,6 +314,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         commandBuffer.present(drawable)
         governor.recordSubmittedFrame()
         hasSubmittedDrawable = true
+        if hostPausedBeforeFirstDrawable {
+            view.isPaused = true
+        }
         publishTelemetry()
         commandBuffer.commit()
     }

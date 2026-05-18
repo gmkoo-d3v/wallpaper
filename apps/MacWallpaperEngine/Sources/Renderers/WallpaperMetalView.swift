@@ -241,7 +241,8 @@ final class WallpaperMetalView: MTKView {
             interactionPolicy: interactionPolicy,
             accessibilityTrusted: accessibilityTrusted
         )
-        isPaused = shouldPause
+        let needsPausedWarmupDrawable = compositor.needsPausedWarmupDrawable(ifHostPaused: shouldPause)
+        isPaused = shouldPause && needsPausedWarmupDrawable == false
         compositor.setPausedByHost(shouldPause)
         setMouseMonitorActive(shouldEnableInteraction)
     }

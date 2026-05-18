@@ -28,7 +28,7 @@ enum RuntimeLifecyclePolicy {
     static let outsideContentTrackingPolicy = "ignore-same-window-outside-content-without-idle-reset"
     static let blockedDesktopEventTrackingPolicy = "ignore-blocked-desktop-events-without-idle-reset"
     static let accessibilityPromptPolicy = "user-initiated-only"
-    static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background"
+    static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background-before-first-pause"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
     static let displayReplacementOverlapSeconds: TimeInterval = 0.12
     static let defaultDisplayModeForNewBundle: DisplayMode = .primaryOnly

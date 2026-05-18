@@ -205,8 +205,8 @@ enum RuntimeSelfTest {
             "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
         )
         check(
-            DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt",
-            "startup Accessibility trust checks must use no-prompt probes"
+            DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt-or-registration",
+            "startup Accessibility trust checks must use no-prompt probes that do not request registration"
         )
         check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
@@ -230,8 +230,8 @@ enum RuntimeSelfTest {
             "plain diagnostic windows must use local NSResponder mouse delivery instead of a CGEvent tap"
         )
         check(
-            RuntimeLifecyclePolicy.rendererWarmupFallbackPolicy == "preview-last-frame-or-neutral-background",
-            "renderer warmup must avoid transient black frames while the first video frame is unavailable"
+            RuntimeLifecyclePolicy.rendererWarmupFallbackPolicy == "preview-last-frame-or-neutral-background-before-first-pause",
+            "renderer warmup must avoid transient black frames while the first video frame is unavailable or the first pause arrives early"
         )
         check(
             MetalCompositor.pausedFirstFramePolicy == "draw-static-fallback-before-pausing",
