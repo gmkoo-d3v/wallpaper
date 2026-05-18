@@ -178,6 +178,9 @@ enum RuntimeCapabilities {
         if scan.unsupportedTimelineKeys.isEmpty == false {
             reasons.append("unsupported timeline keys: \(scan.unsupportedTimelineKeys.listOrNone)")
         }
+        if scan.unsupportedConstraintUsages.isEmpty == false {
+            reasons.append("unsupported constraint usages: \(scan.unsupportedConstraintUsages.listOrNone)")
+        }
         return NativeSpineCompatibility(isSupported: reasons.isEmpty, reasons: reasons)
     }
 
@@ -503,12 +506,7 @@ enum RuntimeCapabilities {
                 status: timelineStatus,
                 detail: "used=\(scan.timelineKeys.listOrNone) unsupported=\(scan.unsupportedTimelineKeys.listOrNone)"
             ),
-            RuntimeCapabilityRow(
-                category: "spine",
-                name: "constraints",
-                status: scan.constraintKeys.isEmpty ? "not-used" : "fallback",
-                detail: scan.constraintKeys.isEmpty ? "none" : "pose/first-pass support for \(scan.constraintKeys.listOrNone)"
-            ),
+            constraintCapabilityRow(scan),
             RuntimeCapabilityRow(
                 category: "spine",
                 name: "eventsAudioSequence",
@@ -516,6 +514,27 @@ enum RuntimeCapabilities {
                 detail: eventFeatureDetail
             )
         ]
+    }
+
+    private static func constraintCapabilityRow(_ scan: SpineFeatureScan) -> RuntimeCapabilityRow {
+        if scan.constraintKeys.isEmpty {
+            return RuntimeCapabilityRow(
+                category: "spine",
+                name: "constraints",
+                status: "not-used",
+                detail: "none"
+            )
+        }
+
+        let unsupported = scan.unsupportedConstraintUsages
+        return RuntimeCapabilityRow(
+            category: "spine",
+            name: "constraints",
+            status: unsupported.isEmpty ? "fallback" : "unsupported",
+            detail: unsupported.isEmpty
+                ? "pose/first-pass support for \(scan.constraintKeys.listOrNone)"
+                : "used=\(scan.constraintKeys.listOrNone) unsupported=\(unsupported.listOrNone)"
+        )
     }
 }
 
@@ -528,6 +547,7 @@ private struct SpineFeatureScan {
     var attachmentTypes: Set<String> = []
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
+    var unsupportedConstraintUsages: Set<String> = []
     var unsupportedLinkedMeshReferences: Set<String> = []
     var hasEventData = false
     var hasAudioData = false
@@ -697,9 +717,70 @@ private struct SpineFeatureScan {
     }
 
     private mutating func collectConstraintKeys(root: [String: Any]) {
-        for key in ["ik", "transform", "path", "physics"] where root[key] != nil {
-            constraintKeys.insert(key)
+        if let constraints = root["ik"] as? [[String: Any]] {
+            constraintKeys.insert("ik")
+            for constraint in constraints {
+                let name = namedConstraint(constraint)
+                let boneCount = (constraint["bones"] as? [String])?.count ?? 0
+                if boneCount > 1 {
+                    unsupportedConstraintUsages.insert("ik/\(name):multi-bone")
+                }
+            }
         }
+
+        if let constraints = root["transform"] as? [[String: Any]] {
+            constraintKeys.insert("transform")
+            for constraint in constraints {
+                let name = namedConstraint(constraint)
+                let usesLocal = constraint["local"] as? Bool ?? false
+                let usesRelative = constraint["relative"] as? Bool ?? false
+                if usesLocal || usesRelative {
+                    let modes = [
+                        usesLocal ? "local" : nil,
+                        usesRelative ? "relative" : nil
+                    ].compactMap { $0 }.joined(separator: "+")
+                    unsupportedConstraintUsages.insert("transform/\(name):\(modes)")
+                }
+            }
+        }
+
+        if let constraints = root["path"] as? [[String: Any]] {
+            constraintKeys.insert("path")
+            let supportedPositionModes: Set<String> = ["fixed", "percent"]
+            let supportedSpacingModes: Set<String> = ["fixed", "length", "percent"]
+            let supportedRotateModes: Set<String> = ["tangent", "chain", "chainscale"]
+            for constraint in constraints {
+                let name = namedConstraint(constraint)
+                let positionMode = normalizedMode(constraint["positionMode"], default: "percent")
+                let spacingMode = normalizedMode(constraint["spacingMode"], default: "length")
+                let rotateMode = normalizedMode(constraint["rotateMode"], default: "tangent")
+                if supportedPositionModes.contains(positionMode) == false {
+                    unsupportedConstraintUsages.insert("path/\(name):positionMode=\(positionMode)")
+                }
+                if supportedSpacingModes.contains(spacingMode) == false {
+                    unsupportedConstraintUsages.insert("path/\(name):spacingMode=\(spacingMode)")
+                }
+                if supportedRotateModes.contains(rotateMode) == false {
+                    unsupportedConstraintUsages.insert("path/\(name):rotateMode=\(rotateMode)")
+                }
+            }
+        }
+
+        if root["physics"] != nil {
+            constraintKeys.insert("physics")
+        }
+    }
+
+    private func namedConstraint(_ constraint: [String: Any]) -> String {
+        let name = constraint["name"] as? String ?? "unnamed"
+        return name.isEmpty ? "unnamed" : name
+    }
+
+    private func normalizedMode(_ value: Any?, default defaultValue: String) -> String {
+        guard let value = value as? String, value.isEmpty == false else {
+            return defaultValue
+        }
+        return value.lowercased()
     }
 
     private static func containsAnyKey(_ value: Any, keys: Set<String>) -> Bool {

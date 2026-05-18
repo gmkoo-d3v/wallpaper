@@ -4175,6 +4175,26 @@ enum RuntimeSelfTest {
           "skeleton": {
             "spine": "4.2.43"
           },
+          "bones": [
+            { "name": "root" },
+            { "name": "target", "parent": "root" },
+            { "name": "child", "parent": "root" }
+          ],
+          "ik": [
+            {
+              "name": "unsupported-multi-bone-ik",
+              "bones": ["root", "child"],
+              "target": "target"
+            }
+          ],
+          "transform": [
+            {
+              "name": "unsupported-local-transform",
+              "bones": ["child"],
+              "target": "target",
+              "local": true
+            }
+          ],
           "skins": [
             {
               "name": "default",
@@ -4316,6 +4336,7 @@ enum RuntimeSelfTest {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: unsupportedRuntime)
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("unsupported constraint usages"), "compatibility gate must report unsupported constraint usages", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("audio event playback") == false, "audio event playback must not force composite fallback when native visual rendering is otherwise compatible", failures: &failures, checks: &checks)
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("audio=playback"),
@@ -4326,6 +4347,14 @@ enum RuntimeSelfTest {
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("sequence=unsupported-attachment"),
             "capability diagnostics must distinguish unsupported sequence attachment types from tolerated sequence metadata",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tunsupported")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("transform/unsupported-local-transform:local")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("ik/unsupported-multi-bone-ik:multi-bone"),
+            "capability diagnostics must expose unsupported native Spine constraint usages",
             failures: &failures,
             checks: &checks
         )

@@ -243,6 +243,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   without waiting for the current Mac to heat up.
 - Native Spine compatibility gate falls back to `compositeVideo` when a bundle
   uses Spine feature classes the native renderer does not implement yet.
+- Native Spine compatibility also rejects unsupported constraint usages such as
+  multi-bone IK or local/relative transform constraints instead of silently
+  skipping them and rendering a broken foreground.
 - Runtime capability diagnostics report video/composite size, duration,
   playback rate, and effective FPS; low-FPS composite fallback is flagged so it
   can be regenerated at the display refresh rate instead of being mistaken for
