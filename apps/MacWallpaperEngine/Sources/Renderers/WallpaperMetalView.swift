@@ -19,6 +19,7 @@ final class WallpaperMetalView: MTKView {
     private let displayName: String
     private weak var observedWindow: NSWindow?
     private var mouseMonitor: DesktopMouseInteractionMonitor?
+    private var hasPresentedVisibleWindow = false
     private var directDeliveredEvents = 0
     private var directBlockedEvents = 0
 
@@ -219,7 +220,16 @@ final class WallpaperMetalView: MTKView {
     }
 
     private func updatePauseStateFromOcclusion() {
-        let isVisible = window?.occlusionState.contains(.visible) ?? true
+        let windowIsVisible = window?.isVisible ?? true
+        let occlusionVisible = window?.occlusionState.contains(.visible) ?? true
+        let isVisible = RuntimeLifecyclePolicy.effectiveRendererVisibility(
+            windowIsVisible: windowIsVisible,
+            occlusionVisible: occlusionVisible,
+            hasPresentedVisibleWindow: hasPresentedVisibleWindow
+        )
+        if windowIsVisible && occlusionVisible {
+            hasPresentedVisibleWindow = true
+        }
         let shouldPause = RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(
             isVisible: isVisible,
             displayPolicy: displayPolicy

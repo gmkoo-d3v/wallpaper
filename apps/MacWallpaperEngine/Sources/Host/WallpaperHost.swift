@@ -10,6 +10,7 @@ final class WallpaperHost: NSObject {
 
     private let runtime: NativeRuntimeCore
     private var windows: [NSWindow] = []
+    private var retiringWindows: [NSWindow] = []
     private var pendingDisplayRebuild: DispatchWorkItem?
     private var isRunning = false
 
@@ -36,7 +37,9 @@ final class WallpaperHost: NSObject {
         pendingDisplayRebuild = nil
         NotificationCenter.default.removeObserver(self)
         close(windows: windows)
+        close(windows: retiringWindows)
         windows.removeAll()
+        retiringWindows.removeAll()
     }
 
     func refreshInteractionState() {
@@ -112,13 +115,26 @@ final class WallpaperHost: NSObject {
         let oldWindows = windows
         windows = replacementWindows
         show(windows: replacementWindows)
-        close(windows: oldWindows)
+        retire(windows: oldWindows)
     }
 
     private func close(windows targetWindows: [NSWindow]) {
         for window in targetWindows {
             window.orderOut(nil)
             window.close()
+        }
+    }
+
+    private func retire(windows targetWindows: [NSWindow]) {
+        guard targetWindows.isEmpty == false else { return }
+        retiringWindows.append(contentsOf: targetWindows)
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + RuntimeLifecyclePolicy.displayReplacementOverlapSeconds
+        ) { [weak self] in
+            self?.close(windows: targetWindows)
+            self?.retiringWindows.removeAll { retiringWindow in
+                targetWindows.contains { $0 === retiringWindow }
+            }
         }
     }
 

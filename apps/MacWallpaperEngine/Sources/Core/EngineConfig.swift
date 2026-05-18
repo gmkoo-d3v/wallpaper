@@ -79,6 +79,7 @@ struct EngineConfig {
     let interactionProbePoint: CGPoint?
     let interactionProbeButton: PointerButton
     let spineAnimationPlanOnly: Bool
+    let spineProfileOnly: Bool
     let spineSnapshotURL: URL?
     let spineSnapshotAction: String
     let spineSnapshotTime: Double
@@ -135,6 +136,7 @@ struct EngineConfig {
         interactionProbePoint: CGPoint? = nil,
         interactionProbeButton: PointerButton? = nil,
         spineAnimationPlanOnly: Bool? = nil,
+        spineProfileOnly: Bool? = nil,
         spineSnapshotURL: URL? = nil,
         spineSnapshotAction: String? = nil,
         spineSnapshotTime: Double? = nil,
@@ -177,6 +179,7 @@ struct EngineConfig {
             interactionProbePoint: interactionProbePoint ?? self.interactionProbePoint,
             interactionProbeButton: interactionProbeButton ?? self.interactionProbeButton,
             spineAnimationPlanOnly: spineAnimationPlanOnly ?? self.spineAnimationPlanOnly,
+            spineProfileOnly: spineProfileOnly ?? self.spineProfileOnly,
             spineSnapshotURL: spineSnapshotURL ?? self.spineSnapshotURL,
             spineSnapshotAction: spineSnapshotAction ?? self.spineSnapshotAction,
             spineSnapshotTime: spineSnapshotTime ?? self.spineSnapshotTime,
@@ -239,6 +242,7 @@ struct EngineConfig {
         var interactionProbePoint: CGPoint?
         var interactionProbeButton = PointerButton.left
         var spineAnimationPlanOnly = false
+        var spineProfileOnly = false
         var spineSnapshotURL: URL?
         var spineSnapshotAction = "idle"
         var spineSnapshotTime = 0.0
@@ -383,6 +387,8 @@ struct EngineConfig {
                 interactionProbeButton = parsed
             case "--spine-animation-plan":
                 spineAnimationPlanOnly = true
+            case "--spine-profile":
+                spineProfileOnly = true
             case "--spine-snapshot":
                 index += 1
                 spineSnapshotURL = try valueURL(arguments, index, option: argument)
@@ -508,6 +514,7 @@ struct EngineConfig {
             || interactionPlanOnly
             || interactionProbePoint != nil
             || spineAnimationPlanOnly
+            || spineProfileOnly
             || spineSnapshotURL != nil
             || wallpaperSnapshotURL != nil
             || wallpaperGoldenCheckOnly
@@ -605,6 +612,7 @@ struct EngineConfig {
             interactionProbePoint: interactionProbePoint,
             interactionProbeButton: interactionProbeButton,
             spineAnimationPlanOnly: spineAnimationPlanOnly,
+            spineProfileOnly: spineProfileOnly,
             spineSnapshotURL: spineSnapshotURL,
             spineSnapshotAction: spineSnapshotAction,
             spineSnapshotTime: spineSnapshotTime,
@@ -712,6 +720,7 @@ struct EngineConfig {
                               Probe one normalized content coordinate through move, hit-zone, and click timeline mapping, then exit.
       --probe-button <button>  Button for --probe-interaction: left | right. Default: left.
       --spine-animation-plan   Print Spine animation durations, native geometry samples, and manifest action links, then exit.
+      --spine-profile          Print native Spine geometry profiler timings for optimization baselines, then exit.
       --spine-snapshot <png>   Render a native Spine diagnostic PNG on a white background, then exit.
       --wallpaper-snapshot <png>
                               Render a full diagnostic wallpaper PNG, then exit.

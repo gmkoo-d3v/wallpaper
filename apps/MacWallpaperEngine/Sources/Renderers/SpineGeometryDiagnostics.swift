@@ -67,6 +67,83 @@ struct SpineGeometryDiagnostics {
         }
     }
 
+    static func profile(runtime: NativeRuntimeCore, iterations: Int = 6) throws -> String {
+        let actionNames = manifestActionNames(runtime.manifest)
+        guard let spineAsset = runtime.assetCatalog.spineAsset else {
+            return [
+                "spine profile OK",
+                "spine: none",
+                "status: not-used",
+                "iterations: 0"
+            ].joined(separator: "\n")
+        }
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        guard compatibility.isSupported else {
+            return [
+                "spine profile OK",
+                "spine: \(spineAsset.json.path)",
+                "status: native-unsupported",
+                "reason: \(compatibility.reasonText)",
+                "iterations: 0"
+            ].joined(separator: "\n")
+        }
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            return [
+                "spine profile OK",
+                "spine: \(spineAsset.json.path)",
+                "status: metal-unavailable",
+                "iterations: 0"
+            ].joined(separator: "\n")
+        }
+
+        var constructedRenderer: SpineSetupPoseRenderer?
+        let initMs = try measureMilliseconds {
+            constructedRenderer = try makeRenderer(runtime: runtime, spineAsset: spineAsset, device: device)
+        }
+        guard let renderer = constructedRenderer else {
+            throw EngineError.renderer("Could not create native Spine profiler renderer")
+        }
+
+        var latestSamples: [SpineSetupPoseRenderer.GeometrySample] = []
+        let warmupMs = measureMilliseconds {
+            latestSamples = renderer.diagnosticGeometrySamples(actionNames: actionNames)
+        }
+
+        let safeIterations = max(iterations, 1)
+        var iterationMs: [Double] = []
+        for _ in 0..<safeIterations {
+            let elapsed = measureMilliseconds {
+                latestSamples = renderer.diagnosticGeometrySamples(actionNames: actionNames)
+            }
+            iterationMs.append(elapsed)
+        }
+
+        let invalidSamples = latestSamples.filter { $0.status != "renderable" }
+        let frameBudgetMs = 1000.0 / Double(max(runtime.renderTargetFps, 1))
+        let averageMs = iterationMs.reduce(0, +) / Double(iterationMs.count)
+        let p95Ms = percentile(iterationMs, fraction: 0.95)
+        let maxMs = iterationMs.max() ?? 0
+        let profileStatus = invalidSamples.isEmpty ? "renderable" : "invalid-samples"
+
+        return [
+            "spine profile OK",
+            "spine: \(spineAsset.json.path)",
+            "status: \(profileStatus)",
+            "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
+            "iterations: \(safeIterations)",
+            "samplesPerIteration: \(latestSamples.count)",
+            "setupBatches: \(renderer.batchCount)",
+            "setupVertices: \(renderer.triangleVertexCount)",
+            "initMs: \(formatMilliseconds(initMs))",
+            "warmupSampleMs: \(formatMilliseconds(warmupMs))",
+            "averageSampleMs: \(formatMilliseconds(averageMs))",
+            "p95SampleMs: \(formatMilliseconds(p95Ms))",
+            "maxSampleMs: \(formatMilliseconds(maxMs))",
+            "targetFrameBudgetMs: \(formatMilliseconds(frameBudgetMs))",
+            "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))"
+        ].joined(separator: "\n")
+    }
+
     static func validationStatus(runtime: NativeRuntimeCore) -> String {
         guard runtime.assetCatalog.spineAsset != nil else { return "not-used" }
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
@@ -177,6 +254,25 @@ struct SpineGeometryDiagnostics {
 
     private static func formatSeconds(_ value: Double) -> String {
         String(format: "%.3fs", value)
+    }
+
+    private static func formatMilliseconds(_ value: Double) -> String {
+        String(format: "%.3f", value)
+    }
+
+    private static func measureMilliseconds(_ work: () throws -> Void) rethrows -> Double {
+        let start = DispatchTime.now().uptimeNanoseconds
+        try work()
+        let end = DispatchTime.now().uptimeNanoseconds
+        return Double(end - start) / 1_000_000.0
+    }
+
+    private static func percentile(_ values: [Double], fraction: Double) -> Double {
+        guard values.isEmpty == false else { return 0 }
+        let sorted = values.sorted()
+        let clamped = min(max(fraction, 0), 1)
+        let index = min(sorted.count - 1, Int(Double(sorted.count - 1) * clamped))
+        return sorted[index]
     }
 
     private static func samplePolicyLine(poseSampleFps: Int?) -> String {

@@ -110,6 +110,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--spine-animation-plan` reports Spine animation duration, timeline coverage,
   native timeline compatibility per manifest action, and whether every manifest
   interaction action resolves to a real animation.
+- `--spine-profile` reports native Spine renderer initialization, warmup, and
+  repeated geometry-sampling timings so optimization work has a reproducible
+  CLI baseline instead of relying on Activity Monitor observation alone.
 - `--spine-animation-plan` also samples native Spine renderer geometry across
   timeline keyframes, discrete attachment/draw-order transitions, runtime
   frame-cadence poses, and partial look-direction pose mixes for every manifest
@@ -391,6 +394,7 @@ swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overla
 swift run MacWallpaperEngine --audio --runtime-capabilities
 swift run MacWallpaperEngine --launch-at-login --control-panel-only
 swift run MacWallpaperEngine --spine-animation-plan
+swift run MacWallpaperEngine --spine-profile
 swift run MacWallpaperEngine --wallpaper-golden-check
 swift run MacWallpaperEngine --list-bundles --include-capabilities
 swift run MacWallpaperEngine --list-bundles --bundle-library /path/to/wallpapers --include-capabilities

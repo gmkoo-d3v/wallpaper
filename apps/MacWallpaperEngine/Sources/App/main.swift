@@ -141,6 +141,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.spineProfileOnly {
+        print(try SpineGeometryDiagnostics.profile(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
     if let spineSnapshotURL = config.spineSnapshotURL {
         print(try SpineGeometryDiagnostics.writeSnapshot(
             runtime: runtime,

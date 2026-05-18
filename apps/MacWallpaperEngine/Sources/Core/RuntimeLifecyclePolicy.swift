@@ -30,6 +30,7 @@ enum RuntimeLifecyclePolicy {
     static let accessibilityPromptPolicy = "user-initiated-only"
     static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
+    static let displayReplacementOverlapSeconds: TimeInterval = 0.12
     static let defaultDisplayModeForNewBundle: DisplayMode = .primaryOnly
 
     static func shouldRecoverStartupFailureInControlPanel(launchControlPanel: Bool) -> Bool {
@@ -52,6 +53,20 @@ enum RuntimeLifecyclePolicy {
     static func shouldPauseForWindowVisibility(isVisible: Bool, displayPolicy: DisplayPolicy) -> Bool {
         guard isVisible == false else { return false }
         return displayPolicy.occluded == .pause || displayPolicy.fullscreenObscured == .pause
+    }
+
+    static func effectiveRendererVisibility(
+        windowIsVisible: Bool,
+        occlusionVisible: Bool,
+        hasPresentedVisibleWindow: Bool
+    ) -> Bool {
+        if occlusionVisible {
+            return true
+        }
+        if windowIsVisible == false && hasPresentedVisibleWindow == false {
+            return true
+        }
+        return false
     }
 
     static func shouldEnableDesktopInteraction(

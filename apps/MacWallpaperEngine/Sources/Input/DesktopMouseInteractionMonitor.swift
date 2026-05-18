@@ -94,13 +94,15 @@ final class DesktopMouseInteractionMonitor {
             return
         }
         let usesPassiveEventMonitoring = window?.ignoresMouseEvents ?? true
+        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         let eventTapStarted = Self.canStartEventTapWithoutPrompt(
             usesPassiveEventMonitoring: usesPassiveEventMonitoring,
-            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
+            accessibilityTrusted: accessibilityTrusted
         ) ? startEventTap() : false
         let inputSources = Self.inputSources(
             usesPassiveEventMonitoring: usesPassiveEventMonitoring,
-            eventTapStarted: eventTapStarted
+            eventTapStarted: eventTapStarted,
+            accessibilityTrusted: accessibilityTrusted
         )
         isActive = true
         guard localMonitor == nil, monitors.isEmpty else {
@@ -262,12 +264,16 @@ final class DesktopMouseInteractionMonitor {
         }
     }
 
-    static func inputSources(usesPassiveEventMonitoring: Bool, eventTapStarted: Bool) -> InputSources {
+    static func inputSources(
+        usesPassiveEventMonitoring: Bool,
+        eventTapStarted: Bool,
+        accessibilityTrusted: Bool
+    ) -> InputSources {
         if usesPassiveEventMonitoring {
             return InputSources(
                 useEventTap: eventTapStarted,
                 useLocalMonitor: false,
-                useGlobalMonitors: eventTapStarted == false
+                useGlobalMonitors: accessibilityTrusted && eventTapStarted == false
             )
         }
         return InputSources(

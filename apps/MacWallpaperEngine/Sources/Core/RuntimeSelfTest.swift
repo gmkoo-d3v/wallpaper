@@ -72,6 +72,11 @@ enum RuntimeSelfTest {
             "display rebuild debounce must absorb notification bursts without feeling stale"
         )
         check(
+            RuntimeLifecyclePolicy.displayReplacementOverlapSeconds > 0
+                && RuntimeLifecyclePolicy.displayReplacementOverlapSeconds <= 0.5,
+            "display replacement overlap must keep the old wallpaper visible briefly while replacement windows warm up"
+        )
+        check(
             RuntimeLifecyclePolicy.displayRebuildCommitDecision(
                 existingWindowCount: 0,
                 replacementWindowCount: 0,
@@ -1181,6 +1186,10 @@ enum RuntimeSelfTest {
             EngineConfig.help.contains("--doctor"),
             "EngineConfig help must document combined runtime doctor diagnostics"
         )
+        check(
+            EngineConfig.help.contains("--spine-profile"),
+            "EngineConfig help must document native Spine profile diagnostics"
+        )
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
             "--spine-snapshot", "/tmp/native-spine-snapshot.png",
@@ -1222,6 +1231,14 @@ enum RuntimeSelfTest {
             parsedWallpaperGolden.wallpaperGoldenCheckOnly
                 && parsedWallpaperGolden.wallpaperGoldenURL?.path == "/tmp/wallpaper.golden.json",
             "EngineConfig must parse wallpaper golden fixture diagnostics"
+        )
+        let parsedSpineProfile = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--spine-profile"
+        ])
+        check(
+            parsedSpineProfile.spineProfileOnly,
+            "EngineConfig must parse native Spine profile diagnostics"
         )
         check(
             runtime.config.replacing(interactionDebugOverlay: true, clearDuration: true).interactionDebugOverlay,
@@ -1631,7 +1648,8 @@ enum RuntimeSelfTest {
         check(
             DesktopMouseInteractionMonitor.inputSources(
                 usesPassiveEventMonitoring: true,
-                eventTapStarted: true
+                eventTapStarted: true,
+                accessibilityTrusted: true
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: true,
                 useLocalMonitor: false,
@@ -1644,20 +1662,36 @@ enum RuntimeSelfTest {
         check(
             DesktopMouseInteractionMonitor.inputSources(
                 usesPassiveEventMonitoring: true,
-                eventTapStarted: false
+                eventTapStarted: false,
+                accessibilityTrusted: true
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: false,
                 useLocalMonitor: false,
                 useGlobalMonitors: true
             ),
-            "desktop mouse monitor must fall back to global monitors when passive event tap is unavailable",
+            "desktop mouse monitor may fall back to global monitors only after Accessibility trust exists",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.inputSources(
+                usesPassiveEventMonitoring: true,
+                eventTapStarted: false,
+                accessibilityTrusted: false
+            ) == DesktopMouseInteractionMonitor.InputSources(
+                useEventTap: false,
+                useLocalMonitor: false,
+                useGlobalMonitors: false
+            ),
+            "desktop mouse monitor must not attach passive global monitors at startup before Accessibility trust",
             failures: &failures,
             checks: &checks
         )
         check(
             DesktopMouseInteractionMonitor.inputSources(
                 usesPassiveEventMonitoring: false,
-                eventTapStarted: false
+                eventTapStarted: false,
+                accessibilityTrusted: false
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: false,
                 useLocalMonitor: true,
@@ -1758,6 +1792,26 @@ enum RuntimeSelfTest {
         check(
             RuntimeLifecyclePolicy.shouldPauseForWindowVisibility(isVisible: false, displayPolicy: visiblePolicy),
             "invisible wallpaper windows must pause when occlusion or fullscreen policy pauses",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.effectiveRendererVisibility(
+                windowIsVisible: false,
+                occlusionVisible: false,
+                hasPresentedVisibleWindow: false
+            ),
+            "pre-show wallpaper windows must stay renderable long enough to warm up before first orderFront",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.effectiveRendererVisibility(
+                windowIsVisible: false,
+                occlusionVisible: false,
+                hasPresentedVisibleWindow: true
+            ) == false,
+            "previously visible wallpaper windows may pause when later hidden or fully occluded",
             failures: &failures,
             checks: &checks
         )
@@ -2419,6 +2473,19 @@ enum RuntimeSelfTest {
         check(
             spineAnimationPlanParse.foregroundMode == .automatic,
             "Spine animation diagnostics must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let spineProfileParse = try EngineConfig.parse(["--spine-profile"])
+        check(
+            spineProfileParse.spineProfileOnly,
+            "EngineConfig must parse native Spine profile diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            spineProfileParse.foregroundMode == .automatic,
+            "Spine profile diagnostics must ignore persisted foreground mode",
             failures: &failures,
             checks: &checks
         )
