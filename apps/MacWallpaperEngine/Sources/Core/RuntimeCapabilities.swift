@@ -452,8 +452,10 @@ enum RuntimeCapabilities {
         let sequenceDetail: String
         if hasUnsupportedSequenceAttachment {
             sequenceDetail = "sequence=unsupported-attachment"
+        } else if scan.timelineKeys.contains("attachments.sequence") {
+            sequenceDetail = "sequence=playback"
         } else if scan.hasSequenceData {
-            sequenceDetail = "sequence=ignored(static-setup)"
+            sequenceDetail = "sequence=setup-frame"
         } else {
             sequenceDetail = "sequence=none"
         }
@@ -541,6 +543,7 @@ private struct SpineFeatureScan {
             "slots.rgba",
             "slots.attachment",
             "attachments.deform",
+            "attachments.sequence",
             "drawOrder",
             "draworder",
             "events",

@@ -195,6 +195,21 @@ final class SpineSetupPoseRenderer {
         let offsets: [DrawOrderOffset]?
     }
 
+    private struct SequenceFrame {
+        let time: Double
+        let index: Int
+        let mode: String
+        let delay: Double
+    }
+
+    private struct SequenceInfo {
+        let count: Int
+        let start: Int
+        let digits: Int
+        let setupIndex: Int
+        let pathSuffix: Bool
+    }
+
     private struct EventFrame {
         let time: Double
         let name: String
@@ -249,9 +264,13 @@ final class SpineSetupPoseRenderer {
 
     private struct AttachmentTimelines {
         var deform: [DeformFrame] = []
+        var sequence: [SequenceFrame] = []
 
         var maxTime: Double {
-            deform.map(\.time).max() ?? 0
+            max(
+                deform.map(\.time).max() ?? 0,
+                sequence.map(\.time).max() ?? 0
+            )
         }
     }
 
@@ -268,7 +287,9 @@ final class SpineSetupPoseRenderer {
             var times = boneTimelines.values.flatMap(\.frameTimes)
             times.append(contentsOf: slotTimelines.values.flatMap(\.frameTimes))
             times.append(contentsOf: attachmentTimelines.values.flatMap { slotTimelines in
-                slotTimelines.values.flatMap { $0.deform.map(\.time) }
+                slotTimelines.values.flatMap { timelines in
+                    timelines.deform.map(\.time) + timelines.sequence.map(\.time)
+                }
             })
             times.append(contentsOf: drawOrder.map(\.time))
             times.append(contentsOf: eventFrames.map(\.time))
@@ -277,6 +298,9 @@ final class SpineSetupPoseRenderer {
 
         func discreteTransitionTimes() -> [Double] {
             var times = slotTimelines.values.flatMap(\.discreteTransitionTimes)
+            times.append(contentsOf: attachmentTimelines.values.flatMap { slotTimelines in
+                slotTimelines.values.flatMap { $0.sequence.map(\.time) }
+            })
             times.append(contentsOf: drawOrder.map(\.time))
             return times
         }
@@ -288,6 +312,7 @@ final class SpineSetupPoseRenderer {
         let uvs: [Double]
         let triangles: [Int]
         let vertices: [Double]
+        let sequence: SequenceInfo?
     }
 
     private struct PathAttachment {
@@ -746,6 +771,7 @@ final class SpineSetupPoseRenderer {
                 clippingAttachments: clippingAttachments,
                 bones: pose.boneWorld,
                 deforms: pose.deforms,
+                sequenceIndices: pose.sequenceIndices,
                 boneIndexByName: boneIndexByName,
                 atlas: atlas,
                 skeletonBounds: skeletonBounds,
@@ -895,6 +921,7 @@ final class SpineSetupPoseRenderer {
             clippingAttachments: clippingAttachments,
             bones: pose.boneWorld,
             deforms: pose.deforms,
+            sequenceIndices: pose.sequenceIndices,
             boneIndexByName: boneIndexByName,
             atlas: atlas,
             skeletonBounds: skeletonBounds,
@@ -960,13 +987,14 @@ final class SpineSetupPoseRenderer {
         overlayTime: Double,
         overlayMix: Double,
         physicsTime: Double
-    ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]]) {
+    ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
         var posedBones = bones
         var posedSlots = slots
         var deforms: [String: [String: [Double]]] = [:]
+        var sequenceIndices: [String: [String: Int]] = [:]
 
         if let baseAnimation {
-            apply(animation: baseAnimation, time: baseTime, alpha: 1, to: &posedBones, slots: &posedSlots, deforms: &deforms)
+            apply(animation: baseAnimation, time: baseTime, alpha: 1, to: &posedBones, slots: &posedSlots, deforms: &deforms, sequenceIndices: &sequenceIndices)
         }
         if let previousOverlayAnimation, previousOverlayMix > 0 {
             apply(
@@ -975,11 +1003,12 @@ final class SpineSetupPoseRenderer {
                 alpha: previousOverlayMix,
                 to: &posedBones,
                 slots: &posedSlots,
-                deforms: &deforms
+                deforms: &deforms,
+                sequenceIndices: &sequenceIndices
             )
         }
         if let overlayAnimation, overlayMix > 0 {
-            apply(animation: overlayAnimation, time: overlayTime, alpha: overlayMix, to: &posedBones, slots: &posedSlots, deforms: &deforms)
+            apply(animation: overlayAnimation, time: overlayTime, alpha: overlayMix, to: &posedBones, slots: &posedSlots, deforms: &deforms, sequenceIndices: &sequenceIndices)
         }
         applyDrawOrder(
             baseAnimation: baseAnimation,
@@ -1003,7 +1032,7 @@ final class SpineSetupPoseRenderer {
             physicsStateByName: &physicsStates,
             skeletonTime: physicsTime,
             referenceScale: referenceScale
-        ), posedSlots, deforms)
+        ), posedSlots, deforms, sequenceIndices)
     }
 
     private func apply(
@@ -1012,7 +1041,8 @@ final class SpineSetupPoseRenderer {
         alpha: Double,
         to posedBones: inout [Bone],
         slots posedSlots: inout [Slot],
-        deforms: inout [String: [String: [Double]]]
+        deforms: inout [String: [String: [Double]]],
+        sequenceIndices: inout [String: [String: Int]]
     ) {
         let mix = min(max(alpha, 0), 1)
         guard mix > 0 else { return }
@@ -1064,15 +1094,25 @@ final class SpineSetupPoseRenderer {
 
         for (slotName, attachmentMap) in animation.attachmentTimelines {
             for (attachmentName, timelines) in attachmentMap {
-                guard let attachment = attachments[slotName]?[attachmentName],
-                      timelines.deform.isEmpty == false else {
+                guard let attachment = attachments[slotName]?[attachmentName] else {
                     continue
                 }
-                let length = Self.deformLength(attachment: attachment)
-                let deform = sampleDeform(timelines.deform, time: time, length: length)
-                if deform.isEmpty == false {
-                    let current = deforms[slotName]?[attachmentName] ?? [Double](repeating: 0, count: deform.count)
-                    deforms[slotName, default: [:]][attachmentName] = blend(current, deform, mix)
+                if timelines.deform.isEmpty == false {
+                    let length = Self.deformLength(attachment: attachment)
+                    let deform = sampleDeform(timelines.deform, time: time, length: length)
+                    if deform.isEmpty == false {
+                        let current = deforms[slotName]?[attachmentName] ?? [Double](repeating: 0, count: deform.count)
+                        deforms[slotName, default: [:]][attachmentName] = blend(current, deform, mix)
+                    }
+                }
+                if let sequence = attachment.sequence,
+                   timelines.sequence.isEmpty == false,
+                   mix >= 0.5 {
+                    sequenceIndices[slotName, default: [:]][attachmentName] = sampleSequenceIndex(
+                        timelines.sequence,
+                        time: time,
+                        sequence: sequence
+                    )
                 }
             }
         }
@@ -1252,6 +1292,9 @@ final class SpineSetupPoseRenderer {
                             if let raw = timelineSet["deform"] {
                                 timelines.deform = parseDeformFrames(raw)
                             }
+                            if let raw = timelineSet["sequence"] {
+                                timelines.sequence = parseSequenceFrames(raw)
+                            }
                             duration = max(duration, timelines.maxTime)
                             attachmentTimelines[slotName, default: [:]][attachmentName] = timelines
                         }
@@ -1399,6 +1442,19 @@ final class SpineSetupPoseRenderer {
         }
     }
 
+    private static func parseSequenceFrames(_ raw: Any) -> [SequenceFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.map { frame in
+            SequenceFrame(
+                time: number(frame["time"], default: 0),
+                index: Int(number(frame["index"], default: 0)),
+                mode: frame["mode"] as? String ?? "hold",
+                delay: number(frame["delay"], default: 0)
+            )
+        }
+        .sorted { $0.time < $1.time }
+    }
+
     private func sampleValue(_ frames: [TimelineFrame], time: Double, defaultValue: Double) -> Double {
         sample(frames, time: time, defaultFrame: TimelineFrame(
             time: 0,
@@ -1454,6 +1510,50 @@ final class SpineSetupPoseRenderer {
             curve: nil
         ))
         return sampled.attachment
+    }
+
+    private func sampleSequenceIndex(_ frames: [SequenceFrame], time: Double, sequence: SequenceInfo) -> Int {
+        guard sequence.count > 0, frames.isEmpty == false else {
+            return sequence.setupIndex
+        }
+        let sorted = frames.sorted { $0.time < $1.time }
+        let frame = sorted.last { time >= $0.time } ?? sorted[0]
+        let baseIndex = min(max(frame.index, 0), sequence.count - 1)
+        let delay = max(frame.delay, 0)
+        let step = delay > 0 ? max(Int((time - frame.time) / delay), 0) : 0
+        let rawMode = frame.mode.lowercased().replacingOccurrences(of: "_", with: "")
+
+        switch rawMode {
+        case "setup":
+            return sequence.setupIndex
+        case "once":
+            return min(baseIndex + step, sequence.count - 1)
+        case "loop":
+            return positiveModulo(baseIndex + step, sequence.count)
+        case "pingpong", "pingpongonce":
+            return pingPongIndex(baseIndex + step, count: sequence.count)
+        case "oncereverse":
+            return max(baseIndex - step, 0)
+        case "loopreverse":
+            return positiveModulo(baseIndex - step, sequence.count)
+        case "pingpongreverse", "pingpongoncereverse":
+            return pingPongIndex(baseIndex - step, count: sequence.count)
+        default:
+            return baseIndex
+        }
+    }
+
+    private func positiveModulo(_ value: Int, _ modulus: Int) -> Int {
+        guard modulus > 0 else { return 0 }
+        let result = value % modulus
+        return result >= 0 ? result : result + modulus
+    }
+
+    private func pingPongIndex(_ value: Int, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        let period = (count - 1) * 2
+        let modulo = positiveModulo(value, period)
+        return modulo < count ? modulo : period - modulo
     }
 
     private func sampleDeform(_ frames: [DeformFrame], time: Double, length: Int) -> [Double] {
@@ -3151,7 +3251,8 @@ final class SpineSetupPoseRenderer {
                     slotName: slotName,
                     uvs: uvs,
                     triangles: triangles,
-                    vertices: vertices
+                    vertices: vertices,
+                    sequence: parseSequenceInfo(raw["sequence"])
                 )
                 bySlot[slotName, default: [:]][attachmentName] = attachment
             }
@@ -3184,7 +3285,8 @@ final class SpineSetupPoseRenderer {
                     slotName: linkedMesh.slotName,
                     uvs: parent.uvs,
                     triangles: parent.triangles,
-                    vertices: parent.vertices
+                    vertices: parent.vertices,
+                    sequence: parseSequenceInfo(linkedMesh.raw["sequence"]) ?? parent.sequence
                 )
                 resolvedAtLeastOne = true
             }
@@ -3234,8 +3336,39 @@ final class SpineSetupPoseRenderer {
             slotName: slotName,
             uvs: [0, 1, 0, 0, 1, 0, 1, 1],
             triangles: [0, 1, 2, 2, 3, 0],
-            vertices: vertices
+            vertices: vertices,
+            sequence: parseSequenceInfo(raw["sequence"])
         )
+    }
+
+    private static func parseSequenceInfo(_ raw: Any?) -> SequenceInfo? {
+        guard let map = raw as? [String: Any] else { return nil }
+        let count = Int(number(map["count"], default: 0))
+        guard count > 0 else { return nil }
+        let setupIndex = Int(number(map["setup"] ?? map["setupIndex"], default: 0))
+        return SequenceInfo(
+            count: count,
+            start: Int(number(map["start"], default: 0)),
+            digits: max(Int(number(map["digits"], default: 0)), 0),
+            setupIndex: min(max(setupIndex, 0), count - 1),
+            pathSuffix: map["pathSuffix"] as? Bool ?? true
+        )
+    }
+
+    private static func attachmentAtlasRegionName(_ attachment: Attachment, sequenceIndex: Int?) -> String {
+        guard let sequence = attachment.sequence,
+              sequence.pathSuffix else {
+            return attachment.name
+        }
+        let index = min(max(sequenceIndex ?? sequence.setupIndex, 0), sequence.count - 1)
+        let frameNumber = sequence.start + index
+        let suffix: String
+        if sequence.digits > 0 {
+            suffix = String(format: "%0\(sequence.digits)d", frameNumber)
+        } else {
+            suffix = "\(frameNumber)"
+        }
+        return "\(attachment.name)\(suffix)"
     }
 
     private static func parsePathAttachments(root: [String: Any]) throws -> [String: [String: PathAttachment]] {
@@ -3315,6 +3448,7 @@ final class SpineSetupPoseRenderer {
         clippingAttachments: [String: [String: ClippingAttachment]],
         bones: [BoneWorld],
         deforms: [String: [String: [Double]]] = [:],
+        sequenceIndices: [String: [String: Int]] = [:],
         boneIndexByName: [String: Int],
         atlas: (pages: [String: AtlasPage], regions: [String: AtlasRegion]),
         skeletonBounds: CGRect,
@@ -3327,6 +3461,7 @@ final class SpineSetupPoseRenderer {
             clippingAttachments: clippingAttachments,
             bones: bones,
             deforms: deforms,
+            sequenceIndices: sequenceIndices,
             boneIndexByName: boneIndexByName,
             atlas: atlas,
             skeletonBounds: skeletonBounds,
@@ -3341,6 +3476,7 @@ final class SpineSetupPoseRenderer {
         clippingAttachments: [String: [String: ClippingAttachment]],
         bones: [BoneWorld],
         deforms: [String: [String: [Double]]] = [:],
+        sequenceIndices: [String: [String: Int]] = [:],
         boneIndexByName: [String: Int],
         atlas: (pages: [String: AtlasPage], regions: [String: AtlasRegion]),
         skeletonBounds: CGRect,
@@ -3397,8 +3533,12 @@ final class SpineSetupPoseRenderer {
                 }
                 continue
             }
-            guard let region = atlas.regions[attachment.name] else {
-                throw EngineError.asset("Spine attachment \(attachment.slotName)/\(attachment.name) missing atlas region")
+            let atlasRegionName = Self.attachmentAtlasRegionName(
+                attachment,
+                sequenceIndex: sequenceIndices[slot.name]?[attachmentName]
+            )
+            guard let region = atlas.regions[atlasRegionName] ?? atlas.regions[attachment.name] else {
+                throw EngineError.asset("Spine attachment \(attachment.slotName)/\(atlasRegionName) missing atlas region")
             }
             guard let page = atlas.pages[region.pageName] else {
                 throw EngineError.asset("Spine atlas region \(region.name) references missing page \(region.pageName)")

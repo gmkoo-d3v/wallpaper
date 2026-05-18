@@ -3472,6 +3472,14 @@ enum RuntimeSelfTest {
         linked
         bounds: 0,0,64,64
         offsets: 0,0,64,64
+
+        linked0
+        bounds: 0,0,64,64
+        offsets: 0,0,64,64
+
+        linked1
+        bounds: 0,0,64,64
+        offsets: 0,0,64,64
         """
         try Data(atlasText.utf8).write(to: fixtureAtlas, options: .atomic)
 
@@ -3526,7 +3534,24 @@ enum RuntimeSelfTest {
             }
           ],
           "animations": {
-            "idle": {}
+            "idle": {
+              "attachments": {
+                "default": {
+                  "slot": {
+                    "linked": {
+                      "sequence": [
+                        {
+                          "time": 0,
+                          "mode": "loop",
+                          "index": 0,
+                          "delay": 0.1
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         """
@@ -3639,8 +3664,8 @@ enum RuntimeSelfTest {
         )
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\teventsAudioSequence\tsupported\tevents=none audio=none sequence=ignored(static-setup)"),
-            "runtime capabilities must tolerate Spine sequence metadata as static setup-frame data instead of forcing composite fallback",
+                .contains("spine\teventsAudioSequence\tsupported\tevents=none audio=none sequence=playback"),
+            "runtime capabilities must support Spine sequence timelines instead of forcing composite fallback",
             failures: &failures,
             checks: &checks
         )

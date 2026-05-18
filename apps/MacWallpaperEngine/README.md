@@ -200,9 +200,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   AVAudioPlayer-compatible files when `userControlled` audio is explicitly
   enabled; muted and disabled manifests stay silent without forcing composite
   fallback.
-- Spine `sequence` metadata on otherwise supported region/mesh attachments is
-  tolerated as static setup-frame data instead of forcing a composite fallback.
-  Actual sequence attachment types/timelines remain an explicit unsupported gate.
+- Spine `sequence` metadata and `attachments.sequence` timelines are supported
+  for otherwise supported region/mesh attachments, selecting alternate atlas
+  regions without forcing a composite fallback.
 - Shared interaction plan for deterministic hit-zone, default-action, button, and
   look-direction diagnostics.
 - Interaction hit testing resolves the wallpaper content aspect from Spine
@@ -335,7 +335,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Spine animated sequence attachment/timeline playback and non-region non-mesh attachment paths.
+- Spine non-region non-mesh attachment paths.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
