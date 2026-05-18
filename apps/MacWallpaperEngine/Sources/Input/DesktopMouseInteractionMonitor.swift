@@ -637,6 +637,8 @@ final class DesktopMouseInteractionMonitor {
 }
 
 enum DesktopInteractionGate {
+    static let accessibilityTrustCheckPolicy = "check-without-prompt"
+
     enum EligibilityDecision: String {
         case eligible
         case blockedDisabled
@@ -671,7 +673,8 @@ enum DesktopInteractionGate {
     }
 
     static func hasAccessibilityTrust() -> Bool {
-        AXIsProcessTrusted()
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        return AXIsProcessTrustedWithOptions([promptKey: false] as CFDictionary)
     }
 
     static func requestAccessibilityTrustPrompt() -> Bool {

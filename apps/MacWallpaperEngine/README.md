@@ -113,6 +113,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--spine-profile` reports native Spine renderer initialization, warmup, and
   repeated geometry-sampling timings so optimization work has a reproducible
   CLI baseline instead of relying on Activity Monitor observation alone.
+- Native Spine timeline frames are sorted once during parse and sampled without
+  per-frame sorting allocations, reducing repeated pose evaluation overhead for
+  longer actions.
 - `--spine-animation-plan` also samples native Spine renderer geometry across
   timeline keyframes, discrete attachment/draw-order transitions, runtime
   frame-cadence poses, and partial look-direction pose mixes for every manifest
@@ -328,8 +331,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   fails closed without showing the macOS prompt; the control panel exposes the
   current trust state and requests permission only after the user presses the
   Accessibility action.
-- Renderer warmup and video-loop gaps retain the last usable video frame, then
-  fall back to preview art or a neutral background instead of flashing black.
+- Renderer warmup, video-loop gaps, and first-frame pause/resource paths retain
+  the last usable video frame, then fall back to preview art or a neutral
+  background instead of flashing black.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
   - `Composite`: verified MP4 composite fallback.

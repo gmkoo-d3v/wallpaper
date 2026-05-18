@@ -205,6 +205,10 @@ enum RuntimeSelfTest {
             "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
         )
         check(
+            DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt",
+            "startup Accessibility trust checks must use no-prompt probes"
+        )
+        check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
                 usesPassiveEventMonitoring: true,
                 accessibilityTrusted: false
@@ -228,6 +232,14 @@ enum RuntimeSelfTest {
         check(
             RuntimeLifecyclePolicy.rendererWarmupFallbackPolicy == "preview-last-frame-or-neutral-background",
             "renderer warmup must avoid transient black frames while the first video frame is unavailable"
+        )
+        check(
+            MetalCompositor.pausedFirstFramePolicy == "draw-static-fallback-before-pausing",
+            "renderer must submit a fallback drawable before pause/resource paths can leave a new window black"
+        )
+        check(
+            SpineSetupPoseRenderer.timelineSamplingPolicy == "parse-sorted/no-per-sample-sort",
+            "native Spine renderer must sort timeline frames once during parse instead of sorting every sampled pose"
         )
         check(
             RuntimeLifecyclePolicy.defaultDisplayModeForNewBundle == .primaryOnly,
@@ -3811,6 +3823,17 @@ enum RuntimeSelfTest {
             linkedMeshRuntime.runtimeCapabilitiesSummary()
                 .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.rgb"),
             "runtime capabilities must report slot rgb/alpha component timelines as supported",
+            failures: &failures,
+            checks: &checks
+        )
+        let linkedMeshAnimationPlan = try SpineAnimationDiagnostics.make(runtime: linkedMeshRuntime)
+        check(
+            linkedMeshAnimationPlan.contains("unsupportedActionTimelines: none")
+                && linkedMeshAnimationPlan.contains("animation\tidle\tavailable")
+                && linkedMeshAnimationPlan.contains("slot.alpha=1")
+                && linkedMeshAnimationPlan.contains("slot.rgb=1")
+                && linkedMeshAnimationPlan.contains("attachment.sequence=1"),
+            "Spine animation diagnostics must align with native runtime support for slot rgb/alpha and sequence timelines",
             failures: &failures,
             checks: &checks
         )

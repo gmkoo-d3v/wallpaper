@@ -134,6 +134,7 @@ struct SpineGeometryDiagnostics {
             "samplesPerIteration: \(latestSamples.count)",
             "setupBatches: \(renderer.batchCount)",
             "setupVertices: \(renderer.triangleVertexCount)",
+            "timelineSampling: \(SpineSetupPoseRenderer.timelineSamplingPolicy)",
             "initMs: \(formatMilliseconds(initMs))",
             "warmupSampleMs: \(formatMilliseconds(warmupMs))",
             "averageSampleMs: \(formatMilliseconds(averageMs))",

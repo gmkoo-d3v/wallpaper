@@ -500,6 +500,7 @@ final class SpineSetupPoseRenderer {
     private static let maxPoseFrameCacheEntries = 96
     private static let maxPoseFrameCacheBytes = 32 * 1024 * 1024
     static let maxGeometryDiagnosticSamplesPerAction = 96
+    static let timelineSamplingPolicy = "parse-sorted/no-per-sample-sort"
 
     init(
         spineAsset: SpineAsset,
@@ -1433,6 +1434,7 @@ final class SpineSetupPoseRenderer {
                 curve: parseCurve(frame["curve"])
             )
         }
+        .sorted { $0.time < $1.time }
     }
 
     private static func parseColorFrames(_ raw: Any) -> [TimelineFrame] {
@@ -1449,6 +1451,7 @@ final class SpineSetupPoseRenderer {
                 curve: parseCurve(frame["curve"])
             )
         }
+        .sorted { $0.time < $1.time }
     }
 
     private static func parseRGBColorFrames(_ raw: Any) -> [TimelineFrame] {
@@ -1465,6 +1468,7 @@ final class SpineSetupPoseRenderer {
                 curve: parseCurve(frame["curve"])
             )
         }
+        .sorted { $0.time < $1.time }
     }
 
     private static func parseAlphaFrames(_ raw: Any) -> [TimelineFrame] {
@@ -1481,6 +1485,7 @@ final class SpineSetupPoseRenderer {
                 curve: parseCurve(frame["curve"])
             )
         }
+        .sorted { $0.time < $1.time }
     }
 
     private static func parseAttachmentFrames(_ raw: Any) -> [TimelineFrame] {
@@ -1497,6 +1502,7 @@ final class SpineSetupPoseRenderer {
                 curve: nil
             )
         }
+        .sorted { $0.time < $1.time }
     }
 
     private static func parseDeformFrames(_ raw: Any) -> [DeformFrame] {
@@ -1510,6 +1516,7 @@ final class SpineSetupPoseRenderer {
                 curve: parseCurve(frame["curve"])
             )
         }
+        .sorted { $0.time < $1.time }
     }
 
     private static func parseSequenceFrames(_ raw: Any) -> [SequenceFrame] {
@@ -1617,8 +1624,7 @@ final class SpineSetupPoseRenderer {
         guard sequence.count > 0, frames.isEmpty == false else {
             return sequence.setupIndex
         }
-        let sorted = frames.sorted { $0.time < $1.time }
-        let frame = sorted.last { time >= $0.time } ?? sorted[0]
+        let frame = frames.last { time >= $0.time } ?? frames[0]
         let baseIndex = min(max(frame.index, 0), sequence.count - 1)
         let delay = max(frame.delay, 0)
         let step = delay > 0 ? max(Int((time - frame.time) / delay), 0) : 0
@@ -1659,14 +1665,13 @@ final class SpineSetupPoseRenderer {
 
     private func sampleDeform(_ frames: [DeformFrame], time: Double, length: Int) -> [Double] {
         guard length > 0, frames.isEmpty == false else { return [] }
-        let sorted = frames.sorted { $0.time < $1.time }
-        guard time > sorted[0].time else {
-            return deformVector(sorted[0], length: length)
+        guard time > frames[0].time else {
+            return deformVector(frames[0], length: length)
         }
 
-        for index in 0..<(sorted.count - 1) {
-            let current = sorted[index]
-            let next = sorted[index + 1]
+        for index in 0..<(frames.count - 1) {
+            let current = frames[index]
+            let next = frames[index + 1]
             if time <= next.time {
                 if current.stepped || next.time <= current.time {
                     return deformVector(current, length: length)
@@ -1688,7 +1693,7 @@ final class SpineSetupPoseRenderer {
             }
         }
 
-        return deformVector(sorted.last, length: length)
+        return deformVector(frames.last, length: length)
     }
 
     private func deformVector(_ frame: DeformFrame?, length: Int) -> [Double] {
@@ -1708,12 +1713,11 @@ final class SpineSetupPoseRenderer {
 
     private func sample(_ frames: [TimelineFrame], time: Double, defaultFrame: TimelineFrame) -> TimelineFrame {
         guard frames.isEmpty == false else { return defaultFrame }
-        let sorted = frames.sorted { $0.time < $1.time }
-        guard time > sorted[0].time else { return sorted[0] }
+        guard time > frames[0].time else { return frames[0] }
 
-        for index in 0..<(sorted.count - 1) {
-            let current = sorted[index]
-            let next = sorted[index + 1]
+        for index in 0..<(frames.count - 1) {
+            let current = frames[index]
+            let next = frames[index + 1]
             if time <= next.time {
                 if current.stepped || next.time <= current.time {
                     return current
@@ -1759,7 +1763,7 @@ final class SpineSetupPoseRenderer {
             }
         }
 
-        return sorted.last ?? defaultFrame
+        return frames.last ?? defaultFrame
     }
 
     private func interpolateColor(_ start: SIMD4<Float>?, _ end: SIMD4<Float>?, ratio: Double) -> SIMD4<Float>? {

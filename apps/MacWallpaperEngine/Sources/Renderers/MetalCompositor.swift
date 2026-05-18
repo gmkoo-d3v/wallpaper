@@ -3,6 +3,15 @@ import Metal
 import MetalKit
 
 final class MetalCompositor: NSObject, MTKViewDelegate {
+    static let pausedFirstFramePolicy = "draw-static-fallback-before-pausing"
+
+    private static let fallbackClearColor = MTLClearColor(
+        red: 0.95,
+        green: 0.95,
+        blue: 0.965,
+        alpha: 1.0
+    )
+
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let normalPipelineState: MTLRenderPipelineState
@@ -30,6 +39,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var isPausedByHost = false
     private var isPausedByThermal = false
     private var isUsingResourceFallbackVideo = false
+    private var hasSubmittedDrawable = false
 
     init(
         device: MTLDevice,
@@ -199,7 +209,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             if view.preferredFramesPerSecond != 1 {
                 view.preferredFramesPerSecond = 1
             }
-            return
+            if hasSubmittedDrawable {
+                return
+            }
         }
 
         if view.preferredFramesPerSecond != currentFps {
@@ -220,6 +232,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             publishTelemetry()
             return
         }
+        descriptor.colorAttachments[0].clearColor = Self.fallbackClearColor
+        descriptor.colorAttachments[0].loadAction = .clear
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
             semaphore.signal()
             governor.recordSkippedFrame(reason: .commandBufferUnavailable)
@@ -241,7 +255,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         let interactionSnapshot = interaction.snapshot()
 
         let baseVideoTexture: MTLTexture?
-        if isUsingResourceFallbackVideo {
+        if shouldPause {
+            baseVideoTexture = lastResourceFallbackVideoTexture ?? lastPrimaryVideoTexture
+        } else if isUsingResourceFallbackVideo {
             let freshTexture = resourceFallbackVideoSource?.copyTextureForCurrentTime()
             if let freshTexture {
                 lastResourceFallbackVideoTexture = freshTexture
@@ -265,10 +281,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             foregroundContentRect = CGRect(x: -1, y: -1, width: 2, height: 2)
         }
 
-        if isUsingResourceFallbackVideo == false {
+        if shouldPause == false, isUsingResourceFallbackVideo == false {
             drawDeskOcclusion(baseVideoTexture: usingCompositeVideo ? nil : baseVideoTexture, drawableSize: view.drawableSize, encoder: encoder)
         }
-        if isUsingResourceFallbackVideo == false, displayRole.rendersForeground, let spineRenderer {
+        if shouldPause == false, isUsingResourceFallbackVideo == false, displayRole.rendersForeground, let spineRenderer {
             spineRenderer.draw(
                 command: interactionSnapshot.command,
                 pointer: interactionSnapshot.pointer,
@@ -289,6 +305,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         encoder.endEncoding()
         commandBuffer.present(drawable)
         governor.recordSubmittedFrame()
+        hasSubmittedDrawable = true
         publishTelemetry()
         commandBuffer.commit()
     }

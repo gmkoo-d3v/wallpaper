@@ -50,10 +50,15 @@ struct SpineAnimationDiagnostics {
         "bone.scale",
         "bone.shear",
         "slot.rgba",
+        "slot.rgb",
+        "slot.alpha",
         "slot.attachment",
         "attachment.deform",
+        "attachment.sequence",
         "drawOrder",
-        "draworder"
+        "draworder",
+        "events",
+        "event"
     ]
 
     static func tapActionDurations(runtime: NativeRuntimeCore) throws -> [String: TimeInterval] {
