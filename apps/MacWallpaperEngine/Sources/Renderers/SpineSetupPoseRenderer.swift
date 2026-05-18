@@ -457,6 +457,22 @@ final class SpineSetupPoseRenderer {
         let error: String
     }
 
+    struct PoseCacheStats {
+        let exactHits: Int
+        let frameHits: Int
+        let misses: Int
+        let stores: Int
+        let entries: Int
+        let bytes: Int
+    }
+
+    struct PoseCacheProbe {
+        let firstBuildMs: Double
+        let exactHitMs: Double
+        let frameHitMs: Double
+        let stats: PoseCacheStats
+    }
+
     private let device: MTLDevice
     private let atlas: (pages: [String: AtlasPage], regions: [String: AtlasRegion])
     private let bones: [Bone]
@@ -487,6 +503,10 @@ final class SpineSetupPoseRenderer {
     private var cachedPoseKey = ""
     private var poseFrameCache: [PoseFrameCacheEntry] = []
     private var poseFrameCacheBytes = 0
+    private var poseCacheExactHits = 0
+    private var poseCacheFrameHits = 0
+    private var poseCacheMisses = 0
+    private var poseCacheStores = 0
     private var activeAnimationName = "idle"
     private var activeAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
     private var previousOverlayAnimationName: String?
@@ -715,8 +735,7 @@ final class SpineSetupPoseRenderer {
         )
     }
 
-    private func batches(command: String, pointer: CGPoint) -> [Batch] {
-        let now = CACurrentMediaTime()
+    private func batches(command: String, pointer: CGPoint, now: CFTimeInterval = CACurrentMediaTime()) -> [Batch] {
         let animationName = resolvedAnimationName(command: command, now: now)
         guard let activeAnimation = animations[animationName] ?? animations["idle"] else {
             return cachedBatches
@@ -748,11 +767,13 @@ final class SpineSetupPoseRenderer {
         let quantizedLookMix = Int((lookMix * poseSampleFps).rounded())
         let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame)"
         if cacheKey == cachedPoseKey {
+            poseCacheExactHits += 1
             return cachedBatches
         }
 
         do {
             if canUsePoseFrameCache, let cachedVertexBatches = cachedVertexBatches(for: cacheKey) {
+                poseCacheFrameHits += 1
                 cachedBatches = try Self.updateBatches(
                     from: cachedVertexBatches,
                     previous: cachedBatches,
@@ -762,6 +783,7 @@ final class SpineSetupPoseRenderer {
                 return cachedBatches
             }
 
+            poseCacheMisses += 1
             let pose = evaluate(
                 baseAnimation: idleAnimation,
                 baseTime: idleAnimationTime,
@@ -863,12 +885,59 @@ final class SpineSetupPoseRenderer {
             byteCount: byteCount
         ))
         poseFrameCacheBytes += byteCount
+        poseCacheStores += 1
 
         while poseFrameCache.count > Self.maxPoseFrameCacheEntries
             || poseFrameCacheBytes > Self.maxPoseFrameCacheBytes {
             let removed = poseFrameCache.removeFirst()
             poseFrameCacheBytes -= removed.byteCount
         }
+    }
+
+    func diagnosticPoseCacheProbe(command: String, pointer: CGPoint = CGPoint(x: 0.5, y: 0.5)) -> PoseCacheProbe {
+        resetPoseCacheStats()
+        let baseNow = max(CACurrentMediaTime(), rendererStartedAt) + 1.0
+        let firstBuildMs = Self.measureMilliseconds {
+            _ = batches(command: command, pointer: pointer, now: baseNow)
+        }
+        let exactHitMs = Self.measureMilliseconds {
+            _ = batches(command: command, pointer: pointer, now: baseNow)
+        }
+        _ = batches(command: command, pointer: pointer, now: baseNow + (1.0 / poseSampleFps))
+        let frameHitMs = Self.measureMilliseconds {
+            _ = batches(command: command, pointer: pointer, now: baseNow)
+        }
+        return PoseCacheProbe(
+            firstBuildMs: firstBuildMs,
+            exactHitMs: exactHitMs,
+            frameHitMs: frameHitMs,
+            stats: poseCacheStats()
+        )
+    }
+
+    private func resetPoseCacheStats() {
+        poseCacheExactHits = 0
+        poseCacheFrameHits = 0
+        poseCacheMisses = 0
+        poseCacheStores = 0
+    }
+
+    private func poseCacheStats() -> PoseCacheStats {
+        PoseCacheStats(
+            exactHits: poseCacheExactHits,
+            frameHits: poseCacheFrameHits,
+            misses: poseCacheMisses,
+            stores: poseCacheStores,
+            entries: poseFrameCache.count,
+            bytes: poseFrameCacheBytes
+        )
+    }
+
+    private static func measureMilliseconds(_ work: () -> Void) -> Double {
+        let start = DispatchTime.now().uptimeNanoseconds
+        work()
+        let end = DispatchTime.now().uptimeNanoseconds
+        return Double(end - start) / 1_000_000.0
     }
 
     private func diagnosticGeometrySample(

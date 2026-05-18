@@ -137,6 +137,8 @@ struct SpineGeometryDiagnostics {
             softLimitMs: softLimitMs,
             frameBudgetMs: frameBudgetMs
         )
+        let cacheProbe = renderer.diagnosticPoseCacheProbe(command: "idle")
+        let cacheStats = cacheProbe.stats
         let profileStatus = invalidSamples.isEmpty ? "renderable" : "invalid-samples"
 
         return [
@@ -161,6 +163,11 @@ struct SpineGeometryDiagnostics {
             "poseBudgetSoftLimitMs: \(formatMilliseconds(softLimitMs))",
             "poseBudgetPolicy: \(poseBudgetPolicy)",
             "poseBudgetStatus: \(poseBudgetStatus)",
+            "poseCacheProbe: idle",
+            "poseCacheFirstBuildMs: \(formatMilliseconds(cacheProbe.firstBuildMs))",
+            "poseCacheExactHitMs: \(formatMilliseconds(cacheProbe.exactHitMs))",
+            "poseCacheFrameHitMs: \(formatMilliseconds(cacheProbe.frameHitMs))",
+            "poseCacheStats: exactHits=\(cacheStats.exactHits) frameHits=\(cacheStats.frameHits) misses=\(cacheStats.misses) stores=\(cacheStats.stores) entries=\(cacheStats.entries) bytes=\(cacheStats.bytes)",
             "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))"
         ].joined(separator: "\n")
     }

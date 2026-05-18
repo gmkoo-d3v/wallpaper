@@ -112,8 +112,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   interaction action resolves to a real animation.
 - `--spine-profile` reports native Spine renderer initialization, warmup,
   repeated geometry-sampling timings, per-pose sample cost, and frame-budget
-  status so optimization work has a reproducible CLI baseline instead of
-  relying on Activity Monitor observation alone.
+  status, plus runtime pose-cache hit/miss timing, so optimization work has a
+  reproducible CLI baseline instead of relying on Activity Monitor observation
+  alone.
 - Native Spine timeline frames are sorted once during parse and sampled without
   per-frame sorting allocations, reducing repeated pose evaluation overhead for
   longer actions.

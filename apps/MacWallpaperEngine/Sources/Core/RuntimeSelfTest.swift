@@ -1016,6 +1016,16 @@ enum RuntimeSelfTest {
                 "Spine profile diagnostics must expose per-pose frame-budget metrics"
             )
             check(
+                spineProfile.contains("poseCacheProbe: idle")
+                    && spineProfile.contains("poseCacheExactHitMs:")
+                    && spineProfile.contains("poseCacheFrameHitMs:")
+                    && spineProfile.contains("poseCacheStats: exactHits=")
+                    && spineProfile.contains("frameHits=")
+                    && spineProfile.contains("misses=")
+                    && spineProfile.contains("stores="),
+                "Spine profile diagnostics must expose runtime pose-cache hit and miss metrics"
+            )
+            check(
                 spineAnimationPlan.contains("animation\tidle\tavailable"),
                 "Spine animation diagnostics must report idle animation availability"
             )
