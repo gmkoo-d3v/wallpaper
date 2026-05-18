@@ -2,6 +2,9 @@ import Foundation
 import Metal
 
 struct SpineGeometryDiagnostics {
+    static let poseBudgetPolicy = "p95-pose<=50%-frame-budget-pass;<=100%-warn;>100%-fail"
+    private static let poseBudgetSoftLimitFraction = 0.50
+
     static func make(runtime: NativeRuntimeCore) throws -> String {
         let actionNames = manifestActionNames(runtime.manifest)
         guard let spineAsset = runtime.assetCatalog.spineAsset else {
@@ -123,6 +126,17 @@ struct SpineGeometryDiagnostics {
         let averageMs = iterationMs.reduce(0, +) / Double(iterationMs.count)
         let p95Ms = percentile(iterationMs, fraction: 0.95)
         let maxMs = iterationMs.max() ?? 0
+        let samplesPerIteration = max(latestSamples.count, 1)
+        let averagePoseMs = averageMs / Double(samplesPerIteration)
+        let p95PoseMs = p95Ms / Double(samplesPerIteration)
+        let maxPoseMs = maxMs / Double(samplesPerIteration)
+        let softLimitMs = frameBudgetMs * poseBudgetSoftLimitFraction
+        let poseBudgetStatus = poseBudgetStatus(
+            invalidSamples: invalidSamples,
+            p95PoseMs: p95PoseMs,
+            softLimitMs: softLimitMs,
+            frameBudgetMs: frameBudgetMs
+        )
         let profileStatus = invalidSamples.isEmpty ? "renderable" : "invalid-samples"
 
         return [
@@ -141,6 +155,12 @@ struct SpineGeometryDiagnostics {
             "p95SampleMs: \(formatMilliseconds(p95Ms))",
             "maxSampleMs: \(formatMilliseconds(maxMs))",
             "targetFrameBudgetMs: \(formatMilliseconds(frameBudgetMs))",
+            "averagePoseSampleMs: \(formatMilliseconds(averagePoseMs))",
+            "p95PoseSampleMs: \(formatMilliseconds(p95PoseMs))",
+            "maxPoseSampleMs: \(formatMilliseconds(maxPoseMs))",
+            "poseBudgetSoftLimitMs: \(formatMilliseconds(softLimitMs))",
+            "poseBudgetPolicy: \(poseBudgetPolicy)",
+            "poseBudgetStatus: \(poseBudgetStatus)",
             "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))"
         ].joined(separator: "\n")
     }
@@ -274,6 +294,22 @@ struct SpineGeometryDiagnostics {
         let clamped = min(max(fraction, 0), 1)
         let index = min(sorted.count - 1, Int(Double(sorted.count - 1) * clamped))
         return sorted[index]
+    }
+
+    private static func poseBudgetStatus(
+        invalidSamples: [SpineSetupPoseRenderer.GeometrySample],
+        p95PoseMs: Double,
+        softLimitMs: Double,
+        frameBudgetMs: Double
+    ) -> String {
+        guard invalidSamples.isEmpty else { return "fail(invalid-geometry)" }
+        if p95PoseMs <= softLimitMs {
+            return "pass"
+        }
+        if p95PoseMs <= frameBudgetMs {
+            return "warn"
+        }
+        return "fail"
     }
 
     private static func samplePolicyLine(poseSampleFps: Int?) -> String {

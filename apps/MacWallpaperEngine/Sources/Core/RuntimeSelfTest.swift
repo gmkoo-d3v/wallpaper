@@ -1005,6 +1005,16 @@ enum RuntimeSelfTest {
                     "Spine geometry diagnostics must sample partial look-direction pose mixes"
                 )
             }
+            let spineProfile = try SpineGeometryDiagnostics.profile(runtime: runtime, iterations: 1)
+            check(
+                spineProfile.contains("spine profile OK")
+                    && spineProfile.contains("averagePoseSampleMs:")
+                    && spineProfile.contains("p95PoseSampleMs:")
+                    && spineProfile.contains("poseBudgetSoftLimitMs:")
+                    && spineProfile.contains("poseBudgetPolicy: \(SpineGeometryDiagnostics.poseBudgetPolicy)")
+                    && spineProfile.contains("poseBudgetStatus:"),
+                "Spine profile diagnostics must expose per-pose frame-budget metrics"
+            )
             check(
                 spineAnimationPlan.contains("animation\tidle\tavailable"),
                 "Spine animation diagnostics must report idle animation availability"

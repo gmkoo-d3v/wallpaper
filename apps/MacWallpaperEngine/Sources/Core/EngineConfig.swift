@@ -720,7 +720,7 @@ struct EngineConfig {
                               Probe one normalized content coordinate through move, hit-zone, and click timeline mapping, then exit.
       --probe-button <button>  Button for --probe-interaction: left | right. Default: left.
       --spine-animation-plan   Print Spine animation durations, native geometry samples, and manifest action links, then exit.
-      --spine-profile          Print native Spine geometry profiler timings for optimization baselines, then exit.
+      --spine-profile          Print native Spine geometry profiler timings and frame-budget metrics, then exit.
       --spine-snapshot <png>   Render a native Spine diagnostic PNG on a white background, then exit.
       --wallpaper-snapshot <png>
                               Render a full diagnostic wallpaper PNG, then exit.
