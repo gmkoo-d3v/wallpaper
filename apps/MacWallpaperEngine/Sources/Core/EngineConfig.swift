@@ -98,6 +98,7 @@ struct EngineConfig {
     let interactive: Bool
     let launchControlPanel: Bool
     let launchWallpaper: Bool
+    let launchAtLogin: Bool
     let videoEnabled: Bool
     let metalEnabled: Bool
     let plainWindowStyle: Bool
@@ -120,6 +121,7 @@ struct EngineConfig {
         clearDuration: Bool = false,
         launchControlPanel: Bool? = nil,
         launchWallpaper: Bool? = nil,
+        launchAtLogin: Bool? = nil,
         videoEnabled: Bool? = nil,
         metalEnabled: Bool? = nil,
         plainWindowStyle: Bool? = nil,
@@ -194,6 +196,7 @@ struct EngineConfig {
             interactive: interactive ?? self.interactive,
             launchControlPanel: launchControlPanel ?? self.launchControlPanel,
             launchWallpaper: launchWallpaper ?? self.launchWallpaper,
+            launchAtLogin: launchAtLogin ?? self.launchAtLogin,
             videoEnabled: videoEnabled ?? self.videoEnabled,
             metalEnabled: metalEnabled ?? self.metalEnabled,
             plainWindowStyle: plainWindowStyle ?? self.plainWindowStyle
@@ -224,6 +227,7 @@ struct EngineConfig {
         var explicitAudioEnabled = false
         var explicitFitMode = false
         var explicitForegroundMode = false
+        var explicitLaunchAtLogin = false
         var validateOnly = false
         var displayPlanOnly = false
         var renderPlanOnly = false
@@ -254,6 +258,7 @@ struct EngineConfig {
         var interactive = true
         var launchControlPanel = true
         var launchWallpaper = true
+        var launchAtLogin = false
         var videoEnabled = true
         var metalEnabled = true
         var plainWindowStyle = false
@@ -472,6 +477,12 @@ struct EngineConfig {
                 launchWallpaper = true
             case "--no-wallpaper":
                 launchWallpaper = false
+            case "--launch-at-login":
+                launchAtLogin = true
+                explicitLaunchAtLogin = true
+            case "--no-launch-at-login":
+                launchAtLogin = false
+                explicitLaunchAtLogin = true
             case "--no-video":
                 videoEnabled = false
             case "--no-metal":
@@ -531,6 +542,9 @@ struct EngineConfig {
             }
             if !explicitForegroundMode, let persisted = persistedSettings.foregroundMode {
                 foregroundMode = persisted
+            }
+            if !explicitLaunchAtLogin, let persisted = persistedSettings.launchAtLogin {
+                launchAtLogin = persisted
             }
         }
 
@@ -610,6 +624,7 @@ struct EngineConfig {
             interactive: interactive,
             launchControlPanel: launchControlPanel,
             launchWallpaper: launchWallpaper,
+            launchAtLogin: launchAtLogin,
             videoEnabled: videoEnabled,
             metalEnabled: metalEnabled,
             plainWindowStyle: plainWindowStyle
@@ -733,6 +748,8 @@ struct EngineConfig {
       --control-panel-only      Show only the control panel; do not start wallpaper windows.
       --wallpaper-only          Start wallpaper windows without the control panel.
       --no-wallpaper            Do not start wallpaper windows.
+      --launch-at-login         Register the packaged app as a macOS login item.
+      --no-launch-at-login      Unregister the packaged app login item. Default.
       --no-video                Disable video decoding and draw static fallback only.
       --no-metal                Use a plain NSView instead of MTKView for windowing diagnostics.
       --plain-window-style      Use titled normal app windows for windowing diagnostics.

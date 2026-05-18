@@ -144,10 +144,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
-- Control panel bundle, display, interaction, FPS, playback, audio opt-in, fit,
-  and foreground renderer selections persist under Application Support and are
-  restored on the next normal app launch unless an explicit CLI flag overrides
-  them.
+- Control panel bundle, display, interaction, FPS, playback, audio opt-in,
+  launch-at-login, fit, and foreground renderer selections persist under
+  Application Support and are restored on the next normal app launch unless an
+  explicit CLI flag overrides them.
 - Validation, self-test, capability, display-plan, render-plan, and performance
   diagnostics ignore persisted user settings so package/build checks remain
   reproducible.
@@ -274,6 +274,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   background policy.
 - Startup host failures keep the control panel open when UI is available so
   users can choose another bundle instead of watching the app silently exit.
+- Control panel launch-at-login registration uses the macOS login item API for
+  packaged `.app` builds; denial or unavailable packaging state is surfaced as a
+  recoverable settings error instead of crashing the wallpaper runtime.
 - Repeated host renderer start failures are persisted by
   wallpaper/display/renderer key and enter safe mode after bounded retries,
   yielding to the system wallpaper instead of looping window creation across
@@ -368,6 +371,7 @@ swift run MacWallpaperEngine --probe-interaction 0.5,0.42
 swift run MacWallpaperEngine --probe-interaction 0.5,0.70 --probe-button left
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
 swift run MacWallpaperEngine --audio --runtime-capabilities
+swift run MacWallpaperEngine --launch-at-login --control-panel-only
 swift run MacWallpaperEngine --spine-animation-plan
 swift run MacWallpaperEngine --wallpaper-golden-check
 swift run MacWallpaperEngine --list-bundles --include-capabilities

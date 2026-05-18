@@ -31,6 +31,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         do {
+            try applyLaunchAtLoginSetting(runtime.config.launchAtLogin)
             if runtime.config.launchWallpaper {
                 try startHost()
             }
@@ -148,6 +149,16 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func applyLaunchAtLoginSetting(_ enabled: Bool) throws {
+        let status = LaunchAtLoginController.status()
+        if enabled == false,
+           status != .enabled,
+           status != .requiresApproval {
+            return
+        }
+        try LaunchAtLoginController.setEnabled(enabled)
+    }
+
     private func restartHost(
         displayMode: DisplayMode,
         primaryDisplaySelector: String?,
@@ -156,6 +167,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         matchDisplayRefresh: Bool,
         playbackRate: Float,
         audioEnabled: Bool,
+        launchAtLogin: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -183,9 +195,11 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 foregroundMode: foregroundMode,
                 interactionDebugOverlay: interactionDebugOverlay,
                 startHidden: false,
-                clearDuration: true
+                clearDuration: true,
+                launchAtLogin: launchAtLogin
             )
             let nextRuntime = try NativeRuntimeCore(config: nextConfig)
+            try applyLaunchAtLoginSetting(nextRuntime.config.launchAtLogin)
             if wasRunning {
                 stopHost()
                 runtime = nextRuntime
@@ -289,6 +303,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 audioEnabled: false,
                 audioControlEnabled: false,
                 audioStatusText: "AUDIO MUTED / no wallpaper bundle selected",
+                launchAtLogin: false,
+                launchAtLoginControlEnabled: LaunchAtLoginController.status() != .unavailable,
+                launchAtLoginStatusText: LaunchAtLoginController.controlPanelText(desiredEnabled: false),
                 fitMode: .contain,
                 foregroundMode: .automatic,
                 interactionDebugOverlay: false,
@@ -335,6 +352,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             audioEnabled: runtime.config.audioEnabled,
             audioControlEnabled: runtime.manifest.runtime.effectiveAudioPolicy == .userControlled,
             audioStatusText: audioStatusText(for: runtime),
+            launchAtLogin: runtime.config.launchAtLogin,
+            launchAtLoginControlEnabled: LaunchAtLoginController.status() != .unavailable,
+            launchAtLoginStatusText: LaunchAtLoginController.controlPanelText(desiredEnabled: runtime.config.launchAtLogin),
             fitMode: runtime.config.fitMode,
             foregroundMode: runtime.config.foregroundMode,
             interactionDebugOverlay: runtime.config.interactionDebugOverlay,
@@ -379,6 +399,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         matchDisplayRefresh: Bool,
         playbackRate: Float,
         audioEnabled: Bool,
+        launchAtLogin: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -391,6 +412,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             matchDisplayRefresh: matchDisplayRefresh,
             playbackRate: playbackRate,
             audioEnabled: audioEnabled,
+            launchAtLogin: launchAtLogin,
             fitMode: fitMode,
             foregroundMode: foregroundMode,
             interactionDebugOverlay: interactionDebugOverlay
@@ -595,6 +617,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             interactive: true,
             launchControlPanel: true,
             launchWallpaper: true,
+            launchAtLogin: false,
             videoEnabled: true,
             metalEnabled: true,
             plainWindowStyle: false

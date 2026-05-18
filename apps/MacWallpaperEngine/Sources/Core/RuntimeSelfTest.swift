@@ -2178,7 +2178,8 @@ enum RuntimeSelfTest {
             foregroundMode: .nativeSpine,
             clearDuration: true,
             launchControlPanel: true,
-            launchWallpaper: true
+            launchWallpaper: true,
+            launchAtLogin: true
         )
 
         try RuntimeSettingsStore.save(config: tunedConfig, to: settingsURL)
@@ -2213,6 +2214,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        check(loaded.launchAtLogin == true, "runtime settings must persist launch-at-login opt-in", failures: &failures, checks: &checks)
         check(
             RuntimeSettingsStore.validWallpaperRoot(from: loaded)?.standardizedFileURL.path == tunedConfig.wallpaperRoot.standardizedFileURL.path,
             "runtime settings must only restore a validated wallpaper root",
@@ -2262,6 +2264,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        check(parsed.launchAtLogin, "EngineConfig must restore persisted launch-at-login opt-in", failures: &failures, checks: &checks)
 
         let diagnosticParse = try EngineConfig.parse(["--validate-only"])
         check(
@@ -2309,6 +2312,12 @@ enum RuntimeSelfTest {
         check(
             diagnosticParse.foregroundMode == .automatic,
             "diagnostic validation must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.launchAtLogin == false,
+            "diagnostic validation must ignore persisted launch-at-login setting",
             failures: &failures,
             checks: &checks
         )
@@ -2409,6 +2418,20 @@ enum RuntimeSelfTest {
         check(
             mutedOverride.audioEnabled == false,
             "EngineConfig must let explicit mute override audio opt-in",
+            failures: &failures,
+            checks: &checks
+        )
+        let launchAtLoginOverride = try EngineConfig.parse(["--launch-at-login"])
+        check(
+            launchAtLoginOverride.launchAtLogin,
+            "EngineConfig must parse launch-at-login opt-in",
+            failures: &failures,
+            checks: &checks
+        )
+        let launchAtLoginDisabledOverride = try EngineConfig.parse(["--launch-at-login", "--no-launch-at-login"])
+        check(
+            launchAtLoginDisabledOverride.launchAtLogin == false,
+            "EngineConfig must let explicit launch-at-login disable override opt-in",
             failures: &failures,
             checks: &checks
         )

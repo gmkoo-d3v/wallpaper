@@ -15,7 +15,8 @@ let package = Package(
             name: "MacWallpaperEngine",
             path: "Sources",
             linkerSettings: [
-                .linkedFramework("IOKit")
+                .linkedFramework("IOKit"),
+                .linkedFramework("ServiceManagement")
             ]
         )
     ]

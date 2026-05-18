@@ -11,6 +11,9 @@ struct ControlPanelState {
     let audioEnabled: Bool
     let audioControlEnabled: Bool
     let audioStatusText: String
+    let launchAtLogin: Bool
+    let launchAtLoginControlEnabled: Bool
+    let launchAtLoginStatusText: String
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
     let interactionDebugOverlay: Bool
@@ -42,6 +45,7 @@ protocol ControlPanelDelegate: AnyObject {
         matchDisplayRefresh: Bool,
         playbackRate: Float,
         audioEnabled: Bool,
+        launchAtLogin: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -127,6 +131,7 @@ final class ControlPanelWindowController: NSWindowController {
         action: nil
     )
     private let audioToggle = NSButton(checkboxWithTitle: "Audio opt-in", target: nil, action: nil)
+    private let launchAtLoginToggle = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
     private let fitModeControl = NSSegmentedControl(
         labels: ["Contain", "Fill"],
         trackingMode: .selectOne,
@@ -210,6 +215,9 @@ final class ControlPanelWindowController: NSWindowController {
         audioToggle.state = (state.audioControlEnabled && state.audioEnabled) ? .on : .off
         audioToggle.isEnabled = state.audioControlEnabled
         audioToggle.toolTip = state.audioStatusText
+        launchAtLoginToggle.state = state.launchAtLogin ? .on : .off
+        launchAtLoginToggle.isEnabled = state.launchAtLoginControlEnabled
+        launchAtLoginToggle.toolTip = state.launchAtLoginStatusText
         fitModeControl.selectedSegment = segment(forFitMode: state.fitMode)
         foregroundModeControl.selectedSegment = segment(forForegroundMode: state.foregroundMode)
         interactionDebugOverlayToggle.state = state.interactionDebugOverlay ? .on : .off
@@ -554,9 +562,11 @@ final class ControlPanelWindowController: NSWindowController {
 
         let debugCaption = caption("DEBUG")
         interactionDebugOverlayToggle.font = .systemFont(ofSize: 13, weight: .regular)
+        launchAtLoginToggle.font = .systemFont(ofSize: 13, weight: .regular)
 
         row.addArrangedSubview(debugCaption)
         row.addArrangedSubview(interactionDebugOverlayToggle)
+        row.addArrangedSubview(launchAtLoginToggle)
         return row
     }
 
@@ -782,6 +792,7 @@ final class ControlPanelWindowController: NSWindowController {
             matchDisplayRefresh: selectedMatchDisplayRefresh(),
             playbackRate: selectedPlaybackRate(),
             audioEnabled: audioToggle.isEnabled && audioToggle.state == .on,
+            launchAtLogin: launchAtLoginToggle.isEnabled && launchAtLoginToggle.state == .on,
             fitMode: selectedFitMode(),
             foregroundMode: selectedForegroundMode(),
             interactionDebugOverlay: interactionDebugOverlayToggle.state == .on

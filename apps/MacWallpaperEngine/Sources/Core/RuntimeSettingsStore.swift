@@ -12,6 +12,7 @@ struct PersistedEngineSettings: Codable, Equatable {
     let audioEnabled: Bool?
     let fitMode: RenderFitMode?
     let foregroundMode: ForegroundRenderMode?
+    let launchAtLogin: Bool?
 
     static let currentSchemaVersion = 1
 
@@ -27,7 +28,8 @@ struct PersistedEngineSettings: Codable, Equatable {
             playbackRateOverride: config.playbackRateOverride,
             audioEnabled: config.audioEnabled,
             fitMode: config.fitMode,
-            foregroundMode: config.foregroundMode
+            foregroundMode: config.foregroundMode,
+            launchAtLogin: config.launchAtLogin
         )
     }
 
@@ -43,7 +45,8 @@ struct PersistedEngineSettings: Codable, Equatable {
             playbackRateOverride: playbackRateOverride.flatMap { $0.isFinite && $0 > 0 && $0 <= 4 ? $0 : nil },
             audioEnabled: audioEnabled ?? false,
             fitMode: fitMode,
-            foregroundMode: foregroundMode
+            foregroundMode: foregroundMode,
+            launchAtLogin: launchAtLogin ?? false
         )
     }
 }
