@@ -252,8 +252,13 @@ enum RuntimeSelfTest {
             "renderer warmup must avoid transient black frames while the first video frame is unavailable or the first pause arrives early"
         )
         check(
-            RuntimeLifecyclePolicy.visibleWindowFirstDrawPolicy == "order-front-with-bounded-visible-draw-retries",
-            "wallpaper windows must retry visible first draw briefly after ordering front"
+            RuntimeLifecyclePolicy.visibleWindowFirstDrawPolicy == "preorder-and-postorder-bounded-visible-draw-retries",
+            "wallpaper windows must attempt first draw before and after ordering front"
+        )
+        check(
+            RuntimeLifecyclePolicy.windowWarmupMoments(startHidden: false) == [.beforeOrderFront, .afterOrderFront]
+                && RuntimeLifecyclePolicy.windowWarmupMoments(startHidden: true).isEmpty,
+            "visible wallpaper windows must warm up before orderFront and retry afterward while hidden smoke runs stay hidden"
         )
         check(
             MetalCompositor.pausedFirstFramePolicy == "draw-static-fallback-before-pausing",

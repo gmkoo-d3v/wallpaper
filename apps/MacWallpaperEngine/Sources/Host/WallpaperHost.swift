@@ -140,6 +140,11 @@ final class WallpaperHost: NSObject {
 
     private func show(windows targetWindows: [NSWindow]) {
         for window in targetWindows {
+            let warmupMoments = RuntimeLifecyclePolicy.windowWarmupMoments(startHidden: runtime.config.startHidden)
+            let metalView = window.contentView as? WallpaperMetalView
+            if warmupMoments.contains(.beforeOrderFront) {
+                metalView?.warmUpVisibleFrame()
+            }
             if runtime.config.startHidden {
                 window.orderOut(nil)
             } else if runtime.config.plainWindowStyle {
@@ -147,7 +152,9 @@ final class WallpaperHost: NSObject {
             } else {
                 window.orderFrontRegardless()
             }
-            (window.contentView as? WallpaperMetalView)?.warmUpVisibleFrame()
+            if warmupMoments.contains(.afterOrderFront) {
+                metalView?.warmUpVisibleFrame()
+            }
         }
     }
 

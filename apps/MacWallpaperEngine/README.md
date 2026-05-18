@@ -358,9 +358,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Renderer warmup, video-loop gaps, and first-frame pause/resource paths submit
   one preview/last-frame/neutral fallback drawable before pausing, instead of
   leaving a newly created wallpaper window black.
-- Wallpaper windows also request bounded first-draw retries after ordering
-  front, and display rebuilds keep the old window visible for a 0.5s warmup
-  overlap so slower replacement drawables do not expose a black-screen gap.
+- Wallpaper windows attempt a first draw before ordering front and then request
+  bounded first-draw retries afterward; display rebuilds keep the old window
+  visible for a 0.5s warmup overlap so slower replacement drawables do not
+  expose a black-screen gap.
 - Running settings changes and bundle switches start the replacement wallpaper
   host before retiring the current host, reducing black-screen gaps while the
   new renderer warms up.

@@ -5,6 +5,11 @@ struct DesktopInteractionPermissionStatus {
     let canRequestAccessibilityPermission: Bool
 }
 
+enum WindowWarmupMoment: Equatable {
+    case beforeOrderFront
+    case afterOrderFront
+}
+
 enum DisplayRebuildCommitDecision: Equatable {
     case commit
     case rollback(reason: String)
@@ -31,7 +36,7 @@ enum RuntimeLifecyclePolicy {
     static let blockedDesktopEventTrackingPolicy = "ignore-blocked-desktop-events-without-idle-reset"
     static let accessibilityPromptPolicy = "user-initiated-only"
     static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background-before-first-pause"
-    static let visibleWindowFirstDrawPolicy = "order-front-with-bounded-visible-draw-retries"
+    static let visibleWindowFirstDrawPolicy = "preorder-and-postorder-bounded-visible-draw-retries"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
     static let displayReplacementOverlapSeconds: TimeInterval = 0.5
     static let visibleWindowWarmupRetryCount = 6
@@ -72,6 +77,10 @@ enum RuntimeLifecyclePolicy {
             return true
         }
         return false
+    }
+
+    static func windowWarmupMoments(startHidden: Bool) -> [WindowWarmupMoment] {
+        startHidden ? [] : [.beforeOrderFront, .afterOrderFront]
     }
 
     static func shouldEnableDesktopInteraction(
