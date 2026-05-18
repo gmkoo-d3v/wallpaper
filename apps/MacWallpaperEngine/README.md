@@ -302,7 +302,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   direct NSResponder mouse events only in plain diagnostic windows; desktop
   wallpaper windows preserve pass-through click ownership.
 - Passive wallpaper click delivery deduplicates near-simultaneous event-tap and
-  global-monitor clicks while leaving pointer tracking at the 30Hz move cap.
+  global-monitor clicks while honoring the manifest `pointerSampleFps` move cap
+  (30Hz default, 60Hz for the bundled Imported interaction profile).
 - When desktop-item hit-testing needs Accessibility trust, the runtime requests
   the macOS Accessibility permission prompt and exposes the current trust state
   in capability diagnostics.

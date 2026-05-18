@@ -16,7 +16,7 @@ final class DesktopMouseInteractionMonitor {
     private var localMonitor: Any?
     private var eventTap: CFMachPort?
     private var eventTapRunLoopSource: CFRunLoopSource?
-    private let moveEventMinInterval: CFTimeInterval = 1.0 / 30.0
+    private let moveEventMinInterval: CFTimeInterval
     private let discreteEventDuplicateInterval: CFTimeInterval = 0.05
     private let discreteEventDuplicateDistanceSquared: CGFloat = 3 * 3
     private let eligibilityCacheInterval: CFTimeInterval = 0.15
@@ -79,6 +79,8 @@ final class DesktopMouseInteractionMonitor {
         self.onInterrupted = onInterrupted
         self.currentInteractionSnapshot = currentInteractionSnapshot
         self.onTelemetry = onTelemetry
+        let sampleFps = min(max(policy.pointerSampleFps ?? 30, 15), 240)
+        self.moveEventMinInterval = 1.0 / sampleFps
     }
 
     deinit {

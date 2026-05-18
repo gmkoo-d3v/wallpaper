@@ -27,6 +27,7 @@ struct InteractionPolicy: Decodable {
     let blockApplicationWindows: Bool
     let blockDesktopItems: Bool
     let pointerSmoothing: Double?
+    let pointerSampleFps: Double?
     let idleDeadZone: Double?
     let directionSwitchMargin: Double?
     let defaultClickTailSeconds: Double?

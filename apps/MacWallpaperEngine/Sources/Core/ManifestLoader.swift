@@ -344,6 +344,11 @@ enum ManifestLoader {
                 throw EngineError.manifest("interactionPolicy.pointerSmoothing must satisfy 0 < value <= 1")
             }
         }
+        if let pointerSampleFps = policy.pointerSampleFps {
+            guard pointerSampleFps.isFinite, pointerSampleFps >= 15, pointerSampleFps <= 240 else {
+                throw EngineError.manifest("interactionPolicy.pointerSampleFps must satisfy 15 <= value <= 240")
+            }
+        }
         if let idleDeadZone = policy.idleDeadZone {
             guard idleDeadZone.isFinite, idleDeadZone >= 0, idleDeadZone < 0.5 else {
                 throw EngineError.manifest("interactionPolicy.idleDeadZone must satisfy 0 <= value < 0.5")

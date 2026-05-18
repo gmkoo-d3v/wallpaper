@@ -813,6 +813,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("desktopItem=blockedDesktopItem")
                 && interactionSummary.contains("clickTimeline:")
                 && interactionSummary.contains("pointerSmoothingCadence: time-based")
+                && interactionSummary.contains("pointerSampleFps:")
                 && interactionSummary.contains("pointerMoveNeutralPoint:")
                 && interactionSummary.contains("pointerMoveDeadZone:")
                 && interactionSummary.contains("neutral=idle")
@@ -1723,6 +1724,7 @@ enum RuntimeSelfTest {
             blockApplicationWindows: true,
             blockDesktopItems: true,
             pointerSmoothing: nil,
+            pointerSampleFps: nil,
             idleDeadZone: nil,
             directionSwitchMargin: nil,
             defaultClickTailSeconds: nil,
@@ -1733,6 +1735,7 @@ enum RuntimeSelfTest {
             blockApplicationWindows: true,
             blockDesktopItems: true,
             pointerSmoothing: nil,
+            pointerSampleFps: nil,
             idleDeadZone: nil,
             directionSwitchMargin: nil,
             defaultClickTailSeconds: nil,
@@ -1743,6 +1746,7 @@ enum RuntimeSelfTest {
             blockApplicationWindows: false,
             blockDesktopItems: false,
             pointerSmoothing: nil,
+            pointerSampleFps: nil,
             idleDeadZone: nil,
             directionSwitchMargin: nil,
             defaultClickTailSeconds: nil,
@@ -1814,6 +1818,7 @@ enum RuntimeSelfTest {
             blockApplicationWindows: true,
             blockDesktopItems: false,
             pointerSmoothing: nil,
+            pointerSampleFps: nil,
             idleDeadZone: nil,
             directionSwitchMargin: nil,
             defaultClickTailSeconds: nil,

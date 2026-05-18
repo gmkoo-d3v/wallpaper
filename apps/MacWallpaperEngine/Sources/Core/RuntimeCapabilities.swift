@@ -404,6 +404,7 @@ enum RuntimeCapabilities {
             blockApplicationWindows: policy?.blockApplicationWindows ?? true,
             blockDesktopItems: blocksDesktopItems,
             pointerSmoothing: nil,
+            pointerSampleFps: nil,
             idleDeadZone: nil,
             directionSwitchMargin: nil,
             defaultClickTailSeconds: nil,

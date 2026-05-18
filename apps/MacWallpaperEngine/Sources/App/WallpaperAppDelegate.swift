@@ -494,6 +494,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             blockApplicationWindows: true,
             blockDesktopItems: true,
             pointerSmoothing: nil,
+            pointerSampleFps: nil,
             idleDeadZone: nil,
             directionSwitchMargin: nil,
             defaultClickTailSeconds: nil,
