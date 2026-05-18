@@ -46,6 +46,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
+- `--doctor` prints a single launch-safe preflight report that combines
+  validation, capability, render-plan, simulated multi-display, performance,
+  interaction, and renderer recovery diagnostics for the selected bundle.
 - Runtime capability diagnostics mark the native Spine renderer itself as
   unsupported when the compatibility gate requires a composite fallback, so
   bundle authors can distinguish "renderer exists" from "this bundle can use
@@ -347,6 +350,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode primaryAnima
 swift run MacWallpaperEngine --simulated-render-plan --display-mode all
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
+swift run MacWallpaperEngine --doctor
 swift run MacWallpaperEngine --recovery-plan
 swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --probe-interaction 0.5,0.42

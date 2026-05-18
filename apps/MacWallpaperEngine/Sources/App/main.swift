@@ -103,6 +103,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.doctorReportOnly {
+        print(try RuntimeDoctorReport.make(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.interactionPlanOnly {
         let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
         print(InteractionPlan.diagnosticSummary(

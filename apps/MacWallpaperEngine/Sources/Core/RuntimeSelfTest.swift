@@ -529,6 +529,18 @@ enum RuntimeSelfTest {
             capabilitySummary.contains(expectedDesktopItemGate),
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
+        let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
+        check(
+            doctorReport.contains("wallpaper doctor OK")
+                && doctorReport.contains("== validation ==")
+                && doctorReport.contains("== runtime-capabilities ==")
+                && doctorReport.contains("== render-plan ==")
+                && doctorReport.contains("== simulated-render-plan ==")
+                && doctorReport.contains("== performance-plan ==")
+                && doctorReport.contains("== interaction-plan ==")
+                && doctorReport.contains("== renderer-recovery =="),
+            "runtime doctor report must combine validation, capability, render, performance, interaction, and recovery diagnostics"
+        )
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
             check(
                 capabilitySummary.contains("asset\tcompositeVideo\t"),
@@ -1066,6 +1078,10 @@ enum RuntimeSelfTest {
         check(
             EngineConfig.help.contains("--recovery-plan"),
             "EngineConfig help must document renderer recovery diagnostics"
+        )
+        check(
+            EngineConfig.help.contains("--doctor"),
+            "EngineConfig help must document combined runtime doctor diagnostics"
         )
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
@@ -2239,6 +2255,19 @@ enum RuntimeSelfTest {
         check(
             interactionPlanParse.foregroundMode == .automatic,
             "interaction diagnostics must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let doctorParse = try EngineConfig.parse(["--doctor"])
+        check(
+            doctorParse.doctorReportOnly,
+            "EngineConfig must parse combined runtime doctor diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            doctorParse.foregroundMode == .automatic,
+            "runtime doctor diagnostics must ignore persisted foreground mode",
             failures: &failures,
             checks: &checks
         )

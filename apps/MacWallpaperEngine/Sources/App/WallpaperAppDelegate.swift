@@ -541,6 +541,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             simulatedRenderPlanOnly: false,
             performancePlanOnly: false,
             runtimeCapabilitiesOnly: false,
+            doctorReportOnly: false,
             interactionPlanOnly: false,
             interactionProbePoint: nil,
             interactionProbeButton: .left,
