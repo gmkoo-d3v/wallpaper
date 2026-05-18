@@ -643,6 +643,9 @@ enum RuntimeSelfTest {
         )
         check(
             doctorReport.contains("wallpaper doctor OK")
+                && doctorReport.contains("== bundle-library ==")
+                && doctorReport.contains("validBundles:")
+                && doctorReport.contains("includeCapabilities: true")
                 && doctorReport.contains("== validation ==")
                 && doctorReport.contains("== runtime-capabilities ==")
                 && doctorReport.contains("== render-plan ==")
@@ -650,7 +653,7 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("== performance-plan ==")
                 && doctorReport.contains("== interaction-plan ==")
                 && doctorReport.contains("== renderer-recovery =="),
-            "runtime doctor report must combine validation, capability, render, performance, interaction, and recovery diagnostics"
+            "runtime doctor report must combine bundle library, validation, capability, render, performance, interaction, and recovery diagnostics"
         )
         check(
             doctorControlPanelSummary.contains("doctor: OK")

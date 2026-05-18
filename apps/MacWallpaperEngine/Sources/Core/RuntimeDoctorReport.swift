@@ -33,6 +33,7 @@ enum RuntimeDoctorReport {
             "wallpaper doctor OK",
             "bundle: \(runtime.config.wallpaperRoot.path)",
             "manifest: \(runtime.config.manifestURL.path)",
+            section("bundle-library", bundleLibraryReport(runtime: runtime)),
             section("validation", runtime.validationSummary()),
             section("runtime-capabilities", runtime.runtimeCapabilitiesSummary()),
             section("render-plan", DisplayPlanner.headlessRenderSummary(runtime: runtime)),
@@ -41,6 +42,15 @@ enum RuntimeDoctorReport {
             section("interaction-plan", interaction),
             section("renderer-recovery", RendererRecoveryStore.report(recoveryURL: recoveryURL))
         ].joined(separator: "\n\n")
+    }
+
+    private static func bundleLibraryReport(runtime: NativeRuntimeCore) -> String {
+        let diagnostics = WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: runtime.config.projectRoot)
+        return BundleListReport.make(
+            diagnostics: diagnostics,
+            includeInvalid: true,
+            includeCapabilities: true
+        )
     }
 
     private static func section(_ title: String, _ body: String) -> String {

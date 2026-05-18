@@ -436,6 +436,7 @@ enum BundleValidationMatrix {
         let report = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let requiredSections = [
             "wallpaper doctor OK",
+            "== bundle-library ==",
             "== validation ==",
             "== runtime-capabilities ==",
             "== render-plan ==",
@@ -445,6 +446,8 @@ enum BundleValidationMatrix {
             "== renderer-recovery =="
         ]
         guard requiredSections.allSatisfy({ report.contains($0) }),
+              report.contains("validBundles:"),
+              report.contains("includeCapabilities: true"),
               report.contains(runtime.config.wallpaperRoot.path),
               report.contains(runtime.config.manifestURL.path) else {
             throw EngineError.invalidArgument(

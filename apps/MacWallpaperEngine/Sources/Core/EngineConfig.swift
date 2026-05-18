@@ -738,7 +738,7 @@ struct EngineConfig {
       --simulated-render-plan  Print the same renderer path over a deterministic three-display fixture and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
-      --doctor                 Print validation, capability, display, performance, interaction, and recovery preflight report, then exit.
+      --doctor                 Print bundle library, validation, capability, display, performance, interaction, and recovery preflight report, then exit.
       --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.
       --probe-interaction <x,y>
                               Probe one normalized content coordinate through move, hit-zone, and click timeline mapping, then exit.

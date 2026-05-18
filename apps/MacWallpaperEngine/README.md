@@ -47,8 +47,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
 - `--doctor` prints a single launch-safe preflight report that combines
-  validation, capability, render-plan, simulated multi-display, performance,
-  interaction, and renderer recovery diagnostics for the selected bundle.
+  bundle-library, validation, capability, render-plan, simulated multi-display,
+  performance, interaction, and renderer recovery diagnostics for the selected
+  bundle.
 - The control panel shows a compact doctor summary for the selected bundle so
   native support, composite quality, display mode, and interaction readiness are
   visible before starting playback.
