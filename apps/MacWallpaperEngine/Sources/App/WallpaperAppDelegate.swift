@@ -427,19 +427,11 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         let oldLastError = lastError
         let wasRunning = host != nil
         do {
-            let bundleRoot = url.standardizedFileURL
-            var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: bundleRoot.path, isDirectory: &isDirectory),
-                  isDirectory.boolValue else {
-                throw EngineError.invalidArgument("Selected path is not a directory: \(bundleRoot.path)")
-            }
-
-            let manifestURL = bundleRoot.appendingPathComponent("wallpaper.native.json")
-            guard FileManager.default.fileExists(atPath: manifestURL.path) else {
-                throw EngineError.manifest("Selected folder does not contain wallpaper.native.json: \(bundleRoot.path)")
-            }
-
-            let nextConfig = makeConfigForSelectedBundle(bundleRoot: bundleRoot, manifestURL: manifestURL)
+            let selectedBundle = try WallpaperBundleCatalog.requireValidBundle(url)
+            let nextConfig = makeConfigForSelectedBundle(
+                bundleRoot: selectedBundle.root,
+                manifestURL: selectedBundle.manifestURL
+            )
             let nextRuntime = try NativeRuntimeCore(config: nextConfig)
             if wasRunning {
                 guard let oldRuntime else {

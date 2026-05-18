@@ -75,6 +75,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   fallback fingerprint, arrangement hash, or display name selector.
 - Control panel library diagnostics show invalid wallpaper folders without
   hiding valid bundles.
+- Control panel bundle selection uses the same catalog validation path as CLI
+  discovery/import, so malformed folders are rejected before replacing a
+  running wallpaper.
 - Packaged resources include the Imported native Spine/video sample, a minimal
   `sample_video` video-only bundle, and a minimal `sample_static` image-only
   bundle, so discovery, validation, and packaging exercise multiple wallpaper
