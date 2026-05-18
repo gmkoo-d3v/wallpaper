@@ -272,8 +272,9 @@ enum RuntimeSelfTest {
         )
         check(
             ControlPanelWindowController.interactionStatusMaximumLines >= 2
+                && ControlPanelWindowController.doctorStatusMaximumLines >= 4
                 && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility"),
-            "control panel must preserve readable interaction diagnostics and explain permission requests"
+            "control panel must preserve readable doctor/interaction diagnostics and explain permission requests"
         )
         check(
             ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
@@ -530,6 +531,10 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
+        let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
+            runtime: runtime,
+            interactionStatus: "INTERACTION BLOCKED / grant macOS Accessibility permission"
+        )
         check(
             doctorReport.contains("wallpaper doctor OK")
                 && doctorReport.contains("== validation ==")
@@ -540,6 +545,13 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("== interaction-plan ==")
                 && doctorReport.contains("== renderer-recovery =="),
             "runtime doctor report must combine validation, capability, render, performance, interaction, and recovery diagnostics"
+        )
+        check(
+            doctorControlPanelSummary.contains("doctor: OK")
+                && doctorControlPanelSummary.contains("quality:")
+                && doctorControlPanelSummary.contains("display:")
+                && doctorControlPanelSummary.contains("interaction:"),
+            "runtime doctor control-panel summary must expose compact preflight status"
         )
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
             check(

@@ -296,6 +296,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 availableBundles: libraryState.bundles,
                 displaySelectionOptions: DisplayPlanner.displaySelectionOptions(),
                 bundleDiagnosticsText: libraryState.diagnosticsText,
+                doctorText: "No doctor report until a wallpaper bundle is selected.",
                 renderPlanText: "No render plan until a wallpaper bundle is selected.",
                 telemetryText: "No runtime telemetry yet",
                 statusText: lastError.map { "ERROR / \($0)" } ?? "NO BUNDLE SELECTED"
@@ -338,6 +339,10 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             availableBundles: libraryState.bundles,
             displaySelectionOptions: DisplayPlanner.displaySelectionOptions(),
             bundleDiagnosticsText: libraryState.diagnosticsText,
+            doctorText: RuntimeDoctorReport.controlPanelSummary(
+                runtime: runtime,
+                interactionStatus: interactionStatusText
+            ),
             renderPlanText: DisplayPlanner.renderSummary(runtime: runtime),
             telemetryText: controlPanelTelemetryText,
             statusText: status

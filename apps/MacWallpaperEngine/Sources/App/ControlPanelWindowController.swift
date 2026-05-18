@@ -20,6 +20,7 @@ struct ControlPanelState {
     let availableBundles: [WallpaperBundleSummary]
     let displaySelectionOptions: [DisplaySelectionOption]
     let bundleDiagnosticsText: String
+    let doctorText: String
     let renderPlanText: String
     let telemetryText: String
     let statusText: String
@@ -56,6 +57,7 @@ final class ControlPanelWindowController: NSWindowController {
     ]
     static let fpsLabels = ["30", "60", "Display Hz"]
     static let interactionStatusMaximumLines = 2
+    static let doctorStatusMaximumLines = 4
     static let interactionPermissionButtonTooltip = "Grant macOS Accessibility permission so desktop-empty click interactions can run while Finder icons stay protected."
 
     static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
@@ -93,6 +95,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let pathValue = NSTextField(labelWithString: "")
     private let bundleInfoValue = NSTextField(labelWithString: "")
     private let bundleDiagnosticsValue = NSTextField(labelWithString: "")
+    private let doctorValue = NSTextField(labelWithString: "")
     private let renderPlanValue = NSTextField(labelWithString: "")
     private let telemetryValue = NSTextField(labelWithString: "")
     private let interactionStatusValue = NSTextField(labelWithString: "")
@@ -185,6 +188,8 @@ final class ControlPanelWindowController: NSWindowController {
         updatePreviewImage(state.bundlePreviewURL)
         bundleDiagnosticsValue.stringValue = state.bundleDiagnosticsText
         bundleDiagnosticsValue.isHidden = state.bundleDiagnosticsText.isEmpty
+        doctorValue.stringValue = state.doctorText
+        doctorValue.toolTip = state.doctorText
         renderPlanValue.stringValue = state.renderPlanText
         telemetryValue.stringValue = state.telemetryText
         interactionStatusValue.stringValue = state.interactionStatusText
@@ -306,6 +311,7 @@ final class ControlPanelWindowController: NSWindowController {
         stack.addArrangedSubview(infoRow(label: "STATUS", value: statusValue))
         stack.addArrangedSubview(bundleRow())
         stack.addArrangedSubview(bundlePreviewRow())
+        stack.addArrangedSubview(doctorRow())
         stack.addArrangedSubview(renderPlanRow())
         stack.addArrangedSubview(telemetryRow())
         stack.addArrangedSubview(modeRow())
@@ -410,36 +416,32 @@ final class ControlPanelWindowController: NSWindowController {
         return row
     }
 
+    private func doctorRow() -> NSView {
+        diagnosticTextRow(label: "DOCTOR", value: doctorValue, maxLines: Self.doctorStatusMaximumLines)
+    }
+
     private func renderPlanRow() -> NSView {
-        let row = NSStackView()
-        row.orientation = .vertical
-        row.spacing = 8
-
-        let caption = self.caption("RENDER PLAN")
-        renderPlanValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        renderPlanValue.textColor = NSColor(red: 0.18, green: 0.18, blue: 0.18, alpha: 1)
-        renderPlanValue.lineBreakMode = .byTruncatingTail
-        renderPlanValue.maximumNumberOfLines = 7
-
-        row.addArrangedSubview(caption)
-        row.addArrangedSubview(renderPlanValue)
-        return row
+        diagnosticTextRow(label: "RENDER PLAN", value: renderPlanValue, maxLines: 7)
     }
 
     private func telemetryRow() -> NSView {
+        diagnosticTextRow(label: "TELEMETRY", value: telemetryValue, maxLines: 5)
+    }
+
+    private func diagnosticTextRow(label: String, value: NSTextField, maxLines: Int) -> NSView {
         let row = NSStackView()
         row.orientation = .vertical
         row.spacing = 8
 
-        let caption = self.caption("TELEMETRY")
-        telemetryValue.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        telemetryValue.textColor = NSColor(red: 0.18, green: 0.18, blue: 0.18, alpha: 1)
-        telemetryValue.lineBreakMode = .byTruncatingTail
-        telemetryValue.maximumNumberOfLines = 5
-        telemetryValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let caption = self.caption(label)
+        value.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        value.textColor = NSColor(red: 0.18, green: 0.18, blue: 0.18, alpha: 1)
+        value.lineBreakMode = .byTruncatingTail
+        value.maximumNumberOfLines = maxLines
+        value.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         row.addArrangedSubview(caption)
-        row.addArrangedSubview(telemetryValue)
+        row.addArrangedSubview(value)
         return row
     }
 

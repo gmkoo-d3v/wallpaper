@@ -2,6 +2,18 @@ import CoreGraphics
 import Foundation
 
 enum RuntimeDoctorReport {
+    static func controlPanelSummary(runtime: NativeRuntimeCore, interactionStatus: String) -> String {
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
+        let nativeStatus = compatibility.isSupported ? "supported" : "fallback(\(shorten(compatibility.reasonText, limit: 72)))"
+        let quality = runtime.compositeQualityReport().summaryLine
+        return [
+            "doctor: OK / native=\(nativeStatus)",
+            "quality: \(quality) / fps=\(runtime.renderTargetFps) max=\(runtime.manifest.runtime.maxFps)",
+            "display: \(runtime.config.displayMode.rawValue) / foreground=\(runtime.config.foregroundMode.rawValue)",
+            "interaction: \(shorten(interactionStatus.replacingOccurrences(of: "\n", with: " / "), limit: 96))"
+        ].joined(separator: "\n")
+    }
+
     static func make(
         runtime: NativeRuntimeCore,
         recoveryURL: URL? = RendererRecoveryStore.defaultRecoveryURL()
@@ -36,5 +48,11 @@ enum RuntimeDoctorReport {
         == \(title) ==
         \(body)
         """
+    }
+
+    private static func shorten(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        let end = text.index(text.startIndex, offsetBy: max(limit - 1, 1))
+        return String(text[..<end]) + "…"
     }
 }
