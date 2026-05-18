@@ -529,7 +529,7 @@ private struct SpineFeatureScan {
     var hasSequenceData = false
 
     var unsupportedAttachmentTypes: Set<String> {
-        attachmentTypes.subtracting(["region", "mesh", "linkedmesh", "path", "clipping"])
+        attachmentTypes.subtracting(["region", "mesh", "linkedmesh", "path", "clipping", "point", "boundingbox"])
     }
 
     var unsupportedTimelineKeys: Set<String> {

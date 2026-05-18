@@ -3503,6 +3503,10 @@ enum RuntimeSelfTest {
               "name": "slot",
               "bone": "root",
               "attachment": "linked"
+            },
+            {
+              "name": "markers",
+              "bone": "root"
             }
           ],
           "skins": [
@@ -3528,6 +3532,19 @@ enum RuntimeSelfTest {
                     "type": "linkedmesh",
                     "path": "linked",
                     "parent": "base"
+                  }
+                },
+                "markers": {
+                  "tap-point": {
+                    "type": "point",
+                    "x": 4,
+                    "y": 5,
+                    "rotation": 10
+                  },
+                  "tap-bounds": {
+                    "type": "boundingbox",
+                    "vertexCount": 4,
+                    "vertices": [-8, -8, 8, -8, 8, 8, -8, 8]
                   }
                 }
               }
@@ -3657,8 +3674,9 @@ enum RuntimeSelfTest {
         check(compatibility.isSupported, "same-skin linkedmesh fixture must pass native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText == "supported", "same-skin linkedmesh compatibility must not report unsupported reasons", failures: &failures, checks: &checks)
         check(
-            linkedMeshRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\tused=linkedmesh,mesh"),
-            "runtime capabilities must report same-skin linkedmesh attachments as supported",
+            linkedMeshRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\tattachments\tsupported\tused=boundingbox,linkedmesh,mesh,point"),
+            "runtime capabilities must report same-skin linkedmesh and non-visual point/boundingbox attachments as supported",
             failures: &failures,
             checks: &checks
         )

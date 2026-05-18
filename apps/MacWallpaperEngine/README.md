@@ -203,6 +203,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Spine `sequence` metadata and `attachments.sequence` timelines are supported
   for otherwise supported region/mesh attachments, selecting alternate atlas
   regions without forcing a composite fallback.
+- Spine `point` and `boundingbox` attachments are treated as non-visual
+  metadata and do not force a composite fallback.
 - Shared interaction plan for deterministic hit-zone, default-action, button, and
   look-direction diagnostics.
 - Interaction hit testing resolves the wallpaper content aspect from Spine
@@ -335,8 +337,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Spine non-region non-mesh attachment paths.
-  The current Imported asset uses mesh/path/region/clipping-compatible paths.
+- Spine edge-case attachment and timeline parity beyond the currently accepted
+  region, mesh, linkedmesh, path, clipping, point, boundingbox, and sequence
+  paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.
 - Visual hit-zone editor for authoring new bundles.
