@@ -245,10 +245,12 @@ final class SpineSetupPoseRenderer {
 
     private struct SlotTimelines {
         var rgba: [TimelineFrame] = []
+        var rgb: [TimelineFrame] = []
+        var alpha: [TimelineFrame] = []
         var attachment: [TimelineFrame] = []
 
         var frameTimes: [Double] {
-            [rgba, attachment]
+            [rgba, rgb, alpha, attachment]
                 .flatMap { $0 }
                 .map(\.time)
         }
@@ -1087,6 +1089,14 @@ final class SpineSetupPoseRenderer {
             if let color = sampleColor(timelines.rgba, time: time, defaultColor: setupSlot.color) {
                 posedSlots[slotIndex].color = blend(posedSlots[slotIndex].color, color, Float(mix))
             }
+            if let rgb = sampleRGBColor(timelines.rgb, time: time, defaultColor: setupSlot.color) {
+                let color = replacingRGB(of: posedSlots[slotIndex].color, with: rgb)
+                posedSlots[slotIndex].color = blend(posedSlots[slotIndex].color, color, Float(mix))
+            }
+            if let alpha = sampleAlpha(timelines.alpha, time: time, defaultAlpha: setupSlot.color.w) {
+                let color = replacingAlpha(of: posedSlots[slotIndex].color, with: alpha)
+                posedSlots[slotIndex].color = blend(posedSlots[slotIndex].color, color, Float(mix))
+            }
             if timelines.attachment.isEmpty == false, mix >= 0.5 {
                 posedSlots[slotIndex].attachment = sampleAttachment(timelines.attachment, time: time, defaultAttachment: setupSlot.attachment)
             }
@@ -1215,6 +1225,23 @@ final class SpineSetupPoseRenderer {
         from + ((to - from) * mix)
     }
 
+    private func replacingRGB(of color: SIMD4<Float>, with rgb: SIMD3<Float>) -> SIMD4<Float> {
+        let alpha = color.w
+        return SIMD4<Float>(rgb.x * alpha, rgb.y * alpha, rgb.z * alpha, alpha)
+    }
+
+    private func replacingAlpha(of color: SIMD4<Float>, with alpha: Float) -> SIMD4<Float> {
+        let rgb = unpremultipliedRGB(color)
+        return SIMD4<Float>(rgb.x * alpha, rgb.y * alpha, rgb.z * alpha, alpha)
+    }
+
+    private func unpremultipliedRGB(_ color: SIMD4<Float>) -> SIMD3<Float> {
+        guard color.w > 0.00001 else {
+            return SIMD3<Float>(0, 0, 0)
+        }
+        return SIMD3<Float>(color.x / color.w, color.y / color.w, color.z / color.w)
+    }
+
     private func blend(_ from: [Double], _ to: [Double], _ mix: Double) -> [Double] {
         let count = max(from.count, to.count)
         guard count > 0 else { return [] }
@@ -1272,6 +1299,12 @@ final class SpineSetupPoseRenderer {
                     var timelines = SlotTimelines()
                     if let raw = timelineSet["rgba"] {
                         timelines.rgba = parseColorFrames(raw)
+                    }
+                    if let raw = timelineSet["rgb"] {
+                        timelines.rgb = parseRGBColorFrames(raw)
+                    }
+                    if let raw = timelineSet["alpha"] {
+                        timelines.alpha = parseAlphaFrames(raw)
                     }
                     if let raw = timelineSet["attachment"] {
                         timelines.attachment = parseAttachmentFrames(raw)
@@ -1413,6 +1446,38 @@ final class SpineSetupPoseRenderer {
         }
     }
 
+    private static func parseRGBColorFrames(_ raw: Any) -> [TimelineFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.map { frame in
+            TimelineFrame(
+                time: number(frame["time"], default: 0),
+                x: 0,
+                y: 0,
+                value: 0,
+                color: parseRGBColor(frame["color"] as? String),
+                attachment: nil,
+                stepped: isStepped(frame["curve"]),
+                curve: parseCurve(frame["curve"])
+            )
+        }
+    }
+
+    private static func parseAlphaFrames(_ raw: Any) -> [TimelineFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.map { frame in
+            TimelineFrame(
+                time: number(frame["time"], default: 0),
+                x: 0,
+                y: 0,
+                value: min(max(number(frame["value"] ?? frame["alpha"], default: 1), 0), 1),
+                color: nil,
+                attachment: nil,
+                stepped: isStepped(frame["curve"]),
+                curve: parseCurve(frame["curve"])
+            )
+        }
+    }
+
     private static func parseAttachmentFrames(_ raw: Any) -> [TimelineFrame] {
         guard let frames = raw as? [[String: Any]] else { return [] }
         return frames.map { frame in
@@ -1495,6 +1560,37 @@ final class SpineSetupPoseRenderer {
             curve: nil
         ))
         return sampled.color
+    }
+
+    private func sampleRGBColor(_ frames: [TimelineFrame], time: Double, defaultColor: SIMD4<Float>) -> SIMD3<Float>? {
+        guard frames.isEmpty == false else { return nil }
+        let sampled = sample(frames, time: time, defaultFrame: TimelineFrame(
+            time: 0,
+            x: 0,
+            y: 0,
+            value: 0,
+            color: SIMD4<Float>(unpremultipliedRGB(defaultColor), 1),
+            attachment: nil,
+            stepped: true,
+            curve: nil
+        ))
+        guard let color = sampled.color else { return nil }
+        return SIMD3<Float>(color.x, color.y, color.z)
+    }
+
+    private func sampleAlpha(_ frames: [TimelineFrame], time: Double, defaultAlpha: Float) -> Float? {
+        guard frames.isEmpty == false else { return nil }
+        let sampled = sample(frames, time: time, defaultFrame: TimelineFrame(
+            time: 0,
+            x: 0,
+            y: 0,
+            value: Double(defaultAlpha),
+            color: nil,
+            attachment: nil,
+            stepped: true,
+            curve: nil
+        ))
+        return Float(min(max(sampled.value, 0), 1))
     }
 
     private func sampleAttachment(_ frames: [TimelineFrame], time: Double, defaultAttachment: String?) -> String? {
@@ -4290,5 +4386,15 @@ final class SpineSetupPoseRenderer {
         let blue = Float((value >> 8) & 0xff) / 255.0
         let alpha = Float(value & 0xff) / 255.0
         return SIMD4<Float>(red * alpha, green * alpha, blue * alpha, alpha)
+    }
+
+    private static func parseRGBColor(_ raw: String?) -> SIMD4<Float> {
+        guard let raw, raw.count == 6, let value = UInt32(raw, radix: 16) else {
+            return SIMD4<Float>(1, 1, 1, 1)
+        }
+        let red = Float((value >> 16) & 0xff) / 255.0
+        let green = Float((value >> 8) & 0xff) / 255.0
+        let blue = Float(value & 0xff) / 255.0
+        return SIMD4<Float>(red, green, blue, 1)
     }
 }

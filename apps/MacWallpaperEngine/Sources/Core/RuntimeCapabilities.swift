@@ -541,6 +541,8 @@ private struct SpineFeatureScan {
             "bones.scale",
             "bones.shear",
             "slots.rgba",
+            "slots.rgb",
+            "slots.alpha",
             "slots.attachment",
             "attachments.deform",
             "attachments.sequence",

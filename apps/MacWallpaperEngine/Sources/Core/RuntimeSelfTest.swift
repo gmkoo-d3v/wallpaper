@@ -3552,6 +3552,30 @@ enum RuntimeSelfTest {
           ],
           "animations": {
             "idle": {
+              "slots": {
+                "slot": {
+                  "rgb": [
+                    {
+                      "time": 0,
+                      "color": "ffffff"
+                    },
+                    {
+                      "time": 0.05,
+                      "color": "ff8080"
+                    }
+                  ],
+                  "alpha": [
+                    {
+                      "time": 0,
+                      "value": 1
+                    },
+                    {
+                      "time": 0.05,
+                      "value": 0.75
+                    }
+                  ]
+                }
+              },
               "attachments": {
                 "default": {
                   "slot": {
@@ -3684,6 +3708,13 @@ enum RuntimeSelfTest {
             linkedMeshRuntime.runtimeCapabilitiesSummary()
                 .contains("spine\teventsAudioSequence\tsupported\tevents=none audio=none sequence=playback"),
             "runtime capabilities must support Spine sequence timelines instead of forcing composite fallback",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            linkedMeshRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.rgb"),
+            "runtime capabilities must report slot rgb/alpha component timelines as supported",
             failures: &failures,
             checks: &checks
         )
