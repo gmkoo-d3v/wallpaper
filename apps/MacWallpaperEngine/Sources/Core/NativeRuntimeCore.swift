@@ -12,6 +12,25 @@ final class NativeRuntimeCore {
     var renderFpsModeText: String {
         config.matchDisplayRefresh ? "display" : "\(renderTargetFps)"
     }
+    var audioOutputEnabled: Bool {
+        manifest.runtime.effectiveAudioPolicy == .userControlled && config.audioEnabled
+    }
+    var audioOutputSummary: String {
+        switch manifest.runtime.effectiveAudioPolicy {
+        case .muted:
+            return "muted"
+        case .userControlled:
+            return config.audioEnabled ? "enabled-user-opt-in" : "muted-until-user-opt-in"
+        case .disabled:
+            return "disabled-muted"
+        }
+    }
+    var audioCapabilityStatus: String {
+        if manifest.runtime.effectiveAudioPolicy == .disabled {
+            return "disabled"
+        }
+        return audioOutputEnabled ? "enabled" : "muted"
+    }
     var selectedPlaybackRate: Float {
         if let playbackRateOverride = config.playbackRateOverride {
             return playbackRateOverride
@@ -49,7 +68,7 @@ final class NativeRuntimeCore {
         foregroundMode: \(config.foregroundMode.rawValue)
         maxFps: \(manifest.runtime.maxFps)
         fallbackFps: \(manifest.runtime.fallbackFps)
-        audioPolicy: \(manifest.runtime.effectiveAudioPolicy.rawValue) (\(manifest.runtime.effectiveAudioPolicy.runtimeOutputSummary))
+        audioPolicy: \(manifest.runtime.effectiveAudioPolicy.rawValue) (output=\(audioOutputSummary), userOptIn=\(config.audioEnabled))
         cpuBudget: target \(manifest.layerBudgets.primaryCpuTargetPercent)% downgrade \(manifest.layerBudgets.cpuDowngradePercent)% / \(manifest.layerBudgets.cpuDowngradeWindowSeconds)s
         rssBudget: target \(manifest.layerBudgets.rssTargetMb)MB hard \(manifest.layerBudgets.rssHardMb)MB
         layers: \(manifest.layers.map { "\($0.id):\($0.type.rawValue)" }.joined(separator: ", "))

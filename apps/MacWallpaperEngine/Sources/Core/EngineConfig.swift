@@ -64,6 +64,7 @@ struct EngineConfig {
     let renderFps: Int?
     let matchDisplayRefresh: Bool
     let playbackRateOverride: Float?
+    let audioEnabled: Bool
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
     let interactionDebugOverlay: Bool
@@ -110,6 +111,7 @@ struct EngineConfig {
         renderFps: Int? = nil,
         matchDisplayRefresh: Bool? = nil,
         playbackRateOverride: Float? = nil,
+        audioEnabled: Bool? = nil,
         fitMode: RenderFitMode? = nil,
         foregroundMode: ForegroundRenderMode? = nil,
         interactionDebugOverlay: Bool? = nil,
@@ -158,6 +160,7 @@ struct EngineConfig {
             renderFps: renderFps ?? self.renderFps,
             matchDisplayRefresh: matchDisplayRefresh ?? self.matchDisplayRefresh,
             playbackRateOverride: playbackRateOverride ?? self.playbackRateOverride,
+            audioEnabled: audioEnabled ?? self.audioEnabled,
             fitMode: fitMode ?? self.fitMode,
             foregroundMode: foregroundMode ?? self.foregroundMode,
             interactionDebugOverlay: interactionDebugOverlay ?? self.interactionDebugOverlay,
@@ -207,6 +210,7 @@ struct EngineConfig {
         var renderFps: Int?
         var matchDisplayRefresh = false
         var playbackRateOverride: Float?
+        var audioEnabled = false
         var fitMode = RenderFitMode.contain
         var foregroundMode = ForegroundRenderMode.automatic
         var interactionDebugOverlay = false
@@ -217,6 +221,7 @@ struct EngineConfig {
         var explicitInteractive = false
         var explicitRenderFps = false
         var explicitPlaybackRateOverride = false
+        var explicitAudioEnabled = false
         var explicitFitMode = false
         var explicitForegroundMode = false
         var validateOnly = false
@@ -321,6 +326,12 @@ struct EngineConfig {
                 }
                 playbackRateOverride = parsed
                 explicitPlaybackRateOverride = true
+            case "--audio":
+                audioEnabled = true
+                explicitAudioEnabled = true
+            case "--mute", "--no-audio":
+                audioEnabled = false
+                explicitAudioEnabled = true
             case "--fit-mode":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -512,6 +523,9 @@ struct EngineConfig {
             if !explicitPlaybackRateOverride {
                 playbackRateOverride = persistedSettings.playbackRateOverride
             }
+            if !explicitAudioEnabled, let persisted = persistedSettings.audioEnabled {
+                audioEnabled = persisted
+            }
             if !explicitFitMode, let persisted = persistedSettings.fitMode {
                 fitMode = persisted
             }
@@ -562,6 +576,7 @@ struct EngineConfig {
             renderFps: renderFps,
             matchDisplayRefresh: matchDisplayRefresh,
             playbackRateOverride: playbackRateOverride,
+            audioEnabled: audioEnabled,
             fitMode: fitMode,
             foregroundMode: foregroundMode,
             interactionDebugOverlay: interactionDebugOverlay,
@@ -656,6 +671,8 @@ struct EngineConfig {
       --duration <seconds>      Auto-quit after a short smoke run.
       --fps <value>             Render FPS: 30 | 60 | display. Values above 60 map to display refresh.
       --playback-rate <value>   Video playback rate override. Defaults to manifest asset rate.
+      --audio                   Enable sound only for wallpapers whose manifest uses audioPolicy=userControlled.
+      --mute, --no-audio        Keep wallpaper audio muted. Default and always enforced for muted/disabled manifests.
       --fit-mode <mode>         contain | fill. Default: contain.
       --foreground-mode <mode>  auto | composite | native. Default: auto.
       --interaction-debug-overlay

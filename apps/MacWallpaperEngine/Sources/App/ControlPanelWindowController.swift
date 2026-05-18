@@ -8,6 +8,9 @@ struct ControlPanelState {
     let renderFps: Int
     let matchDisplayRefresh: Bool
     let playbackRate: Float
+    let audioEnabled: Bool
+    let audioControlEnabled: Bool
+    let audioStatusText: String
     let fitMode: RenderFitMode
     let foregroundMode: ForegroundRenderMode
     let interactionDebugOverlay: Bool
@@ -38,6 +41,7 @@ protocol ControlPanelDelegate: AnyObject {
         renderFps: Int,
         matchDisplayRefresh: Bool,
         playbackRate: Float,
+        audioEnabled: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -122,6 +126,7 @@ final class ControlPanelWindowController: NSWindowController {
         target: nil,
         action: nil
     )
+    private let audioToggle = NSButton(checkboxWithTitle: "Audio opt-in", target: nil, action: nil)
     private let fitModeControl = NSSegmentedControl(
         labels: ["Contain", "Fill"],
         trackingMode: .selectOne,
@@ -202,6 +207,9 @@ final class ControlPanelWindowController: NSWindowController {
         interactionToggle.state = state.interactive ? .on : .off
         fpsControl.selectedSegment = segment(forFps: state.renderFps, matchDisplayRefresh: state.matchDisplayRefresh)
         speedControl.selectedSegment = segment(forPlaybackRate: state.playbackRate)
+        audioToggle.state = (state.audioControlEnabled && state.audioEnabled) ? .on : .off
+        audioToggle.isEnabled = state.audioControlEnabled
+        audioToggle.toolTip = state.audioStatusText
         fitModeControl.selectedSegment = segment(forFitMode: state.fitMode)
         foregroundModeControl.selectedSegment = segment(forForegroundMode: state.foregroundMode)
         interactionDebugOverlayToggle.state = state.interactionDebugOverlay ? .on : .off
@@ -516,11 +524,13 @@ final class ControlPanelWindowController: NSWindowController {
 
         let fpsCaption = caption("FPS")
         let speedCaption = caption("SPEED")
+        let audioCaption = caption("AUDIO")
         let fitCaption = caption("FIT")
 
         [fpsControl, speedControl, fitModeControl].forEach { control in
             control.segmentStyle = .texturedSquare
         }
+        audioToggle.font = .systemFont(ofSize: 13, weight: .regular)
         fpsControl.setToolTip("Render at fixed 30 FPS.", forSegment: 0)
         fpsControl.setToolTip("Render at fixed 60 FPS.", forSegment: 1)
         fpsControl.setToolTip("Match each monitor refresh rate for high-refresh displays.", forSegment: 2)
@@ -529,6 +539,8 @@ final class ControlPanelWindowController: NSWindowController {
         row.addArrangedSubview(fpsControl)
         row.addArrangedSubview(speedCaption)
         row.addArrangedSubview(speedControl)
+        row.addArrangedSubview(audioCaption)
+        row.addArrangedSubview(audioToggle)
         row.addArrangedSubview(fitCaption)
         row.addArrangedSubview(fitModeControl)
         return row
@@ -769,6 +781,7 @@ final class ControlPanelWindowController: NSWindowController {
             renderFps: selectedFps(),
             matchDisplayRefresh: selectedMatchDisplayRefresh(),
             playbackRate: selectedPlaybackRate(),
+            audioEnabled: audioToggle.isEnabled && audioToggle.state == .on,
             fitMode: selectedFitMode(),
             foregroundMode: selectedForegroundMode(),
             interactionDebugOverlay: interactionDebugOverlayToggle.state == .on

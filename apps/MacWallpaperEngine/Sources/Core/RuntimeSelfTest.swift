@@ -456,8 +456,10 @@ enum RuntimeSelfTest {
         )
         let effectiveAudioPolicy = runtime.manifest.runtime.effectiveAudioPolicy
         check(
-            runtime.validationSummary().contains("audioPolicy: \(effectiveAudioPolicy.rawValue) (\(effectiveAudioPolicy.runtimeOutputSummary))"),
-            "validation summary must surface the effective runtime audio policy"
+            runtime.validationSummary().contains(
+                "audioPolicy: \(effectiveAudioPolicy.rawValue) (output=\(runtime.audioOutputSummary), userOptIn=\(runtime.config.audioEnabled))"
+            ),
+            "validation summary must surface the effective runtime audio policy and user opt-in state"
         )
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
            let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
@@ -536,10 +538,11 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("render\tcontentAspect\tsupported"),
             "runtime capabilities summary must expose the resolved wallpaper content aspect"
         )
-        let effectiveAudioStatus = effectiveAudioPolicy == .disabled ? "disabled" : "muted"
         check(
-            capabilitySummary.contains("audio\tpolicy\t\(effectiveAudioStatus)\tpolicy=\(effectiveAudioPolicy.rawValue) output=\(effectiveAudioPolicy.runtimeOutputSummary)"),
-            "runtime capabilities summary must expose effective audio output policy"
+            capabilitySummary.contains(
+                "audio\tpolicy\t\(runtime.audioCapabilityStatus)\tpolicy=\(effectiveAudioPolicy.rawValue) userOptIn=\(runtime.config.audioEnabled) output=\(runtime.audioOutputSummary)"
+            ),
+            "runtime capabilities summary must expose effective audio output policy and user opt-in state"
         )
         check(
             capabilitySummary.contains("columns: category\tname\tstatus\tdetail"),
@@ -2170,6 +2173,7 @@ enum RuntimeSelfTest {
             renderFps: 60,
             matchDisplayRefresh: true,
             playbackRateOverride: 1.15,
+            audioEnabled: true,
             fitMode: .fill,
             foregroundMode: .nativeSpine,
             clearDuration: true,
@@ -2201,6 +2205,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        check(loaded.audioEnabled == true, "runtime settings must persist audio opt-in", failures: &failures, checks: &checks)
         check(loaded.fitMode == .fill, "runtime settings must persist fit mode", failures: &failures, checks: &checks)
         check(
             loaded.foregroundMode == .nativeSpine,
@@ -2249,6 +2254,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        check(parsed.audioEnabled, "EngineConfig must restore persisted audio opt-in", failures: &failures, checks: &checks)
         check(parsed.fitMode == .fill, "EngineConfig must restore persisted fit mode", failures: &failures, checks: &checks)
         check(
             parsed.foregroundMode == .nativeSpine,
@@ -2285,6 +2291,12 @@ enum RuntimeSelfTest {
         check(
             diagnosticParse.playbackRateOverride == nil,
             "diagnostic validation must ignore persisted playback-rate override",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            diagnosticParse.audioEnabled == false,
+            "diagnostic validation must ignore persisted audio opt-in",
             failures: &failures,
             checks: &checks
         )
@@ -2383,6 +2395,20 @@ enum RuntimeSelfTest {
         check(
             overridden.renderFps == 30,
             "explicit CLI FPS must override persisted settings",
+            failures: &failures,
+            checks: &checks
+        )
+        let audioOptInOverride = try EngineConfig.parse(["--audio"])
+        check(
+            audioOptInOverride.audioEnabled,
+            "EngineConfig must parse explicit audio opt-in",
+            failures: &failures,
+            checks: &checks
+        )
+        let mutedOverride = try EngineConfig.parse(["--audio", "--mute"])
+        check(
+            mutedOverride.audioEnabled == false,
+            "EngineConfig must let explicit mute override audio opt-in",
             failures: &failures,
             checks: &checks
         )
@@ -3709,6 +3735,56 @@ enum RuntimeSelfTest {
         check(
             eventOnlyRuntime.manifest.runtime.effectiveAudioPolicy == .muted,
             "runtime audio policy must default to muted when the manifest omits audioPolicy",
+            failures: &failures,
+            checks: &checks
+        )
+        let userControlledManifestURL = fixtureRoot.appendingPathComponent("user-controlled.native.json")
+        let userControlledManifestJSON = eventOnlyManifestJSON.replacingOccurrences(
+            of: "\"fallbackFps\": 15,",
+            with: "\"fallbackFps\": 15,\n    \"audioPolicy\": \"userControlled\","
+        )
+        try Data(userControlledManifestJSON.utf8).write(to: userControlledManifestURL, options: .atomic)
+        let userControlledMutedRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: userControlledManifestURL,
+            audioEnabled: false,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        check(
+            userControlledMutedRuntime.audioOutputEnabled == false
+                && userControlledMutedRuntime.audioOutputSummary == "muted-until-user-opt-in",
+            "userControlled audio policy must stay muted until explicit user opt-in",
+            failures: &failures,
+            checks: &checks
+        )
+        let userControlledEnabledRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: userControlledManifestURL,
+            audioEnabled: true,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        check(
+            userControlledEnabledRuntime.audioOutputEnabled
+                && userControlledEnabledRuntime.audioCapabilityStatus == "enabled"
+                && userControlledEnabledRuntime.runtimeCapabilitiesSummary().contains("audio\tpolicy\tenabled\tpolicy=userControlled userOptIn=true output=enabled-user-opt-in"),
+            "userControlled audio policy must enable output only after explicit user opt-in",
+            failures: &failures,
+            checks: &checks
+        )
+        let manifestMutedWithOptInRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            audioEnabled: true,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        check(
+            manifestMutedWithOptInRuntime.audioOutputEnabled == false
+                && manifestMutedWithOptInRuntime.audioOutputSummary == "muted",
+            "manifest muted audio policy must remain silent even if the user toggles audio opt-in",
             failures: &failures,
             checks: &checks
         )

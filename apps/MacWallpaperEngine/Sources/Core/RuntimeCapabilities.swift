@@ -131,7 +131,7 @@ enum RuntimeCapabilities {
             status: "fps-only",
             detail: "resource pressure lowers FPS but does not silently replace native Spine with compositeVideo"
         ))
-        rows.append(audioPolicyRow(manifest.runtime.effectiveAudioPolicy))
+        rows.append(audioPolicyRow(runtime))
 
         let actionTailDurations = (try? SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)) ?? [:]
         rows.append(contentsOf: interactionRows(
@@ -144,12 +144,13 @@ enum RuntimeCapabilities {
         return rows
     }
 
-    private static func audioPolicyRow(_ policy: AudioPolicy) -> RuntimeCapabilityRow {
-        RuntimeCapabilityRow(
+    private static func audioPolicyRow(_ runtime: NativeRuntimeCore) -> RuntimeCapabilityRow {
+        let policy = runtime.manifest.runtime.effectiveAudioPolicy
+        return RuntimeCapabilityRow(
             category: "audio",
             name: "policy",
-            status: policy == .disabled ? "disabled" : "muted",
-            detail: "policy=\(policy.rawValue) output=\(policy.runtimeOutputSummary)"
+            status: runtime.audioCapabilityStatus,
+            detail: "policy=\(policy.rawValue) userOptIn=\(runtime.config.audioEnabled) output=\(runtime.audioOutputSummary)"
         )
     }
 

@@ -95,7 +95,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 url: selectedVideo.url,
                 device: device,
                 playbackRate: runtime.config.playbackRateOverride ?? selectedVideo.playbackRate,
-                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy
+                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy,
+                audioEnabled: runtime.config.audioEnabled
             )
         }
         if runtime.config.videoEnabled,
@@ -107,7 +108,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 url: backgroundVideo.url,
                 device: device,
                 playbackRate: runtime.config.playbackRateOverride ?? backgroundVideo.playbackRate,
-                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy
+                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy,
+                audioEnabled: runtime.config.audioEnabled
             )
         }
         if runtime.config.videoEnabled,
@@ -120,7 +122,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 url: compositeVideo.url,
                 device: device,
                 playbackRate: runtime.config.playbackRateOverride ?? compositeVideo.playbackRate,
-                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy
+                audioPolicy: runtime.manifest.runtime.effectiveAudioPolicy,
+                audioEnabled: runtime.config.audioEnabled
             )
             fallbackSource.pause()
             self.resourceFallbackVideoSource = fallbackSource

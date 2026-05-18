@@ -155,6 +155,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         renderFps: Int,
         matchDisplayRefresh: Bool,
         playbackRate: Float,
+        audioEnabled: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -177,6 +178,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 renderFps: renderFps,
                 matchDisplayRefresh: matchDisplayRefresh,
                 playbackRateOverride: playbackRate,
+                audioEnabled: audioEnabled,
                 fitMode: fitMode,
                 foregroundMode: foregroundMode,
                 interactionDebugOverlay: interactionDebugOverlay,
@@ -284,6 +286,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 renderFps: 60,
                 matchDisplayRefresh: false,
                 playbackRate: 1.0,
+                audioEnabled: false,
+                audioControlEnabled: false,
+                audioStatusText: "AUDIO MUTED / no wallpaper bundle selected",
                 fitMode: .contain,
                 foregroundMode: .automatic,
                 interactionDebugOverlay: false,
@@ -327,6 +332,9 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             renderFps: runtime.renderTargetFps,
             matchDisplayRefresh: runtime.config.matchDisplayRefresh,
             playbackRate: runtime.selectedPlaybackRate,
+            audioEnabled: runtime.config.audioEnabled,
+            audioControlEnabled: runtime.manifest.runtime.effectiveAudioPolicy == .userControlled,
+            audioStatusText: audioStatusText(for: runtime),
             fitMode: runtime.config.fitMode,
             foregroundMode: runtime.config.foregroundMode,
             interactionDebugOverlay: runtime.config.interactionDebugOverlay,
@@ -370,6 +378,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         renderFps: Int,
         matchDisplayRefresh: Bool,
         playbackRate: Float,
+        audioEnabled: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -381,6 +390,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             renderFps: renderFps,
             matchDisplayRefresh: matchDisplayRefresh,
             playbackRate: playbackRate,
+            audioEnabled: audioEnabled,
             fitMode: fitMode,
             foregroundMode: foregroundMode,
             interactionDebugOverlay: interactionDebugOverlay
@@ -502,6 +512,19 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         )
     }
 
+    private func audioStatusText(for runtime: NativeRuntimeCore) -> String {
+        switch runtime.manifest.runtime.effectiveAudioPolicy {
+        case .muted:
+            return "AUDIO MUTED / manifest policy=muted"
+        case .disabled:
+            return "AUDIO DISABLED / manifest policy=disabled"
+        case .userControlled:
+            return runtime.config.audioEnabled
+                ? "AUDIO ENABLED / user opt-in"
+                : "AUDIO MUTED / waiting for user opt-in"
+        }
+    }
+
     private func primaryInteractionSnapshot(for runtime: NativeRuntimeCore) -> InteractionMonitorTelemetrySnapshot? {
         runtime.telemetry.interactionSnapshot()
             .first { $0.roleName.hasPrefix("primary:") }?
@@ -538,6 +561,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             renderFps: 60,
             matchDisplayRefresh: false,
             playbackRateOverride: 1.0,
+            audioEnabled: false,
             fitMode: .contain,
             foregroundMode: .automatic,
             interactionDebugOverlay: false,

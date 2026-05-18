@@ -144,9 +144,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
-- Control panel bundle, display, interaction, FPS, playback, fit, and foreground
-  renderer selections persist under Application Support and are restored on the
-  next normal app launch unless an explicit CLI flag overrides them.
+- Control panel bundle, display, interaction, FPS, playback, audio opt-in, fit,
+  and foreground renderer selections persist under Application Support and are
+  restored on the next normal app launch unless an explicit CLI flag overrides
+  them.
 - Validation, self-test, capability, display-plan, render-plan, and performance
   diagnostics ignore persisted user settings so package/build checks remain
   reproducible.
@@ -313,9 +314,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   - `Native Spine`: background video plus native Spine mesh/timeline foreground.
 - Foreground renderer selection is centralized so render diagnostics and the
   Metal compositor use the same native/composite/fallback decision.
-- Manifest `runtime.audioPolicy` is enforced for video-backed renderers; bundled
-  wallpapers default to `muted`, and `userControlled` remains muted until a
-  future explicit user opt-in control enables sound.
+- Manifest `runtime.audioPolicy` is enforced for video-backed renderers;
+  bundled wallpapers default to `muted`, `--audio` and the control panel audio
+  opt-in can enable output only for `userControlled` manifests, and
+  `muted`/`disabled` manifests remain silent even when the user toggles audio.
 
 ## Not Yet Implemented
 
@@ -365,6 +367,7 @@ swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --probe-interaction 0.5,0.42
 swift run MacWallpaperEngine --probe-interaction 0.5,0.70 --probe-button left
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
+swift run MacWallpaperEngine --audio --runtime-capabilities
 swift run MacWallpaperEngine --spine-animation-plan
 swift run MacWallpaperEngine --wallpaper-golden-check
 swift run MacWallpaperEngine --list-bundles --include-capabilities
