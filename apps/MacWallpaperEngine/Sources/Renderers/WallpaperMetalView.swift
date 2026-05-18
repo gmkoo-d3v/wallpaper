@@ -245,7 +245,7 @@ final class WallpaperMetalView: MTKView {
             mouseMonitor?.start()
         } else {
             mouseMonitor?.stop()
-            interaction.pointerTrackingStopped()
+            interaction.resetPointerTracking()
         }
     }
 

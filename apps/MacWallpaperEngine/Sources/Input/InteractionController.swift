@@ -128,9 +128,6 @@ final class InteractionController {
     func pointerTrackingStopped() {
         lock.lock()
         let now = clock()
-        pointerState = CGPoint(x: 0.5, y: 0.5)
-        smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
-        moveCommandState = "idle"
         if clickCommandHeld {
             clickCommandHeld = false
             activeClickTailDuration = releaseFadeDuration
@@ -139,6 +136,23 @@ final class InteractionController {
             clickCommandState = nil
             clickCommandExpiresAt = 0
         }
+        pressedHitAction = nil
+        pressedHitTrigger = nil
+        pressedHitTailDuration = 0
+        pressedButton = nil
+        lock.unlock()
+    }
+
+    func resetPointerTracking() {
+        lock.lock()
+        let now = clock()
+        pointerState = CGPoint(x: 0.5, y: 0.5)
+        smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
+        lastSmoothSampleAt = now
+        moveCommandState = "idle"
+        clickCommandState = nil
+        clickCommandExpiresAt = 0
+        clickCommandHeld = false
         pressedHitAction = nil
         pressedHitTrigger = nil
         pressedHitTailDuration = 0

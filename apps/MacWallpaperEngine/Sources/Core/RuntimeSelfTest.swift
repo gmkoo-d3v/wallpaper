@@ -787,6 +787,33 @@ enum RuntimeSelfTest {
                 interruptedController.snapshot().command == "Left",
                 "blocked app-window or desktop-icon events must not reset established look-direction state"
             )
+            var stoppedClock: CFTimeInterval = 0
+            let stoppedController = InteractionController(
+                interactions: manifest.interactions,
+                policy: manifest.interactionPolicy,
+                actionTailDurations: tapActionDurations,
+                clock: { stoppedClock }
+            )
+            stoppedController.pointerMoved(to: CGPoint(x: 0.10, y: 0.42))
+            for _ in 0..<20 {
+                stoppedClock += 1.0 / 60.0
+                _ = stoppedController.snapshot()
+            }
+            check(
+                stoppedController.snapshot().command == "Left",
+                "interaction controller must establish look-direction before pointer tracking stops"
+            )
+            stoppedController.pointerTrackingStopped()
+            stoppedClock += 1.0 / 60.0
+            check(
+                stoppedController.snapshot().command == "Left",
+                "pointer tracking stop must preserve the last look-direction instead of snapping to idle"
+            )
+            stoppedController.resetPointerTracking()
+            check(
+                stoppedController.snapshot().command == "idle",
+                "explicit interaction reset must recenter look-direction when the wallpaper disables interaction"
+            )
         } else {
             check(
                 interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") == "idle",
