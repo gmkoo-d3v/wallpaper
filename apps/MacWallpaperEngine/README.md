@@ -239,6 +239,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Composite fallback quality diagnostics also surface high-refresh
   recommendations when a fallback passes the manifest target FPS but remains
   below `maxFps` for Display Hz / ProMotion use.
+- The bundled Imported composite fallback is generated at 120fps, matching its
+  manifest `maxFps` so Composite mode remains smooth on high-refresh displays.
 - `--export-composite-video` renders a native/source composite MP4 fallback at
   a chosen FPS, duration, and snapshot size so low-FPS fallback debt can be
   regenerated instead of hand-authored.

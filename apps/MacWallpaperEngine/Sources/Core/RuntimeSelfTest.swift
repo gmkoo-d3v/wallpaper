@@ -475,6 +475,22 @@ enum RuntimeSelfTest {
                 "bundle catalog capabilities must surface high-refresh composite fallback recommendations"
             )
         }
+        if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
+           let metadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
+           let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),
+           effectiveFps + 0.5 >= Double(runtime.manifest.runtime.maxFps) {
+            check(
+                compositeQualityReport.recommendedExportFps == nil
+                    && compositeQualityReport.recommendations.isEmpty,
+                "max-FPS composite fallback must not keep stale high-refresh regeneration recommendations"
+            )
+            if runtime.manifest.metadata?.id == "sample_imported" {
+                check(
+                    compositeVideo.url.lastPathComponent.contains("120fps"),
+                    "Imported sample must ship a 120fps composite fallback for Display Hz / ProMotion fallback playback"
+                )
+            }
+        }
         check(
             CompositeVideoExporter.defaultDuration(runtime: runtime) > 0,
             "composite video export must derive a positive default duration from source assets"
