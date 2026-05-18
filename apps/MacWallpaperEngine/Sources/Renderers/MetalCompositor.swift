@@ -158,7 +158,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 ),
                 lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
-                oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
+                oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
+                audioOutputEnabled: runtime.audioOutputEnabled
             )
             if let spineRenderer {
                 print("spine setup mesh OK: batches=\(spineRenderer.batchCount) vertices=\(spineRenderer.triangleVertexCount)")

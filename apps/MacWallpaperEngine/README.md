@@ -196,6 +196,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Manifest-driven tap/hold action continuity for Spine interaction actions.
 - Non-visual Spine event timelines are tolerated and ignored by the native
   renderer instead of forcing a composite fallback.
+- Spine audio event timelines are scheduled by the native renderer for
+  AVAudioPlayer-compatible files when `userControlled` audio is explicitly
+  enabled; muted and disabled manifests stay silent without forcing composite
+  fallback.
 - Spine `sequence` metadata on otherwise supported region/mesh attachments is
   tolerated as static setup-frame data instead of forcing a composite fallback.
   Actual sequence attachment types/timelines remain an explicit unsupported gate.
@@ -331,7 +335,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Not Yet Implemented
 
 - Full Spine 4.2 runtime parity.
-- Spine audio event playback, animated sequence attachment/timeline playback, and non-region non-mesh attachment paths.
+- Spine animated sequence attachment/timeline playback and non-region non-mesh attachment paths.
   The current Imported asset uses mesh/path/region/clipping-compatible paths.
 - Full official physics parity for all Spine options; current native path covers
   this asset's `x`, `y`, and `rotate` physics constraints.

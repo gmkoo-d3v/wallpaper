@@ -178,9 +178,6 @@ enum RuntimeCapabilities {
         if scan.unsupportedTimelineKeys.isEmpty == false {
             reasons.append("unsupported timeline keys: \(scan.unsupportedTimelineKeys.listOrNone)")
         }
-        if scan.hasAudioData {
-            reasons.append("audio event playback is not implemented")
-        }
         return NativeSpineCompatibility(isSupported: reasons.isEmpty, reasons: reasons)
     }
 
@@ -445,9 +442,9 @@ enum RuntimeCapabilities {
         let timelineStatus = scan.unsupportedTimelineKeys.isEmpty ? "supported" : "unsupported"
         let eventFeatureStatus: String
         let hasUnsupportedSequenceAttachment = scan.attachmentTypes.contains("sequence")
-        if scan.hasAudioData || hasUnsupportedSequenceAttachment {
+        if hasUnsupportedSequenceAttachment {
             eventFeatureStatus = "unsupported"
-        } else if scan.hasEventData || scan.hasSequenceData {
+        } else if scan.hasEventData || scan.hasAudioData || scan.hasSequenceData {
             eventFeatureStatus = "supported"
         } else {
             eventFeatureStatus = "not-used"
@@ -462,7 +459,7 @@ enum RuntimeCapabilities {
         }
         let eventFeatureDetail = [
             scan.hasEventData ? "events=ignored(non-visual)" : "events=none",
-            scan.hasAudioData ? "audio=unsupported" : "audio=none",
+            scan.hasAudioData ? "audio=playback" : "audio=none",
             sequenceDetail
         ].joined(separator: " ")
 

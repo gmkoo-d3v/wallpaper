@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreGraphics
 import Foundation
 import Metal
@@ -194,6 +195,20 @@ final class SpineSetupPoseRenderer {
         let offsets: [DrawOrderOffset]?
     }
 
+    private struct EventFrame {
+        let time: Double
+        let name: String
+        let volume: Double?
+        let balance: Double?
+    }
+
+    private struct SpineEventDefinition {
+        let name: String
+        let audioPath: String?
+        let volume: Double?
+        let balance: Double?
+    }
+
     private struct BoneTimelines {
         var rotate: [TimelineFrame] = []
         var translate: [TimelineFrame] = []
@@ -247,6 +262,7 @@ final class SpineSetupPoseRenderer {
         let slotTimelines: [String: SlotTimelines]
         let attachmentTimelines: [String: [String: AttachmentTimelines]]
         let drawOrder: [DrawOrderFrame]
+        let eventFrames: [EventFrame]
 
         func timelineFrameTimes() -> [Double] {
             var times = boneTimelines.values.flatMap(\.frameTimes)
@@ -255,6 +271,7 @@ final class SpineSetupPoseRenderer {
                 slotTimelines.values.flatMap { $0.deform.map(\.time) }
             })
             times.append(contentsOf: drawOrder.map(\.time))
+            times.append(contentsOf: eventFrames.map(\.time))
             return times
         }
 
@@ -344,6 +361,57 @@ final class SpineSetupPoseRenderer {
         let byteCount: Int
     }
 
+    private final class SpineAudioEventPlayer {
+        private let baseURL: URL
+        private let definitions: [String: SpineEventDefinition]
+        private var activePlayers: [AVAudioPlayer] = []
+        private var missingOrUnsupportedAudioPaths: Set<String> = []
+
+        init(baseURL: URL, definitions: [String: SpineEventDefinition]) {
+            self.baseURL = baseURL
+            self.definitions = definitions
+        }
+
+        func play(frames: [EventFrame]) {
+            guard frames.isEmpty == false else { return }
+            activePlayers.removeAll { $0.isPlaying == false }
+
+            for frame in frames {
+                guard let definition = definitions[frame.name],
+                      let audioPath = definition.audioPath,
+                      audioPath.isEmpty == false else {
+                    continue
+                }
+                let audioURL = baseURL.appendingPathComponent(audioPath).standardizedFileURL
+                let key = audioURL.path
+                guard FileManager.default.fileExists(atPath: key) else {
+                    logMissingOrUnsupportedAudio(path: key, reason: "missing file")
+                    continue
+                }
+
+                do {
+                    let player = try AVAudioPlayer(contentsOf: audioURL)
+                    player.volume = Float(Self.clamp(frame.volume ?? definition.volume ?? 1.0, min: 0, max: 1))
+                    player.pan = Float(Self.clamp(frame.balance ?? definition.balance ?? 0.0, min: -1, max: 1))
+                    player.prepareToPlay()
+                    player.play()
+                    activePlayers.append(player)
+                } catch {
+                    logMissingOrUnsupportedAudio(path: key, reason: error.localizedDescription)
+                }
+            }
+        }
+
+        private func logMissingOrUnsupportedAudio(path: String, reason: String) {
+            guard missingOrUnsupportedAudioPaths.insert(path).inserted else { return }
+            fputs("Spine audio event skipped: \(path) (\(reason))\n", stderr)
+        }
+
+        private static func clamp(_ value: Double, min: Double, max: Double) -> Double {
+            Swift.min(Swift.max(value, min), max)
+        }
+    }
+
     struct GeometrySample {
         let actionName: String
         let time: Double
@@ -368,6 +436,7 @@ final class SpineSetupPoseRenderer {
     private let pathAttachments: [String: [String: PathAttachment]]
     private let clippingAttachments: [String: [String: ClippingAttachment]]
     private let animations: [String: SpineAnimation]
+    private let audioEventPlayer: SpineAudioEventPlayer?
     private let poseConstraints: [PoseConstraint]
     private let skeletonBounds: CGRect
     private let placement: SpinePlacement
@@ -390,6 +459,8 @@ final class SpineSetupPoseRenderer {
     private var activeAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
     private var previousOverlayAnimationName: String?
     private var previousOverlayAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
+    private var lastAudioEventAnimationName: String?
+    private var lastAudioEventTime: Double = 0
     let batchCount: Int
     let triangleVertexCount: Int
     private static let enablePathConstraints = true
@@ -408,7 +479,8 @@ final class SpineSetupPoseRenderer {
         lookDeadZone: CGPoint? = nil,
         lookIdleDeadZone: Double = 0.18,
         loopingAnimationNames: Set<String> = ["idle"],
-        oneShotAnimationNames: Set<String> = []
+        oneShotAnimationNames: Set<String> = [],
+        audioOutputEnabled: Bool = false
     ) throws {
         let textureLoader = MTKTextureLoader(device: device)
         let atlas = try Self.parseAtlas(url: spineAsset.atlas, textureLoader: textureLoader)
@@ -437,6 +509,7 @@ final class SpineSetupPoseRenderer {
         let attachments = try Self.parseAttachments(root: root)
         let pathAttachments = try Self.parsePathAttachments(root: root)
         let clippingAttachments = try Self.parseClippingAttachments(root: root)
+        let eventDefinitions = Self.parseEventDefinitions(root: root)
         let animations = try Self.parseAnimations(root: root)
         let boneWorld = Self.computeBoneWorld(
             bones,
@@ -468,6 +541,9 @@ final class SpineSetupPoseRenderer {
         self.pathAttachments = pathAttachments
         self.clippingAttachments = clippingAttachments
         self.animations = animations
+        self.audioEventPlayer = audioOutputEnabled && eventDefinitions.values.contains(where: { $0.audioPath != nil })
+            ? SpineAudioEventPlayer(baseURL: spineAsset.json.deletingLastPathComponent(), definitions: eventDefinitions)
+            : nil
         self.poseConstraints = poseConstraints
         self.playbackRate = max(0.01, Double(playbackRate))
         self.poseSampleFps = Double(max(1, min(poseSampleFps, 240)))
@@ -615,6 +691,7 @@ final class SpineSetupPoseRenderer {
         let activeAnimationTime = time(in: activeAnimation, now: now)
         let idleAnimation = animations["idle"]
         let idleAnimationTime = idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0
+        playDueAudioEvents(animation: activeAnimation, currentTime: activeAnimationTime)
         let physicsTime = max(0, now - rendererStartedAt) * playbackRate
         let posePhysicsTime = Self.enablePhysicsConstraints ? physicsTime : 0
         let canUsePoseFrameCache = Self.enablePhysicsConstraints == false
@@ -687,6 +764,28 @@ final class SpineSetupPoseRenderer {
             fputs("Spine animation pose failed: \(error.localizedDescription)\n", stderr)
         }
         return cachedBatches
+    }
+
+    private func playDueAudioEvents(animation: SpineAnimation, currentTime: Double) {
+        guard let audioEventPlayer,
+              animation.eventFrames.isEmpty == false else {
+            return
+        }
+
+        if lastAudioEventAnimationName != animation.name {
+            lastAudioEventAnimationName = animation.name
+            lastAudioEventTime = -Double.ulpOfOne
+        }
+
+        let previousTime = lastAudioEventTime
+        let dueFrames: [EventFrame]
+        if loopingAnimationNames.contains(animation.name), currentTime < previousTime {
+            dueFrames = animation.eventFrames.filter { $0.time > previousTime || $0.time <= currentTime }
+        } else {
+            dueFrames = animation.eventFrames.filter { $0.time > previousTime && $0.time <= currentTime }
+        }
+        lastAudioEventTime = currentTime
+        audioEventPlayer.play(frames: dueFrames)
     }
 
     private func pointerLookMix(_ pointer: CGPoint) -> Double {
@@ -1164,6 +1263,8 @@ final class SpineSetupPoseRenderer {
                 drawOrder = parseDrawOrderFrames(raw)
                 duration = max(duration, drawOrder.map(\.time).max() ?? 0)
             }
+            let eventFrames = parseEventFrames(animationMap["events"])
+            duration = max(duration, eventFrames.map(\.time).max() ?? 0)
 
             result[animationName] = SpineAnimation(
                 name: animationName,
@@ -1171,10 +1272,26 @@ final class SpineSetupPoseRenderer {
                 boneTimelines: boneTimelines,
                 slotTimelines: slotTimelines,
                 attachmentTimelines: attachmentTimelines,
-                drawOrder: drawOrder
+                drawOrder: drawOrder,
+                eventFrames: eventFrames
             )
         }
 
+        return result
+    }
+
+    private static func parseEventDefinitions(root: [String: Any]) -> [String: SpineEventDefinition] {
+        guard let rawEvents = root["events"] as? [String: Any] else { return [:] }
+        var result: [String: SpineEventDefinition] = [:]
+        for (eventName, rawEvent) in rawEvents {
+            let eventMap = rawEvent as? [String: Any] ?? [:]
+            result[eventName] = SpineEventDefinition(
+                name: eventName,
+                audioPath: eventMap["audio"] as? String,
+                volume: optionalNumber(eventMap["volume"]),
+                balance: optionalNumber(eventMap["balance"])
+            )
+        }
         return result
     }
 
@@ -1197,6 +1314,20 @@ final class SpineSetupPoseRenderer {
             return DrawOrderFrame(
                 time: number(frame["time"], default: 0),
                 offsets: offsets
+            )
+        }
+        .sorted { $0.time < $1.time }
+    }
+
+    private static func parseEventFrames(_ raw: Any?) -> [EventFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.compactMap { frame in
+            guard let name = frame["name"] as? String else { return nil }
+            return EventFrame(
+                time: number(frame["time"], default: 0),
+                name: name,
+                volume: optionalNumber(frame["volume"]),
+                balance: optionalNumber(frame["balance"])
             )
         }
         .sorted { $0.time < $1.time }
@@ -1539,6 +1670,11 @@ final class SpineSetupPoseRenderer {
         if let value = raw as? NSNumber { return value.doubleValue }
         if let value = raw as? String, let parsed = Double(value) { return parsed }
         return defaultValue
+    }
+
+    private static func optionalNumber(_ raw: Any?) -> Double? {
+        guard raw != nil else { return nil }
+        return number(raw, default: 0)
     }
 
     private static func parseAtlas(

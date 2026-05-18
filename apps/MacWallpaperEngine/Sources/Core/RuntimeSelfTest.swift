@@ -3886,6 +3886,33 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let audioEventSpineJSON = eventOnlySpineJSON.replacingOccurrences(
+            of: "\"marker\": {}",
+            with: "\"marker\": { \"audio\": \"voice.wav\", \"volume\": 0.5, \"balance\": -0.25 }"
+        )
+        try Data(audioEventSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let audioEventCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
+        check(
+            audioEventCompatibility.isSupported,
+            "Spine audio event timelines must not force composite fallback when visual native rendering is supported",
+            failures: &failures,
+            checks: &checks
+        )
+        let audioEventRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        check(
+            audioEventRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored(non-visual) audio=playback sequence=none"),
+            "capability diagnostics must expose native Spine audio event playback support",
+            failures: &failures,
+            checks: &checks
+        )
 
         let spineJSON = """
         {
@@ -4033,7 +4060,13 @@ enum RuntimeSelfTest {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: unsupportedRuntime)
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
-        check(compatibility.reasonText.contains("audio event playback"), "compatibility gate must report unsupported audio event playback", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("audio event playback") == false, "audio event playback must not force composite fallback when native visual rendering is otherwise compatible", failures: &failures, checks: &checks)
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("audio=playback"),
+            "capability diagnostics must report Spine audio event playback support separately from visual compatibility",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("sequence=unsupported-attachment"),
             "capability diagnostics must distinguish unsupported sequence attachment types from tolerated sequence metadata",
@@ -4057,7 +4090,7 @@ enum RuntimeSelfTest {
         let unsupportedSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(unsupportedSummary.capabilities.nativeSpineStatus == "unsupported", "catalog must surface unsupported native Spine status", failures: &failures, checks: &checks)
         check(
-            unsupportedSummary.capabilities.nativeSpineSummary.contains("audio event playback")
+            unsupportedSummary.capabilities.nativeSpineSummary.contains("unsupported attachment types")
                 && unsupportedSummary.capabilities.briefText.contains("native: unsupported("),
             "catalog capability summaries must explain why native Spine is unsupported",
             failures: &failures,
