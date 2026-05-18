@@ -428,7 +428,7 @@ enum RuntimeCapabilities {
         }
         return DesktopInteractionGate.hasAccessibilityTrust()
             ? "requires-accessibility-trust(current=trusted)"
-            : "requires-accessibility-trust(current=missing,hover-only)"
+            : "requires-accessibility-trust(current=missing,pointer-only)"
     }
 
     private static func spineRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {

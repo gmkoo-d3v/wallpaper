@@ -334,13 +334,13 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   gates remain the tracking-stop boundary.
 - Desktop icon hit-testing fails closed without Accessibility trust when
   `blockDesktopItems` is enabled for click/touch actions, while pointer-move
-  gaze tracking degrades to hover-only when no application window covers the
-  cursor.
+  or button-drag gaze tracking can remain available when no application window
+  covers the cursor.
 - The bundled Imported sample keeps `blockDesktopItems=true` so Finder desktop
   icons remain protected; click reaction requires macOS Accessibility trust,
   app-window blocking remains enabled, desktop wallpaper windows stay
   mouse-passive, passive monitors provide click delivery after trust is granted,
-  hover-only tracking remains available before trust, and passive secondary
+  pointer/drag tracking remains available before trust, and passive secondary
   windows stay mouse-passive.
 - `desktop-empty-only` bundles that do not block Finder desktop items route
   direct NSResponder mouse events only in plain diagnostic windows; desktop
@@ -353,7 +353,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   maps a short head touch to `boll`, and promotes head rub/hold to `act`.
 - When desktop-item hit-testing needs Accessibility trust, wallpaper startup
   uses a no-prompt trust check; click/touch actions stay blocked until
-  trust is granted, hover-only tracking can remain active, and the control panel
+  trust is granted, pointer/drag tracking can remain active, and the control panel
   requests permission only after the user presses the Accessibility action.
 - Renderer warmup, video-loop gaps, and first-frame pause/resource paths submit
   one preview/last-frame/neutral fallback drawable before pausing, instead of

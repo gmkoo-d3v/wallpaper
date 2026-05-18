@@ -639,7 +639,7 @@ enum RuntimeSelfTest {
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
             runtime: runtime,
-            interactionStatus: "INTERACTION DEGRADED / hover tracking only; grant macOS Accessibility permission"
+            interactionStatus: "INTERACTION DEGRADED / pointer tracking only; grant macOS Accessibility permission"
         )
         check(
             doctorReport.contains("wallpaper doctor OK")
@@ -2036,9 +2036,10 @@ enum RuntimeSelfTest {
         check(
             blockedPermissionStatus.canRequestAccessibilityPermission
                 && blockedPermissionStatus.text.contains("INTERACTION DEGRADED")
-                && blockedPermissionStatus.text.contains("hover tracking only")
+                && blockedPermissionStatus.text.contains("pointer tracking only")
+                && blockedPermissionStatus.text.contains("click/touch")
                 && blockedPermissionStatus.text.contains("Accessibility"),
-            "control panel interaction status must explain Accessibility-degraded desktop interaction",
+            "control panel interaction status must explain Accessibility-degraded click/touch interaction",
             failures: &failures,
             checks: &checks
         )

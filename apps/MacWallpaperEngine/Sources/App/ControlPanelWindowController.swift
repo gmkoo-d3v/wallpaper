@@ -66,7 +66,7 @@ final class ControlPanelWindowController: NSWindowController {
     static let fpsLabels = ["30", "60", "Display Hz"]
     static let interactionStatusMaximumLines = 2
     static let doctorStatusMaximumLines = 4
-    static let interactionPermissionButtonTooltip = "Grant macOS Accessibility permission so desktop-empty click interactions can run while Finder icons stay protected."
+    static let interactionPermissionButtonTooltip = "Grant macOS Accessibility permission so desktop-empty click/touch interactions can run while Finder icons stay protected."
 
     static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
         "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)]"
