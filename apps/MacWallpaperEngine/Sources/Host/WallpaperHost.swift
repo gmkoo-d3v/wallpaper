@@ -416,6 +416,8 @@ enum DisplayPlanner {
 
         return """
         display plan OK
+        displayProbe: physical(coregraphics)
+        displayCount: \(displays.count)
         displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         rebuildPolicy: \(rebuildPolicy)
@@ -469,6 +471,8 @@ enum DisplayPlanner {
 
         return """
         render plan OK
+        displayProbe: physical(coregraphics)
+        displayCount: \(displays.count)
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
         displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
@@ -629,17 +633,22 @@ enum DisplayPlanner {
     }
 
     private static func currentDisplaySnapshots() -> [DisplaySnapshot] {
-        var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else {
-            return []
+        var displayIDs = coreGraphicsDisplayIDs(online: false)
+        if displayIDs.isEmpty {
+            displayIDs = coreGraphicsDisplayIDs(online: true)
+        }
+        if displayIDs.isEmpty && Bundle.main.bundleURL.pathExtension == "app" {
+            _ = NSApplication.shared
+            displayIDs = coreGraphicsDisplayIDs(online: false)
+            if displayIDs.isEmpty {
+                displayIDs = coreGraphicsDisplayIDs(online: true)
+            }
+        }
+        if displayIDs.isEmpty {
+            displayIDs = screenDisplayIDs()
         }
 
-        var displayIDs = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &displayIDs, &count) == .success else {
-            return []
-        }
-
-        return displayIDs.prefix(Int(count)).map { displayID in
+        return displayIDs.map { displayID in
             let frame = CGDisplayBounds(displayID)
             let pixelWidth = CGDisplayPixelsWide(displayID)
             let pixelHeight = CGDisplayPixelsHigh(displayID)
@@ -658,6 +667,28 @@ enum DisplayPlanner {
                 model: CGDisplayModelNumber(displayID),
                 serial: CGDisplaySerialNumber(displayID)
             )
+        }
+    }
+
+    private static func coreGraphicsDisplayIDs(online: Bool) -> [CGDirectDisplayID] {
+        var count: UInt32 = 0
+        let result = online
+            ? CGGetOnlineDisplayList(0, nil, &count)
+            : CGGetActiveDisplayList(0, nil, &count)
+        guard result == .success, count > 0 else { return [] }
+
+        var displayIDs = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        let displayResult = online
+            ? CGGetOnlineDisplayList(count, &displayIDs, &count)
+            : CGGetActiveDisplayList(count, &displayIDs, &count)
+        guard displayResult == .success else { return [] }
+        return Array(displayIDs.prefix(Int(count)))
+    }
+
+    private static func screenDisplayIDs() -> [CGDirectDisplayID] {
+        NSScreen.screens.compactMap {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+                .map { CGDirectDisplayID($0.uint32Value) }
         }
     }
 

@@ -45,6 +45,7 @@ enum RuntimeDoctorReport {
             section("validation", runtime.validationSummary()),
             section("runtime-capabilities", runtime.runtimeCapabilitiesSummary()),
             section("render-plan", DisplayPlanner.headlessRenderSummary(runtime: runtime)),
+            section("physical-render-plan", DisplayPlanner.renderSummary(runtime: runtime)),
             section("simulated-render-plan", DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime)),
             section("simulated-render-plan-matrix", simulatedRenderPlanMatrix(runtime: runtime)),
             section("performance-plan", runtime.performanceSummary()),

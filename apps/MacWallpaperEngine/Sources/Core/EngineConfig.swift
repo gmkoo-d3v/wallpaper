@@ -94,7 +94,9 @@ struct EngineConfig {
     let interactionDebugOverlay: Bool
     let validateOnly: Bool
     let displayPlanOnly: Bool
+    let physicalDisplayPlanOnly: Bool
     let renderPlanOnly: Bool
+    let physicalRenderPlanOnly: Bool
     let simulatedRenderPlanOnly: Bool
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
@@ -151,7 +153,9 @@ struct EngineConfig {
         metalEnabled: Bool? = nil,
         plainWindowStyle: Bool? = nil,
         displayPlanOnly: Bool? = nil,
+        physicalDisplayPlanOnly: Bool? = nil,
         renderPlanOnly: Bool? = nil,
+        physicalRenderPlanOnly: Bool? = nil,
         simulatedRenderPlanOnly: Bool? = nil,
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
@@ -194,7 +198,9 @@ struct EngineConfig {
             interactionDebugOverlay: interactionDebugOverlay ?? self.interactionDebugOverlay,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly ?? self.displayPlanOnly,
+            physicalDisplayPlanOnly: physicalDisplayPlanOnly ?? self.physicalDisplayPlanOnly,
             renderPlanOnly: renderPlanOnly ?? self.renderPlanOnly,
+            physicalRenderPlanOnly: physicalRenderPlanOnly ?? self.physicalRenderPlanOnly,
             simulatedRenderPlanOnly: simulatedRenderPlanOnly ?? self.simulatedRenderPlanOnly,
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
@@ -257,7 +263,9 @@ struct EngineConfig {
         var explicitLaunchAtLogin = false
         var validateOnly = false
         var displayPlanOnly = false
+        var physicalDisplayPlanOnly = false
         var renderPlanOnly = false
+        var physicalRenderPlanOnly = false
         var simulatedRenderPlanOnly = false
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
@@ -387,8 +395,12 @@ struct EngineConfig {
                 validateOnly = true
             case "--display-plan":
                 displayPlanOnly = true
+            case "--physical-display-plan":
+                physicalDisplayPlanOnly = true
             case "--render-plan":
                 renderPlanOnly = true
+            case "--physical-render-plan":
+                physicalRenderPlanOnly = true
             case "--simulated-render-plan":
                 simulatedRenderPlanOnly = true
             case "--performance-plan":
@@ -530,7 +542,9 @@ struct EngineConfig {
 
         let ignoresPersistedSettings = validateOnly
             || displayPlanOnly
+            || physicalDisplayPlanOnly
             || renderPlanOnly
+            || physicalRenderPlanOnly
             || simulatedRenderPlanOnly
             || performancePlanOnly
             || runtimeCapabilitiesOnly
@@ -627,7 +641,9 @@ struct EngineConfig {
             interactionDebugOverlay: interactionDebugOverlay,
             validateOnly: validateOnly,
             displayPlanOnly: displayPlanOnly,
+            physicalDisplayPlanOnly: physicalDisplayPlanOnly,
             renderPlanOnly: renderPlanOnly,
+            physicalRenderPlanOnly: physicalRenderPlanOnly,
             simulatedRenderPlanOnly: simulatedRenderPlanOnly,
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
@@ -740,7 +756,9 @@ struct EngineConfig {
       --recovery-plan          Print persisted renderer safe-mode recovery/quarantine state, then exit.
       --recovery-store <path>  Recovery state file for --recovery-plan. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.
+      --physical-display-plan  Print actual CoreGraphics display role/policy mapping and exit.
       --render-plan            Print effective per-display background/foreground renderer path and exit.
+      --physical-render-plan   Print actual CoreGraphics display render path and exit.
       --simulated-render-plan  Print the same renderer path over a deterministic three-display fixture and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.

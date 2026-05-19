@@ -699,6 +699,7 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("== validation ==")
                 && doctorReport.contains("== runtime-capabilities ==")
                 && doctorReport.contains("== render-plan ==")
+                && doctorReport.contains("== physical-render-plan ==")
                 && doctorReport.contains("== simulated-render-plan ==")
                 && doctorReport.contains("== simulated-render-plan-matrix ==")
                 && doctorReport.contains("displayMode: selectedOnly")
@@ -1456,6 +1457,11 @@ enum RuntimeSelfTest {
             "EngineConfig help must document combined runtime doctor diagnostics"
         )
         check(
+            EngineConfig.help.contains("--physical-display-plan")
+                && EngineConfig.help.contains("--physical-render-plan"),
+            "EngineConfig help must document physical CoreGraphics display diagnostics"
+        )
+        check(
             EngineConfig.help.contains("--completion-audit")
                 && EngineConfig.help.contains("--manual-smoke-evidence"),
             "EngineConfig help must document objective-level completion audit diagnostics and manual smoke evidence ingestion"
@@ -1634,6 +1640,15 @@ enum RuntimeSelfTest {
                 "display plan summary must expose a display arrangement fingerprint"
             )
         }
+        let physicalDisplaySummary = DisplayPlanner.summary(runtime: nativeRuntime)
+        if physicalDisplaySummary.contains("no screens detected") == false {
+            check(
+                physicalDisplaySummary.contains("displayProbe: physical(coregraphics)")
+                    && physicalDisplaySummary.contains("displayCount:")
+                    && physicalDisplaySummary.contains("identity=displayID:"),
+                "physical display plan summary must expose actual CoreGraphics display count and identities"
+            )
+        }
         let renderSummary = DisplayPlanner.headlessRenderSummary(runtime: nativeRuntime)
         if renderSummary.contains("no screens detected") == false {
             check(
@@ -1647,6 +1662,16 @@ enum RuntimeSelfTest {
             check(
                 renderSummary.contains("arrangement="),
                 "render plan summary must expose a display arrangement fingerprint"
+            )
+        }
+        let physicalRenderSummary = DisplayPlanner.renderSummary(runtime: nativeRuntime)
+        if physicalRenderSummary.contains("no screens detected") == false {
+            check(
+                physicalRenderSummary.contains("displayProbe: physical(coregraphics)")
+                    && physicalRenderSummary.contains("displayCount:")
+                    && physicalRenderSummary.contains("background=")
+                    && physicalRenderSummary.contains("foreground="),
+                "physical render plan summary must expose actual CoreGraphics display render paths"
             )
         }
         if let metadata = manifest.metadata {

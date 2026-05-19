@@ -111,9 +111,16 @@ do {
         exit(EXIT_SUCCESS)
     }
 
-    if config.renderPlanOnly || config.simulatedRenderPlanOnly {
+    if config.physicalDisplayPlanOnly {
+        print(DisplayPlanner.summary(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
+    if config.renderPlanOnly || config.physicalRenderPlanOnly || config.simulatedRenderPlanOnly {
         if config.simulatedRenderPlanOnly {
             print(DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime))
+        } else if config.physicalRenderPlanOnly {
+            print(DisplayPlanner.renderSummary(runtime: runtime))
         } else {
             print(DisplayPlanner.headlessRenderSummary(runtime: runtime))
         }

@@ -78,6 +78,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--render-plan` reports the effective per-display background video,
   foreground renderer, fallback, interaction path, FPS mode, display refresh,
   and planned render FPS before launching windows.
+- `--physical-display-plan` and `--physical-render-plan` run the same display
+  and renderer planning against the actual CoreGraphics display layout, so
+  physical monitor evidence can be captured separately from headless-safe CI
+  diagnostics.
 - Display mode CLI aliases match the control panel wording:
   `selectedOnly` touches only the chosen primary display, `selectedPolicy`
   applies the manifest secondary policy, and `allFull` renders the full
@@ -446,6 +450,8 @@ swift run MacWallpaperEngine --validate-only --strict-composite-quality
 swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode allFull
 swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode selectedPolicy
 swift run MacWallpaperEngine --render-plan --primary-display fingerprint:<hash>
+swift run MacWallpaperEngine --physical-display-plan
+swift run MacWallpaperEngine --physical-render-plan
 swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedOnly
 swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedPolicy
 swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
