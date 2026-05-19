@@ -196,6 +196,9 @@ write_package_smoke_evidence() {
   local interaction_status
   interaction_status="$("$MACOS_DIR/$APP_NAME" --interaction-plan 2>/dev/null | sed -n 's/^desktopMonitor: //p' | head -n 1)"
   interaction_status="$(json_safe_text "${interaction_status:-unknown}")"
+  local accessibility_status
+  accessibility_status="$("$MACOS_DIR/$APP_NAME" --accessibility-status 2>/dev/null | awk -F': ' '/^accessibilityStatus:/ {print $2; exit}')"
+  accessibility_status="$(json_safe_text "${accessibility_status:-unknown}")"
   local physical_display_count
   physical_display_count="$("$MACOS_DIR/$APP_NAME" --physical-render-plan 2>/dev/null | awk '/^displayCount:/ {print $2; exit}')"
   physical_display_count="$(json_safe_text "${physical_display_count:-unknown}")"
@@ -210,7 +213,7 @@ write_package_smoke_evidence() {
   "liveDesktopClickActions": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Current packaged interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
+    "evidence": "Current packaged accessibility status: $accessibility_status; interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
     "operatorNote": "Required before live-desktop-click-actions can pass."
   },
   "physicalDisplayHotplugSmoke": {

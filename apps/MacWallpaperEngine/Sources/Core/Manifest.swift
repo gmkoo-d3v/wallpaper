@@ -45,6 +45,8 @@ struct RuntimeConfig: Decodable {
     let targetFps: Int
     let maxFps: Int
     let fallbackFps: Int
+    let nativeSpinePoseFps: Int?
+    let nativeSpineIdlePoseFps: Int?
     let audioPolicy: AudioPolicy?
     let performanceTiers: [PerformanceTier]?
     let scheduler: SchedulerConfig

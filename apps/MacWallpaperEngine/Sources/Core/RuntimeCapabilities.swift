@@ -141,7 +141,7 @@ enum RuntimeCapabilities {
             category: "performance",
             name: "frameScheduler",
             status: "supported",
-            detail: "target=\(runtime.renderTargetFps) max=\(manifest.runtime.maxFps) fallback=\(manifest.runtime.fallbackFps) inFlight=\(manifest.runtime.scheduler.maxInFlightCommandBuffers)"
+            detail: "target=\(runtime.renderTargetFps) nativeSpinePoseFps=\(runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil)) nativeSpineIdlePoseFps=\(runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil)) max=\(manifest.runtime.maxFps) fallback=\(manifest.runtime.fallbackFps) inFlight=\(manifest.runtime.scheduler.maxInFlightCommandBuffers)"
         ))
         rows.append(RuntimeCapabilityRow(
             category: "render",

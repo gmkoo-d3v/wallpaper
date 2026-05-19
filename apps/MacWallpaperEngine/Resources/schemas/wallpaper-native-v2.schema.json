@@ -37,6 +37,8 @@
         "targetFps": { "type": "integer", "minimum": 1, "maximum": 240 },
         "maxFps": { "type": "integer", "minimum": 1, "maximum": 240 },
         "fallbackFps": { "type": "integer", "minimum": 1, "maximum": 240 },
+        "nativeSpinePoseFps": { "type": "integer", "minimum": 1, "maximum": 240 },
+        "nativeSpineIdlePoseFps": { "type": "integer", "minimum": 1, "maximum": 240 },
         "audioPolicy": { "enum": ["muted", "userControlled", "disabled"] },
         "performanceTiers": {
           "type": "array",

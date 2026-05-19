@@ -1171,8 +1171,12 @@ enum RuntimeSelfTest {
             )
             check(
                 spineGeometryPlan.contains("runtime-cadence")
-                    && spineGeometryPlan.contains("poseFps=\(runtime.renderTargetFps)"),
-                "Spine geometry diagnostics must sample runtime-cadence pose frames at the render target FPS"
+                    && spineGeometryPlan.contains("poseFps=\(runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil))"),
+                "Spine geometry diagnostics must sample runtime-cadence pose frames at the native Spine pose FPS"
+            )
+            check(
+                spineGeometryPlan.contains("idlePoseFps=\(runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil))"),
+                "Spine geometry diagnostics must expose the native Spine idle pose FPS"
             )
             check(
                 spineGeometryPlan.contains("fp="),
@@ -1191,6 +1195,9 @@ enum RuntimeSelfTest {
                     && spineProfile.contains("p95PoseSampleMs:")
                     && spineProfile.contains("poseBudgetSoftLimitMs:")
                     && spineProfile.contains("poseBudgetPolicy: \(SpineGeometryDiagnostics.poseBudgetPolicy)")
+                    && spineProfile.contains("poseSampleFps:")
+                    && spineProfile.contains("idlePoseSampleFps:")
+                    && spineProfile.contains("renderTargetFps:")
                     && spineProfile.contains("poseBudgetStatus:"),
                 "Spine profile diagnostics must expose per-pose frame-budget metrics"
             )

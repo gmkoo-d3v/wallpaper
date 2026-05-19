@@ -66,7 +66,8 @@ struct WallpaperSnapshotDiagnostics {
                     spineAsset: spineAsset,
                     device: device,
                     playbackRate: runtime.selectedPlaybackRate,
-                    poseSampleFps: runtime.renderTargetFps,
+                    poseSampleFps: runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil),
+                    idlePoseSampleFps: runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil),
                     lookAnimationNames: SpineInteractionAnimationRoles.lookAnimationNames(from: runtime.manifest),
                     lookNeutralPoint: SpineInteractionAnimationRoles.lookNeutralPoint(from: runtime.manifest),
                     lookDeadZone: SpineInteractionAnimationRoles.lookDeadZone(

@@ -49,6 +49,16 @@ enum ManifestLoader {
               manifest.runtime.targetFps >= manifest.runtime.fallbackFps else {
             throw EngineError.manifest("runtime FPS values are invalid")
         }
+        if let nativeSpinePoseFps = manifest.runtime.nativeSpinePoseFps {
+            guard nativeSpinePoseFps > 0, nativeSpinePoseFps <= manifest.runtime.maxFps else {
+                throw EngineError.manifest("runtime.nativeSpinePoseFps must satisfy 1...maxFps")
+            }
+        }
+        if let nativeSpineIdlePoseFps = manifest.runtime.nativeSpineIdlePoseFps {
+            guard nativeSpineIdlePoseFps > 0, nativeSpineIdlePoseFps <= manifest.runtime.maxFps else {
+                throw EngineError.manifest("runtime.nativeSpineIdlePoseFps must satisfy 1...maxFps")
+            }
+        }
         try validatePerformanceTiers(manifest.runtime.performanceTiers, maxFps: manifest.runtime.maxFps)
         guard (1...3).contains(manifest.runtime.scheduler.maxInFlightCommandBuffers) else {
             throw EngineError.manifest("maxInFlightCommandBuffers must satisfy 1...3")

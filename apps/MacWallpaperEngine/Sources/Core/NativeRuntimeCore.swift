@@ -68,6 +68,8 @@ final class NativeRuntimeCore {
         foregroundMode: \(config.foregroundMode.rawValue)
         maxFps: \(manifest.runtime.maxFps)
         fallbackFps: \(manifest.runtime.fallbackFps)
+        nativeSpinePoseFps: \(nativeSpinePoseSampleFps(displayRefreshFps: nil))
+        nativeSpineIdlePoseFps: \(nativeSpineIdlePoseSampleFps(displayRefreshFps: nil))
         audioPolicy: \(manifest.runtime.effectiveAudioPolicy.rawValue) (output=\(audioOutputSummary), userOptIn=\(config.audioEnabled))
         cpuBudget: target \(manifest.layerBudgets.primaryCpuTargetPercent)% downgrade \(manifest.layerBudgets.cpuDowngradePercent)% / \(manifest.layerBudgets.cpuDowngradeWindowSeconds)s
         rssBudget: target \(manifest.layerBudgets.rssTargetMb)MB hard \(manifest.layerBudgets.rssHardMb)MB
@@ -97,6 +99,18 @@ final class NativeRuntimeCore {
 
     func renderTargetFps(displayRefreshFps: Int?) -> Int {
         performancePlan(displayRefreshFps: displayRefreshFps).effectiveTargetFps
+    }
+
+    func nativeSpinePoseSampleFps(displayRefreshFps: Int?) -> Int {
+        let renderFps = renderTargetFps(displayRefreshFps: displayRefreshFps)
+        let requestedPoseFps = manifest.runtime.nativeSpinePoseFps ?? renderFps
+        return max(1, min(requestedPoseFps, renderFps, manifest.runtime.maxFps))
+    }
+
+    func nativeSpineIdlePoseSampleFps(displayRefreshFps: Int?) -> Int {
+        let activePoseFps = nativeSpinePoseSampleFps(displayRefreshFps: displayRefreshFps)
+        let requestedIdlePoseFps = manifest.runtime.nativeSpineIdlePoseFps ?? activePoseFps
+        return max(1, min(requestedIdlePoseFps, activePoseFps, manifest.runtime.maxFps))
     }
 
     private func requestedRenderFps(displayRefreshFps: Int?) -> Int {

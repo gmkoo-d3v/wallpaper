@@ -491,6 +491,7 @@ final class SpineSetupPoseRenderer {
     private let referenceScale: Double
     private let playbackRate: Double
     private let poseSampleFps: Double
+    private let idlePoseSampleFps: Double
     private let lookAnimationNames: Set<String>
     private let lookNeutralPoint: CGPoint
     private let lookDeadZone: CGPoint
@@ -528,6 +529,7 @@ final class SpineSetupPoseRenderer {
         device: MTLDevice,
         playbackRate: Float = 1.0,
         poseSampleFps: Int = 60,
+        idlePoseSampleFps: Int? = nil,
         lookAnimationNames: Set<String> = [],
         lookNeutralPoint: CGPoint = CGPoint(x: 0.5, y: 0.5),
         lookDeadZone: CGPoint? = nil,
@@ -606,7 +608,10 @@ final class SpineSetupPoseRenderer {
             return false
         }
         self.playbackRate = max(0.01, Double(playbackRate))
-        self.poseSampleFps = Double(max(1, min(poseSampleFps, 240)))
+        let clampedPoseSampleFps = max(1, min(poseSampleFps, 240))
+        let requestedIdlePoseSampleFps = idlePoseSampleFps ?? clampedPoseSampleFps
+        self.poseSampleFps = Double(clampedPoseSampleFps)
+        self.idlePoseSampleFps = Double(max(1, min(requestedIdlePoseSampleFps, clampedPoseSampleFps)))
         self.lookAnimationNames = lookAnimationNames
         self.lookNeutralPoint = Self.clampPoint(lookNeutralPoint, minValue: 0, maxValue: 1)
         let fallbackDeadZone = min(max(lookIdleDeadZone, 0), 0.49)
@@ -691,7 +696,7 @@ final class SpineSetupPoseRenderer {
                 continue
             }
 
-            for time in Self.geometrySampleTimes(animation: animation, poseSampleFps: poseSampleFps) {
+            for time in Self.geometrySampleTimes(animation: animation, poseSampleFps: sampleFps(for: actionName)) {
                 samples.append(diagnosticGeometrySample(actionName: actionName, animation: animation, time: time))
             }
             if lookAnimationNames.contains(actionName) {
@@ -775,13 +780,14 @@ final class SpineSetupPoseRenderer {
         if transitionMix >= 1.0 {
             previousOverlayAnimationName = nil
         }
+        let sampleFps = previousOverlayAnimation == nil ? sampleFps(for: animationName) : poseSampleFps
         let lookMix = lookAnimationNames.contains(activeAnimation.name) ? pointerLookMix(pointer) : 1.0
-        let quantizedFrame = Int((activeAnimationTime * poseSampleFps).rounded())
-        let quantizedIdleFrame = Int((idleAnimationTime * poseSampleFps).rounded())
-        let quantizedPreviousFrame = Int((previousOverlayTime * poseSampleFps).rounded())
-        let quantizedPhysicsFrame = Int((posePhysicsTime * poseSampleFps).rounded())
-        let quantizedTransition = Int((transitionMix * poseSampleFps).rounded())
-        let quantizedLookMix = Int((lookMix * poseSampleFps).rounded())
+        let quantizedFrame = Int((activeAnimationTime * sampleFps).rounded())
+        let quantizedIdleFrame = Int((idleAnimationTime * sampleFps).rounded())
+        let quantizedPreviousFrame = Int((previousOverlayTime * sampleFps).rounded())
+        let quantizedPhysicsFrame = Int((posePhysicsTime * sampleFps).rounded())
+        let quantizedTransition = Int((transitionMix * sampleFps).rounded())
+        let quantizedLookMix = Int((lookMix * sampleFps).rounded())
         let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame)"
         if cacheKey == cachedPoseKey {
             poseCacheExactHits += 1
@@ -920,7 +926,7 @@ final class SpineSetupPoseRenderer {
         let exactHitMs = Self.measureMilliseconds {
             _ = batches(command: command, pointer: pointer, now: baseNow)
         }
-        _ = batches(command: command, pointer: pointer, now: baseNow + (1.0 / poseSampleFps))
+        _ = batches(command: command, pointer: pointer, now: baseNow + (1.0 / sampleFps(for: command)))
         let frameHitMs = Self.measureMilliseconds {
             _ = batches(command: command, pointer: pointer, now: baseNow)
         }
@@ -937,6 +943,10 @@ final class SpineSetupPoseRenderer {
         poseCacheFrameHits = 0
         poseCacheMisses = 0
         poseCacheStores = 0
+    }
+
+    private func sampleFps(for animationName: String) -> Double {
+        animationName == "idle" ? idlePoseSampleFps : poseSampleFps
     }
 
     private func poseCacheStats() -> PoseCacheStats {

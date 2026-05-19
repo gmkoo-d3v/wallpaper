@@ -53,6 +53,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     ) throws {
         let displayPerformancePlan = runtime.performancePlan(displayRefreshFps: displayRefreshFps)
         let displayTargetFps = displayPerformancePlan.effectiveTargetFps
+        let displayPoseSampleFps = runtime.nativeSpinePoseSampleFps(displayRefreshFps: displayRefreshFps)
+        let displayIdlePoseSampleFps = runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: displayRefreshFps)
         let nativeSpineCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
         let foregroundPlan = ForegroundRenderPlan.make(
             runtime: runtime,
@@ -163,7 +165,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 spineAsset: spineAsset,
                 device: device,
                 playbackRate: runtime.selectedPlaybackRate,
-                poseSampleFps: displayTargetFps,
+                poseSampleFps: displayPoseSampleFps,
+                idlePoseSampleFps: displayIdlePoseSampleFps,
                 lookAnimationNames: SpineInteractionAnimationRoles.lookAnimationNames(from: runtime.manifest),
                 lookNeutralPoint: SpineInteractionAnimationRoles.lookNeutralPoint(from: runtime.manifest),
                 lookDeadZone: SpineInteractionAnimationRoles.lookDeadZone(

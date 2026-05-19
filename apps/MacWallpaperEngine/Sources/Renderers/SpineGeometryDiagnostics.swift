@@ -24,7 +24,10 @@ struct SpineGeometryDiagnostics {
             "setupBatches: \(renderer.batchCount)",
             "setupVertices: \(renderer.triangleVertexCount)",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
-            samplePolicyLine(poseSampleFps: runtime.renderTargetFps),
+            samplePolicyLine(
+                poseSampleFps: runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil),
+                idlePoseSampleFps: runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil)
+            ),
             "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"
         ]
@@ -122,6 +125,8 @@ struct SpineGeometryDiagnostics {
         }
 
         let invalidSamples = latestSamples.filter { $0.status != "renderable" }
+        let poseSampleFps = runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil)
+        let idlePoseSampleFps = runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil)
         let frameBudgetMs = 1000.0 / Double(max(runtime.renderTargetFps, 1))
         let averageMs = iterationMs.reduce(0, +) / Double(iterationMs.count)
         let p95Ms = percentile(iterationMs, fraction: 0.95)
@@ -151,6 +156,9 @@ struct SpineGeometryDiagnostics {
             "setupBatches: \(renderer.batchCount)",
             "setupVertices: \(renderer.triangleVertexCount)",
             "timelineSampling: \(SpineSetupPoseRenderer.timelineSamplingPolicy)",
+            "poseSampleFps: \(poseSampleFps)",
+            "idlePoseSampleFps: \(idlePoseSampleFps)",
+            "renderTargetFps: \(runtime.renderTargetFps)",
             "initMs: \(formatMilliseconds(initMs))",
             "warmupSampleMs: \(formatMilliseconds(warmupMs))",
             "averageSampleMs: \(formatMilliseconds(averageMs))",
@@ -226,7 +234,8 @@ struct SpineGeometryDiagnostics {
             spineAsset: spineAsset,
             device: device,
             playbackRate: runtime.selectedPlaybackRate,
-            poseSampleFps: runtime.renderTargetFps,
+            poseSampleFps: runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil),
+            idlePoseSampleFps: runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil),
             lookAnimationNames: SpineInteractionAnimationRoles.lookAnimationNames(from: runtime.manifest),
             lookNeutralPoint: SpineInteractionAnimationRoles.lookNeutralPoint(from: runtime.manifest),
             lookDeadZone: SpineInteractionAnimationRoles.lookDeadZone(
@@ -246,7 +255,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: 0",
             "setupVertices: 0",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
-            samplePolicyLine(poseSampleFps: nil),
+            samplePolicyLine(poseSampleFps: nil, idlePoseSampleFps: nil),
             "invalidGeometrySamples: none",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"
         ].joined(separator: "\n")
@@ -259,7 +268,7 @@ struct SpineGeometryDiagnostics {
             "setupBatches: 0",
             "setupVertices: 0",
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
-            samplePolicyLine(poseSampleFps: nil),
+            samplePolicyLine(poseSampleFps: nil, idlePoseSampleFps: nil),
             "invalidGeometrySamples: metal-unavailable",
             "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"
         ].joined(separator: "\n")
@@ -319,8 +328,9 @@ struct SpineGeometryDiagnostics {
         return "fail"
     }
 
-    private static func samplePolicyLine(poseSampleFps: Int?) -> String {
+    private static func samplePolicyLine(poseSampleFps: Int?, idlePoseSampleFps: Int?) -> String {
         let fpsText = poseSampleFps.map { " poseFps=\($0)" } ?? ""
-        return "samplePolicy: timeline-keyframes+discrete-transitions+runtime-cadence+look-mix\(fpsText) maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)"
+        let idleFpsText = idlePoseSampleFps.map { " idlePoseFps=\($0)" } ?? ""
+        return "samplePolicy: timeline-keyframes+discrete-transitions+runtime-cadence+look-mix\(fpsText)\(idleFpsText) maxPerAction=\(SpineSetupPoseRenderer.maxGeometryDiagnosticSamplesPerAction)"
     }
 }
