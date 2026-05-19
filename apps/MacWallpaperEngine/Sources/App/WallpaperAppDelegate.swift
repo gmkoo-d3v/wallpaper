@@ -482,6 +482,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
 
     func controlPanelRequestInteractionPermission() {
         _ = DesktopInteractionGate.requestAccessibilityTrustPrompt()
+        _ = DesktopInteractionGate.openAccessibilitySettings()
         host?.refreshInteractionState()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.host?.refreshInteractionState()

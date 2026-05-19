@@ -694,6 +694,7 @@ final class DesktopMouseInteractionMonitor {
 
 enum DesktopInteractionGate {
     static let accessibilityTrustCheckPolicy = "check-without-prompt"
+    static let accessibilitySettingsURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 
     enum EligibilityDecision: String {
         case eligible
@@ -757,6 +758,11 @@ enum DesktopInteractionGate {
     static func requestAccessibilityTrustPrompt() -> Bool {
         let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         return AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
+    }
+
+    static func openAccessibilitySettings() -> Bool {
+        guard let url = URL(string: accessibilitySettingsURL) else { return false }
+        return NSWorkspace.shared.open(url)
     }
 
     static func isCoveredByApplicationWindow(screenPoint: CGPoint) -> Bool {

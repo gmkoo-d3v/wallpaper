@@ -227,6 +227,10 @@ enum RuntimeSelfTest {
             "startup Accessibility trust checks must use no-prompt probes"
         )
         check(
+            DesktopInteractionGate.accessibilitySettingsURL.contains("Privacy_Accessibility"),
+            "user-initiated Accessibility requests must be able to open the macOS Accessibility settings pane"
+        )
+        check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
                 usesPassiveEventMonitoring: true,
                 accessibilityTrusted: false
