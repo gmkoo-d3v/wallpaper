@@ -138,6 +138,10 @@ final class WallpaperMetalView: MTKView {
         requestVisibleWarmupDrawable()
     }
 
+    func hasSubmittedVisibleFrame() -> Bool {
+        compositor.needsVisibleWarmupDrawable() == false
+    }
+
     private func requestVisibleWarmupDrawable() {
         updateDrawableSize()
         guard compositor.needsVisibleWarmupDrawable() else { return }

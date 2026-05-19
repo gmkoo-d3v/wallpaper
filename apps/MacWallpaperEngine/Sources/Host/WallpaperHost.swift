@@ -129,8 +129,17 @@ final class WallpaperHost: NSObject {
 
         let oldWindows = windows
         windows = replacementWindows
-        show(windows: replacementWindows)
-        retire(windows: oldWindows)
+        let shouldRevealAfterFirstDraw = oldWindows.isEmpty == false
+        show(windows: replacementWindows, initiallyTransparent: shouldRevealAfterFirstDraw)
+        if shouldRevealAfterFirstDraw {
+            revealReplacementWindowsWhenReady(
+                replacementWindows,
+                thenRetire: oldWindows,
+                startedAt: CACurrentMediaTime()
+            )
+        } else {
+            retire(windows: oldWindows)
+        }
         runtime.telemetry.recordDisplayLifecycle(
             event: isInitialBuild ? "initial-build" : "display-rebuild",
             status: "committed",
@@ -158,10 +167,48 @@ final class WallpaperHost: NSObject {
         }
     }
 
-    private func show(windows targetWindows: [NSWindow]) {
+    private func revealReplacementWindowsWhenReady(
+        _ replacementWindows: [NSWindow],
+        thenRetire oldWindows: [NSWindow],
+        startedAt: CFTimeInterval
+    ) {
+        if replacementWindowsReady(replacementWindows)
+            || CACurrentMediaTime() - startedAt >= RuntimeLifecyclePolicy.displayReplacementRevealTimeoutSeconds {
+            for window in replacementWindows {
+                window.alphaValue = 1
+            }
+            retire(windows: oldWindows)
+            return
+        }
+
+        for window in replacementWindows {
+            (window.contentView as? WallpaperMetalView)?.warmUpVisibleFrame()
+        }
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + RuntimeLifecyclePolicy.visibleWindowWarmupRetryInterval
+        ) { [weak self] in
+            self?.revealReplacementWindowsWhenReady(
+                replacementWindows,
+                thenRetire: oldWindows,
+                startedAt: startedAt
+            )
+        }
+    }
+
+    private func replacementWindowsReady(_ targetWindows: [NSWindow]) -> Bool {
+        targetWindows.allSatisfy { window in
+            guard let metalView = window.contentView as? WallpaperMetalView else {
+                return true
+            }
+            return metalView.hasSubmittedVisibleFrame()
+        }
+    }
+
+    private func show(windows targetWindows: [NSWindow], initiallyTransparent: Bool = false) {
         for window in targetWindows {
             let warmupMoments = RuntimeLifecyclePolicy.windowWarmupMoments(startHidden: runtime.config.startHidden)
             let metalView = window.contentView as? WallpaperMetalView
+            window.alphaValue = initiallyTransparent ? 0 : 1
             if warmupMoments.contains(.beforeOrderFront) {
                 metalView?.warmUpVisibleFrame()
             }

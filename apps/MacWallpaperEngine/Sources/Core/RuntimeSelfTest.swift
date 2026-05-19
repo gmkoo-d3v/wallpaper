@@ -81,6 +81,11 @@ enum RuntimeSelfTest {
             "display replacement overlap must leave enough time for replacement Metal views to submit a first drawable"
         )
         check(
+            RuntimeLifecyclePolicy.displayReplacementRevealTimeoutSeconds >= RuntimeLifecyclePolicy.displayReplacementOverlapSeconds
+                && RuntimeLifecyclePolicy.displayReplacementRevealTimeoutSeconds <= 2,
+            "display replacement reveal timeout must keep old wallpaper visible while replacement Metal views submit their first drawable"
+        )
+        check(
             RuntimeLifecyclePolicy.visibleWindowWarmupRetryCount >= 3
                 && RuntimeLifecyclePolicy.visibleWindowWarmupRetryCount <= 12,
             "visible window warmup must retry enough times for slow Metal drawable creation without looping indefinitely"

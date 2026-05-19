@@ -40,6 +40,7 @@ enum RuntimeLifecyclePolicy {
     static let visibleWindowFirstDrawPolicy = "preorder-and-postorder-bounded-visible-draw-retries"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
     static let displayReplacementOverlapSeconds: TimeInterval = 0.5
+    static let displayReplacementRevealTimeoutSeconds: TimeInterval = 1.0
     static let visibleWindowWarmupRetryCount = 6
     static let visibleWindowWarmupRetryInterval: TimeInterval = 0.05
     static let defaultDisplayModeForNewBundle: DisplayMode = .primaryOnly
