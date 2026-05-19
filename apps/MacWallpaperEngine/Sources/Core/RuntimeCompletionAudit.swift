@@ -282,16 +282,49 @@ enum RuntimeCompletionAudit {
         guard let url else { return nil }
         let data = try Data(contentsOf: url)
         let evidence = try JSONDecoder().decode(ManualSmokeEvidenceFile.self, from: data)
-        try validateManualEvidenceEntry(evidence.packagedAppLaunchSmoke, label: "packagedAppLaunchSmoke")
-        try validateManualEvidenceEntry(evidence.liveDesktopClickActions, label: "liveDesktopClickActions")
-        try validateManualEvidenceEntry(evidence.physicalDisplayHotplugSmoke, label: "physicalDisplayHotplugSmoke")
+        guard evidence.schemaVersion == manualSmokeEvidenceSchemaVersion else {
+            throw EngineError.invalidArgument(
+                "Manual smoke evidence schemaVersion must be \(manualSmokeEvidenceSchemaVersion)"
+            )
+        }
+        try validateManualEvidenceEntry(
+            evidence.packagedAppLaunchSmoke,
+            label: "packagedAppLaunchSmoke",
+            requiredPassTokens: ["launch", "crash"]
+        )
+        try validateManualEvidenceEntry(
+            evidence.liveDesktopClickActions,
+            label: "liveDesktopClickActions",
+            requiredPassTokens: ["head", "body", "empty", "gaze"]
+        )
+        try validateManualEvidenceEntry(
+            evidence.physicalDisplayHotplugSmoke,
+            label: "physicalDisplayHotplugSmoke",
+            requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull", "reconnect", "black", "crash"]
+        )
         return evidence
     }
 
-    private static func validateManualEvidenceEntry(_ entry: ManualSmokeEvidenceEntry?, label: String) throws {
+    private static func validateManualEvidenceEntry(
+        _ entry: ManualSmokeEvidenceEntry?,
+        label: String,
+        requiredPassTokens: [String]
+    ) throws {
         guard let entry else { return }
+        let normalizedEvidence = entry.normalizedEvidence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard entry.evidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             throw EngineError.invalidArgument("Manual smoke evidence \(label).evidence must not be empty")
+        }
+        guard entry.passed else { return }
+        guard normalizedEvidence.contains("REPLACE_WITH_") == false else {
+            throw EngineError.invalidArgument("Manual smoke evidence \(label) cannot pass while template placeholders remain")
+        }
+        let foldedEvidence = normalizedEvidence.lowercased()
+        let missingTokens = requiredPassTokens.filter { foldedEvidence.contains($0) == false }
+        guard missingTokens.isEmpty else {
+            throw EngineError.invalidArgument(
+                "Manual smoke evidence \(label) pass evidence is missing checklist token(s): \(missingTokens.joined(separator: ", "))"
+            )
         }
     }
 

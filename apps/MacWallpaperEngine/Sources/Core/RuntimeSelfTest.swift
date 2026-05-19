@@ -1825,6 +1825,37 @@ enum RuntimeSelfTest {
                 && completionAuditWithUnfilledTemplate.contains("manual evidence failed:"),
             "unfilled manual smoke templates must not close audit evidence or be overridden by fallback pass conditions"
         )
+        let invalidManualSmokeEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineInvalidManualSmoke-\(UUID().uuidString).json")
+        let invalidManualSmokeEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "packagedAppLaunchSmoke": {
+            "passed": true,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Launch dist/MacWallpaperEngine.app from Finder or package smoke gate; record whether the app stays alive without crash."
+          }
+        }
+        """
+        try invalidManualSmokeEvidence.write(to: invalidManualSmokeEvidenceURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: invalidManualSmokeEvidenceURL)
+        }
+        do {
+            _ = try RuntimeCompletionAudit.make(
+                projectRoot: runtime.config.projectRoot,
+                strictCompositeQuality: true,
+                includeInvalid: true,
+                bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+                manualEvidenceURL: invalidManualSmokeEvidenceURL
+            )
+            check(false, "passed=true manual smoke evidence with template placeholders must be rejected")
+        } catch {
+            check(
+                error.localizedDescription.contains("template placeholders"),
+                "passed=true manual smoke evidence rejection must explain remaining template placeholders"
+            )
+        }
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)
         try checkVideoOnlyBundle(from: runtime, failures: &failures, checks: &checks)

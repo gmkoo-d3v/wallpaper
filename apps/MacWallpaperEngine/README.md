@@ -496,6 +496,12 @@ Manual smoke evidence file for `--manual-smoke-evidence`:
 }
 ```
 
+Evidence validation is intentionally strict: `schemaVersion` must be
+`mac-wallpaper-manual-smoke.v1`, `passed=true` entries must not contain template
+placeholders, and the evidence text must mention the relevant checklist items
+for launch/crash, head/body/empty/gaze click behavior, and selectedOnly /
+selectedPolicy / allFull display hot-plug behavior.
+
 Packaged app:
 
 ```bash
