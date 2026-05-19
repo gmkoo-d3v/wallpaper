@@ -3067,6 +3067,25 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let unknownManifestPropertyRoot = fixtureParent.appendingPathComponent("unknown_manifest_property_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: unknownManifestPropertyRoot,
+            imageSource: sourceImage,
+            id: "unknown_manifest_property_bundle",
+            title: "Unknown Manifest Property Bundle",
+            manifestExtraJSON: """
+          "typoRuntime": true,
+"""
+        )
+        let unknownManifestPropertyDiagnostic = WallpaperBundleCatalog.diagnoseBundle(unknownManifestPropertyRoot)
+        check(
+            unknownManifestPropertyDiagnostic.status == .invalid
+                && (unknownManifestPropertyDiagnostic.errorMessage?.contains("Schema unknown property typoRuntime") == true),
+            "bundle diagnostics must reject unknown manifest properties before Decodable can silently ignore authoring typos",
+            failures: &failures,
+            checks: &checks
+        )
+
         let incompleteLookDirectionRoot = fixtureParent.appendingPathComponent("incomplete_look_direction_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: incompleteLookDirectionRoot,
@@ -3155,7 +3174,10 @@ enum RuntimeSelfTest {
         let missingPointerMoveMappingDiagnostic = WallpaperBundleCatalog.diagnoseBundle(missingPointerMoveMappingRoot)
         check(
             missingPointerMoveMappingDiagnostic.status == .invalid
-                && (missingPointerMoveMappingDiagnostic.errorMessage?.contains("pointerMove interaction requires mapping") == true),
+                && (
+                    missingPointerMoveMappingDiagnostic.errorMessage?.contains("pointerMove interaction requires mapping") == true
+                    || missingPointerMoveMappingDiagnostic.errorMessage?.contains("Schema required property mapping missing") == true
+                ),
             "bundle diagnostics must reject pointerMove interactions whose mapping is implicit because the native schema only supports explicit lookDirection",
             failures: &failures,
             checks: &checks
@@ -3304,7 +3326,10 @@ enum RuntimeSelfTest {
         let absoluteAssetPathDiagnostic = WallpaperBundleCatalog.diagnoseBundle(absoluteAssetPathRoot)
         check(
             absoluteAssetPathDiagnostic.status == .invalid
-                && (absoluteAssetPathDiagnostic.errorMessage?.contains("asset path must be relative") == true),
+                && (
+                    absoluteAssetPathDiagnostic.errorMessage?.contains("asset path must be relative") == true
+                    || absoluteAssetPathDiagnostic.errorMessage?.contains("Schema not failed at $.assets.staticImage.path") == true
+                ),
             "bundle validation must reject absolute manifest asset paths",
             failures: &failures,
             checks: &checks
@@ -3321,7 +3346,10 @@ enum RuntimeSelfTest {
         let escapingAssetPathDiagnostic = WallpaperBundleCatalog.diagnoseBundle(escapingAssetPathRoot)
         check(
             escapingAssetPathDiagnostic.status == .invalid
-                && (escapingAssetPathDiagnostic.errorMessage?.contains("asset escapes bundle root") == true),
+                && (
+                    escapingAssetPathDiagnostic.errorMessage?.contains("asset escapes bundle root") == true
+                    || escapingAssetPathDiagnostic.errorMessage?.contains("Schema not failed at $.assets.staticImage.path") == true
+                ),
             "bundle validation must reject manifest asset paths that escape the bundle root",
             failures: &failures,
             checks: &checks
@@ -3801,6 +3829,7 @@ enum RuntimeSelfTest {
         title: String,
         interactionsJSON: String = "[]",
         interactionPolicyJSON: String? = nil,
+        manifestExtraJSON: String = "",
         staticImagePath: String = "assets/poster.jpg"
     ) throws -> URL {
         let fileManager = FileManager.default
@@ -3825,6 +3854,7 @@ enum RuntimeSelfTest {
         let manifestJSON = """
         {
           "schemaVersion": "macos-wallpaper-native.v2",
+          \(manifestExtraJSON)\
           "metadata": {
             "id": \(idLiteral),
             "title": \(titleLiteral)

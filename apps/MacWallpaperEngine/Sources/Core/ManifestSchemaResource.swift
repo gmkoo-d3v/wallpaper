@@ -23,6 +23,18 @@ enum ManifestSchemaResource {
     static func validateManifest(at manifestURL: URL, projectRoot: URL? = ProjectPaths.findCatalogProjectRoot()) throws {
         let schema = try loadJSON(projectRoot: projectRoot)
         let manifestData = try Data(contentsOf: manifestURL)
+        try validateManifestData(manifestData, schema: schema)
+    }
+
+    static func validateManifestData(
+        _ manifestData: Data,
+        projectRoot: URL? = ProjectPaths.findCatalogProjectRoot()
+    ) throws {
+        let schema = try loadJSON(projectRoot: projectRoot)
+        try validateManifestData(manifestData, schema: schema)
+    }
+
+    private static func validateManifestData(_ manifestData: Data, schema: [String: Any]) throws {
         let manifestJSON = try JSONSerialization.jsonObject(with: manifestData)
         try JSONSchemaSubsetValidator(rootSchema: schema).validate(manifestJSON, path: "$")
     }

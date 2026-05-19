@@ -17,6 +17,7 @@ enum ManifestLoader {
         }
 
         let data = try Data(contentsOf: requestedManifestURL)
+        try ManifestSchemaResource.validateManifestData(data)
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(WallpaperNativeManifest.self, from: data)
         try validate(manifest, bundleRoot: root, requestedBundleRoot: requestedRoot)
