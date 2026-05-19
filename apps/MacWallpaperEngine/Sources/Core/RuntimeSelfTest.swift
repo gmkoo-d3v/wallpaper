@@ -1456,6 +1456,10 @@ enum RuntimeSelfTest {
             "EngineConfig help must document combined runtime doctor diagnostics"
         )
         check(
+            EngineConfig.help.contains("--completion-audit"),
+            "EngineConfig help must document objective-level completion audit diagnostics"
+        )
+        check(
             EngineConfig.help.contains("--spine-profile"),
             "EngineConfig help must document native Spine profile diagnostics"
         )
@@ -1724,6 +1728,22 @@ enum RuntimeSelfTest {
         check(
             occurrenceCount("installer: importable", in: bundleMatrix) == 3,
             "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
+        )
+        let completionAudit = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")]
+        )
+        check(
+            completionAudit.contains("wallpaper completion audit")
+                && completionAudit.contains("overall: automated-pass/manual-evidence-open")
+                && completionAudit.contains("automated\tpass\tbundle-discovery-library")
+                && completionAudit.contains("automated\tpass\trenderer-family-coverage")
+                && completionAudit.contains("automated\tpass\tmulti-display-lifecycle")
+                && completionAudit.contains("automated\tpass\tperformance-budget")
+                && completionAudit.contains("manual\tmanual\tfull-spine-parity-claim"),
+            "completion audit must summarize objective-level automated evidence without falsely claiming full manual/product completion"
         )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)

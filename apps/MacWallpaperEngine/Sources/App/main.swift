@@ -73,6 +73,18 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if arguments.contains("--completion-audit") {
+        print(try RuntimeCompletionAudit.make(
+            projectRoot: ProjectPaths.findCatalogProjectRoot(),
+            strictCompositeQuality: arguments.contains("--strict-composite-quality"),
+            includeInvalid: arguments.contains("--include-invalid"),
+            bundleDirectories: value(after: "--bundle-library", in: arguments).map {
+                [URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL]
+            }
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if arguments.contains("--recovery-plan") {
         let recoveryURL = value(after: "--recovery-store", in: arguments).map {
             URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL

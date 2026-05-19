@@ -20,6 +20,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   selectedOnly/selectedPolicy/allFull display planning, composite quality, and
   native Spine geometry preflight over every discovered valid bundle without
   launching wallpaper windows.
+- `--completion-audit` prints an objective-level evidence matrix that ties
+  bundle discovery, manifest/schema validation, renderer families, interaction,
+  multi-display, performance, golden fixtures, import/packaging, and manual live
+  verification gaps to the "generic wallpaper runtime complete" goal.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
@@ -435,6 +439,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedOnly
 swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedPolicy
 swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
+swift run MacWallpaperEngine --completion-audit --strict-composite-quality
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
 swift run MacWallpaperEngine --doctor
