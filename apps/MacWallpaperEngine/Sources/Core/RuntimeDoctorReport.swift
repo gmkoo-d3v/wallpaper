@@ -46,6 +46,7 @@ enum RuntimeDoctorReport {
             section("runtime-capabilities", runtime.runtimeCapabilitiesSummary()),
             section("render-plan", DisplayPlanner.headlessRenderSummary(runtime: runtime)),
             section("simulated-render-plan", DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime)),
+            section("simulated-render-plan-matrix", simulatedRenderPlanMatrix(runtime: runtime)),
             section("performance-plan", runtime.performanceSummary()),
             section("package-signing", packageSigningReport()),
             section("interaction-plan", interaction),
@@ -60,6 +61,14 @@ enum RuntimeDoctorReport {
             includeInvalid: true,
             includeCapabilities: true
         )
+    }
+
+    private static func simulatedRenderPlanMatrix(runtime: NativeRuntimeCore) -> String {
+        [
+            DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime, displayMode: .primaryOnly),
+            DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime, displayMode: .primaryAnimated),
+            DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime, displayMode: .all)
+        ].joined(separator: "\n\n---\n\n")
     }
 
     private static func packageSigningReport() -> String {

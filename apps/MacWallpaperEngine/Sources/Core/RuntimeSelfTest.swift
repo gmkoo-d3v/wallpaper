@@ -700,12 +700,16 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("== runtime-capabilities ==")
                 && doctorReport.contains("== render-plan ==")
                 && doctorReport.contains("== simulated-render-plan ==")
+                && doctorReport.contains("== simulated-render-plan-matrix ==")
+                && doctorReport.contains("displayMode: selectedOnly")
+                && doctorReport.contains("displayMode: selectedPolicy")
+                && doctorReport.contains("displayMode: allFull")
                 && doctorReport.contains("== performance-plan ==")
                 && doctorReport.contains("== package-signing ==")
                 && doctorReport.contains("click/touch actions require macOS Accessibility trust")
                 && doctorReport.contains("== interaction-plan ==")
                 && doctorReport.contains("== renderer-recovery =="),
-            "runtime doctor report must combine bundle library, validation, capability, render, performance, package signing, interaction, and recovery diagnostics"
+            "runtime doctor report must combine bundle library, validation, capability, render-mode matrix, performance, package signing, interaction, and recovery diagnostics"
         )
         check(
             doctorControlPanelSummary.contains("doctor: OK")
