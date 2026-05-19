@@ -174,6 +174,10 @@ accessibilityTrustHint: click/touch actions require macOS Accessibility trust; a
 EOF
 }
 
+json_safe_text() {
+  printf "%s" "$1" | tr '\r\n\t' '   ' | sed 's/\\/\\\\/g; s/"/'\''/g'
+}
+
 write_package_smoke_evidence() {
   if [ -z "$PACKAGE_SMOKE_EVIDENCE" ]; then
     return
@@ -189,6 +193,12 @@ write_package_smoke_evidence() {
 
   local recorded_at
   recorded_at="$(date '+%Y-%m-%dT%H:%M:%S%z')"
+  local interaction_status
+  interaction_status="$("$MACOS_DIR/$APP_NAME" --interaction-plan 2>/dev/null | sed -n 's/^desktopMonitor: //p' | head -n 1)"
+  interaction_status="$(json_safe_text "${interaction_status:-unknown}")"
+  local physical_display_count
+  physical_display_count="$("$MACOS_DIR/$APP_NAME" --physical-render-plan 2>/dev/null | awk '/^displayCount:/ {print $2; exit}')"
+  physical_display_count="$(json_safe_text "${physical_display_count:-unknown}")"
   cat > "$PACKAGE_SMOKE_EVIDENCE" <<EOF
 {
   "schemaVersion": "mac-wallpaper-manual-smoke.v1",
@@ -200,13 +210,13 @@ write_package_smoke_evidence() {
   "liveDesktopClickActions": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction.",
+    "evidence": "Current packaged interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction.",
     "operatorNote": "Required before live-desktop-click-actions can pass."
   },
   "physicalDisplayHotplugSmoke": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash.",
+    "evidence": "Current packaged physical display count: $physical_display_count. Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash.",
     "operatorNote": "Required before physical-display-hotplug-smoke can pass."
   }
 }

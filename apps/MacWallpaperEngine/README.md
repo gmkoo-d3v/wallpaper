@@ -38,7 +38,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `PACKAGE_SMOKE_EVIDENCE=<json> apps/MacWallpaperEngine/package-app.sh`
   writes a partial manual-smoke evidence file after the packaged hidden launch
   smoke test passes, closing only the packaged app launch row while leaving live
-  click and physical hot-plug evidence for the operator.
+  click and physical hot-plug evidence for the operator. The generated file
+  includes the packaged interaction trust state and current physical display
+  count to make the remaining manual smoke run reproducible.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
