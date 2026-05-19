@@ -1471,6 +1471,10 @@ enum RuntimeSelfTest {
             "EngineConfig help must document manual smoke evidence template generation"
         )
         check(
+            EngineConfig.help.contains("--write-runtime-smoke-evidence"),
+            "EngineConfig help must document runtime smoke telemetry evidence generation"
+        )
+        check(
             EngineConfig.help.contains("--spine-profile"),
             "EngineConfig help must document native Spine profile diagnostics"
         )
@@ -1889,6 +1893,39 @@ enum RuntimeSelfTest {
                 && completionAuditWithUnfilledTemplate.contains("manual\tmanual\tpackaged-app-launch-smoke")
                 && completionAuditWithUnfilledTemplate.contains("manual evidence failed:"),
             "unfilled manual smoke templates must not close audit evidence or be overridden by fallback pass conditions"
+        )
+        let runtimeSmokeEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineRuntimeSmoke-\(UUID().uuidString).json")
+        let runtimeSmokeReport = try RuntimeSmokeEvidenceWriter.write(
+            runtime: runtime,
+            destination: runtimeSmokeEvidenceURL
+        )
+        defer {
+            try? FileManager.default.removeItem(at: runtimeSmokeEvidenceURL)
+        }
+        let runtimeSmokeEvidence = try String(contentsOf: runtimeSmokeEvidenceURL, encoding: .utf8)
+        check(
+            runtimeSmokeReport.contains("runtime smoke evidence OK")
+                && runtimeSmokeEvidence.contains("\"schemaVersion\" : \"mac-wallpaper-manual-smoke.v1\"")
+                && runtimeSmokeEvidence.contains("\"liveDesktopClickActions\"")
+                && runtimeSmokeEvidence.contains("runtime telemetry captured")
+                && runtimeSmokeEvidence.contains("runtime physical display telemetry captured"),
+            "runtime smoke evidence writer must generate a completion-audit-compatible evidence JSON with telemetry context"
+        )
+        let completionAuditWithRuntimeSmoke = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: runtimeSmokeEvidenceURL
+        )
+        check(
+            completionAuditWithRuntimeSmoke.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tlive-desktop-click-actions")
+                && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tphysical-display-hotplug-smoke")
+                && completionAuditWithRuntimeSmoke.contains("runtime telemetry captured")
+                && completionAuditWithRuntimeSmoke.contains("runtime physical display telemetry captured"),
+            "runtime smoke evidence must enrich manual-open rows without falsely closing live click or physical hot-plug evidence"
         )
         let invalidManualSmokeEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineInvalidManualSmoke-\(UUID().uuidString).json")

@@ -120,6 +120,7 @@ struct EngineConfig {
     let compositeExportFps: Int?
     let compositeExportDuration: TimeInterval?
     let strictCompositeQuality: Bool
+    let runtimeSmokeEvidenceURL: URL?
     let selfTestOnly: Bool
     let startHidden: Bool
     let interactive: Bool
@@ -179,6 +180,7 @@ struct EngineConfig {
         compositeExportFps: Int? = nil,
         compositeExportDuration: TimeInterval? = nil,
         strictCompositeQuality: Bool? = nil,
+        runtimeSmokeEvidenceURL: URL? = nil,
         selfTestOnly: Bool? = nil
     ) -> EngineConfig {
         EngineConfig(
@@ -224,6 +226,7 @@ struct EngineConfig {
             compositeExportFps: compositeExportFps ?? self.compositeExportFps,
             compositeExportDuration: compositeExportDuration ?? self.compositeExportDuration,
             strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
+            runtimeSmokeEvidenceURL: runtimeSmokeEvidenceURL ?? self.runtimeSmokeEvidenceURL,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
             startHidden: startHidden ?? self.startHidden,
             interactive: interactive ?? self.interactive,
@@ -289,6 +292,7 @@ struct EngineConfig {
         var compositeExportFps: Int?
         var compositeExportDuration: TimeInterval?
         var strictCompositeQuality = false
+        var runtimeSmokeEvidenceURL: URL?
         var selfTestOnly = false
         var startHidden = false
         var interactive = true
@@ -502,6 +506,9 @@ struct EngineConfig {
                 compositeExportDuration = parsed
             case "--strict-composite-quality":
                 strictCompositeQuality = true
+            case "--write-runtime-smoke-evidence":
+                index += 1
+                runtimeSmokeEvidenceURL = try valueURL(arguments, index, option: argument)
             case "--self-test":
                 selfTestOnly = true
             case "--hidden":
@@ -667,6 +674,7 @@ struct EngineConfig {
             compositeExportFps: compositeExportFps,
             compositeExportDuration: compositeExportDuration,
             strictCompositeQuality: strictCompositeQuality,
+            runtimeSmokeEvidenceURL: runtimeSmokeEvidenceURL,
             selfTestOnly: selfTestOnly,
             startHidden: startHidden,
             interactive: interactive,
@@ -797,6 +805,8 @@ struct EngineConfig {
                               Duration for --export-composite-video. Default: source video duration.
       --strict-composite-quality
                               Fail validation/quality-plan when composite fallback FPS is below target.
+      --write-runtime-smoke-evidence <json>
+                              During a running app smoke, write current launch, Accessibility, interaction, and physical-display telemetry into a manual smoke evidence JSON before exit.
       --self-test              Run built-in policy/runtime self checks and exit.
       --validate-only           Validate manifest and assets without opening windows.
       --hidden                  Build host but keep windows hidden.

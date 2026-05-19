@@ -17,6 +17,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
     private var controlPanel: ControlPanelWindowController?
     private var lastError: String?
     private let recoveryTracker = RendererRecoveryTracker()
+    private var didWriteRuntimeSmokeEvidence = false
 
     init(runtime: NativeRuntimeCore?, startupError: Error? = nil) {
         self.runtime = runtime
@@ -58,6 +59,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        writeRuntimeSmokeEvidenceIfNeeded()
         host?.stop()
     }
 
@@ -602,6 +604,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             compositeExportFps: nil,
             compositeExportDuration: nil,
             strictCompositeQuality: false,
+            runtimeSmokeEvidenceURL: nil,
             selfTestOnly: false,
             startHidden: false,
             interactive: true,
@@ -612,6 +615,22 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             metalEnabled: true,
             plainWindowStyle: false
         )
+    }
+
+    private func writeRuntimeSmokeEvidenceIfNeeded() {
+        guard didWriteRuntimeSmokeEvidence == false,
+              let runtime,
+              let destination = runtime.config.runtimeSmokeEvidenceURL else {
+            return
+        }
+        didWriteRuntimeSmokeEvidence = true
+
+        do {
+            let report = try RuntimeSmokeEvidenceWriter.write(runtime: runtime, destination: destination)
+            print(report)
+        } catch {
+            fputs("Failed to write runtime smoke evidence: \(error.localizedDescription)\n", stderr)
+        }
     }
 
     private func wallpaperBundleLibraryState() -> (bundles: [WallpaperBundleSummary], diagnosticsText: String) {

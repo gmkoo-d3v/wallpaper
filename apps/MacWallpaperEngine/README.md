@@ -41,6 +41,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   click and physical hot-plug evidence for the operator. The generated file
   includes the packaged interaction trust state and current physical display
   count to make the remaining manual smoke run reproducible.
+- `--write-runtime-smoke-evidence <json>` records launch, Accessibility,
+  interaction-monitor telemetry, and physical-display render-plan context from a
+  running app before exit. It enriches the manual evidence file without marking
+  live click or hot-plug rows as passed until the operator records the checklist.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
@@ -484,6 +488,7 @@ swift run MacWallpaperEngine --duration 20 --display-mode selectedPolicy
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain
 swift run MacWallpaperEngine --foreground-mode native --fps display
 PACKAGE_SMOKE_TEST=1 PACKAGE_SMOKE_EVIDENCE=/tmp/mac-wallpaper-smoke.json apps/MacWallpaperEngine/package-app.sh
+dist/MacWallpaperEngine.app/Contents/MacOS/MacWallpaperEngine --duration 20 --wallpaper-only --foreground-mode native --write-runtime-smoke-evidence /tmp/mac-wallpaper-runtime-smoke.json
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /tmp/mac-wallpaper-smoke.json
 ```
 
