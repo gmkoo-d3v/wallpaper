@@ -1421,6 +1421,19 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"tapAction\""),
             "manifest schema resource must be valid JSON and cover current v2 interaction fields"
         )
+        let schemaCheckedBundles = WallpaperBundleCatalog.discover(
+            in: runtime.config.projectRoot.appendingPathComponent("wallpapers")
+        )
+        for bundle in schemaCheckedBundles {
+            try ManifestSchemaResource.validateManifest(
+                at: bundle.manifestURL,
+                projectRoot: runtime.config.projectRoot
+            )
+        }
+        check(
+            schemaCheckedBundles.isEmpty == false,
+            "manifest schema self-test must validate at least one bundled wallpaper manifest"
+        )
         check(
             EngineConfig.help.contains("--recovery-plan"),
             "EngineConfig help must document renderer recovery diagnostics"
