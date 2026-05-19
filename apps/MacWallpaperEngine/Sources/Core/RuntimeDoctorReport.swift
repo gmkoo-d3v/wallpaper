@@ -99,7 +99,7 @@ enum RuntimeDoctorReport {
         }
 
         let mode = metadata["codesignMode"] ?? "unknown"
-        let action = mode == "adhoc" && trust == "missing" ? " / re-add current app" : ""
+        let action = mode == "adhoc" ? " / re-add current app after rebuild if clicks fail" : ""
         return "signing: \(mode) / accessibility=\(trust)\(action)"
     }
 

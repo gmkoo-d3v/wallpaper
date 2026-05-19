@@ -1119,7 +1119,7 @@ enum RuntimeSelfTest {
             actionTailDurations: tapActionDurations
         )
         check(
-            bodyProbeSummary.contains("hit: zone=body action=boll trigger=hold")
+            bodyProbeSummary.contains("hit: zone=body action=boll trigger=tap")
                 && bodyProbeSummary.contains("downSnapshot: boll/1"),
             "interaction probe diagnostics must expose hit-zone action and click timeline for one coordinate"
         )
