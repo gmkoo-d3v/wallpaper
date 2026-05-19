@@ -1,5 +1,25 @@
 import Foundation
 
+private struct CompletionAuditRow {
+    let category: String
+    let status: String
+    let id: String
+    let evidence: String
+    let risk: String
+
+    var line: String {
+        [category, status, id, evidence, risk].joined(separator: "\t")
+    }
+
+    var isPassingAutomatedEvidence: Bool {
+        category == "automated" && status == "pass"
+    }
+
+    var isOpenManualEvidence: Bool {
+        category == "manual" && status == "manual"
+    }
+}
+
 enum RuntimeCompletionAudit {
     static func make(
         projectRoot: URL?,
@@ -117,14 +137,20 @@ enum RuntimeCompletionAudit {
                     : "Accessibility trust missing; click actions are blocked by design until the current app is trusted"
             ),
             manualItem(
-                id: "full-spine-parity-claim",
+                id: "physical-display-hotplug-smoke",
                 passed: false,
-                evidence: "native Spine compatibility gate and composite fallback are implemented; full Spine 4.2 parity is not claimed"
+                evidence: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run"
+            )
+        ]
+        let scopeItems = [
+            scopeItem(
+                id: "full-spine-4.2-parity",
+                evidence: "deferred by current scope; unsupported Spine feature classes are compatibility-gated and require composite fallback"
             )
         ]
 
-        let automatedPassed = automatedItems.allSatisfy { $0.contains("\tpass\t") }
-        let manualOpen = manualItems.contains { $0.contains("\tmanual\t") }
+        let automatedPassed = automatedItems.allSatisfy(\.isPassingAutomatedEvidence)
+        let manualOpen = manualItems.contains(where: \.isOpenManualEvidence)
         let overall = automatedPassed
             ? (manualOpen ? "automated-pass/manual-evidence-open" : "complete-evidence-pass")
             : "incomplete"
@@ -136,29 +162,38 @@ enum RuntimeCompletionAudit {
         invalidDiagnostics: \(invalidDiagnostics.count)
         strictCompositeQuality: \(strictCompositeQuality)
         columns: category\tstatus\tid\tevidence\trisk
-        \(automatedItems.joined(separator: "\n"))
-        \(manualItems.joined(separator: "\n"))
+        \((automatedItems + manualItems + scopeItems).map(\.line).joined(separator: "\n"))
         """
     }
 
-    private static func item(id: String, passed: Bool, evidence: String, risk: String) -> String {
-        [
-            "automated",
-            passed ? "pass" : "fail",
-            id,
-            evidence,
-            passed ? "none" : risk
-        ].joined(separator: "\t")
+    private static func item(id: String, passed: Bool, evidence: String, risk: String) -> CompletionAuditRow {
+        CompletionAuditRow(
+            category: "automated",
+            status: passed ? "pass" : "fail",
+            id: id,
+            evidence: evidence,
+            risk: passed ? "none" : risk
+        )
     }
 
-    private static func manualItem(id: String, passed: Bool, evidence: String) -> String {
-        [
-            "manual",
-            passed ? "pass" : "manual",
-            id,
-            evidence,
-            passed ? "none" : "manual verification required"
-        ].joined(separator: "\t")
+    private static func manualItem(id: String, passed: Bool, evidence: String) -> CompletionAuditRow {
+        CompletionAuditRow(
+            category: "manual",
+            status: passed ? "pass" : "manual",
+            id: id,
+            evidence: evidence,
+            risk: passed ? "none" : "manual verification required"
+        )
+    }
+
+    private static func scopeItem(id: String, evidence: String) -> CompletionAuditRow {
+        CompletionAuditRow(
+            category: "scope",
+            status: "deferred",
+            id: id,
+            evidence: evidence,
+            risk: "not part of current completion claim"
+        )
     }
 
     private static func packageSigningMetadataText() -> String? {

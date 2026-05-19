@@ -1742,7 +1742,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("automated\tpass\tmulti-display-lifecycle")
                 && completionAudit.contains("automated\tpass\tperformance-budget")
-                && completionAudit.contains("manual\tmanual\tfull-spine-parity-claim"),
+                && completionAudit.contains("manual\tmanual\tphysical-display-hotplug-smoke")
+                && completionAudit.contains("scope\tdeferred\tfull-spine-4.2-parity"),
             "completion audit must summarize objective-level automated evidence without falsely claiming full manual/product completion"
         )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
