@@ -166,6 +166,24 @@ final class DesktopMouseInteractionMonitor {
         publishTelemetry(source: "lifecycle", event: "stop", decision: "inactive")
     }
 
+    func restartInputSources() {
+        guard isActive else {
+            start()
+            return
+        }
+        stop()
+        start()
+    }
+
+    static func shouldRestartForAccessibilityTrustChange(
+        isActive: Bool,
+        previousAccessibilityTrusted: Bool?,
+        currentAccessibilityTrusted: Bool
+    ) -> Bool {
+        guard isActive, let previousAccessibilityTrusted else { return false }
+        return previousAccessibilityTrusted != currentAccessibilityTrusted
+    }
+
     private func startEventTap() -> Bool {
         guard eventTap == nil, eventTapRunLoopSource == nil else { return true }
 

@@ -23,6 +23,8 @@ final class WallpaperMetalView: MTKView {
     private var visibleWarmupAttempts = 0
     private var directDeliveredEvents = 0
     private var directBlockedEvents = 0
+    private var lastMouseMonitorActive = false
+    private var lastAccessibilityTrustedForMonitor: Bool?
 
     init(
         runtime: NativeRuntimeCore,
@@ -174,6 +176,8 @@ final class WallpaperMetalView: MTKView {
         observedWindow = window
         mouseMonitor?.stop()
         mouseMonitor = nil
+        lastMouseMonitorActive = false
+        lastAccessibilityTrustedForMonitor = nil
         if let window {
             NotificationCenter.default.addObserver(
                 self,
@@ -272,7 +276,10 @@ final class WallpaperMetalView: MTKView {
         let needsPausedWarmupDrawable = compositor.needsPausedWarmupDrawable(ifHostPaused: shouldPause)
         isPaused = shouldPause && needsPausedWarmupDrawable == false
         compositor.setPausedByHost(shouldPause)
-        setMouseMonitorActive(shouldEnableInteraction)
+        setMouseMonitorActive(
+            shouldEnableInteraction,
+            accessibilityTrusted: accessibilityTrusted
+        )
     }
 
     private func accessibilityTrustForInteraction() -> Bool {
@@ -282,11 +289,26 @@ final class WallpaperMetalView: MTKView {
         return DesktopInteractionGate.hasAccessibilityTrust()
     }
 
-    private func setMouseMonitorActive(_ active: Bool) {
+    private func setMouseMonitorActive(
+        _ active: Bool,
+        accessibilityTrusted: Bool
+    ) {
         if active {
-            mouseMonitor?.start()
+            if DesktopMouseInteractionMonitor.shouldRestartForAccessibilityTrustChange(
+                isActive: lastMouseMonitorActive,
+                previousAccessibilityTrusted: lastAccessibilityTrustedForMonitor,
+                currentAccessibilityTrusted: accessibilityTrusted
+            ) {
+                mouseMonitor?.restartInputSources()
+            } else {
+                mouseMonitor?.start()
+            }
+            lastMouseMonitorActive = true
+            lastAccessibilityTrustedForMonitor = accessibilityTrusted
         } else {
             mouseMonitor?.stop()
+            lastMouseMonitorActive = false
+            lastAccessibilityTrustedForMonitor = accessibilityTrusted
             interaction.resetPointerTracking()
         }
     }

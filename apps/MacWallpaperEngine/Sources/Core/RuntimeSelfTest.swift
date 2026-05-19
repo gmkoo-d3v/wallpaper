@@ -1868,6 +1868,36 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
+            DesktopMouseInteractionMonitor.shouldRestartForAccessibilityTrustChange(
+                isActive: true,
+                previousAccessibilityTrusted: false,
+                currentAccessibilityTrusted: true
+            ),
+            "desktop mouse monitor must restart input sources when Accessibility trust is granted after pointer-only startup",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.shouldRestartForAccessibilityTrustChange(
+                isActive: true,
+                previousAccessibilityTrusted: true,
+                currentAccessibilityTrusted: false
+            ),
+            "desktop mouse monitor must restart input sources when Accessibility trust is revoked",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.shouldRestartForAccessibilityTrustChange(
+                isActive: false,
+                previousAccessibilityTrusted: false,
+                currentAccessibilityTrusted: true
+            ) == false,
+            "inactive desktop mouse monitor must start normally instead of restarting on first permission refresh",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
             DesktopMouseInteractionMonitor.inputSources(
                 usesPassiveEventMonitoring: false,
                 eventTapStarted: false,
