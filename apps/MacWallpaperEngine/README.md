@@ -263,6 +263,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Native Spine compatibility also rejects unsupported constraint usages such as
   multi-bone IK or local/relative transform constraints instead of silently
   skipping them and rendering a broken foreground.
+- Runtime capability diagnostics mark currently disabled native Spine physics
+  motion as degraded, instead of implying full constraint parity while the
+  compatibility gate still allows an otherwise supported bundle to stay native.
 - Native Spine compatibility rejects unsupported slot blend modes instead of
   silently rendering them with normal blending.
 - Runtime capability diagnostics report video/composite size, duration,
@@ -388,8 +391,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   lookup, and slot color/rgba/rgb/alpha component color timelines. Unsupported
   setup features such as two-color slot tint are detected and routed to
   fallback instead of being silently approximated.
-- Full official physics parity for all Spine options; current native path covers
-  this asset's `x`, `y`, and `rotate` physics constraints.
+- Full official physics parity for all Spine options; physics constraints are
+  parsed and reported, but runtime physics motion remains degraded until the
+  native path is re-enabled with profiler-backed parity checks.
 - Visual hit-zone editor for authoring new bundles.
 - Profiler-backed native Spine optimization beyond the bounded pose-frame cache.
 - Exact Finder desktop icon hit-testing without disabling interaction when

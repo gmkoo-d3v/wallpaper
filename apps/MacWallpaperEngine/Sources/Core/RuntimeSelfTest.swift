@@ -4512,6 +4512,53 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let physicsConstraintSpineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43"
+          },
+          "bones": [
+            { "name": "root" },
+            { "name": "hair", "parent": "root" }
+          ],
+          "physics": [
+            {
+              "name": "hair",
+              "bone": "hair",
+              "rotate": 0.8,
+              "limit": 3000,
+              "inertia": 0.5,
+              "damping": 0.85
+            }
+          ],
+          "animations": {
+            "idle": {}
+          }
+        }
+        """
+        try Data(physicsConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let physicsCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
+        check(
+            physicsCompatibility.isSupported,
+            "disabled first-pass physics constraints must not force composite fallback for otherwise supported native Spine bundles",
+            failures: &failures,
+            checks: &checks
+        )
+        let physicsRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        check(
+            physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tdegraded")
+                && physicsRuntime.runtimeCapabilitiesSummary().contains("physics/hair:runtime-disabled"),
+            "capability diagnostics must report currently disabled native Spine physics constraints as degraded instead of claiming full support",
+            failures: &failures,
+            checks: &checks
+        )
 
         let spineJSON = """
         {

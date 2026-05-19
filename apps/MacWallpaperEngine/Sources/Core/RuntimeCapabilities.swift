@@ -595,13 +595,24 @@ enum RuntimeCapabilities {
         }
 
         let unsupported = scan.unsupportedConstraintUsages
+        let degraded = scan.degradedConstraintUsages
+        let status: String
+        let detail: String
+        if unsupported.isEmpty == false {
+            status = "unsupported"
+            detail = "used=\(scan.constraintKeys.listOrNone) unsupported=\(unsupported.listOrNone)"
+        } else if degraded.isEmpty == false {
+            status = "degraded"
+            detail = "used=\(scan.constraintKeys.listOrNone) degraded=\(degraded.compactListOrNone)"
+        } else {
+            status = "supported"
+            detail = "used=\(scan.constraintKeys.listOrNone)"
+        }
         return RuntimeCapabilityRow(
             category: "spine",
             name: "constraints",
-            status: unsupported.isEmpty ? "fallback" : "unsupported",
-            detail: unsupported.isEmpty
-                ? "pose/first-pass support for \(scan.constraintKeys.listOrNone)"
-                : "used=\(scan.constraintKeys.listOrNone) unsupported=\(unsupported.listOrNone)"
+            status: status,
+            detail: detail
         )
     }
 }
@@ -618,6 +629,7 @@ private struct SpineFeatureScan {
     var blendModes: Set<String> = []
     var unsupportedSlotFeatures: Set<String> = []
     var unsupportedConstraintUsages: Set<String> = []
+    var degradedConstraintUsages: Set<String> = []
     var unsupportedLinkedMeshReferences: Set<String> = []
     var hasEventData = false
     var hasAudioData = false
@@ -867,8 +879,14 @@ private struct SpineFeatureScan {
             }
         }
 
-        if root["physics"] != nil {
+        if let constraints = root["physics"] as? [[String: Any]] {
             constraintKeys.insert("physics")
+            for constraint in constraints {
+                degradedConstraintUsages.insert("physics/\(namedConstraint(constraint)):runtime-disabled")
+            }
+        } else if root["physics"] != nil {
+            constraintKeys.insert("physics")
+            unsupportedConstraintUsages.insert("physics:invalid-shape")
         }
     }
 
@@ -906,6 +924,17 @@ private struct SpineFeatureScan {
 private extension Set where Element == String {
     var listOrNone: String {
         isEmpty ? "none" : sorted().joined(separator: ",")
+    }
+
+    var compactListOrNone: String {
+        guard isEmpty == false else { return "none" }
+        let sortedValues = sorted()
+        let maxVisibleItems = 8
+        if sortedValues.count <= maxVisibleItems {
+            return sortedValues.joined(separator: ",")
+        }
+        return sortedValues.prefix(maxVisibleItems).joined(separator: ",")
+            + ",...(+\(sortedValues.count - maxVisibleItems) more)"
     }
 }
 
