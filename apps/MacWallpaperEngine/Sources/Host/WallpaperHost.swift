@@ -425,7 +425,7 @@ enum DisplayPlanner {
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
         displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
-        nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
+        nativeCompatibility: \(compatibility.statusText) \(compatibility.detailText)
         \(lines.joined(separator: "\n"))
         """
     }
@@ -446,7 +446,7 @@ enum DisplayPlanner {
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
         displayMode: \(runtime.config.displayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: display, runtime: runtime))
-        nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
+        nativeCompatibility: \(compatibility.statusText) \(compatibility.detailText)
         \(line)
         """
     }
@@ -481,7 +481,7 @@ enum DisplayPlanner {
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
         displayMode: \(effectiveDisplayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
-        nativeCompatibility: \(compatibility.isSupported ? "supported" : "unsupported") \(compatibility.reasonText)
+        nativeCompatibility: \(compatibility.statusText) \(compatibility.detailText)
         \(lines.joined(separator: "\n"))
         """
     }

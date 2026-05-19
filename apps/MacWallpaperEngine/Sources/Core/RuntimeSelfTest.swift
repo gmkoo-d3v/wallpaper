@@ -489,8 +489,12 @@ enum RuntimeSelfTest {
         let activeNativeCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
         let expectedNativeSpineStatus = if runtime.assetCatalog.spineAsset == nil {
             "not-used"
+        } else if activeNativeCompatibility.isSupported == false {
+            "unsupported"
+        } else if activeNativeCompatibility.degradations.isEmpty == false {
+            "degraded"
         } else {
-            activeNativeCompatibility.isSupported ? "supported" : "unsupported"
+            "supported"
         }
         let expectedFallbackStatus = if activeNativeCompatibility.isSupported {
             runtime.assetCatalog.compositeVideoAsset == nil ? "not-needed" : "composite-ready"
@@ -501,6 +505,12 @@ enum RuntimeSelfTest {
             validatedBundle?.capabilities.nativeSpineStatus == expectedNativeSpineStatus,
             "bundle catalog must expose active bundle native Spine support status"
         )
+        if activeNativeCompatibility.degradations.isEmpty == false {
+            check(
+                validatedBundle?.capabilities.nativeSpineSummary.contains("degraded constraint usages") == true,
+                "bundle catalog must expose degraded native Spine reasons when native support remains available"
+            )
+        }
         check(
             validatedBundle?.capabilities.fallbackStatus == expectedFallbackStatus,
             "bundle catalog must expose active bundle fallback readiness"
@@ -4554,8 +4564,18 @@ enum RuntimeSelfTest {
         ))
         check(
             physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tdegraded")
+                && physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeCompatibilityGate\tdegraded")
                 && physicsRuntime.runtimeCapabilitiesSummary().contains("physics/hair:runtime-disabled"),
             "capability diagnostics must report currently disabled native Spine physics constraints as degraded instead of claiming full support",
+            failures: &failures,
+            checks: &checks
+        )
+        let physicsSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
+        check(
+            physicsSummary.capabilities.nativeSpineStatus == "degraded"
+                && physicsSummary.capabilities.nativeSpineSummary.contains("physics/hair:runtime-disabled")
+                && physicsSummary.capabilities.fallbackStatus == "not-needed",
+            "bundle catalog must mark degraded-but-supported native Spine bundles without forcing composite fallback",
             failures: &failures,
             checks: &checks
         )

@@ -4,7 +4,14 @@ import Foundation
 enum RuntimeDoctorReport {
     static func controlPanelSummary(runtime: NativeRuntimeCore, interactionStatus: String) -> String {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
-        let nativeStatus = compatibility.isSupported ? "supported" : "fallback(\(shorten(compatibility.reasonText, limit: 72)))"
+        let nativeStatus: String
+        if compatibility.isSupported == false {
+            nativeStatus = "fallback(\(shorten(compatibility.reasonText, limit: 72)))"
+        } else if compatibility.degradations.isEmpty == false {
+            nativeStatus = "degraded(\(shorten(compatibility.degradationText, limit: 72)))"
+        } else {
+            nativeStatus = "supported"
+        }
         let quality = runtime.compositeQualityReport().summaryLine
         return [
             "doctor: OK / native=\(nativeStatus)",

@@ -14,9 +14,26 @@ struct RuntimeCapabilityRow {
 struct NativeSpineCompatibility {
     let isSupported: Bool
     let reasons: [String]
+    let degradations: [String]
 
     var reasonText: String {
         reasons.isEmpty ? "supported" : reasons.joined(separator: "; ")
+    }
+
+    var degradationText: String {
+        degradations.isEmpty ? "none" : degradations.joined(separator: "; ")
+    }
+
+    var statusText: String {
+        if isSupported == false { return "unsupported" }
+        if degradations.isEmpty == false { return "degraded" }
+        return "supported"
+    }
+
+    var detailText: String {
+        if isSupported == false { return reasonText }
+        if degradations.isEmpty == false { return degradationText }
+        return "supported"
     }
 }
 
@@ -27,6 +44,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     let interactionRequirement: String
     let nativeSpineStatus: String
     let nativeSpineReasons: [String]
+    let nativeSpineDegradations: [String]
     let fallbackStatus: String
     let qualityStatus: String
     let qualityWarnings: [String]
@@ -45,10 +63,13 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     }
 
     var nativeSpineSummary: String {
-        guard nativeSpineStatus == "unsupported", nativeSpineReasons.isEmpty == false else {
-            return nativeSpineStatus
+        if nativeSpineStatus == "unsupported", nativeSpineReasons.isEmpty == false {
+            return "\(nativeSpineStatus)(\(nativeSpineReasons.joined(separator: "; ")))"
         }
-        return "\(nativeSpineStatus)(\(nativeSpineReasons.joined(separator: "; ")))"
+        if nativeSpineStatus == "degraded", nativeSpineDegradations.isEmpty == false {
+            return "\(nativeSpineStatus)(\(nativeSpineDegradations.joined(separator: "; ")))"
+        }
+        return nativeSpineStatus
     }
 
     var qualitySummary: String {
@@ -166,12 +187,13 @@ enum RuntimeCapabilities {
         bundleRoot: URL
     ) -> NativeSpineCompatibility {
         guard let spine = manifest.assets.spine else {
-            return NativeSpineCompatibility(isSupported: true, reasons: [])
+            return NativeSpineCompatibility(isSupported: true, reasons: [], degradations: [])
         }
 
         let spineJSON = bundleRoot.appendingPathComponent(spine.json).standardizedFileURL
         let scan = SpineFeatureScan.scan(url: spineJSON)
         var reasons: [String] = []
+        var degradations: [String] = []
         if scan.unsupportedAttachmentTypes.isEmpty == false {
             reasons.append("unsupported attachment types: \(scan.unsupportedAttachmentTypes.listOrNone)")
         }
@@ -190,7 +212,14 @@ enum RuntimeCapabilities {
         if scan.unsupportedBlendModes.isEmpty == false {
             reasons.append("unsupported blend modes: \(scan.unsupportedBlendModes.listOrNone)")
         }
-        return NativeSpineCompatibility(isSupported: reasons.isEmpty, reasons: reasons)
+        if scan.degradedConstraintUsages.isEmpty == false {
+            degradations.append("degraded constraint usages: \(scan.degradedConstraintUsages.compactListOrNone)")
+        }
+        return NativeSpineCompatibility(
+            isSupported: reasons.isEmpty,
+            reasons: reasons,
+            degradations: degradations
+        )
     }
 
     static func bundleInfo(
@@ -211,7 +240,7 @@ enum RuntimeCapabilities {
         if manifest.assets.spine == nil {
             nativeSpineStatus = "not-used"
         } else {
-            nativeSpineStatus = compatibility.isSupported ? "supported" : "unsupported"
+            nativeSpineStatus = compatibility.statusText
         }
 
         let fallbackStatus: String
@@ -234,6 +263,7 @@ enum RuntimeCapabilities {
             interactionRequirement: interactionRequirement(for: manifest.interactions, policy: manifest.interactionPolicy),
             nativeSpineStatus: nativeSpineStatus,
             nativeSpineReasons: compatibility.reasons,
+            nativeSpineDegradations: compatibility.degradations,
             fallbackStatus: fallbackStatus,
             qualityStatus: qualityStatus,
             qualityWarnings: qualityWarnings,
@@ -541,8 +571,8 @@ enum RuntimeCapabilities {
             RuntimeCapabilityRow(
                 category: "spine",
                 name: "nativeCompatibilityGate",
-                status: compatibility.isSupported ? "supported" : "unsupported",
-                detail: compatibility.reasonText
+                status: compatibility.statusText,
+                detail: compatibility.detailText
             ),
             RuntimeCapabilityRow(
                 category: "spine",
