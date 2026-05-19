@@ -120,9 +120,13 @@ final class RuntimeTelemetryStore {
             let data = entry.snapshot
             let skip = data.lastSkipReason.map { " last=\($0)" } ?? ""
             let power = data.powerSavingActive ? " power-saving" : ""
+            let thermalPause = data.pauseForThermal ? " thermal-pause" : ""
+            let resourcePause = data.pauseForResourceBudget ? " resource-pause" : ""
             let videoFallback = data.videoOnlyFallback ? " video-only-fallback" : ""
             return "\(entry.displayName) \(entry.roleName): fps \(format(data.actualFps))/\(data.currentFps), p95 \(format(data.p95FrameTimeMs))ms, submitted \(data.submittedFrames), skipped \(data.skippedFrames)\(skip)"
                 + power
+                + thermalPause
+                + resourcePause
                 + videoFallback
         }
         let interactionSummary = interactionEntries.map { entry in

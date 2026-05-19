@@ -269,7 +269,6 @@ final class ResourceGovernor {
 
         if let rssMb = resourceSamples.last?.rssMb {
             if rssMb >= plan.rssHardMb {
-                pauseForResourceBudget = true
                 currentFps = min(currentFps, plan.fallbackFps)
                 return
             }

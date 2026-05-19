@@ -2105,10 +2105,10 @@ enum RuntimeSelfTest {
         )
         let hardMemoryFps = hardMemoryGovernor.frameStarted(now: 0)
         check(
-            hardMemoryGovernor.snapshot.pauseForResourceBudget
+            hardMemoryGovernor.snapshot.pauseForResourceBudget == false
                 && hardMemoryFps <= budgetPlan.fallbackFps
                 && hardMemoryGovernor.snapshot.videoOnlyFallback == false,
-            "RSS hard limit must pause for resource budget instead of silently switching renderer",
+            "RSS hard limit must keep drawing at fallback FPS instead of freezing the wallpaper",
             failures: &failures,
             checks: &checks
         )
