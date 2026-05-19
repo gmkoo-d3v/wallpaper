@@ -735,6 +735,8 @@ struct EngineConfig {
       --completion-audit       Print objective-level automated evidence and remaining manual completion evidence.
       --manual-smoke-evidence <json>
                               With --completion-audit, read user-recorded packaged launch, live click, and physical display smoke evidence.
+      --write-manual-smoke-template <json>
+                              Write a fill-in JSON template for the manual smoke evidence file, then exit.
       --recovery-plan          Print persisted renderer safe-mode recovery/quarantine state, then exit.
       --recovery-store <path>  Recovery state file for --recovery-plan. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.

@@ -13,6 +13,13 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if let manualSmokeTemplatePath = value(after: "--write-manual-smoke-template", in: arguments) {
+        print(try RuntimeCompletionAudit.writeManualSmokeEvidenceTemplate(
+            to: URL(fileURLWithPath: manualSmokeTemplatePath, relativeTo: nil).standardizedFileURL
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if let installBundlePath = value(after: "--install-bundle", in: arguments) {
         let installLibrary = value(after: "--install-library", in: arguments).map {
             URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL

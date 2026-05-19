@@ -1461,6 +1461,10 @@ enum RuntimeSelfTest {
             "EngineConfig help must document objective-level completion audit diagnostics and manual smoke evidence ingestion"
         )
         check(
+            EngineConfig.help.contains("--write-manual-smoke-template"),
+            "EngineConfig help must document manual smoke evidence template generation"
+        )
+        check(
             EngineConfig.help.contains("--spine-profile"),
             "EngineConfig help must document native Spine profile diagnostics"
         )
@@ -1791,6 +1795,35 @@ enum RuntimeSelfTest {
                 && completionAuditWithManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
                 && completionAuditWithManualEvidence.contains("manual evidence: recordedAt=self-test"),
             "completion audit must accept explicit user-recorded manual smoke evidence before claiming complete evidence pass"
+        )
+        let manualSmokeTemplateURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineManualSmokeTemplate-\(UUID().uuidString).json")
+        let templateWriteReport = try RuntimeCompletionAudit.writeManualSmokeEvidenceTemplate(to: manualSmokeTemplateURL)
+        defer {
+            try? FileManager.default.removeItem(at: manualSmokeTemplateURL)
+        }
+        let manualSmokeTemplate = try String(contentsOf: manualSmokeTemplateURL, encoding: .utf8)
+        check(
+            templateWriteReport.contains("manual smoke evidence template OK")
+                && manualSmokeTemplate.contains("\"schemaVersion\": \"mac-wallpaper-manual-smoke.v1\"")
+                && manualSmokeTemplate.contains("\"packagedAppLaunchSmoke\"")
+                && manualSmokeTemplate.contains("\"liveDesktopClickActions\"")
+                && manualSmokeTemplate.contains("\"physicalDisplayHotplugSmoke\"")
+                && manualSmokeTemplate.contains("\"passed\": false"),
+            "completion audit must provide a fill-in manual smoke evidence template before requiring live evidence ingestion"
+        )
+        let completionAuditWithUnfilledTemplate = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: manualSmokeTemplateURL
+        )
+        check(
+            completionAuditWithUnfilledTemplate.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithUnfilledTemplate.contains("manual\tmanual\tpackaged-app-launch-smoke")
+                && completionAuditWithUnfilledTemplate.contains("manual evidence failed:"),
+            "unfilled manual smoke templates must not close audit evidence or be overridden by fallback pass conditions"
         )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)

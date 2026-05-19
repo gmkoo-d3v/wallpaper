@@ -54,6 +54,8 @@ private struct ManualSmokeEvidenceEntry: Decodable {
 }
 
 enum RuntimeCompletionAudit {
+    static let manualSmokeEvidenceSchemaVersion = "mac-wallpaper-manual-smoke.v1"
+
     static func make(
         projectRoot: URL?,
         strictCompositeQuality: Bool,
@@ -162,7 +164,7 @@ enum RuntimeCompletionAudit {
         let manualItems = [
             manualItem(
                 id: "packaged-app-launch-smoke",
-                passed: packaged || packagedEvidence?.passed == true,
+                passed: manualEvidencePassed(packagedEvidence, fallback: packaged),
                 evidence: manualEvidenceText(
                     packagedEvidence,
                     fallback: packaged
@@ -172,7 +174,10 @@ enum RuntimeCompletionAudit {
             ),
             manualItem(
                 id: "live-desktop-click-actions",
-                passed: liveClickEvidence?.passed == true || (accessibilityTrusted && interactiveSpineBundles.isEmpty == false),
+                passed: manualEvidencePassed(
+                    liveClickEvidence,
+                    fallback: accessibilityTrusted && interactiveSpineBundles.isEmpty == false
+                ),
                 evidence: manualEvidenceText(
                     liveClickEvidence,
                     fallback: accessibilityTrusted
@@ -182,7 +187,7 @@ enum RuntimeCompletionAudit {
             ),
             manualItem(
                 id: "physical-display-hotplug-smoke",
-                passed: physicalDisplayEvidence?.passed == true,
+                passed: manualEvidencePassed(physicalDisplayEvidence, fallback: false),
                 evidence: manualEvidenceText(
                     physicalDisplayEvidence,
                     fallback: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run"
@@ -223,6 +228,19 @@ enum RuntimeCompletionAudit {
         """
     }
 
+    static func writeManualSmokeEvidenceTemplate(to destination: URL) throws -> String {
+        let parent = destination.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let text = manualSmokeEvidenceTemplateText()
+        try text.write(to: destination, atomically: true, encoding: .utf8)
+        return """
+        manual smoke evidence template OK
+        schemaVersion: \(manualSmokeEvidenceSchemaVersion)
+        path: \(destination.path)
+        next: fill every passed=false field with real smoke results, then run --completion-audit --manual-smoke-evidence \(destination.path)
+        """
+    }
+
     private static func item(id: String, passed: Bool, evidence: String, risk: String) -> CompletionAuditRow {
         CompletionAuditRow(
             category: "automated",
@@ -256,6 +274,10 @@ enum RuntimeCompletionAudit {
             : "manual evidence failed: \(normalized)"
     }
 
+    private static func manualEvidencePassed(_ entry: ManualSmokeEvidenceEntry?, fallback: Bool) -> Bool {
+        entry?.passed ?? fallback
+    }
+
     private static func loadManualEvidence(from url: URL?) throws -> ManualSmokeEvidenceFile? {
         guard let url else { return nil }
         let data = try Data(contentsOf: url)
@@ -271,6 +293,32 @@ enum RuntimeCompletionAudit {
         guard entry.evidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             throw EngineError.invalidArgument("Manual smoke evidence \(label).evidence must not be empty")
         }
+    }
+
+    private static func manualSmokeEvidenceTemplateText() -> String {
+        """
+        {
+          "schemaVersion": "\(manualSmokeEvidenceSchemaVersion)",
+          "packagedAppLaunchSmoke": {
+            "passed": false,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Launch dist/MacWallpaperEngine.app from Finder or package smoke gate; record whether the app stays alive without crash.",
+            "operatorNote": "Required before packaged-app-launch-smoke can pass."
+          },
+          "liveDesktopClickActions": {
+            "passed": false,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction.",
+            "operatorNote": "Required before live-desktop-click-actions can pass."
+          },
+          "physicalDisplayHotplugSmoke": {
+            "passed": false,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash.",
+            "operatorNote": "Required before physical-display-hotplug-smoke can pass."
+          }
+        }
+        """
     }
 
     private static func protocolItem(id: String, evidence: String) -> CompletionAuditRow {

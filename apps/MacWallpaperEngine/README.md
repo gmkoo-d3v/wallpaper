@@ -32,6 +32,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--completion-audit --manual-smoke-evidence <json>` lets a user-recorded
   manual smoke report close those live evidence rows after packaged launch,
   desktop click/touch actions, and physical display hot-plug have been checked.
+- `--write-manual-smoke-template <json>` writes the fill-in evidence template
+  used by `--manual-smoke-evidence`, keeping the final manual smoke handoff
+  repeatable.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
@@ -448,6 +451,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedPoli
 swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality
+swift run MacWallpaperEngine --write-manual-smoke-template /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
