@@ -78,7 +78,7 @@ enum RuntimeSmokeEvidenceWriter {
         )
         let telemetry = runtime.telemetry.summary()
         let evidence = """
-        runtime telemetry captured; accessibilityTrusted=\(DesktopInteractionGate.hasAccessibilityTrust()); permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); telemetry=\(telemetry); manual checklist still required: head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no-action, left-drag gaze changes direction, app-window/icon blocking verified
+        runtime telemetry captured; accessibilityTrusted=\(DesktopInteractionGate.hasAccessibilityTrust()); permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); telemetry=\(telemetry); manual checklist still required: head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no-action, left-drag gaze changes direction, app-window/icon blocking verified
         """
         return EvidenceEntry(
             passed: false,

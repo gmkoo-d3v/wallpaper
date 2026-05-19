@@ -176,12 +176,12 @@ enum RuntimeCompletionAudit {
                 id: "live-desktop-click-actions",
                 passed: manualEvidencePassed(
                     liveClickEvidence,
-                    fallback: accessibilityTrusted && interactiveSpineBundles.isEmpty == false
+                    fallback: false
                 ),
                 evidence: manualEvidenceText(
                     liveClickEvidence,
                     fallback: accessibilityTrusted
-                        ? "Accessibility trusted; run live head tap/head hold/body hold smoke"
+                        ? "Accessibility trusted; manual live smoke still required: head short tap, head hold/rub, body tap, empty click, left-drag gaze"
                         : "Accessibility trust missing; click actions are blocked by design until the current app is trusted"
                 )
             ),
@@ -197,7 +197,7 @@ enum RuntimeCompletionAudit {
         let protocolItems = [
             protocolItem(
                 id: "live-desktop-click-actions-protocol",
-                evidence: "launch packaged app; grant Accessibility to current app binary; enable click actions; expected head short tap=boll head hold-or-rub>=0.18s=act body hold=boll empty click=no-action left-drag gaze=Left/Right/Up/Down"
+                evidence: "launch packaged app; grant Accessibility to current app binary; enable click actions; expected head short tap=boll head hold-or-rub>=0.18s=act body tap=boll empty click=no-action left-drag gaze=Left/Right/Up/Down"
             ),
             protocolItem(
                 id: "physical-display-hotplug-smoke-protocol",
@@ -269,7 +269,7 @@ enum RuntimeCompletionAudit {
             liveDesktopClickActions: liveClickActionsPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed live click actions: head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no-action, left-drag gaze changed direction."
+                    evidence: "Operator confirmed live click actions: head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no-action, left-drag gaze changed direction."
                 )
                 : existing?.liveDesktopClickActions ?? templateLiveClickEntry(),
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
@@ -391,7 +391,7 @@ enum RuntimeCompletionAudit {
     private static func templateLiveClickEntry() -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
-            evidence: "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction.",
+            evidence: "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
             operatorNote: "Required before live-desktop-click-actions can pass."
         )
@@ -442,7 +442,7 @@ enum RuntimeCompletionAudit {
           "liveDesktopClickActions": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction.",
+            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
             "operatorNote": "Required before live-desktop-click-actions can pass."
           },
           "physicalDisplayHotplugSmoke": {

@@ -210,7 +210,7 @@ write_package_smoke_evidence() {
   "liveDesktopClickActions": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Current packaged interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction.",
+    "evidence": "Current packaged interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
     "operatorNote": "Required before live-desktop-click-actions can pass."
   },
   "physicalDisplayHotplugSmoke": {

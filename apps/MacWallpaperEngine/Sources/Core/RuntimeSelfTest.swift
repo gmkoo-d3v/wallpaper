@@ -1795,9 +1795,11 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("automated\tpass\tmulti-display-lifecycle")
                 && completionAudit.contains("automated\tpass\tperformance-budget")
+                && completionAudit.contains("manual\tmanual\tlive-desktop-click-actions")
                 && completionAudit.contains("manual\tmanual\tphysical-display-hotplug-smoke")
                 && completionAudit.contains("protocol\tmanual\tlive-desktop-click-actions-protocol")
                 && completionAudit.contains("head short tap=boll")
+                && completionAudit.contains("body tap=boll")
                 && completionAudit.contains("protocol\tmanual\tphysical-display-hotplug-smoke-protocol")
                 && completionAudit.contains("selectedOnly=primary-only")
                 && completionAudit.contains("scope\tdeferred\tfull-spine-4.2-parity"),
@@ -1816,7 +1818,7 @@ enum RuntimeSelfTest {
           "liveDesktopClickActions": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "head short tap produced boll; head hold or rub produced act; body hold produced boll; empty click produced no action; left-drag gaze changed direction"
+            "evidence": "head short tap produced boll; head hold or rub produced act; body tap produced boll; empty click produced no action; left-drag gaze changed direction"
           },
           "physicalDisplayHotplugSmoke": {
             "passed": true,
@@ -1857,7 +1859,7 @@ enum RuntimeSelfTest {
           "liveDesktopClickActions": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction."
+            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction."
           },
           "physicalDisplayHotplugSmoke": {
             "passed": false,

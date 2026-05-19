@@ -515,7 +515,7 @@ Manual smoke evidence file for `--manual-smoke-evidence`:
   "liveDesktopClickActions": {
     "passed": true,
     "recordedAt": "2026-05-19T12:02:00+09:00",
-    "evidence": "Head short tap produced boll; head hold/rub produced act; body hold produced boll; empty click produced no action; left-drag gaze changed direction."
+    "evidence": "Head short tap produced boll; head hold/rub produced act; body tap produced boll; empty click produced no action; left-drag gaze changed direction."
   },
   "physicalDisplayHotplugSmoke": {
     "passed": true,
