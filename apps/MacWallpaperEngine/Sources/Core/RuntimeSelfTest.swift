@@ -240,6 +240,14 @@ enum RuntimeSelfTest {
             DesktopInteractionGate.accessibilitySettingsURL.contains("Privacy_Accessibility"),
             "user-initiated Accessibility requests must be able to open the macOS Accessibility settings pane"
         )
+        let accessibilityStatusText = AccessibilityDiagnostics.statusText()
+        check(
+            accessibilityStatusText.contains("accessibility diagnostics OK")
+                && accessibilityStatusText.contains("accessibilityStatus:")
+                && accessibilityStatusText.contains("promptRequested: false")
+                && accessibilityStatusText.contains("appPath:"),
+            "Accessibility diagnostics must expose current trust state without prompting by default"
+        )
         check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
                 usesPassiveEventMonitoring: true,
@@ -1460,6 +1468,11 @@ enum RuntimeSelfTest {
             EngineConfig.help.contains("--physical-display-plan")
                 && EngineConfig.help.contains("--physical-render-plan"),
             "EngineConfig help must document physical CoreGraphics display diagnostics"
+        )
+        check(
+            EngineConfig.help.contains("--accessibility-status")
+                && EngineConfig.help.contains("--request-accessibility"),
+            "EngineConfig help must document user-initiated Accessibility status and request diagnostics"
         )
         check(
             EngineConfig.help.contains("--completion-audit")

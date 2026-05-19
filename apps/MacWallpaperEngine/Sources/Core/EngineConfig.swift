@@ -756,6 +756,8 @@ struct EngineConfig {
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
       --print-manifest-schema   Print the wallpaper.native.json JSON Schema for bundle authoring, then exit.
+      --accessibility-status    Print current macOS Accessibility trust state for this exact binary, then exit.
+      --request-accessibility   User-initiated Accessibility prompt plus System Settings open, then exit.
       --completion-audit       Print objective-level automated evidence and remaining manual completion evidence.
       --manual-smoke-evidence <json>
                               With --completion-audit, read user-recorded packaged launch, live click, and physical display smoke evidence.

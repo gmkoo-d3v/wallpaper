@@ -45,6 +45,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   interaction-monitor telemetry, and physical-display render-plan context from a
   running app before exit. It enriches the manual evidence file without marking
   live click or hot-plug rows as passed until the operator records the checklist.
+- `--accessibility-status` and `--request-accessibility` identify the exact
+  binary macOS must trust for desktop click/touch actions. The request command is
+  user-initiated, opens the Accessibility settings pane, and exits without
+  starting wallpaper windows.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
@@ -538,6 +542,10 @@ Accessibility and signing note:
 - Packaged builds include a `package-signing` doctor section so `--doctor`
   shows the bundle identifier, signing mode, current Accessibility trust state,
   and the re-add hint for click/touch recovery.
+- Run `dist/MacWallpaperEngine.app/Contents/MacOS/MacWallpaperEngine
+  --accessibility-status` to confirm the exact packaged binary state, or
+  `--request-accessibility` to ask macOS for trust and open the Accessibility
+  settings pane before live interaction smoke.
 - For repeated development builds, set `CODESIGN_IDENTITY` to a stable local
   signing identity before packaging so Accessibility trust is tied to a stable
   code-signing requirement instead of a changing ad-hoc code hash:
