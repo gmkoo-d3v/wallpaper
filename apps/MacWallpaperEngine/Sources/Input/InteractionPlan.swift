@@ -85,6 +85,9 @@ struct InteractionPlan {
         elapsedSeconds: CFTimeInterval = 1.0 / InteractionPlan.pointerSmoothingReferenceFps
     ) -> CGPoint {
         let clampedTarget = clamp(target)
+        guard pointerSmoothing > 0 else {
+            return clampedTarget
+        }
         let clampedElapsed = min(
             max(elapsedSeconds, 0),
             InteractionPlan.maxPointerSmoothingElapsedSeconds

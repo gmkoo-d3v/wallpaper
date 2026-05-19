@@ -340,8 +340,8 @@ enum ManifestLoader {
     private static func validateInteractionPolicy(_ policy: InteractionPolicy?) throws {
         guard let policy else { return }
         if let pointerSmoothing = policy.pointerSmoothing {
-            guard pointerSmoothing.isFinite, pointerSmoothing > 0, pointerSmoothing <= 1 else {
-                throw EngineError.manifest("interactionPolicy.pointerSmoothing must satisfy 0 < value <= 1")
+            guard pointerSmoothing.isFinite, pointerSmoothing >= 0, pointerSmoothing <= 1 else {
+                throw EngineError.manifest("interactionPolicy.pointerSmoothing must satisfy 0 <= value <= 1")
             }
         }
         if let pointerSampleFps = policy.pointerSampleFps {

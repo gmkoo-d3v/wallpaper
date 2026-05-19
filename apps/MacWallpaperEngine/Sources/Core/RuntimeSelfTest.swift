@@ -721,6 +721,30 @@ enum RuntimeSelfTest {
             policy: manifest.interactionPolicy,
             actionTailDurations: tapActionDurations
         )
+        let noPointerSmoothingPolicy = InteractionPolicy(
+            mode: manifest.interactionPolicy?.mode ?? .desktopEmptyOnly,
+            blockApplicationWindows: manifest.interactionPolicy?.blockApplicationWindows ?? true,
+            blockDesktopItems: manifest.interactionPolicy?.blockDesktopItems ?? true,
+            pointerSmoothing: 0,
+            pointerSampleFps: manifest.interactionPolicy?.pointerSampleFps,
+            idleDeadZone: manifest.interactionPolicy?.idleDeadZone,
+            directionSwitchMargin: manifest.interactionPolicy?.directionSwitchMargin,
+            defaultClickTailSeconds: manifest.interactionPolicy?.defaultClickTailSeconds,
+            releaseFadeSeconds: manifest.interactionPolicy?.releaseFadeSeconds
+        )
+        let noPointerSmoothingPlan = InteractionPlan(
+            interactions: manifest.interactions,
+            policy: noPointerSmoothingPolicy,
+            actionTailDurations: tapActionDurations
+        )
+        let unsmoothedTarget = CGPoint(x: 0.91, y: 0.17)
+        check(
+            noPointerSmoothingPlan.smooth(
+                current: CGPoint(x: 0.20, y: 0.80),
+                target: unsmoothedTarget
+            ) == unsmoothedTarget,
+            "interaction pointerSmoothing=0 must disable smoothing and apply target coordinates immediately"
+        )
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"
         }
@@ -2954,6 +2978,29 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let noPointerSmoothingRoot = fixtureParent.appendingPathComponent("no_pointer_smoothing_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: noPointerSmoothingRoot,
+            imageSource: sourceImage,
+            id: "no_pointer_smoothing_bundle",
+            title: "No Pointer Smoothing Bundle",
+            interactionPolicyJSON: """
+            {
+              "mode": "desktop-empty-only",
+              "blockApplicationWindows": true,
+              "blockDesktopItems": false,
+              "pointerSmoothing": 0
+            }
+            """
+        )
+        let noPointerSmoothingDiagnostic = WallpaperBundleCatalog.diagnoseBundle(noPointerSmoothingRoot)
+        check(
+            noPointerSmoothingDiagnostic.status == .valid,
+            "bundle diagnostics must accept pointerSmoothing=0 as an explicit immediate-response interaction policy",
+            failures: &failures,
+            checks: &checks
+        )
+
         let incompleteLookDirectionRoot = fixtureParent.appendingPathComponent("incomplete_look_direction_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: incompleteLookDirectionRoot,
@@ -3687,6 +3734,7 @@ enum RuntimeSelfTest {
         id: String,
         title: String,
         interactionsJSON: String = "[]",
+        interactionPolicyJSON: String? = nil,
         staticImagePath: String = "assets/poster.jpg"
     ) throws -> URL {
         let fileManager = FileManager.default
@@ -3703,6 +3751,11 @@ enum RuntimeSelfTest {
         let idLiteral = try jsonStringLiteral(id)
         let titleLiteral = try jsonStringLiteral(title)
         let staticImagePathLiteral = try jsonStringLiteral(staticImagePath)
+        let interactionPolicyBlock = interactionPolicyJSON.map { policyJSON in
+            """
+          "interactionPolicy": \(policyJSON),
+"""
+        } ?? ""
         let manifestJSON = """
         {
           "schemaVersion": "macos-wallpaper-native.v2",
@@ -3727,6 +3780,7 @@ enum RuntimeSelfTest {
             "fullscreenObscured": "pause",
             "occluded": "pause"
           },
+          \(interactionPolicyBlock)\
           "thermalPolicy": {
             "nominal": "30fps",
             "serious": "15fps-or-static",
