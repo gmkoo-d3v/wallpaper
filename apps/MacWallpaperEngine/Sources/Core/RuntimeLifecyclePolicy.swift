@@ -28,7 +28,7 @@ enum RuntimeLifecyclePolicy {
     static let startupFailurePolicy = "control-panel-recovery"
     static let visibilityPausePolicy = "pause-when-occluded-or-fullscreen-obscured"
     static let desktopItemTrustPolicy = "fail-closed-without-accessibility-trust"
-    static let missingTrustInteractionDegradePolicy = "hover-only-without-accessibility-trust"
+    static let missingTrustInteractionDegradePolicy = "pointer-tracking-only-without-accessibility-trust"
     static let displayRebuildPolicy = "debounced-atomic-rollback"
     static let runningHostReplacementPolicy = "start-replacement-before-retiring-current-host"
     static let rendererFailureRecoveryPolicy = RendererRecoveryPolicy.policyName

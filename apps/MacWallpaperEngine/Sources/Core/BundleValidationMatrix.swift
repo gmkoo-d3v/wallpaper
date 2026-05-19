@@ -374,7 +374,7 @@ enum BundleValidationMatrix {
                 contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
                 accessibilityTrusted: false
             )
-            guard missingTrustSummary.contains("desktopMonitor: degraded(desktop-empty-only,hover-only-accessibility-missing)"),
+            guard missingTrustSummary.contains("desktopMonitor: degraded(desktop-empty-only,pointer-tracking-only-accessibility-missing)"),
                   missingTrustSummary.contains("emptyDesktopMove=eligible"),
                   missingTrustSummary.contains("emptyDesktop=blockedAccessibilityTrust"),
                   missingTrustSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false") else {
@@ -382,7 +382,7 @@ enum BundleValidationMatrix {
                     "interaction diagnostics do not expose missing Accessibility trust for \(runtime.config.wallpaperRoot.lastPathComponent)"
                 )
             }
-            return "interactionPlan: active(desktop-empty-only+accessibility-gated+hover-only-without-trust)"
+            return "interactionPlan: active(desktop-empty-only+accessibility-gated+pointer-tracking-only-without-trust)"
         }
 
         return "interactionPlan: active"

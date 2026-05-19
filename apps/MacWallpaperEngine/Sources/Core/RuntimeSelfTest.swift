@@ -992,11 +992,11 @@ enum RuntimeSelfTest {
             accessibilityTrusted: false
         )
         check(
-            missingPermissionInteractionSummary.contains("desktopMonitor: degraded(desktop-empty-only,hover-only-accessibility-missing)")
+            missingPermissionInteractionSummary.contains("desktopMonitor: degraded(desktop-empty-only,pointer-tracking-only-accessibility-missing)")
                 && missingPermissionInteractionSummary.contains("emptyDesktopMove=eligible")
                 && missingPermissionInteractionSummary.contains("emptyDesktop=blockedAccessibilityTrust")
                 && missingPermissionInteractionSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false"),
-            "interaction diagnostics must explain hover-only degradation when desktop-item-safe click interaction lacks Accessibility permission"
+            "interaction diagnostics must explain pointer-tracking-only degradation when desktop-item-safe click interaction lacks Accessibility permission"
         )
         let neutralProbeSummary = InteractionPlan.probeSummary(
             interactions: manifest.interactions,
@@ -1581,7 +1581,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
-            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+accessibility-gated+hover-only-without-trust)")
+            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+accessibility-gated+pointer-tracking-only-without-trust)")
                 && occurrenceCount("interactionPlan: passive(no-interactions)", in: bundleMatrix) >= 2,
             "bundle validation matrix must validate active desktop-gated interactions and passive no-interaction bundles"
         )
@@ -1848,7 +1848,7 @@ enum RuntimeSelfTest {
                 useGlobalMoveMonitor: true,
                 useGlobalClickMonitors: false
             ),
-            "desktop mouse monitor may attach hover-only global move monitoring before Accessibility trust without enabling click delivery",
+            "desktop mouse monitor may attach pointer-tracking-only global move monitoring before Accessibility trust without enabling click delivery",
             failures: &failures,
             checks: &checks
         )

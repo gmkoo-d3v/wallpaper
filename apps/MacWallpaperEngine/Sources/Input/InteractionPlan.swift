@@ -486,7 +486,7 @@ struct InteractionPlan {
         let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
         return trusted
             ? "ready(\(policy.mode.rawValue),accessibility-trusted)"
-            : "degraded(\(policy.mode.rawValue),hover-only-accessibility-missing)"
+            : "degraded(\(policy.mode.rawValue),pointer-tracking-only-accessibility-missing)"
     }
 
     private static func eventGateProbeLines(
