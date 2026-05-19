@@ -361,7 +361,8 @@ enum RuntimeSelfTest {
         check(
             ControlPanelWindowController.interactionStatusMaximumLines >= 3
                 && ControlPanelWindowController.doctorStatusMaximumLines >= 4
-                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility"),
+                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility")
+                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("rebuilding"),
             "control panel must preserve readable doctor/interaction diagnostics and explain permission requests"
         )
         check(
