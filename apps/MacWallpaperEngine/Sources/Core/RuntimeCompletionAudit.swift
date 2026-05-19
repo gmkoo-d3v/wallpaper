@@ -142,6 +142,16 @@ enum RuntimeCompletionAudit {
                 evidence: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run"
             )
         ]
+        let protocolItems = [
+            protocolItem(
+                id: "live-desktop-click-actions-protocol",
+                evidence: "launch packaged app; grant Accessibility to current app binary; enable click actions; expected head short tap=boll head hold-or-rub>=0.18s=act body hold=boll empty click=no-action left-drag gaze=Left/Right/Up/Down"
+            ),
+            protocolItem(
+                id: "physical-display-hotplug-smoke-protocol",
+                evidence: "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected no black frame no crash and restored wallpaper windows on target displays"
+            )
+        ]
         let scopeItems = [
             scopeItem(
                 id: "full-spine-4.2-parity",
@@ -162,7 +172,7 @@ enum RuntimeCompletionAudit {
         invalidDiagnostics: \(invalidDiagnostics.count)
         strictCompositeQuality: \(strictCompositeQuality)
         columns: category\tstatus\tid\tevidence\trisk
-        \((automatedItems + manualItems + scopeItems).map(\.line).joined(separator: "\n"))
+        \((automatedItems + manualItems + protocolItems + scopeItems).map(\.line).joined(separator: "\n"))
         """
     }
 
@@ -183,6 +193,16 @@ enum RuntimeCompletionAudit {
             id: id,
             evidence: evidence,
             risk: passed ? "none" : "manual verification required"
+        )
+    }
+
+    private static func protocolItem(id: String, evidence: String) -> CompletionAuditRow {
+        CompletionAuditRow(
+            category: "protocol",
+            status: "manual",
+            id: id,
+            evidence: evidence,
+            risk: "manual evidence protocol"
         )
     }
 

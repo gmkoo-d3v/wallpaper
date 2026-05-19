@@ -26,7 +26,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   verification gaps to the "generic wallpaper runtime complete" goal. The audit
   separates automated evidence, manual smoke evidence, and deferred scope such
   as full Spine 4.2 parity instead of treating every future parity item as a
-  current blocker.
+  current blocker. It also prints exact manual smoke protocols for packaged app
+  launch, live desktop click actions, and physical display/hot-plug checks so
+  the remaining evidence is repeatable instead of implicit.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.

@@ -1743,8 +1743,12 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tmulti-display-lifecycle")
                 && completionAudit.contains("automated\tpass\tperformance-budget")
                 && completionAudit.contains("manual\tmanual\tphysical-display-hotplug-smoke")
+                && completionAudit.contains("protocol\tmanual\tlive-desktop-click-actions-protocol")
+                && completionAudit.contains("head short tap=boll")
+                && completionAudit.contains("protocol\tmanual\tphysical-display-hotplug-smoke-protocol")
+                && completionAudit.contains("selectedOnly=primary-only")
                 && completionAudit.contains("scope\tdeferred\tfull-spine-4.2-parity"),
-            "completion audit must summarize objective-level automated evidence without falsely claiming full manual/product completion"
+            "completion audit must summarize objective-level automated evidence and exact manual smoke protocols without falsely claiming full manual/product completion"
         )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)
