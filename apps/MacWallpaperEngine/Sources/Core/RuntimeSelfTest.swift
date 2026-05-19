@@ -1822,6 +1822,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("overall: automated-pass/manual-evidence-open")
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
+                && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
+                && completionAudit.contains("autoNative:true compositeDefault:false")
                 && completionAudit.contains("automated\tpass\tmulti-display-lifecycle")
                 && completionAudit.contains("automated\tpass\tperformance-budget")
                 && completionAudit.contains("manual\tmanual\tlive-desktop-click-actions")

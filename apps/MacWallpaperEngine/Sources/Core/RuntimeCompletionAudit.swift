@@ -99,6 +99,7 @@ enum RuntimeCompletionAudit {
         let hasPerformancePlan = validationMatrix.contains("performancePlan: target=")
         let hasGolden = validationMatrix.contains("golden: pass")
         let hasInstaller = validationMatrix.contains("installer: importable")
+        let nativeDefaultFallback = try nativeDefaultFallbackEvidence(bundles: bundles)
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         let packagedEvidence = manualEvidence?.packagedAppLaunchSmoke
@@ -128,6 +129,12 @@ enum RuntimeCompletionAudit {
                     && interactiveSpineBundles.isEmpty == false,
                 evidence: "assets=\(assetFamilies.sorted().joined(separator: "+")) layers=\(layerFamilies.sorted().joined(separator: "+")) interactiveSpine=\(interactiveSpineBundles.count)",
                 risk: "needs static, video-only, and interactive native-Spine fixtures"
+            ),
+            item(
+                id: "native-spine-default-fallback",
+                passed: nativeDefaultFallback.passed,
+                evidence: nativeDefaultFallback.evidence,
+                risk: "Native-supported interactive wallpapers must not silently default to the lower-quality composite fallback"
             ),
             item(
                 id: "interaction-compatibility",
@@ -341,6 +348,60 @@ enum RuntimeCompletionAudit {
             evidence: evidence,
             risk: passed ? "none" : "manual verification required"
         )
+    }
+
+    private static func nativeDefaultFallbackEvidence(
+        bundles: [WallpaperBundleSummary]
+    ) throws -> (passed: Bool, evidence: String) {
+        let candidates = bundles.filter {
+            $0.capabilities.nativeSpineStatus == "supported"
+                && $0.capabilities.assetKinds.contains("spine")
+                && $0.capabilities.assetKinds.contains("composite")
+        }
+        guard candidates.isEmpty == false else {
+            return (false, "no supported native-Spine bundle with composite fallback found")
+        }
+
+        var failures: [String] = []
+        var evidence: [String] = []
+        for bundle in candidates {
+            let config = try EngineConfig.parse([
+                "--wallpaper-root", bundle.root.path,
+                "--manifest", bundle.manifestURL.path,
+                "--foreground-mode", ForegroundRenderMode.automatic.rawValue,
+                "--display-mode", DisplayMode.primaryOnly.cliName,
+                "--render-plan"
+            ])
+            let runtime = try NativeRuntimeCore(config: config)
+            let renderSummary = DisplayPlanner.headlessRenderSummary(runtime: runtime)
+            let quality = runtime.compositeQualityReport()
+            let usesNativeSpine = renderSummary.contains("foreground=nativeSpine(auto)")
+            let usesCompositeAsDefault = renderSummary.contains("foreground=compositeVideo(auto)")
+                || renderSummary.contains("background=compositeVideo:")
+            let fpsFallbackOnly = renderSummary.contains("fallback=resourceBudget->fpsOnly")
+                || renderSummary.contains("fallback=none")
+            if usesNativeSpine == false || usesCompositeAsDefault || fpsFallbackOnly == false {
+                failures.append(
+                    "\(bundle.id) auto render path is not native-first: \(oneLine(renderSummary))"
+                )
+            }
+            evidence.append(
+                "\(bundle.id)=autoNative:\(usesNativeSpine) compositeDefault:\(usesCompositeAsDefault) fallback:\(fpsFallbackOnly ? "fps-only" : "unexpected") compositeQuality:\(quality.summaryLine)"
+            )
+        }
+
+        return (
+            failures.isEmpty,
+            failures.isEmpty ? evidence.joined(separator: "; ") : failures.joined(separator: "; ")
+        )
+    }
+
+    private static func oneLine(_ value: String) -> String {
+        value
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+            .joined(separator: " / ")
     }
 
     private static func manualEvidenceText(_ entry: ManualSmokeEvidenceEntry?, fallback: String) -> String {

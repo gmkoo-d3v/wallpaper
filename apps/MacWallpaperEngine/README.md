@@ -22,8 +22,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   launching wallpaper windows.
 - `--completion-audit` prints an objective-level evidence matrix that ties
   bundle discovery, manifest/schema validation, renderer families, interaction,
-  multi-display, performance, golden fixtures, import/packaging, and manual live
-  verification gaps to the "generic wallpaper runtime complete" goal. The audit
+  native-Spine default fallback policy, multi-display, performance, golden
+  fixtures, import/packaging, and manual live verification gaps to the "generic
+  wallpaper runtime complete" goal. The audit
   separates automated evidence, manual smoke evidence, and deferred scope such
   as full Spine 4.2 parity instead of treating every future parity item as a
   current blocker. It also prints exact manual smoke protocols for packaged app
