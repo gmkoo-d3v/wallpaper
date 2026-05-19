@@ -43,6 +43,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   prove renderer output instead of only manifest validity.
 - `--bundle-library <path>` lets `--list-bundles` and `--validate-bundles`
   target a specific imported bundle library instead of default locations.
+- `--print-manifest-schema` prints the packaged `wallpaper.native.json` JSON
+  Schema so third-party bundles can be authored against the same manifest
+  contract that the runtime validates.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
@@ -429,6 +432,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedPoli
 swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
+swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
 swift run MacWallpaperEngine --doctor
 swift run MacWallpaperEngine --recovery-plan
 swift run MacWallpaperEngine --interaction-plan

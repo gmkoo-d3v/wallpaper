@@ -731,6 +731,7 @@ struct EngineConfig {
       --bundle-library <path>  With --list-bundles/--validate-bundles, scan this library instead of default locations.
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
+      --print-manifest-schema   Print the wallpaper.native.json JSON Schema for bundle authoring, then exit.
       --recovery-plan          Print persisted renderer safe-mode recovery/quarantine state, then exit.
       --recovery-store <path>  Recovery state file for --recovery-plan. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.

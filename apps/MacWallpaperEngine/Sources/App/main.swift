@@ -8,6 +8,11 @@ private enum ApplicationLifetime {
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 do {
+    if arguments.contains("--print-manifest-schema") {
+        print(try ManifestSchemaResource.loadText())
+        exit(EXIT_SUCCESS)
+    }
+
     if let installBundlePath = value(after: "--install-bundle", in: arguments) {
         let installLibrary = value(after: "--install-library", in: arguments).map {
             URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL

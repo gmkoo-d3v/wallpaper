@@ -1406,6 +1406,22 @@ enum RuntimeSelfTest {
             "EngineConfig help must document bundle library diagnostics"
         )
         check(
+            EngineConfig.help.contains("--print-manifest-schema"),
+            "EngineConfig help must document wallpaper manifest schema export"
+        )
+        let manifestSchemaText = try ManifestSchemaResource.loadText(projectRoot: runtime.config.projectRoot)
+        let manifestSchemaJSON = try JSONSerialization.jsonObject(
+            with: Data(manifestSchemaText.utf8),
+            options: []
+        ) as? [String: Any]
+        check(
+            manifestSchemaJSON?["title"] as? String == "Mac Wallpaper Engine Native Manifest v2"
+                && manifestSchemaText.contains("\"macos-wallpaper-native.v2\"")
+                && manifestSchemaText.contains("\"pointerSampleFps\"")
+                && manifestSchemaText.contains("\"tapAction\""),
+            "manifest schema resource must be valid JSON and cover current v2 interaction fields"
+        )
+        check(
             EngineConfig.help.contains("--recovery-plan"),
             "EngineConfig help must document renderer recovery diagnostics"
         )
