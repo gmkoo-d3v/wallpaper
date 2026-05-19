@@ -159,7 +159,7 @@ enum RuntimeLifecyclePolicy {
         }
         guard accessibilityTrusted else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION DEGRADED / pointer tracking only; grant macOS Accessibility permission for desktop icon-safe click/touch actions",
+                text: "INTERACTION DEGRADED / CLICK ACTIONS DISABLED; pointer tracking only until macOS Accessibility permission is granted",
                 canRequestAccessibilityPermission: true
             )
         }

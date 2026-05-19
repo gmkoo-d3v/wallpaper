@@ -350,7 +350,7 @@ enum RuntimeSelfTest {
             "control panel FPS labels must expose only fixed 30/60 plus display refresh matching"
         )
         check(
-            ControlPanelWindowController.interactionStatusMaximumLines >= 2
+            ControlPanelWindowController.interactionStatusMaximumLines >= 3
                 && ControlPanelWindowController.doctorStatusMaximumLines >= 4
                 && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility"),
             "control panel must preserve readable doctor/interaction diagnostics and explain permission requests"
@@ -631,6 +631,12 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must expose tabular columns"
         )
         check(
+            capabilitySummary.contains("displayMode\tselectedOnly\tsupported\tprimary=full(video+foreground) secondary=none secondary-passive")
+                && capabilitySummary.contains("displayMode\tselectedPolicy\tsupported\tprimary=full(video+foreground) secondary=video-only(background) secondary-passive")
+                && capabilitySummary.contains("displayMode\tallFull\tsupported\tprimary=full(video+foreground) secondary=full(video+foreground) secondary-passive"),
+            "runtime capabilities summary must expose selectedOnly, selectedPolicy, and allFull display-mode overrides"
+        )
+        check(
             capabilitySummary.contains("interaction\tpointerMove/lookDirection"),
             "runtime capabilities summary must report pointer movement support"
         )
@@ -644,7 +650,7 @@ enum RuntimeSelfTest {
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
             runtime: runtime,
-            interactionStatus: "INTERACTION DEGRADED / pointer tracking only; grant macOS Accessibility permission"
+            interactionStatus: "INTERACTION DEGRADED / CLICK ACTIONS DISABLED; pointer tracking only until macOS Accessibility permission is granted"
         )
         check(
             doctorReport.contains("wallpaper doctor OK")
@@ -2052,8 +2058,8 @@ enum RuntimeSelfTest {
         check(
             blockedPermissionStatus.canRequestAccessibilityPermission
                 && blockedPermissionStatus.text.contains("INTERACTION DEGRADED")
+                && blockedPermissionStatus.text.contains("CLICK ACTIONS DISABLED")
                 && blockedPermissionStatus.text.contains("pointer tracking only")
-                && blockedPermissionStatus.text.contains("click/touch")
                 && blockedPermissionStatus.text.contains("Accessibility"),
             "control panel interaction status must explain Accessibility-degraded click/touch interaction",
             failures: &failures,

@@ -64,9 +64,9 @@ final class ControlPanelWindowController: NSWindowController {
         "All displays render the full wallpaper; secondary displays remain passive."
     ]
     static let fpsLabels = ["30", "60", "Display Hz"]
-    static let interactionStatusMaximumLines = 2
+    static let interactionStatusMaximumLines = 3
     static let doctorStatusMaximumLines = 4
-    static let interactionPermissionButtonTooltip = "Grant macOS Accessibility permission so desktop-empty click/touch interactions can run while Finder icons stay protected."
+    static let interactionPermissionButtonTooltip = "Enable macOS Accessibility permission so desktop-empty click/touch actions can run while Finder icons stay protected."
 
     static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
         "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)]"
@@ -117,7 +117,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let interactionDebugOverlayToggle = NSButton(checkboxWithTitle: "Hit-zone overlay", target: nil, action: nil)
-    private let requestInteractionPermissionButton = NSButton(title: "ALLOW ACCESSIBILITY", target: nil, action: nil)
+    private let requestInteractionPermissionButton = NSButton(title: "ENABLE CLICK ACTIONS", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ControlPanelWindowController.fpsLabels,
         trackingMode: .selectOne,
@@ -208,6 +208,9 @@ final class ControlPanelWindowController: NSWindowController {
         telemetryValue.stringValue = state.telemetryText
         interactionStatusValue.stringValue = state.interactionStatusText
         interactionStatusValue.toolTip = state.interactionStatusText
+        interactionStatusValue.textColor = state.canRequestInteractionPermission
+            ? NSColor(red: 0.65, green: 0.12, blue: 0.12, alpha: 1)
+            : NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
         availableBundles = state.availableBundles
         displaySelectionOptions = state.displaySelectionOptions
         reloadBundlePopup(currentRoot: state.wallpaperRoot)

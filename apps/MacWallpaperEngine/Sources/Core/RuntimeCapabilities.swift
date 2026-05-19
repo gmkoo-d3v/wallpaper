@@ -112,6 +112,7 @@ enum RuntimeCapabilities {
         rows.append(displayRow(name: "secondary", policy: manifest.displayPolicy.secondary))
         rows.append(displayRow(name: "fullscreenObscured", policy: manifest.displayPolicy.fullscreenObscured))
         rows.append(displayRow(name: "occluded", policy: manifest.displayPolicy.occluded))
+        rows.append(contentsOf: displayModeRows(runtime: runtime))
 
         rows.append(RuntimeCapabilityRow(
             category: "performance",
@@ -322,6 +323,43 @@ enum RuntimeCapabilities {
         }
 
         return RuntimeCapabilityRow(category: "display", name: name, status: status, detail: detail)
+    }
+
+    private static func displayModeRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {
+        [DisplayMode.primaryOnly, .primaryAnimated, .all].map { mode in
+            let primaryRole = DisplayPlanner.role(
+                isPrimary: true,
+                displayMode: mode,
+                manifest: runtime.manifest
+            )
+            let secondaryRole = DisplayPlanner.role(
+                isPrimary: false,
+                displayMode: mode,
+                manifest: runtime.manifest
+            )
+            let primary = primaryRole.map { displayModePolicyLabel($0.policy) } ?? "none"
+            let secondary = secondaryRole.map { displayModePolicyLabel($0.policy) } ?? "none"
+            let interaction = secondaryRole?.allowsInteraction == true ? "secondary-interactive" : "secondary-passive"
+            return RuntimeCapabilityRow(
+                category: "displayMode",
+                name: mode.cliName,
+                status: primaryRole == nil && secondaryRole == nil ? "not-used" : "supported",
+                detail: "primary=\(primary) secondary=\(secondary) \(interaction)"
+            )
+        }
+    }
+
+    private static func displayModePolicyLabel(_ policy: DisplayRolePolicy) -> String {
+        switch policy {
+        case .full:
+            return "full(video+foreground)"
+        case .videoOnly:
+            return "video-only(background)"
+        case .static:
+            return "static(preview)"
+        case .pause:
+            return "pause"
+        }
     }
 
     private static func interactionRows(
