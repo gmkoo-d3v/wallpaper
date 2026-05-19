@@ -63,6 +63,8 @@ struct WallpaperBundleCapabilityInfo: Equatable {
 }
 
 enum RuntimeCapabilities {
+    static let missingAccessibilityTrustAction = "grant-or-readd-current-app"
+
     static func summary(runtime: NativeRuntimeCore) -> String {
         let rows = makeRows(runtime: runtime)
         let rowText = rows.map(\.line).joined(separator: "\n")
@@ -448,6 +450,16 @@ enum RuntimeCapabilities {
     }
 
     private static func desktopItemGate(policy: InteractionPolicy?) -> String {
+        desktopItemGate(
+            policy: policy,
+            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
+        )
+    }
+
+    static func desktopItemGate(
+        policy: InteractionPolicy?,
+        accessibilityTrusted: Bool
+    ) -> String {
         let mode = policy?.mode ?? .desktopEmptyOnly
         let blocksDesktopItems = policy?.blockDesktopItems ?? true
         let effectivePolicy = InteractionPolicy(
@@ -464,9 +476,9 @@ enum RuntimeCapabilities {
         guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(effectivePolicy) else {
             return "not-required"
         }
-        return DesktopInteractionGate.hasAccessibilityTrust()
+        return accessibilityTrusted
             ? "requires-accessibility-trust(current=trusted)"
-            : "requires-accessibility-trust(current=missing,pointer-only)"
+            : "requires-accessibility-trust(current=missing,pointer-only,action=\(missingAccessibilityTrustAction))"
     }
 
     private static func spineRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {

@@ -657,6 +657,20 @@ enum RuntimeSelfTest {
             capabilitySummary.contains(expectedDesktopItemGate),
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
+        if runtime.manifest.interactions.isEmpty == false,
+           runtime.manifest.interactionPolicy?.blockDesktopItems ?? true {
+            check(
+                RuntimeCapabilities.desktopItemGate(
+                    policy: runtime.manifest.interactionPolicy,
+                    accessibilityTrusted: false
+                ).contains("action=\(RuntimeCapabilities.missingAccessibilityTrustAction)")
+                    && RuntimeCapabilities.desktopItemGate(
+                        policy: runtime.manifest.interactionPolicy,
+                        accessibilityTrusted: true
+                    ) == "requires-accessibility-trust(current=trusted)",
+                "runtime capabilities must expose a deterministic recovery action when Accessibility trust is missing"
+            )
+        }
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
             runtime: runtime,
