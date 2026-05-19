@@ -6,6 +6,7 @@ enum RuntimeSmokeEvidenceWriter {
         let packagedAppLaunchSmoke: EvidenceEntry
         let liveDesktopClickActions: EvidenceEntry
         let physicalDisplayHotplugSmoke: EvidenceEntry
+        let blackFrameFlickerSmoke: EvidenceEntry
     }
 
     private struct EvidenceEntry: Encodable {
@@ -24,7 +25,8 @@ enum RuntimeSmokeEvidenceWriter {
             schemaVersion: RuntimeCompletionAudit.manualSmokeEvidenceSchemaVersion,
             packagedAppLaunchSmoke: packagedLaunchEntry(runtime: runtime, recordedAt: recordedAt),
             liveDesktopClickActions: liveInteractionEntry(runtime: runtime, recordedAt: recordedAt),
-            physicalDisplayHotplugSmoke: physicalDisplayEntry(runtime: runtime, recordedAt: recordedAt)
+            physicalDisplayHotplugSmoke: physicalDisplayEntry(runtime: runtime, recordedAt: recordedAt),
+            blackFrameFlickerSmoke: blackFrameFlickerEntry(runtime: runtime, recordedAt: recordedAt)
         )
 
         let encoder = JSONEncoder()
@@ -35,7 +37,7 @@ enum RuntimeSmokeEvidenceWriter {
         runtime smoke evidence OK
         schemaVersion: \(RuntimeCompletionAudit.manualSmokeEvidenceSchemaVersion)
         path: \(destination.path)
-        next: inspect liveDesktopClickActions and physicalDisplayHotplugSmoke, mark passed=true only after the manual checklist is observed, then run --completion-audit --manual-smoke-evidence \(destination.path)
+        next: inspect liveDesktopClickActions, physicalDisplayHotplugSmoke, and blackFrameFlickerSmoke; mark passed=true only after the manual checklist is observed, then run --completion-audit --manual-smoke-evidence \(destination.path)
         """
     }
 
@@ -94,13 +96,28 @@ enum RuntimeSmokeEvidenceWriter {
             .map { "\($0.event)/\($0.status):\($0.detail)" }
             .joined(separator: " | ")
         let evidence = """
-        runtime physical display telemetry captured; renderPlan=\(renderPlan); displayLifecycle=\(lifecycle.isEmpty ? "none-recorded" : lifecycle); manual checklist still required: selectedOnly, selectedPolicy, allFull, reconnect or wake, no black frame, no crash
+        runtime physical display telemetry captured; renderPlan=\(renderPlan); displayLifecycle=\(lifecycle.isEmpty ? "none-recorded" : lifecycle); manual checklist still required: selectedOnly, selectedPolicy, allFull, reconnect or wake, restored wallpaper windows on target displays
         """
         return EvidenceEntry(
             passed: false,
             recordedAt: recordedAt,
             evidence: oneLine(evidence),
             operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing physical display mode and reconnect/wake behavior."
+        )
+    }
+
+    private static func blackFrameFlickerEntry(runtime: NativeRuntimeCore, recordedAt: String) -> EvidenceEntry {
+        let lifecycle = runtime.telemetry.displayLifecycleSnapshot()
+            .map { "\($0.event)/\($0.status):\($0.detail)" }
+            .joined(separator: " | ")
+        let evidence = """
+        runtime black-frame/flicker telemetry captured; foregroundMode=\(runtime.config.foregroundMode.rawValue); displayMode=\(runtime.config.displayMode.cliName); displayLifecycle=\(lifecycle.isEmpty ? "none-recorded" : lifecycle); manual checklist still required: packaged start, mode switch, display rebuild or wake, no black frame, no visible flicker loop, no crash
+        """
+        return EvidenceEntry(
+            passed: false,
+            recordedAt: recordedAt,
+            evidence: oneLine(evidence),
+            operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing black-frame/flicker behavior on the packaged app."
         )
     }
 

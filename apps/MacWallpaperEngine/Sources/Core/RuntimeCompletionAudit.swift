@@ -32,6 +32,7 @@ private struct ManualSmokeEvidenceFile: Codable {
     let packagedAppLaunchSmoke: ManualSmokeEvidenceEntry?
     let liveDesktopClickActions: ManualSmokeEvidenceEntry?
     let physicalDisplayHotplugSmoke: ManualSmokeEvidenceEntry?
+    let blackFrameFlickerSmoke: ManualSmokeEvidenceEntry?
 }
 
 private struct ManualSmokeEvidenceEntry: Codable {
@@ -103,6 +104,7 @@ enum RuntimeCompletionAudit {
         let packagedEvidence = manualEvidence?.packagedAppLaunchSmoke
         let liveClickEvidence = manualEvidence?.liveDesktopClickActions
         let physicalDisplayEvidence = manualEvidence?.physicalDisplayHotplugSmoke
+        let blackFrameFlickerEvidence = manualEvidence?.blackFrameFlickerSmoke
 
         let automatedItems = [
             item(
@@ -192,6 +194,14 @@ enum RuntimeCompletionAudit {
                     physicalDisplayEvidence,
                     fallback: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run"
                 )
+            ),
+            manualItem(
+                id: "black-frame-flicker-smoke",
+                passed: manualEvidencePassed(blackFrameFlickerEvidence, fallback: false),
+                evidence: manualEvidenceText(
+                    blackFrameFlickerEvidence,
+                    fallback: "renderer warmup/rebuild guards are covered by automated tests, but live no-black-frame/no-flicker observation is not recorded"
+                )
             )
         ]
         let protocolItems = [
@@ -201,7 +211,11 @@ enum RuntimeCompletionAudit {
             ),
             protocolItem(
                 id: "physical-display-hotplug-smoke-protocol",
-                evidence: "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected no black frame no crash and restored wallpaper windows on target displays"
+                evidence: "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
+            ),
+            protocolItem(
+                id: "black-frame-flicker-smoke-protocol",
+                evidence: "start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; expected no black frame, no visible flicker loop, and no crash"
             )
         ]
         let scopeItems = [
@@ -245,11 +259,12 @@ enum RuntimeCompletionAudit {
         to destination: URL,
         packagedLaunchPassed: Bool,
         liveClickActionsPassed: Bool,
-        physicalDisplayHotplugPassed: Bool
+        physicalDisplayHotplugPassed: Bool,
+        blackFrameFlickerPassed: Bool
     ) throws -> String {
-        guard packagedLaunchPassed || liveClickActionsPassed || physicalDisplayHotplugPassed else {
+        guard packagedLaunchPassed || liveClickActionsPassed || physicalDisplayHotplugPassed || blackFrameFlickerPassed else {
             throw EngineError.invalidArgument(
-                "At least one manual smoke confirmation flag is required: --confirm-packaged-launch, --confirm-live-click-actions, or --confirm-physical-display-hotplug"
+                "At least one manual smoke confirmation flag is required: --confirm-packaged-launch, --confirm-live-click-actions, --confirm-physical-display-hotplug, or --confirm-black-frame-flicker"
             )
         }
 
@@ -275,9 +290,15 @@ enum RuntimeCompletionAudit {
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect/wake produced no black frame and no crash."
+                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect/wake restored wallpaper windows on target displays."
                 )
-                : existing?.physicalDisplayHotplugSmoke ?? templatePhysicalDisplayEntry()
+                : existing?.physicalDisplayHotplugSmoke ?? templatePhysicalDisplayEntry(),
+            blackFrameFlickerSmoke: blackFrameFlickerPassed
+                ? passEntry(
+                    recordedAt: recordedAt,
+                    evidence: "Operator confirmed black-frame/flicker smoke: packaged app start, mode switch, display rebuild or wake produced no black frame, no visible flicker loop, and no crash."
+                )
+                : existing?.blackFrameFlickerSmoke ?? templateBlackFrameFlickerEntry()
         )
 
         let encoder = JSONEncoder()
@@ -289,7 +310,8 @@ enum RuntimeCompletionAudit {
         let confirmed = [
             packagedLaunchPassed ? "packaged-app-launch-smoke" : nil,
             liveClickActionsPassed ? "live-desktop-click-actions" : nil,
-            physicalDisplayHotplugPassed ? "physical-display-hotplug-smoke" : nil
+            physicalDisplayHotplugPassed ? "physical-display-hotplug-smoke" : nil,
+            blackFrameFlickerPassed ? "black-frame-flicker-smoke" : nil
         ].compactMap { $0 }.joined(separator: ", ")
 
         return """
@@ -360,7 +382,12 @@ enum RuntimeCompletionAudit {
         try validateManualEvidenceEntry(
             evidence.physicalDisplayHotplugSmoke,
             label: "physicalDisplayHotplugSmoke",
-            requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull", "reconnect", "black", "crash"]
+            requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull", "reconnect"]
+        )
+        try validateManualEvidenceEntry(
+            evidence.blackFrameFlickerSmoke,
+            label: "blackFrameFlickerSmoke",
+            requiredPassTokens: ["black", "flicker", "crash"]
         )
         return evidence
     }
@@ -400,9 +427,18 @@ enum RuntimeCompletionAudit {
     private static func templatePhysicalDisplayEntry() -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
-            evidence: "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash.",
+            evidence: "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
             operatorNote: "Required before physical-display-hotplug-smoke can pass."
+        )
+    }
+
+    private static func templateBlackFrameFlickerEntry() -> ManualSmokeEvidenceEntry {
+        ManualSmokeEvidenceEntry(
+            passed: false,
+            evidence: "Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash.",
+            recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            operatorNote: "Required before black-frame-flicker-smoke can pass."
         )
     }
 
@@ -448,8 +484,14 @@ enum RuntimeCompletionAudit {
           "physicalDisplayHotplugSmoke": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash.",
+            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
             "operatorNote": "Required before physical-display-hotplug-smoke can pass."
+          },
+          "blackFrameFlickerSmoke": {
+            "passed": false,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash.",
+            "operatorNote": "Required before black-frame-flicker-smoke can pass."
           }
         }
         """

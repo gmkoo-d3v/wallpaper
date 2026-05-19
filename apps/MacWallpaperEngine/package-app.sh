@@ -219,8 +219,14 @@ write_package_smoke_evidence() {
   "physicalDisplayHotplugSmoke": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Current packaged physical display count: $physical_display_count. Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash.",
+    "evidence": "Current packaged physical display count: $physical_display_count. Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
     "operatorNote": "Required before physical-display-hotplug-smoke can pass."
+  },
+  "blackFrameFlickerSmoke": {
+    "passed": false,
+    "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+    "evidence": "Current packaged physical display count: $physical_display_count. Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash.",
+    "operatorNote": "Required before black-frame-flicker-smoke can pass."
   }
 }
 EOF

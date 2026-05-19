@@ -31,19 +31,21 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   the remaining evidence is repeatable instead of implicit.
 - `--completion-audit --manual-smoke-evidence <json>` lets a user-recorded
   manual smoke report close those live evidence rows after packaged launch,
-  desktop click/touch actions, and physical display hot-plug have been checked.
+  desktop click/touch actions, physical display hot-plug, and black-frame/
+  flicker behavior have been checked.
 - `--write-manual-smoke-template <json>` writes the fill-in evidence template
   used by `--manual-smoke-evidence`, keeping the final manual smoke handoff
   repeatable.
 - `--record-manual-smoke-evidence <json>` records operator-confirmed smoke
-  rows after the checks are observed. Use `--confirm-live-click-actions` and
-  `--confirm-physical-display-hotplug` to avoid hand-editing JSON while still
-  requiring an explicit human confirmation for the live desktop and hot-plug
-  evidence gates.
+  rows after the checks are observed. Use `--confirm-live-click-actions`,
+  `--confirm-physical-display-hotplug`, and `--confirm-black-frame-flicker` to
+  avoid hand-editing JSON while still requiring an explicit human confirmation
+  for the live desktop, hot-plug, and no-black-frame/no-flicker evidence gates.
 - `PACKAGE_SMOKE_EVIDENCE=<json> apps/MacWallpaperEngine/package-app.sh`
   writes a partial manual-smoke evidence file after the packaged hidden launch
   smoke test passes, closing only the packaged app launch row while leaving live
-  click and physical hot-plug evidence for the operator. The generated file
+  click, physical hot-plug, and black-frame/flicker evidence for the operator.
+  The generated file
   includes the packaged interaction trust state and current physical display
   count to make the remaining manual smoke run reproducible.
 - `--write-runtime-smoke-evidence <json>` records launch, Accessibility,
@@ -313,6 +315,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   playback rate, and effective FPS; low-FPS composite fallback is flagged so it
   can be regenerated at the display refresh rate instead of being mistaken for
   a renderer bug.
+- Composite fallback diagnostics also mark a fallback as degraded when its
+  resolution is lower than the source background video. The bundled Imported
+  fallback is intentionally treated as a failure fallback, while Native Spine
+  remains the default high-quality path.
 - `--validate-only` runs native Spine geometry preflight for supported Spine
   bundles, so package/release validation fails before shipping broken action
   pose assembly or out-of-range UVs.
@@ -322,9 +328,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Composite fallback quality diagnostics can emit a regeneration plan and can
   run as a strict validation gate for release/package workflows that require
   fallback FPS to meet the manifest target.
-- Composite fallback quality diagnostics also surface high-refresh
-  recommendations when a fallback passes the manifest target FPS but remains
-  below `maxFps` for Display Hz / ProMotion use.
+- Composite fallback quality diagnostics also surface high-refresh and
+  source-resolution recommendations when a fallback passes the manifest target
+  FPS but remains below `maxFps` or below the source background resolution.
 - The bundled Imported composite fallback is generated at 120fps, matching its
   manifest `maxFps` so Composite mode remains smooth on high-refresh displays.
 - `--export-composite-video` renders a native/source composite MP4 fallback at
@@ -418,7 +424,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   new renderer warms up.
 - Control panel foreground switch:
   - `Auto`: native Spine when the selected bundle supports it, otherwise the composite fallback.
-  - `Composite`: verified MP4 composite fallback.
+  - `Composite`: verified MP4 composite fallback for native-renderer failure or explicit comparison.
   - `Native Spine`: background video plus native Spine mesh/timeline foreground.
 - Foreground renderer selection is centralized so render diagnostics and the
   Metal compositor use the same native/composite/fallback decision.
@@ -477,7 +483,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality
 swift run MacWallpaperEngine --write-manual-smoke-template /path/to/manual-smoke-evidence.json
-swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --confirm-physical-display-hotplug
+swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --confirm-physical-display-hotplug --confirm-black-frame-flicker
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
@@ -520,7 +526,12 @@ Manual smoke evidence file for `--manual-smoke-evidence`:
   "physicalDisplayHotplugSmoke": {
     "passed": true,
     "recordedAt": "2026-05-19T12:05:00+09:00",
-    "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect produced no black frame and no crash."
+    "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays."
+  },
+  "blackFrameFlickerSmoke": {
+    "passed": true,
+    "recordedAt": "2026-05-19T12:07:00+09:00",
+    "evidence": "Packaged app start, mode switch, and display rebuild produced no black frame, no visible flicker loop, and no crash."
   }
 }
 ```
@@ -528,8 +539,9 @@ Manual smoke evidence file for `--manual-smoke-evidence`:
 Evidence validation is intentionally strict: `schemaVersion` must be
 `mac-wallpaper-manual-smoke.v1`, `passed=true` entries must not contain template
 placeholders, and the evidence text must mention the relevant checklist items
-for launch/crash, head/body/empty/gaze click behavior, and selectedOnly /
-selectedPolicy / allFull display hot-plug behavior.
+for launch/crash, head/body/empty/gaze click behavior, selectedOnly /
+selectedPolicy / allFull display hot-plug behavior, and black-frame/flicker
+behavior.
 
 Packaged app:
 

@@ -254,7 +254,7 @@ enum RuntimeCapabilities {
             bundleRoot: bundleRoot
         )
         let qualityWarnings = qualityReport.warnings
-        let qualityStatus = qualityWarnings.isEmpty ? "ok" : "warning"
+        let qualityStatus = qualityReport.status == "not-used" ? "ok" : qualityReport.status
 
         return WallpaperBundleCapabilityInfo(
             assetKinds: assetKinds,

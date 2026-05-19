@@ -569,6 +569,28 @@ enum RuntimeSelfTest {
             runtime.validationSummary().contains("composite quality: \(compositeQualityReport.summaryLine)"),
             "validation summary must surface composite fallback quality"
         )
+        if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
+           let backgroundVideo = runtime.assetCatalog.videoAsset,
+           let compositeMetadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
+           let backgroundMetadata = try? VideoMetadataInspector.inspect(url: backgroundVideo.url) {
+            let compositeWidth = abs(compositeMetadata.presentationSize.width)
+            let compositeHeight = abs(compositeMetadata.presentationSize.height)
+            let backgroundWidth = abs(backgroundMetadata.presentationSize.width)
+            let backgroundHeight = abs(backgroundMetadata.presentationSize.height)
+            if compositeWidth < backgroundWidth || compositeHeight < backgroundHeight {
+                check(
+                    compositeQualityReport.status == "degraded"
+                        && compositeQualityReport.isAcceptable
+                        && compositeQualityReport.recommendations.contains(where: { $0.contains("below backgroundVideo size=") }),
+                    "lower-resolution composite fallback must be acceptable only as a degraded fallback recommendation"
+                )
+                check(
+                    validatedBundle?.capabilities.qualityStatus == "degraded"
+                        && validatedBundle?.capabilities.qualityRecommendations.contains(where: { $0.contains("below backgroundVideo size=") }) == true,
+                    "bundle catalog capabilities must surface lower-resolution composite fallback degradation"
+                )
+            }
+        }
         let effectiveAudioPolicy = runtime.manifest.runtime.effectiveAudioPolicy
         check(
             runtime.validationSummary().contains(
@@ -602,8 +624,7 @@ enum RuntimeSelfTest {
            let effectiveFps = metadata.effectiveFrameRate(playbackRate: compositeVideo.playbackRate),
            effectiveFps + 0.5 >= Double(runtime.manifest.runtime.maxFps) {
             check(
-                compositeQualityReport.recommendedExportFps == nil
-                    && compositeQualityReport.recommendations.isEmpty,
+                compositeQualityReport.recommendations.contains(where: { $0.contains("below maxFps=") }) == false,
                 "max-FPS composite fallback must not keep stale high-refresh regeneration recommendations"
             )
             if runtime.manifest.metadata?.id == "sample_imported" {
@@ -1493,7 +1514,8 @@ enum RuntimeSelfTest {
         check(
             EngineConfig.help.contains("--record-manual-smoke-evidence")
                 && EngineConfig.help.contains("--confirm-live-click-actions")
-                && EngineConfig.help.contains("--confirm-physical-display-hotplug"),
+                && EngineConfig.help.contains("--confirm-physical-display-hotplug")
+                && EngineConfig.help.contains("--confirm-black-frame-flicker"),
             "EngineConfig help must document manual smoke evidence recording"
         )
         check(
@@ -1804,11 +1826,13 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tperformance-budget")
                 && completionAudit.contains("manual\tmanual\tlive-desktop-click-actions")
                 && completionAudit.contains("manual\tmanual\tphysical-display-hotplug-smoke")
+                && completionAudit.contains("manual\tmanual\tblack-frame-flicker-smoke")
                 && completionAudit.contains("protocol\tmanual\tlive-desktop-click-actions-protocol")
                 && completionAudit.contains("head short tap=boll")
                 && completionAudit.contains("body tap=boll")
                 && completionAudit.contains("protocol\tmanual\tphysical-display-hotplug-smoke-protocol")
                 && completionAudit.contains("selectedOnly=primary-only")
+                && completionAudit.contains("protocol\tmanual\tblack-frame-flicker-smoke-protocol")
                 && completionAudit.contains("scope\tdeferred\tfull-spine-4.2-parity"),
             "completion audit must summarize objective-level automated evidence and exact manual smoke protocols without falsely claiming full manual/product completion"
         )
@@ -1830,7 +1854,12 @@ enum RuntimeSelfTest {
           "physicalDisplayHotplugSmoke": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect no black frame and no crash"
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays"
+          },
+          "blackFrameFlickerSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app start, mode switch, display rebuild produced no black frame, no visible flicker loop, and no crash"
           }
         }
         """
@@ -1850,6 +1879,7 @@ enum RuntimeSelfTest {
                 && completionAuditWithManualEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
                 && completionAuditWithManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
                 && completionAuditWithManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
+                && completionAuditWithManualEvidence.contains("manual\tpass\tblack-frame-flicker-smoke")
                 && completionAuditWithManualEvidence.contains("manual evidence: recordedAt=self-test"),
             "completion audit must accept explicit user-recorded manual smoke evidence before claiming complete evidence pass"
         )
@@ -1871,7 +1901,12 @@ enum RuntimeSelfTest {
           "physicalDisplayHotplugSmoke": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash."
+            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays."
+          },
+          "blackFrameFlickerSmoke": {
+            "passed": false,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash."
           }
         }
         """
@@ -1890,14 +1925,16 @@ enum RuntimeSelfTest {
             completionAuditWithPackageEvidence.contains("overall: automated-pass/manual-evidence-open")
                 && completionAuditWithPackageEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tlive-desktop-click-actions")
-                && completionAuditWithPackageEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke"),
+                && completionAuditWithPackageEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke")
+                && completionAuditWithPackageEvidence.contains("manual\tmanual\tblack-frame-flicker-smoke"),
             "completion audit must allow package-script launch evidence without falsely closing live click or physical hot-plug evidence"
         )
         let manualRecordReport = try RuntimeCompletionAudit.recordManualSmokeEvidence(
             to: packageOnlySmokeEvidenceURL,
             packagedLaunchPassed: false,
             liveClickActionsPassed: true,
-            physicalDisplayHotplugPassed: true
+            physicalDisplayHotplugPassed: true,
+            blackFrameFlickerPassed: true
         )
         let completionAuditWithRecordedManualEvidence = try RuntimeCompletionAudit.make(
             projectRoot: runtime.config.projectRoot,
@@ -1910,10 +1947,12 @@ enum RuntimeSelfTest {
             manualRecordReport.contains("manual smoke evidence record OK")
                 && manualRecordReport.contains("live-desktop-click-actions")
                 && manualRecordReport.contains("physical-display-hotplug-smoke")
+                && manualRecordReport.contains("black-frame-flicker-smoke")
                 && completionAuditWithRecordedManualEvidence.contains("overall: complete-evidence-pass")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
-                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke"),
+                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
+                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tblack-frame-flicker-smoke"),
             "manual smoke recorder must merge operator-confirmed live click and physical display evidence without losing package launch evidence"
         )
         let manualSmokeTemplateURL = FileManager.default.temporaryDirectory
@@ -1929,6 +1968,7 @@ enum RuntimeSelfTest {
                 && manualSmokeTemplate.contains("\"packagedAppLaunchSmoke\"")
                 && manualSmokeTemplate.contains("\"liveDesktopClickActions\"")
                 && manualSmokeTemplate.contains("\"physicalDisplayHotplugSmoke\"")
+                && manualSmokeTemplate.contains("\"blackFrameFlickerSmoke\"")
                 && manualSmokeTemplate.contains("\"passed\": false"),
             "completion audit must provide a fill-in manual smoke evidence template before requiring live evidence ingestion"
         )
@@ -1959,8 +1999,10 @@ enum RuntimeSelfTest {
             runtimeSmokeReport.contains("runtime smoke evidence OK")
                 && runtimeSmokeEvidence.contains("\"schemaVersion\" : \"mac-wallpaper-manual-smoke.v1\"")
                 && runtimeSmokeEvidence.contains("\"liveDesktopClickActions\"")
+                && runtimeSmokeEvidence.contains("\"blackFrameFlickerSmoke\"")
                 && runtimeSmokeEvidence.contains("runtime telemetry captured")
-                && runtimeSmokeEvidence.contains("runtime physical display telemetry captured"),
+                && runtimeSmokeEvidence.contains("runtime physical display telemetry captured")
+                && runtimeSmokeEvidence.contains("flicker telemetry captured"),
             "runtime smoke evidence writer must generate a completion-audit-compatible evidence JSON with telemetry context"
         )
         let completionAuditWithRuntimeSmoke = try RuntimeCompletionAudit.make(
@@ -1974,8 +2016,10 @@ enum RuntimeSelfTest {
             completionAuditWithRuntimeSmoke.contains("overall: automated-pass/manual-evidence-open")
                 && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tlive-desktop-click-actions")
                 && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tphysical-display-hotplug-smoke")
+                && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tblack-frame-flicker-smoke")
                 && completionAuditWithRuntimeSmoke.contains("runtime telemetry captured")
-                && completionAuditWithRuntimeSmoke.contains("runtime physical display telemetry captured"),
+                && completionAuditWithRuntimeSmoke.contains("runtime physical display telemetry captured")
+                && completionAuditWithRuntimeSmoke.contains("runtime black-frame/flicker telemetry captured"),
             "runtime smoke evidence must enrich manual-open rows without falsely closing live click or physical hot-plug evidence"
         )
         let invalidManualSmokeEvidenceURL = FileManager.default.temporaryDirectory

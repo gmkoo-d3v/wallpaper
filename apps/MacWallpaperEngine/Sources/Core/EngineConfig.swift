@@ -771,6 +771,8 @@ struct EngineConfig {
                               With --record-manual-smoke-evidence, confirm head/body/empty/gaze click smoke.
       --confirm-physical-display-hotplug
                               With --record-manual-smoke-evidence, confirm selectedOnly/selectedPolicy/allFull reconnect smoke.
+      --confirm-black-frame-flicker
+                              With --record-manual-smoke-evidence, confirm packaged start/rebuild no-black-frame/no-flicker smoke.
       --recovery-plan          Print persisted renderer safe-mode recovery/quarantine state, then exit.
       --recovery-store <path>  Recovery state file for --recovery-plan. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.

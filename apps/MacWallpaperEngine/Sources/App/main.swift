@@ -35,7 +35,8 @@ do {
             to: URL(fileURLWithPath: manualSmokeRecordPath, relativeTo: nil).standardizedFileURL,
             packagedLaunchPassed: arguments.contains("--confirm-packaged-launch"),
             liveClickActionsPassed: arguments.contains("--confirm-live-click-actions"),
-            physicalDisplayHotplugPassed: arguments.contains("--confirm-physical-display-hotplug")
+            physicalDisplayHotplugPassed: arguments.contains("--confirm-physical-display-hotplug"),
+            blackFrameFlickerPassed: arguments.contains("--confirm-black-frame-flicker")
         ))
         exit(EXIT_SUCCESS)
     }

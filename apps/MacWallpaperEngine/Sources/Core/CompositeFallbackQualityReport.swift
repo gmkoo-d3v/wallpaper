@@ -89,6 +89,11 @@ struct CompositeFallbackQualityReport {
 
         do {
             let metadata = try VideoMetadataInspector.inspect(url: url)
+            let referenceVideoMetadata = referenceVideoMetadata(
+                manifest: manifest,
+                bundleRoot: bundleRoot,
+                compositeURL: url
+            )
             let effectiveFps = metadata.effectiveFrameRate(playbackRate: playbackRate)
             let warnings = qualityWarnings(
                 effectiveFps: effectiveFps,
@@ -97,10 +102,12 @@ struct CompositeFallbackQualityReport {
             let recommendations = qualityRecommendations(
                 effectiveFps: effectiveFps,
                 targetFps: targetFps,
-                maxFps: maxFps
+                maxFps: maxFps,
+                compositeSize: metadata.presentationSize,
+                referenceVideoSize: referenceVideoMetadata?.presentationSize
             )
             return CompositeFallbackQualityReport(
-                status: warnings.isEmpty ? "ok" : "warning",
+                status: qualityStatus(warnings: warnings, recommendations: recommendations),
                 targetFps: targetFps,
                 maxFps: maxFps,
                 recommendedExportFps: warnings.isEmpty && recommendations.isEmpty ? nil : recommended,
@@ -147,13 +154,68 @@ struct CompositeFallbackQualityReport {
     private static func qualityRecommendations(
         effectiveFps: Double?,
         targetFps: Int,
-        maxFps: Int
+        maxFps: Int,
+        compositeSize: CGSize,
+        referenceVideoSize: CGSize?
     ) -> [String] {
-        guard maxFps > targetFps, let effectiveFps else { return [] }
-        guard effectiveFps + 0.5 < Double(maxFps) else { return [] }
+        var recommendations: [String] = []
+        if maxFps > targetFps,
+           let effectiveFps,
+           effectiveFps + 0.5 < Double(maxFps) {
+            recommendations.append(
+                "compositeVideo effectiveFps=\(formatNumber(effectiveFps)) below maxFps=\(maxFps); regenerate at display-refresh if Composite fallback will be used on high-refresh displays"
+            )
+        }
+        recommendations.append(contentsOf: resolutionRecommendations(
+            compositeSize: compositeSize,
+            referenceVideoSize: referenceVideoSize
+        ))
+        return recommendations
+    }
+
+    private static func resolutionRecommendations(
+        compositeSize: CGSize,
+        referenceVideoSize: CGSize?
+    ) -> [String] {
+        guard let referenceVideoSize else { return [] }
+        let compositeWidth = Int(abs(compositeSize.width).rounded())
+        let compositeHeight = Int(abs(compositeSize.height).rounded())
+        let referenceWidth = Int(abs(referenceVideoSize.width).rounded())
+        let referenceHeight = Int(abs(referenceVideoSize.height).rounded())
+        guard compositeWidth > 0,
+              compositeHeight > 0,
+              referenceWidth > 0,
+              referenceHeight > 0,
+              (compositeWidth < referenceWidth || compositeHeight < referenceHeight) else {
+            return []
+        }
         return [
-            "compositeVideo effectiveFps=\(formatNumber(effectiveFps)) below maxFps=\(maxFps); regenerate at display-refresh if Composite fallback will be used on high-refresh displays"
+            "compositeVideo size=\(compositeWidth)x\(compositeHeight) below backgroundVideo size=\(referenceWidth)x\(referenceHeight); keep Native Spine as the default path and regenerate the fallback at source/display resolution only if fallback visual quality must match"
         ]
+    }
+
+    private static func referenceVideoMetadata(
+        manifest: WallpaperNativeManifest,
+        bundleRoot: URL,
+        compositeURL: URL
+    ) -> VideoMetadata? {
+        guard let video = manifest.assets.video else { return nil }
+        let url = bundleRoot
+            .standardizedFileURL
+            .appendingPathComponent(video.path)
+            .standardizedFileURL
+        guard url.path != compositeURL.path else { return nil }
+        return try? VideoMetadataInspector.inspect(url: url)
+    }
+
+    private static func qualityStatus(warnings: [String], recommendations: [String]) -> String {
+        if warnings.isEmpty == false {
+            return "warning"
+        }
+        if recommendations.isEmpty == false {
+            return "degraded"
+        }
+        return "ok"
     }
 
     private static func sizeText(_ size: CGSize) -> String {
