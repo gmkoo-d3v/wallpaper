@@ -448,3 +448,19 @@ Packaged app:
 ```bash
 ~/project/wall-paper/dist/MacWallpaperEngine.app
 ```
+
+Accessibility and signing note:
+
+- The package script ad-hoc signs by default (`CODESIGN_IDENTITY=-`). This is
+  convenient for local builds, but macOS TCC may treat each rebuilt binary as a
+  new Accessibility client. If click/touch actions still report
+  `accessibility-missing` after rebuilding, remove the old entry from System
+  Settings > Privacy & Security > Accessibility and add the current
+  `dist/MacWallpaperEngine.app` again.
+- For repeated development builds, set `CODESIGN_IDENTITY` to a stable local
+  signing identity before packaging so Accessibility trust is tied to a stable
+  code-signing requirement instead of a changing ad-hoc code hash:
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Example Name" apps/MacWallpaperEngine/package-app.sh
+```

@@ -14,6 +14,8 @@ WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers"
 WALLPAPER_DEST="$RESOURCES_DIR/wallpapers"
 STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
 PACKAGE_VALIDATE_ONLY="${PACKAGE_VALIDATE_ONLY:-0}"
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+CODESIGN_DEEP="${CODESIGN_DEEP:-1}"
 VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
 
 STRICT_COMPOSITE_QUALITY_ENABLED=0
@@ -41,6 +43,21 @@ case "$PACKAGE_VALIDATE_ONLY" in
     ;;
   *)
     echo "Invalid PACKAGE_VALIDATE_ONLY value: $PACKAGE_VALIDATE_ONLY" >&2
+    echo "Use 1/true/yes or 0/false/no." >&2
+    exit 1
+    ;;
+esac
+
+CODESIGN_DEEP_ENABLED=0
+case "$CODESIGN_DEEP" in
+  1|true|TRUE|yes|YES)
+    CODESIGN_DEEP_ENABLED=1
+    ;;
+  0|false|FALSE|no|NO|"")
+    CODESIGN_DEEP_ENABLED=0
+    ;;
+  *)
+    echo "Invalid CODESIGN_DEEP value: $CODESIGN_DEEP" >&2
     echo "Use 1/true/yes or 0/false/no." >&2
     exit 1
     ;;
@@ -93,6 +110,27 @@ validate_wallpaper_bundle() {
       echo "$context wallpaper bundle failed strict composite quality validation: $bundle_name ($bundle_dir)" >&2
       exit 1
     fi
+  fi
+}
+
+sign_app_bundle() {
+  if ! command -v codesign >/dev/null 2>&1; then
+    echo "codesign not found; packaged app will remain unsigned." >&2
+    return
+  fi
+
+  local sign_args=(--force)
+  if [ "$CODESIGN_DEEP_ENABLED" -eq 1 ]; then
+    sign_args+=(--deep)
+  fi
+  sign_args+=(--sign "$CODESIGN_IDENTITY" "$APP_DIR")
+  codesign "${sign_args[@]}" >/dev/null
+
+  if [ "$CODESIGN_IDENTITY" = "-" ]; then
+    echo "Packaged app was ad-hoc signed. macOS Accessibility permission may need to be re-granted after each rebuild." >&2
+    echo "Set CODESIGN_IDENTITY to a stable local signing identity to keep TCC/Accessibility identity stable during development." >&2
+  else
+    echo "Packaged app signed with identity: $CODESIGN_IDENTITY" >&2
   fi
 }
 
@@ -223,9 +261,7 @@ PLIST
 
 printf "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
-if command -v codesign >/dev/null 2>&1; then
-  codesign --force --deep --sign - "$APP_DIR" >/dev/null
-fi
+sign_app_bundle
 
 if ! "$MACOS_DIR/$APP_NAME" --self-test >/dev/null; then
   echo "Packaged app self-test failed: $APP_DIR" >&2
