@@ -29,6 +29,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   current blocker. It also prints exact manual smoke protocols for packaged app
   launch, live desktop click actions, and physical display/hot-plug checks so
   the remaining evidence is repeatable instead of implicit.
+- `--completion-audit --manual-smoke-evidence <json>` lets a user-recorded
+  manual smoke report close those live evidence rows after packaged launch,
+  desktop click/touch actions, and physical display hot-plug have been checked.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
@@ -445,6 +448,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode selectedPoli
 swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality
+swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
 swift run MacWallpaperEngine --doctor
@@ -463,6 +467,29 @@ swift run MacWallpaperEngine --list-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --duration 20 --display-mode selectedPolicy
 swift run MacWallpaperEngine --foreground-mode native --fps 60 --fit-mode contain
 swift run MacWallpaperEngine --foreground-mode native --fps display
+```
+
+Manual smoke evidence file for `--manual-smoke-evidence`:
+
+```json
+{
+  "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+  "packagedAppLaunchSmoke": {
+    "passed": true,
+    "recordedAt": "2026-05-19T12:00:00+09:00",
+    "evidence": "Packaged app launched from Finder without crash."
+  },
+  "liveDesktopClickActions": {
+    "passed": true,
+    "recordedAt": "2026-05-19T12:02:00+09:00",
+    "evidence": "Head short tap produced boll; head hold/rub produced act; body hold produced boll; empty click produced no action; left-drag gaze changed direction."
+  },
+  "physicalDisplayHotplugSmoke": {
+    "passed": true,
+    "recordedAt": "2026-05-19T12:05:00+09:00",
+    "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect produced no black frame and no crash."
+  }
+}
 ```
 
 Packaged app:

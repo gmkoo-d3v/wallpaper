@@ -80,6 +80,9 @@ do {
             includeInvalid: arguments.contains("--include-invalid"),
             bundleDirectories: value(after: "--bundle-library", in: arguments).map {
                 [URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL]
+            },
+            manualEvidenceURL: value(after: "--manual-smoke-evidence", in: arguments).map {
+                URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL
             }
         ))
         exit(EXIT_SUCCESS)

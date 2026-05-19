@@ -1456,8 +1456,9 @@ enum RuntimeSelfTest {
             "EngineConfig help must document combined runtime doctor diagnostics"
         )
         check(
-            EngineConfig.help.contains("--completion-audit"),
-            "EngineConfig help must document objective-level completion audit diagnostics"
+            EngineConfig.help.contains("--completion-audit")
+                && EngineConfig.help.contains("--manual-smoke-evidence"),
+            "EngineConfig help must document objective-level completion audit diagnostics and manual smoke evidence ingestion"
         )
         check(
             EngineConfig.help.contains("--spine-profile"),
@@ -1749,6 +1750,47 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("selectedOnly=primary-only")
                 && completionAudit.contains("scope\tdeferred\tfull-spine-4.2-parity"),
             "completion audit must summarize objective-level automated evidence and exact manual smoke protocols without falsely claiming full manual/product completion"
+        )
+        let manualSmokeEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineManualSmoke-\(UUID().uuidString).json")
+        let manualSmokeEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "packagedAppLaunchSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app launched from Finder or package smoke gate without crash"
+          },
+          "liveDesktopClickActions": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "head short tap produced boll; head hold or rub produced act; body hold produced boll; empty click produced no action; left-drag gaze changed direction"
+          },
+          "physicalDisplayHotplugSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect no black frame and no crash"
+          }
+        }
+        """
+        try manualSmokeEvidence.write(to: manualSmokeEvidenceURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: manualSmokeEvidenceURL)
+        }
+        let completionAuditWithManualEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: manualSmokeEvidenceURL
+        )
+        check(
+            completionAuditWithManualEvidence.contains("overall: complete-evidence-pass")
+                && completionAuditWithManualEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
+                && completionAuditWithManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
+                && completionAuditWithManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
+                && completionAuditWithManualEvidence.contains("manual evidence: recordedAt=self-test"),
+            "completion audit must accept explicit user-recorded manual smoke evidence before claiming complete evidence pass"
         )
         try checkBundleDiagnostics(from: runtime, failures: &failures, checks: &checks)
         try checkBundleInstallerRoundTrip(from: runtime, failures: &failures, checks: &checks)

@@ -8,7 +8,7 @@ private struct CompletionAuditRow {
     let risk: String
 
     var line: String {
-        [category, status, id, evidence, risk].joined(separator: "\t")
+        [category, status, id, evidence, risk].map(Self.safeField).joined(separator: "\t")
     }
 
     var isPassingAutomatedEvidence: Bool {
@@ -18,6 +18,39 @@ private struct CompletionAuditRow {
     var isOpenManualEvidence: Bool {
         category == "manual" && status == "manual"
     }
+
+    private static func safeField(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+    }
+}
+
+private struct ManualSmokeEvidenceFile: Decodable {
+    let schemaVersion: String?
+    let packagedAppLaunchSmoke: ManualSmokeEvidenceEntry?
+    let liveDesktopClickActions: ManualSmokeEvidenceEntry?
+    let physicalDisplayHotplugSmoke: ManualSmokeEvidenceEntry?
+}
+
+private struct ManualSmokeEvidenceEntry: Decodable {
+    let passed: Bool
+    let evidence: String
+    let recordedAt: String?
+    let operatorNote: String?
+
+    var normalizedEvidence: String {
+        var parts: [String] = []
+        if let recordedAt, recordedAt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            parts.append("recordedAt=\(recordedAt)")
+        }
+        parts.append(evidence.trimmingCharacters(in: .whitespacesAndNewlines))
+        if let operatorNote, operatorNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            parts.append("note=\(operatorNote)")
+        }
+        return parts.joined(separator: "; ")
+    }
 }
 
 enum RuntimeCompletionAudit {
@@ -25,8 +58,10 @@ enum RuntimeCompletionAudit {
         projectRoot: URL?,
         strictCompositeQuality: Bool,
         includeInvalid: Bool,
-        bundleDirectories: [URL]? = nil
+        bundleDirectories: [URL]? = nil,
+        manualEvidenceURL: URL? = nil
     ) throws -> String {
+        let manualEvidence = try loadManualEvidence(from: manualEvidenceURL)
         let diagnostics = bundleDirectories.map(WallpaperBundleCatalog.diagnose(in:))
             ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
@@ -63,6 +98,9 @@ enum RuntimeCompletionAudit {
         let hasInstaller = validationMatrix.contains("installer: importable")
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
+        let packagedEvidence = manualEvidence?.packagedAppLaunchSmoke
+        let liveClickEvidence = manualEvidence?.liveDesktopClickActions
+        let physicalDisplayEvidence = manualEvidence?.physicalDisplayHotplugSmoke
 
         let automatedItems = [
             item(
@@ -124,22 +162,31 @@ enum RuntimeCompletionAudit {
         let manualItems = [
             manualItem(
                 id: "packaged-app-launch-smoke",
-                passed: packaged,
-                evidence: packaged
-                    ? "package-signing metadata present for \(Bundle.main.bundlePath)"
-                    : "source/unpackaged run; package script smoke must be checked separately"
+                passed: packaged || packagedEvidence?.passed == true,
+                evidence: manualEvidenceText(
+                    packagedEvidence,
+                    fallback: packaged
+                        ? "package-signing metadata present for \(Bundle.main.bundlePath)"
+                        : "source/unpackaged run; package script smoke must be checked separately"
+                )
             ),
             manualItem(
                 id: "live-desktop-click-actions",
-                passed: accessibilityTrusted && interactiveSpineBundles.isEmpty == false,
-                evidence: accessibilityTrusted
-                    ? "Accessibility trusted; run live head tap/head hold/body hold smoke"
-                    : "Accessibility trust missing; click actions are blocked by design until the current app is trusted"
+                passed: liveClickEvidence?.passed == true || (accessibilityTrusted && interactiveSpineBundles.isEmpty == false),
+                evidence: manualEvidenceText(
+                    liveClickEvidence,
+                    fallback: accessibilityTrusted
+                        ? "Accessibility trusted; run live head tap/head hold/body hold smoke"
+                        : "Accessibility trust missing; click actions are blocked by design until the current app is trusted"
+                )
             ),
             manualItem(
                 id: "physical-display-hotplug-smoke",
-                passed: false,
-                evidence: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run"
+                passed: physicalDisplayEvidence?.passed == true,
+                evidence: manualEvidenceText(
+                    physicalDisplayEvidence,
+                    fallback: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run"
+                )
             )
         ]
         let protocolItems = [
@@ -194,6 +241,36 @@ enum RuntimeCompletionAudit {
             evidence: evidence,
             risk: passed ? "none" : "manual verification required"
         )
+    }
+
+    private static func manualEvidenceText(_ entry: ManualSmokeEvidenceEntry?, fallback: String) -> String {
+        guard let entry else { return fallback }
+        let normalized = entry.normalizedEvidence
+        guard normalized.isEmpty == false else {
+            return entry.passed
+                ? "manual evidence marked pass but evidence text is empty"
+                : "manual evidence marked fail with empty evidence text"
+        }
+        return entry.passed
+            ? "manual evidence: \(normalized)"
+            : "manual evidence failed: \(normalized)"
+    }
+
+    private static func loadManualEvidence(from url: URL?) throws -> ManualSmokeEvidenceFile? {
+        guard let url else { return nil }
+        let data = try Data(contentsOf: url)
+        let evidence = try JSONDecoder().decode(ManualSmokeEvidenceFile.self, from: data)
+        try validateManualEvidenceEntry(evidence.packagedAppLaunchSmoke, label: "packagedAppLaunchSmoke")
+        try validateManualEvidenceEntry(evidence.liveDesktopClickActions, label: "liveDesktopClickActions")
+        try validateManualEvidenceEntry(evidence.physicalDisplayHotplugSmoke, label: "physicalDisplayHotplugSmoke")
+        return evidence
+    }
+
+    private static func validateManualEvidenceEntry(_ entry: ManualSmokeEvidenceEntry?, label: String) throws {
+        guard let entry else { return }
+        guard entry.evidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            throw EngineError.invalidArgument("Manual smoke evidence \(label).evidence must not be empty")
+        }
     }
 
     private static func protocolItem(id: String, evidence: String) -> CompletionAuditRow {
