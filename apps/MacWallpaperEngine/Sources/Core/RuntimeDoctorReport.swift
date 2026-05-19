@@ -46,6 +46,7 @@ enum RuntimeDoctorReport {
             section("render-plan", DisplayPlanner.headlessRenderSummary(runtime: runtime)),
             section("simulated-render-plan", DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime)),
             section("performance-plan", runtime.performanceSummary()),
+            section("package-signing", packageSigningReport()),
             section("interaction-plan", interaction),
             section("renderer-recovery", RendererRecoveryStore.report(recoveryURL: recoveryURL))
         ].joined(separator: "\n\n")
@@ -58,6 +59,29 @@ enum RuntimeDoctorReport {
             includeInvalid: true,
             includeCapabilities: true
         )
+    }
+
+    private static func packageSigningReport() -> String {
+        var lines = [
+            "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unavailable")",
+            "bundlePath: \(Bundle.main.bundleURL.path)",
+            "accessibilityTrust: \(DesktopInteractionGate.hasAccessibilityTrust() ? "trusted" : "missing")"
+        ]
+
+        if let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
+           let metadata = try? String(contentsOf: metadataURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           metadata.isEmpty == false {
+            lines.append("metadata: present")
+            lines.append(metadata)
+        } else {
+            lines.append("metadata: unavailable(source-or-unpackaged-run)")
+        }
+
+        lines.append(
+            "clickActionNote: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding the current .app"
+        )
+        return lines.joined(separator: "\n")
     }
 
     private static func section(_ title: String, _ body: String) -> String {

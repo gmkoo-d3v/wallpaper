@@ -134,6 +134,22 @@ sign_app_bundle() {
   fi
 }
 
+write_package_signing_metadata() {
+  local codesign_mode="identity"
+  if [ "$CODESIGN_IDENTITY" = "-" ]; then
+    codesign_mode="adhoc"
+  fi
+
+  cat > "$RESOURCES_DIR/package-signing.txt" <<EOF
+metadataVersion: 1
+bundleID: $BUNDLE_ID
+codesignIdentity: $CODESIGN_IDENTITY
+codesignMode: $codesign_mode
+codesignDeep: $CODESIGN_DEEP_ENABLED
+accessibilityTrustHint: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding this app in System Settings
+EOF
+}
+
 find_bundle_symlink_entries() {
   local bundle_dir="$1"
   find "$bundle_dir" \
@@ -261,6 +277,7 @@ PLIST
 
 printf "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
+write_package_signing_metadata
 sign_app_bundle
 
 if ! "$MACOS_DIR/$APP_NAME" --self-test >/dev/null; then

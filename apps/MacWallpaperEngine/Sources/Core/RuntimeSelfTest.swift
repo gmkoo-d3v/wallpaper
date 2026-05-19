@@ -696,9 +696,11 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("== render-plan ==")
                 && doctorReport.contains("== simulated-render-plan ==")
                 && doctorReport.contains("== performance-plan ==")
+                && doctorReport.contains("== package-signing ==")
+                && doctorReport.contains("click/touch actions require macOS Accessibility trust")
                 && doctorReport.contains("== interaction-plan ==")
                 && doctorReport.contains("== renderer-recovery =="),
-            "runtime doctor report must combine bundle library, validation, capability, render, performance, interaction, and recovery diagnostics"
+            "runtime doctor report must combine bundle library, validation, capability, render, performance, package signing, interaction, and recovery diagnostics"
         )
         check(
             doctorControlPanelSummary.contains("doctor: OK")

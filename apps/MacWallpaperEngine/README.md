@@ -461,6 +461,9 @@ Accessibility and signing note:
   `accessibility-missing` after rebuilding, remove the old entry from System
   Settings > Privacy & Security > Accessibility and add the current
   `dist/MacWallpaperEngine.app` again.
+- Packaged builds include a `package-signing` doctor section so `--doctor`
+  shows the bundle identifier, signing mode, current Accessibility trust state,
+  and the re-add hint for click/touch recovery.
 - For repeated development builds, set `CODESIGN_IDENTITY` to a stable local
   signing identity before packaging so Accessibility trust is tied to a stable
   code-signing requirement instead of a changing ad-hoc code hash:
