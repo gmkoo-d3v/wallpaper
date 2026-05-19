@@ -35,6 +35,7 @@ enum RuntimeLifecyclePolicy {
     static let outsideContentTrackingPolicy = "ignore-same-window-outside-content-without-idle-reset"
     static let blockedDesktopEventTrackingPolicy = "ignore-blocked-desktop-events-without-idle-reset"
     static let accessibilityPromptPolicy = "user-initiated-only"
+    static let accessibilityPermissionRefreshDelays: [TimeInterval] = [1, 3, 5, 10, 20, 30]
     static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background-before-first-pause"
     static let visibleWindowFirstDrawPolicy = "preorder-and-postorder-bounded-visible-draw-retries"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25

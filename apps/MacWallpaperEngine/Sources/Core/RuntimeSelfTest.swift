@@ -223,6 +223,11 @@ enum RuntimeSelfTest {
             "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
         )
         check(
+            RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays.first == 1
+                && (RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays.last ?? 0) >= 30,
+            "user-initiated Accessibility requests must poll permission recovery long enough for System Settings approval"
+        )
+        check(
             DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt",
             "startup Accessibility trust checks must use no-prompt probes"
         )

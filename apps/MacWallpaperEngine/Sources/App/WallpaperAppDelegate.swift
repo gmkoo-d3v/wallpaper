@@ -484,9 +484,11 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         _ = DesktopInteractionGate.requestAccessibilityTrustPrompt()
         _ = DesktopInteractionGate.openAccessibilitySettings()
         host?.refreshInteractionState()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.host?.refreshInteractionState()
-            self?.controlPanel?.refresh()
+        for delay in RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.host?.refreshInteractionState()
+                self?.controlPanel?.refresh()
+            }
         }
         controlPanel?.refresh()
     }
