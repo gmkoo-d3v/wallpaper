@@ -17,6 +17,7 @@ enum RuntimeDoctorReport {
             "doctor: OK / native=\(nativeStatus)",
             "quality: \(quality) / fps=\(runtime.renderTargetFps) max=\(runtime.manifest.runtime.maxFps)",
             "display: \(runtime.config.displayMode.cliName) / foreground=\(runtime.config.foregroundMode.rawValue)",
+            packageSigningSummaryLine(),
             "interaction: \(shorten(interactionStatus.replacingOccurrences(of: "\n", with: " / "), limit: 96))"
         ].joined(separator: "\n")
     }
@@ -68,10 +69,7 @@ enum RuntimeDoctorReport {
             "accessibilityTrust: \(DesktopInteractionGate.hasAccessibilityTrust() ? "trusted" : "missing")"
         ]
 
-        if let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
-           let metadata = try? String(contentsOf: metadataURL, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           metadata.isEmpty == false {
+        if let metadata = packageSigningMetadataText() {
             lines.append("metadata: present")
             lines.append(metadata)
         } else {
@@ -82,6 +80,39 @@ enum RuntimeDoctorReport {
             "clickActionNote: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding the current .app"
         )
         return lines.joined(separator: "\n")
+    }
+
+    private static func packageSigningSummaryLine() -> String {
+        let trust = DesktopInteractionGate.hasAccessibilityTrust() ? "trusted" : "missing"
+        guard let metadata = packageSigningMetadata() else {
+            return "signing: source-or-unpackaged / accessibility=\(trust)"
+        }
+
+        let mode = metadata["codesignMode"] ?? "unknown"
+        let action = mode == "adhoc" && trust == "missing" ? " / re-add current app" : ""
+        return "signing: \(mode) / accessibility=\(trust)\(action)"
+    }
+
+    private static func packageSigningMetadata() -> [String: String]? {
+        guard let metadata = packageSigningMetadataText() else { return nil }
+        var result: [String: String] = [:]
+        for line in metadata.split(separator: "\n", omittingEmptySubsequences: true) {
+            let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { continue }
+            result[String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)] =
+                String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result.isEmpty ? nil : result
+    }
+
+    private static func packageSigningMetadataText() -> String? {
+        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
+              let metadata = try? String(contentsOf: metadataURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              metadata.isEmpty == false else {
+            return nil
+        }
+        return metadata
     }
 
     private static func section(_ title: String, _ body: String) -> String {

@@ -360,7 +360,7 @@ enum RuntimeSelfTest {
         )
         check(
             ControlPanelWindowController.interactionStatusMaximumLines >= 3
-                && ControlPanelWindowController.doctorStatusMaximumLines >= 4
+                && ControlPanelWindowController.doctorStatusMaximumLines >= 5
                 && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility")
                 && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("rebuilding"),
             "control panel must preserve readable doctor/interaction diagnostics and explain permission requests"
@@ -706,9 +706,19 @@ enum RuntimeSelfTest {
             doctorControlPanelSummary.contains("doctor: OK")
                 && doctorControlPanelSummary.contains("quality:")
                 && doctorControlPanelSummary.contains("display:")
+                && doctorControlPanelSummary.contains("signing:")
+                && doctorControlPanelSummary.contains("accessibility=")
                 && doctorControlPanelSummary.contains("interaction:"),
-            "runtime doctor control-panel summary must expose compact preflight status"
+            "runtime doctor control-panel summary must expose compact preflight, signing, and interaction status"
         )
+        if let packageSigningURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
+           FileManager.default.fileExists(atPath: packageSigningURL.path) {
+            check(
+                doctorControlPanelSummary.contains("signing: adhoc")
+                    && doctorControlPanelSummary.contains("re-add current app"),
+                "packaged ad-hoc builds must surface the Accessibility re-add hint in the control-panel doctor summary"
+            )
+        }
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
             check(
                 capabilitySummary.contains("asset\tcompositeVideo\t"),
