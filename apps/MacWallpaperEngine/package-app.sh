@@ -18,9 +18,11 @@ STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
 PACKAGE_VALIDATE_ONLY="${PACKAGE_VALIDATE_ONLY:-0}"
 PACKAGE_SMOKE_TEST="${PACKAGE_SMOKE_TEST:-auto}"
 PACKAGE_SMOKE_TEST_DURATION="${PACKAGE_SMOKE_TEST_DURATION:-2}"
+PACKAGE_SMOKE_EVIDENCE="${PACKAGE_SMOKE_EVIDENCE:-}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 CODESIGN_DEEP="${CODESIGN_DEEP:-1}"
 VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
+PACKAGE_SMOKE_TEST_PASSED=0
 
 STRICT_COMPOSITE_QUALITY_ENABLED=0
 case "$STRICT_COMPOSITE_QUALITY" in
@@ -172,6 +174,46 @@ accessibilityTrustHint: click/touch actions require macOS Accessibility trust; a
 EOF
 }
 
+write_package_smoke_evidence() {
+  if [ -z "$PACKAGE_SMOKE_EVIDENCE" ]; then
+    return
+  fi
+  if [ "$PACKAGE_SMOKE_TEST_PASSED" -ne 1 ]; then
+    echo "Packaged launch smoke evidence skipped: packaged smoke test did not run successfully." >&2
+    return
+  fi
+
+  local evidence_dir
+  evidence_dir="$(dirname "$PACKAGE_SMOKE_EVIDENCE")"
+  mkdir -p "$evidence_dir"
+
+  local recorded_at
+  recorded_at="$(date '+%Y-%m-%dT%H:%M:%S%z')"
+  cat > "$PACKAGE_SMOKE_EVIDENCE" <<EOF
+{
+  "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+  "packagedAppLaunchSmoke": {
+    "passed": true,
+    "recordedAt": "$recorded_at",
+    "evidence": "package smoke gate launched dist/MacWallpaperEngine.app without crash for ${PACKAGE_SMOKE_TEST_DURATION}s"
+  },
+  "liveDesktopClickActions": {
+    "passed": false,
+    "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+    "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction.",
+    "operatorNote": "Required before live-desktop-click-actions can pass."
+  },
+  "physicalDisplayHotplugSmoke": {
+    "passed": false,
+    "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+    "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash.",
+    "operatorNote": "Required before physical-display-hotplug-smoke can pass."
+  }
+}
+EOF
+  echo "Packaged launch smoke evidence written: $PACKAGE_SMOKE_EVIDENCE" >&2
+}
+
 run_packaged_smoke_test() {
   if [ "$PACKAGE_SMOKE_TEST_MODE" = "disabled" ]; then
     echo "Packaged hidden launch smoke test skipped: PACKAGE_SMOKE_TEST=0" >&2
@@ -192,6 +234,7 @@ run_packaged_smoke_test() {
     exit 1
   fi
   echo "Packaged hidden launch smoke test OK (${PACKAGE_SMOKE_TEST_DURATION}s)" >&2
+  PACKAGE_SMOKE_TEST_PASSED=1
 }
 
 find_bundle_symlink_entries() {
@@ -336,5 +379,6 @@ if ! "$MACOS_DIR/$APP_NAME" --validate-bundles --strict-composite-quality >/dev/
 fi
 
 run_packaged_smoke_test
+write_package_smoke_evidence
 
 echo "$APP_DIR"

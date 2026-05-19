@@ -1821,6 +1821,46 @@ enum RuntimeSelfTest {
                 && completionAuditWithManualEvidence.contains("manual evidence: recordedAt=self-test"),
             "completion audit must accept explicit user-recorded manual smoke evidence before claiming complete evidence pass"
         )
+        let packageOnlySmokeEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEnginePackageOnlySmoke-\(UUID().uuidString).json")
+        let packageOnlySmokeEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "packagedAppLaunchSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "package smoke gate launched dist/MacWallpaperEngine.app without crash for 2s"
+          },
+          "liveDesktopClickActions": {
+            "passed": false,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body hold=boll, empty click=no action, left-drag gaze changes direction."
+          },
+          "physicalDisplayHotplugSmoke": {
+            "passed": false,
+            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
+            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm no black frame and no crash."
+          }
+        }
+        """
+        try packageOnlySmokeEvidence.write(to: packageOnlySmokeEvidenceURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: packageOnlySmokeEvidenceURL)
+        }
+        let completionAuditWithPackageEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: packageOnlySmokeEvidenceURL
+        )
+        check(
+            completionAuditWithPackageEvidence.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithPackageEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
+                && completionAuditWithPackageEvidence.contains("manual\tmanual\tlive-desktop-click-actions")
+                && completionAuditWithPackageEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke"),
+            "completion audit must allow package-script launch evidence without falsely closing live click or physical hot-plug evidence"
+        )
         let manualSmokeTemplateURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineManualSmokeTemplate-\(UUID().uuidString).json")
         let templateWriteReport = try RuntimeCompletionAudit.writeManualSmokeEvidenceTemplate(to: manualSmokeTemplateURL)
