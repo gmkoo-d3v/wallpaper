@@ -308,6 +308,8 @@ struct InteractionPlan {
         ] + eventGateProbeLines(
             policy: effectivePolicy,
             accessibilityTrusted: accessibilityTrusted
+        ) + inputSourceProbeLines(
+            policy: effectivePolicy
         ) + [
             "pointerDownButtons: \(clickConfig == nil ? "none" : clickButtons)",
             "defaultAction: \(defaultAction?.detailText ?? "none")",
@@ -517,6 +519,56 @@ struct InteractionPlan {
             "appWindow=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: true, likelyDesktopItem: false).rawValue)",
             "desktopItem=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: true).rawValue)"
         ].joined(separator: " ")
+    }
+
+    private static func inputSourceProbeLines(policy: InteractionPolicy) -> [String] {
+        let passiveTrustedEventTap = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
+            usesPassiveEventMonitoring: true,
+            eventTapStarted: true,
+            accessibilityTrusted: true
+        ))
+        let passiveTrustedFallback = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
+            usesPassiveEventMonitoring: true,
+            eventTapStarted: false,
+            accessibilityTrusted: true
+        ))
+        let passiveMissingTrust = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
+            usesPassiveEventMonitoring: true,
+            eventTapStarted: false,
+            accessibilityTrusted: false
+        ))
+        let plainWindow = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
+            usesPassiveEventMonitoring: false,
+            eventTapStarted: false,
+            accessibilityTrusted: false
+        ))
+        return [
+            [
+                "inputSourceProbes:",
+                "policy=\(policy.mode.rawValue)",
+                "passiveTrustedEventTap=\(passiveTrustedEventTap)",
+                "passiveTrustedFallback=\(passiveTrustedFallback)",
+                "passiveMissingTrust=\(passiveMissingTrust)",
+                "plainWindow=\(plainWindow)"
+            ].joined(separator: " ")
+        ]
+    }
+
+    private static func formatInputSources(_ sources: DesktopMouseInteractionMonitor.InputSources) -> String {
+        var labels: [String] = []
+        if sources.useEventTap {
+            labels.append("eventTap")
+        }
+        if sources.useLocalMonitor {
+            labels.append("local")
+        }
+        if sources.useGlobalMoveMonitor {
+            labels.append("globalMove")
+        }
+        if sources.useGlobalClickMonitors {
+            labels.append("globalClick")
+        }
+        return labels.isEmpty ? "none" : labels.joined(separator: "+")
     }
 
     private static func clickTimelineText(

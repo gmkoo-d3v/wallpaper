@@ -1048,6 +1048,10 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("desktopMonitor: ready")
                 && interactionSummary.contains("eventGateProbes:")
                 && interactionSummary.contains("eventGateTrustedProbes:")
+                && interactionSummary.contains("inputSourceProbes:")
+                && interactionSummary.contains("passiveMissingTrust=globalMove")
+                && interactionSummary.contains("passiveTrustedEventTap=eventTap")
+                && interactionSummary.contains("passiveTrustedFallback=globalMove+globalClick")
                 && interactionSummary.contains("outsideContentTracking: ignore-same-window-outside-content-without-idle-reset")
                 && interactionSummary.contains("blockedDesktopEventTracking: ignore-blocked-desktop-events-without-idle-reset")
                 && interactionSummary.contains("appWindow=blockedApplicationWindow")
@@ -1061,7 +1065,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("neutral=idle")
                 && interactionSummary.contains("coordinateProbes:")
                 && interactionSummary.contains("coordinateProbe: view=32:9"),
-            "interaction diagnostics must expose move probes, neutral/dead-zone values, click buttons, event-gate decisions, deterministic click timelines, and display-aspect coordinate probes"
+            "interaction diagnostics must expose move probes, neutral/dead-zone values, click buttons, event-gate/input-source decisions, deterministic click timelines, and display-aspect coordinate probes"
         )
         let missingPermissionInteractionSummary = InteractionPlan.diagnosticSummary(
             interactions: manifest.interactions,
