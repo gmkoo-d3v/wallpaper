@@ -30,6 +30,16 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if let manualSmokeRecordPath = value(after: "--record-manual-smoke-evidence", in: arguments) {
+        print(try RuntimeCompletionAudit.recordManualSmokeEvidence(
+            to: URL(fileURLWithPath: manualSmokeRecordPath, relativeTo: nil).standardizedFileURL,
+            packagedLaunchPassed: arguments.contains("--confirm-packaged-launch"),
+            liveClickActionsPassed: arguments.contains("--confirm-live-click-actions"),
+            physicalDisplayHotplugPassed: arguments.contains("--confirm-physical-display-hotplug")
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if let installBundlePath = value(after: "--install-bundle", in: arguments) {
         let installLibrary = value(after: "--install-library", in: arguments).map {
             URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL

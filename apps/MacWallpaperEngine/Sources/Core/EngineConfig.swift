@@ -763,6 +763,14 @@ struct EngineConfig {
                               With --completion-audit, read user-recorded packaged launch, live click, and physical display smoke evidence.
       --write-manual-smoke-template <json>
                               Write a fill-in JSON template for the manual smoke evidence file, then exit.
+      --record-manual-smoke-evidence <json>
+                              Mark operator-observed smoke checks in the manual evidence file, then exit.
+      --confirm-packaged-launch
+                              With --record-manual-smoke-evidence, confirm packaged launch/no-crash smoke.
+      --confirm-live-click-actions
+                              With --record-manual-smoke-evidence, confirm head/body/empty/gaze click smoke.
+      --confirm-physical-display-hotplug
+                              With --record-manual-smoke-evidence, confirm selectedOnly/selectedPolicy/allFull reconnect smoke.
       --recovery-plan          Print persisted renderer safe-mode recovery/quarantine state, then exit.
       --recovery-store <path>  Recovery state file for --recovery-plan. Defaults to Application Support.
       --display-plan           Print current monitor role/policy mapping and exit.

@@ -35,6 +35,11 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--write-manual-smoke-template <json>` writes the fill-in evidence template
   used by `--manual-smoke-evidence`, keeping the final manual smoke handoff
   repeatable.
+- `--record-manual-smoke-evidence <json>` records operator-confirmed smoke
+  rows after the checks are observed. Use `--confirm-live-click-actions` and
+  `--confirm-physical-display-hotplug` to avoid hand-editing JSON while still
+  requiring an explicit human confirmation for the live desktop and hot-plug
+  evidence gates.
 - `PACKAGE_SMOKE_EVIDENCE=<json> apps/MacWallpaperEngine/package-app.sh`
   writes a partial manual-smoke evidence file after the packaged hidden launch
   smoke test passes, closing only the packaged app launch row while leaving live
@@ -472,6 +477,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality
 swift run MacWallpaperEngine --write-manual-smoke-template /path/to/manual-smoke-evidence.json
+swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --confirm-physical-display-hotplug
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json

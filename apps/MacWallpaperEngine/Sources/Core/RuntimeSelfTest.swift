@@ -1484,6 +1484,12 @@ enum RuntimeSelfTest {
             "EngineConfig help must document manual smoke evidence template generation"
         )
         check(
+            EngineConfig.help.contains("--record-manual-smoke-evidence")
+                && EngineConfig.help.contains("--confirm-live-click-actions")
+                && EngineConfig.help.contains("--confirm-physical-display-hotplug"),
+            "EngineConfig help must document manual smoke evidence recording"
+        )
+        check(
             EngineConfig.help.contains("--write-runtime-smoke-evidence"),
             "EngineConfig help must document runtime smoke telemetry evidence generation"
         )
@@ -1877,6 +1883,29 @@ enum RuntimeSelfTest {
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tlive-desktop-click-actions")
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke"),
             "completion audit must allow package-script launch evidence without falsely closing live click or physical hot-plug evidence"
+        )
+        let manualRecordReport = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+            to: packageOnlySmokeEvidenceURL,
+            packagedLaunchPassed: false,
+            liveClickActionsPassed: true,
+            physicalDisplayHotplugPassed: true
+        )
+        let completionAuditWithRecordedManualEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: packageOnlySmokeEvidenceURL
+        )
+        check(
+            manualRecordReport.contains("manual smoke evidence record OK")
+                && manualRecordReport.contains("live-desktop-click-actions")
+                && manualRecordReport.contains("physical-display-hotplug-smoke")
+                && completionAuditWithRecordedManualEvidence.contains("overall: complete-evidence-pass")
+                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
+                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
+                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke"),
+            "manual smoke recorder must merge operator-confirmed live click and physical display evidence without losing package launch evidence"
         )
         let manualSmokeTemplateURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineManualSmokeTemplate-\(UUID().uuidString).json")
