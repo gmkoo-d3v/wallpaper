@@ -4565,7 +4565,7 @@ enum RuntimeSelfTest {
         )
         check(
             physicsCompatibility.isSupported,
-            "disabled first-pass physics constraints must not force composite fallback for otherwise supported native Spine bundles",
+            "native physics constraints must not force composite fallback for otherwise supported native Spine bundles",
             failures: &failures,
             checks: &checks
         )
@@ -4575,19 +4575,20 @@ enum RuntimeSelfTest {
             launchWallpaper: false
         ))
         check(
-            physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tdegraded")
-                && physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeCompatibilityGate\tdegraded")
-                && physicsRuntime.runtimeCapabilitiesSummary().contains("physics/hair:runtime-disabled"),
-            "capability diagnostics must report currently disabled native Spine physics constraints as degraded instead of claiming full support",
+            physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
+                && physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeCompatibilityGate\tsupported")
+                && physicsRuntime.runtimeCapabilitiesSummary().contains("used=physics")
+                && physicsRuntime.runtimeCapabilitiesSummary().contains("runtime-disabled") == false,
+            "capability diagnostics must report native Spine physics constraints as supported once the runtime solver is enabled",
             failures: &failures,
             checks: &checks
         )
         let physicsSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(
-            physicsSummary.capabilities.nativeSpineStatus == "degraded"
-                && physicsSummary.capabilities.nativeSpineSummary.contains("physics/hair:runtime-disabled")
+            physicsSummary.capabilities.nativeSpineStatus == "supported"
+                && physicsSummary.capabilities.nativeSpineSummary.contains("supported")
                 && physicsSummary.capabilities.fallbackStatus == "not-needed",
-            "bundle catalog must mark degraded-but-supported native Spine bundles without forcing composite fallback",
+            "bundle catalog must mark native Spine physics bundles supported without forcing composite fallback",
             failures: &failures,
             checks: &checks
         )

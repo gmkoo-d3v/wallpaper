@@ -912,7 +912,12 @@ private struct SpineFeatureScan {
         if let constraints = root["physics"] as? [[String: Any]] {
             constraintKeys.insert("physics")
             for constraint in constraints {
-                degradedConstraintUsages.insert("physics/\(namedConstraint(constraint)):runtime-disabled")
+                let name = namedConstraint(constraint)
+                let rawName = (constraint["name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let boneName = (constraint["bone"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if rawName.isEmpty || boneName.isEmpty {
+                    unsupportedConstraintUsages.insert("physics/\(name):missing-name-or-bone")
+                }
             }
         } else if root["physics"] != nil {
             constraintKeys.insert("physics")

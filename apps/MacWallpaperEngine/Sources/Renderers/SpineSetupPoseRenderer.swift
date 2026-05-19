@@ -496,6 +496,7 @@ final class SpineSetupPoseRenderer {
     private let lookDeadZone: CGPoint
     private let loopingAnimationNames: Set<String>
     private let oneShotAnimationNames: Set<String>
+    private let physicsConstraintsEnabled: Bool
     private let rendererStartedAt: CFTimeInterval
     private let animationTransitionDuration: CFTimeInterval = 0.30
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
@@ -516,7 +517,7 @@ final class SpineSetupPoseRenderer {
     let batchCount: Int
     let triangleVertexCount: Int
     private static let enablePathConstraints = true
-    private static let enablePhysicsConstraints = false
+    private static let enablePhysicsConstraints = true
     private static let maxPoseFrameCacheEntries = 96
     private static let maxPoseFrameCacheBytes = 32 * 1024 * 1024
     static let maxGeometryDiagnosticSamplesPerAction = 96
@@ -598,6 +599,12 @@ final class SpineSetupPoseRenderer {
             ? SpineAudioEventPlayer(baseURL: spineAsset.json.deletingLastPathComponent(), definitions: eventDefinitions)
             : nil
         self.poseConstraints = poseConstraints
+        self.physicsConstraintsEnabled = Self.enablePhysicsConstraints && poseConstraints.contains { constraint in
+            if case .physics = constraint {
+                return true
+            }
+            return false
+        }
         self.playbackRate = max(0.01, Double(playbackRate))
         self.poseSampleFps = Double(max(1, min(poseSampleFps, 240)))
         self.lookAnimationNames = lookAnimationNames
@@ -755,8 +762,8 @@ final class SpineSetupPoseRenderer {
         let idleAnimationTime = idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0
         playDueAudioEvents(animation: activeAnimation, currentTime: activeAnimationTime)
         let physicsTime = max(0, now - rendererStartedAt) * playbackRate
-        let posePhysicsTime = Self.enablePhysicsConstraints ? physicsTime : 0
-        let canUsePoseFrameCache = Self.enablePhysicsConstraints == false
+        let posePhysicsTime = physicsConstraintsEnabled ? physicsTime : 0
+        let canUsePoseFrameCache = physicsConstraintsEnabled == false
         let transitionMix = animationTransitionMix(now: now)
         let activeOverlayAnimation = activeAnimation.name == "idle" ? nil : activeAnimation
         let activeOverlayMix = activeOverlayAnimation == nil ? 0 : transitionMix
@@ -1118,6 +1125,7 @@ final class SpineSetupPoseRenderer {
             boneIndexByName: boneIndexByName,
             physicsStateByName: &physicsStates,
             skeletonTime: physicsTime,
+            enablePhysicsConstraints: physicsConstraintsEnabled,
             referenceScale: referenceScale
         ), posedSlots, deforms, sequenceIndices)
     }
@@ -2271,6 +2279,7 @@ final class SpineSetupPoseRenderer {
             boneIndexByName: boneIndexByName,
             physicsStateByName: &ignoredPhysicsState,
             skeletonTime: nil,
+            enablePhysicsConstraints: false,
             referenceScale: 100
         )
     }
@@ -2284,6 +2293,7 @@ final class SpineSetupPoseRenderer {
         boneIndexByName: [String: Int],
         physicsStateByName: inout [String: PhysicsRuntimeState],
         skeletonTime: Double?,
+        enablePhysicsConstraints: Bool,
         referenceScale: Double
     ) -> [BoneWorld] {
         var states = bones.map { bone in
