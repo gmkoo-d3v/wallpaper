@@ -16,6 +16,8 @@ SCHEMA_SOURCE="$SCRIPT_DIR/Resources/schemas/wallpaper-native-v2.schema.json"
 SCHEMA_DEST="$RESOURCES_DIR/schemas"
 STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
 PACKAGE_VALIDATE_ONLY="${PACKAGE_VALIDATE_ONLY:-0}"
+PACKAGE_SMOKE_TEST="${PACKAGE_SMOKE_TEST:-auto}"
+PACKAGE_SMOKE_TEST_DURATION="${PACKAGE_SMOKE_TEST_DURATION:-2}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 CODESIGN_DEEP="${CODESIGN_DEEP:-1}"
 VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
@@ -61,6 +63,24 @@ case "$CODESIGN_DEEP" in
   *)
     echo "Invalid CODESIGN_DEEP value: $CODESIGN_DEEP" >&2
     echo "Use 1/true/yes or 0/false/no." >&2
+    exit 1
+    ;;
+esac
+
+PACKAGE_SMOKE_TEST_MODE="auto"
+case "$PACKAGE_SMOKE_TEST" in
+  auto|AUTO|"")
+    PACKAGE_SMOKE_TEST_MODE="auto"
+    ;;
+  1|true|TRUE|yes|YES)
+    PACKAGE_SMOKE_TEST_MODE="enabled"
+    ;;
+  0|false|FALSE|no|NO)
+    PACKAGE_SMOKE_TEST_MODE="disabled"
+    ;;
+  *)
+    echo "Invalid PACKAGE_SMOKE_TEST value: $PACKAGE_SMOKE_TEST" >&2
+    echo "Use auto, 1/true/yes, or 0/false/no." >&2
     exit 1
     ;;
 esac
@@ -150,6 +170,28 @@ codesignMode: $codesign_mode
 codesignDeep: $CODESIGN_DEEP_ENABLED
 accessibilityTrustHint: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding this app in System Settings
 EOF
+}
+
+run_packaged_smoke_test() {
+  if [ "$PACKAGE_SMOKE_TEST_MODE" = "disabled" ]; then
+    echo "Packaged hidden launch smoke test skipped: PACKAGE_SMOKE_TEST=0" >&2
+    return
+  fi
+
+  if [ "$PACKAGE_SMOKE_TEST_MODE" = "auto" ] && ! pgrep -x WindowServer >/dev/null 2>&1; then
+    echo "Packaged hidden launch smoke test skipped: no WindowServer detected; set PACKAGE_SMOKE_TEST=1 to force." >&2
+    return
+  fi
+
+  if ! "$MACOS_DIR/$APP_NAME" \
+    --wallpaper-only \
+    --hidden \
+    --duration "$PACKAGE_SMOKE_TEST_DURATION" \
+    --display-mode selectedOnly >/dev/null; then
+    echo "Packaged hidden launch smoke test failed: $APP_DIR" >&2
+    exit 1
+  fi
+  echo "Packaged hidden launch smoke test OK (${PACKAGE_SMOKE_TEST_DURATION}s)" >&2
 }
 
 find_bundle_symlink_entries() {
@@ -292,5 +334,7 @@ if ! "$MACOS_DIR/$APP_NAME" --validate-bundles --strict-composite-quality >/dev/
   echo "Packaged app bundle validation matrix failed: $APP_DIR" >&2
   exit 1
 fi
+
+run_packaged_smoke_test
 
 echo "$APP_DIR"

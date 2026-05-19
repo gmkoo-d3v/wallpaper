@@ -300,6 +300,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Packaging also prints non-failing composite fallback recommendations, so
   high-refresh regeneration work is visible without blocking ordinary 60fps
   release builds.
+- Packaging runs an automatic hidden packaged-app launch smoke test when a
+  macOS WindowServer is available, catching "starts then immediately exits"
+  regressions after source and packaged bundle validation. Set
+  `PACKAGE_SMOKE_TEST=0` to skip or `PACKAGE_SMOKE_TEST=1` to force it.
 - `PACKAGE_VALIDATE_ONLY=1` runs the same source-bundle package validation
   without replacing the existing `dist/MacWallpaperEngine.app`.
 - Strict packaging prints the composite quality report before failing, so the
@@ -368,9 +372,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   one preview/last-frame/neutral fallback drawable before pausing, instead of
   leaving a newly created wallpaper window black.
 - Wallpaper windows attempt a first draw before ordering front and then request
-  bounded first-draw retries afterward; display rebuilds keep the old window
-  visible for a 0.5s warmup overlap so slower replacement drawables do not
-  expose a black-screen gap.
+  bounded first-draw retries afterward; display rebuilds reveal replacement
+  windows only after their first Metal drawable or a bounded timeout, while the
+  old wallpaper stays visible during the handoff.
 - Running settings changes and bundle switches start the replacement wallpaper
   host before retiring the current host, reducing black-screen gaps while the
   new renderer warms up.
