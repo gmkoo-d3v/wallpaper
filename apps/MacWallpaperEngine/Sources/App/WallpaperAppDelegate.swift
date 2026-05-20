@@ -65,7 +65,12 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showControlPanel()
+        refreshRuntimeStateAfterExternalPermissionChange()
         return true
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        refreshRuntimeStateAfterExternalPermissionChange()
     }
 
     private func installStatusMenu() {
@@ -117,6 +122,11 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         }
         host = try makeStartedHost(for: runtime)
         lastError = nil
+        controlPanel?.refresh()
+    }
+
+    private func refreshRuntimeStateAfterExternalPermissionChange() {
+        host?.refreshInteractionState()
         controlPanel?.refresh()
     }
 
