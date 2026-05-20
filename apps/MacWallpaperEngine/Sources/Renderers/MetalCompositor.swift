@@ -4,6 +4,7 @@ import MetalKit
 
 final class MetalCompositor: NSObject, MTKViewDelegate {
     static let pausedFirstFramePolicy = "draw-static-fallback-before-pausing"
+    static let telemetryPublishIntervalSeconds: CFTimeInterval = 0.5
 
     private static let fallbackClearColor = MTLClearColor(
         red: 0.95,
@@ -45,6 +46,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var isUsingResourceFallbackVideo = false
     private var hasSubmittedDrawable = false
     private var idleRenderFps = 1
+    private var lastTelemetryPublishAt: CFTimeInterval = 0
 
     init(
         device: MTLDevice,
@@ -221,7 +223,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         let now = CACurrentMediaTime()
         let currentFps = hostPausedBeforeFirstDrawable ? 1 : governor.frameStarted(now: now)
-        publishTelemetry()
+        publishTelemetry(now: now)
         let thermalPaused = hostPausedBeforeFirstDrawable ? false : governor.shouldPauseForThermal
         let resourcePaused = hostPausedBeforeFirstDrawable ? false : governor.shouldPauseForResourceBudget
         let shouldPauseForThermalOrResource = thermalPaused || resourcePaused
@@ -249,14 +251,14 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         guard semaphore.wait(timeout: .now()) == .success else {
             governor.recordSkippedFrame(reason: .commandBufferBackpressure)
-            publishTelemetry()
+            publishTelemetry(now: now)
             return
         }
         guard let drawable = view.currentDrawable,
               let descriptor = view.currentRenderPassDescriptor else {
             semaphore.signal()
             governor.recordSkippedFrame(reason: .drawableUnavailable)
-            publishTelemetry()
+            publishTelemetry(now: now)
             return
         }
         descriptor.colorAttachments[0].clearColor = Self.fallbackClearColor
@@ -264,13 +266,13 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
             semaphore.signal()
             governor.recordSkippedFrame(reason: .commandBufferUnavailable)
-            publishTelemetry()
+            publishTelemetry(now: now)
             return
         }
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             semaphore.signal()
             governor.recordSkippedFrame(reason: .encoderUnavailable)
-            publishTelemetry()
+            publishTelemetry(now: now)
             return
         }
 
@@ -342,11 +344,15 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         if hostPausedBeforeFirstDrawable {
             view.isPaused = true
         }
-        publishTelemetry()
+        publishTelemetry(now: now)
         commandBuffer.commit()
     }
 
-    private func publishTelemetry() {
+    private func publishTelemetry(now: CFTimeInterval, force: Bool = false) {
+        guard force || now - lastTelemetryPublishAt >= Self.telemetryPublishIntervalSeconds else {
+            return
+        }
+        lastTelemetryPublishAt = now
         runtime.telemetry.record(displayName: displayName, role: displayRole, snapshot: governor.snapshot)
     }
 

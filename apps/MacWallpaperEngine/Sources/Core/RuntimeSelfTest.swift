@@ -293,6 +293,11 @@ enum RuntimeSelfTest {
             "renderer must submit a fallback drawable before pause/resource paths can leave a new window black"
         )
         check(
+            MetalCompositor.telemetryPublishIntervalSeconds >= 0.25
+                && MetalCompositor.telemetryPublishIntervalSeconds <= 1.0,
+            "renderer telemetry must be throttled so p95/resource snapshots do not run at frame rate"
+        )
+        check(
             RenderBlendMode(spineBlend: " Additive ") == .additive
                 && RenderBlendMode(spineBlend: "") == .normal
                 && RenderBlendMode(spineBlend: "hard-light") == nil,

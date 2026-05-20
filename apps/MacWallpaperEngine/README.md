@@ -290,7 +290,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   fallback FPS and expose the active policy in runtime telemetry.
 - Frame/drop telemetry snapshot for submitted frames, skipped frames, last skip
   reason, actual FPS, and p95 frame time.
-- Runtime telemetry is aggregated per display and surfaced in the control panel.
+- Runtime telemetry is throttled before aggregation per display and surfaced in
+  the control panel, so p95/resource snapshots do not run at render frame rate.
 - Display lifecycle telemetry records hot-plug/display rebuild scheduling,
   commit, rollback, and failure status so Finder-launched apps do not hide
   rebuild outcomes in stderr-only logs.
