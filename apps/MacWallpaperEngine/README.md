@@ -94,6 +94,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   against declared bundle assets, so a bundle that declares video or Spine while
   its extraction summary lacks `VideoClip`, `TextAsset`, or `Texture2D` is
   caught by validation instead of becoming a renderer-specific workaround.
+- Source derivation diagnostics distinguish fully source-derived bundle fields
+  from manual calibration and unsupported source behavior, so a compatibility
+  pass cannot be mistaken for complete Wallpaper Engine script rehosting.
 - `--doctor` prints a single launch-safe preflight report that combines
   bundle-library, validation, capability, source provenance, render-plan,
   simulated multi-display, performance, interaction, and renderer recovery

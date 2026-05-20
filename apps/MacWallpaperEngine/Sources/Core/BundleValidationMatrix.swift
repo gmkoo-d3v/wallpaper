@@ -46,6 +46,7 @@ enum BundleValidationMatrix {
                 let performanceStatus = try validatePerformancePlan(runtime: runtime)
                 let doctorStatus = try validateDoctorReport(runtime: runtime)
                 let sourceProvenanceStatus = try RuntimeSourceProvenanceReport.consistencyStatus(runtime: runtime)
+                let sourceDerivationStatus = RuntimeSourceProvenanceReport.derivationStatus(runtime: runtime)
                 try runtime.requireCompositeQualityIfStrict()
                 try runtime.requireNativeSpineGeometryIfSupported()
                 let goldenStatus = try validateGoldenIfPresent(runtime: runtime)
@@ -64,6 +65,7 @@ enum BundleValidationMatrix {
                         + " / \(performanceStatus)"
                         + " / \(doctorStatus)"
                         + " / \(sourceProvenanceStatus)"
+                        + " / \(sourceDerivationStatus)"
                         + " / \(libraryStatus)"
                         + " / \(goldenStatus)"
                         + " / \(installerStatus)"

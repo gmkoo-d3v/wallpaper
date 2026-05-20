@@ -18,12 +18,42 @@ enum RuntimeSourceProvenanceReport {
             "boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter",
             "policy: wallpaper-specific placement, hit zones, action names, timing, and neutral points must stay in the manifest or importer output.",
             "consistency: \(consistencyLine(runtime: runtime))",
+            "derivation: \(derivationStatus(runtime: runtime))",
             sourceDescriptorSection(provenance?.sourceDescriptors, projectRoot: runtime.config.projectRoot),
             section("importedFields", provenance?.importedFields),
             section("calibratedFields", provenance?.calibratedFields),
             section("unsupportedFields", provenance?.unsupportedFields),
             section("notes", provenance?.notes)
         ].joined(separator: "\n")
+    }
+
+    static func derivationStatus(runtime: NativeRuntimeCore) -> String {
+        guard let provenance = runtime.manifest.sourceProvenance else {
+            return "sourceDerivation: unknown(no-source-provenance)"
+        }
+
+        let importedCount = provenance.importedFields?.count ?? 0
+        let calibratedCount = provenance.calibratedFields?.count ?? 0
+        let unsupportedCount = provenance.unsupportedFields?.count ?? 0
+        if calibratedCount == 0, unsupportedCount == 0 {
+            return "sourceDerivation: source-derived imported=\(importedCount) calibrated=0 unsupported=0"
+        }
+
+        var blockers: [String] = []
+        if calibratedCount > 0 {
+            blockers.append("manual-calibration")
+        }
+        if unsupportedCount > 0 {
+            blockers.append("unsupported-source-behavior")
+        }
+
+        return [
+            "sourceDerivation: partial",
+            "imported=\(importedCount)",
+            "calibrated=\(calibratedCount)",
+            "unsupported=\(unsupportedCount)",
+            "blockers=\(blockers.joined(separator: "+"))"
+        ].joined(separator: " ")
     }
 
     static func consistencyStatus(runtime: NativeRuntimeCore) throws -> String {

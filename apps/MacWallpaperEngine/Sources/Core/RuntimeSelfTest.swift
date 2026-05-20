@@ -794,6 +794,7 @@ enum RuntimeSelfTest {
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceReport.contains("consistency: sourceProvenance: pass")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=6 calibrated=7 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceProvenanceReport.contains("video=VideoClip:1")
                 && sourceProvenanceReport.contains("spine=TextAsset:4+Texture2D:66")
                 && sourceProvenanceReport.contains("safety=windows-exe-forbidden")
@@ -1954,6 +1955,7 @@ enum RuntimeSelfTest {
         check(
             bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=2 imported=6 calibrated=7 unsupported=1")
                 && bundleMatrix.contains("sourceProvenance: pass safety=windows-exe-forbidden spine=TextAsset:4+Texture2D:66 video=VideoClip:1")
+                && bundleMatrix.contains("sourceDerivation: partial imported=6 calibrated=7 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
