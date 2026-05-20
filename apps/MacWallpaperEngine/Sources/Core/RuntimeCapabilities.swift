@@ -321,9 +321,10 @@ enum RuntimeCapabilities {
         let imported = provenance.importedFields?.count ?? 0
         let calibrated = provenance.calibratedFields?.count ?? 0
         let unsupported = provenance.unsupportedFields?.count ?? 0
+        let descriptors = provenance.sourceDescriptors?.count ?? 0
         let runtime = provenance.sourceRuntime.map { " runtime=\($0)" } ?? ""
         let projectType = provenance.projectType.map { " project=\($0)" } ?? ""
-        return "\(provenance.sourceType.rawValue)\(runtime)\(projectType) imported=\(imported) calibrated=\(calibrated) unsupported=\(unsupported)"
+        return "\(provenance.sourceType.rawValue)\(runtime)\(projectType) descriptors=\(descriptors) imported=\(imported) calibrated=\(calibrated) unsupported=\(unsupported)"
     }
 
     private static func videoAssetRow(

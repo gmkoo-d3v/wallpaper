@@ -27,10 +27,20 @@ struct SourceProvenance: Decodable {
     let sourceType: SourceProvenanceType
     let sourceRuntime: String?
     let projectType: String?
+    let sourceDescriptors: [SourceDescriptor]?
     let importedFields: [String]?
     let calibratedFields: [String]?
     let unsupportedFields: [String]?
     let notes: [String]?
+}
+
+struct SourceDescriptor: Decodable {
+    let kind: SourceDescriptorKind
+    let path: String
+}
+
+enum SourceDescriptorKind: String, Decodable {
+    case wallpaperEngineProjectJSON = "wallpaper-engine-project-json"
 }
 
 enum SourceProvenanceType: String, Decodable {

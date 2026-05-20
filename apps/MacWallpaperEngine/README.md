@@ -87,8 +87,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
 - `--source-provenance` reports which manifest fields came from the source
-  wallpaper, which fields are calibrated compatibility values, and which source
-  behaviors are still unsupported by the importer/runtime.
+  wallpaper, which source descriptor files were read, which fields are
+  calibrated compatibility values, and which source behaviors are still
+  unsupported by the importer/runtime.
 - `--doctor` prints a single launch-safe preflight report that combines
   bundle-library, validation, capability, source provenance, render-plan,
   simulated multi-display, performance, interaction, and renderer recovery
@@ -205,6 +206,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   imported source fields, calibrated compatibility fields, and unsupported
   original-script behavior instead of hiding wallpaper-specific assumptions in
   the generic runtime.
+- `sourceProvenance.sourceDescriptors` can point to source descriptor files such
+  as Wallpaper Engine `project.json`, letting diagnostics read the source type,
+  executable name, preview, and title without adding wallpaper-specific runtime
+  code.
 - Self-test scans the generic runtime source for bundled wallpaper ids/titles so
   Imported/sample-specific behavior cannot accidentally move from manifests into
   the player implementation.

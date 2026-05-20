@@ -205,10 +205,30 @@ enum ManifestLoader {
         guard let provenance else { return }
         try validateOptionalNonEmpty(provenance.sourceRuntime, label: "sourceProvenance.sourceRuntime")
         try validateOptionalNonEmpty(provenance.projectType, label: "sourceProvenance.projectType")
+        if let sourceDescriptors = provenance.sourceDescriptors {
+            guard sourceDescriptors.isEmpty == false else {
+                throw EngineError.manifest("sourceProvenance.sourceDescriptors must not be empty")
+            }
+            for descriptor in sourceDescriptors {
+                try validateSourceDescriptor(descriptor)
+            }
+        }
         try validateStringList(provenance.importedFields, label: "sourceProvenance.importedFields")
         try validateStringList(provenance.calibratedFields, label: "sourceProvenance.calibratedFields")
         try validateStringList(provenance.unsupportedFields, label: "sourceProvenance.unsupportedFields")
         try validateStringList(provenance.notes, label: "sourceProvenance.notes")
+    }
+
+    private static func validateSourceDescriptor(_ descriptor: SourceDescriptor) throws {
+        let path = descriptor.path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard path.isEmpty == false else {
+            throw EngineError.manifest("sourceProvenance.sourceDescriptors path must not be empty")
+        }
+        guard path.hasPrefix("/") == false,
+              path.contains("\\") == false,
+              path.split(separator: "/").contains("..") == false else {
+            throw EngineError.manifest("sourceProvenance.sourceDescriptors path must be project-root relative and must not escape the project")
+        }
     }
 
     private static func validateOptionalNonEmpty(_ value: String?, label: String) throws {

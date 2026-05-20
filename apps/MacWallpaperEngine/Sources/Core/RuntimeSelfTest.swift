@@ -792,10 +792,14 @@ enum RuntimeSelfTest {
         check(
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
+                && sourceProvenanceReport.contains("sourceDescriptors:")
+                && sourceProvenanceReport.contains("wallpaper-engine-project-json")
+                && sourceProvenanceReport.contains("type=application")
+                && sourceProvenanceReport.contains("file=Sample_Imported.exe")
                 && sourceProvenanceReport.contains("importedFields:")
                 && sourceProvenanceReport.contains("calibratedFields:")
                 && sourceProvenanceReport.contains("unsupportedFields:"),
-            "source provenance report must expose imported, calibrated, and unsupported fields so wallpaper-specific data stays out of runtime code"
+            "source provenance report must expose source descriptors plus imported, calibrated, and unsupported fields so wallpaper-specific data stays out of runtime code"
         )
         check(
             doctorControlPanelSummary.contains("doctor: OK")
@@ -1594,6 +1598,7 @@ enum RuntimeSelfTest {
             manifestSchemaJSON?["title"] as? String == "Mac Wallpaper Engine Native Manifest v2"
                 && manifestSchemaText.contains("\"macos-wallpaper-native.v2\"")
                 && manifestSchemaText.contains("\"sourceProvenance\"")
+                && manifestSchemaText.contains("\"sourceDescriptors\"")
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
                 && manifestSchemaText.contains("\"tapAction\""),
             "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
@@ -1938,8 +1943,8 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application imported=6 calibrated=7 unsupported=1")
-                && occurrenceCount("source: sample runtime=native project=test-fixture imported=2 calibrated=0 unsupported=0", in: bundleMatrix) >= 2,
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=1 imported=6 calibrated=7 unsupported=1")
+                && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
         check(
