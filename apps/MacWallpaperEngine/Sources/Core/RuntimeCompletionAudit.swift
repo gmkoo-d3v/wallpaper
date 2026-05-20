@@ -100,6 +100,7 @@ enum RuntimeCompletionAudit {
         let hasGolden = validationMatrix.contains("golden: pass")
         let hasInstaller = validationMatrix.contains("installer: importable")
         let nativeDefaultFallback = try nativeDefaultFallbackEvidence(bundles: bundles)
+        let sourceDerivation = sourceDerivationEvidence(bundles: bundles)
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         let packagedEvidence = manualEvidence?.packagedAppLaunchSmoke
@@ -120,6 +121,12 @@ enum RuntimeCompletionAudit {
                 passed: true,
                 evidence: "wallpaper-native-v2 schema loaded; BundleValidationMatrix completed",
                 risk: "none"
+            ),
+            item(
+                id: "source-derived-bundle-contract",
+                passed: sourceDerivation.passed,
+                evidence: sourceDerivation.evidence,
+                risk: "wallpaper-specific placement, hit zones, action names, timing, and neutral points must be source-derived by the importer or explicitly remain incomplete"
             ),
             item(
                 id: "renderer-family-coverage",
@@ -394,6 +401,21 @@ enum RuntimeCompletionAudit {
         return (
             failures.isEmpty,
             failures.isEmpty ? evidence.joined(separator: "; ") : failures.joined(separator: "; ")
+        )
+    }
+
+    private static func sourceDerivationEvidence(
+        bundles: [WallpaperBundleSummary]
+    ) -> (passed: Bool, evidence: String) {
+        let bundleSummaries = bundles.map {
+            "\($0.id)=\($0.capabilities.sourceDerivationSummary)"
+        }
+        let incompleteBundles = bundles.filter {
+            $0.capabilities.sourceDerivationSummary.hasPrefix("source-derived") == false
+        }
+        return (
+            incompleteBundles.isEmpty,
+            bundleSummaries.joined(separator: "; ")
         )
     }
 

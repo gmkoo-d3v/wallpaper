@@ -97,6 +97,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Source derivation diagnostics distinguish fully source-derived bundle fields
   from manual calibration and unsupported source behavior, so a compatibility
   pass cannot be mistaken for complete Wallpaper Engine script rehosting.
+- The completion audit treats non-source-derived bundle behavior as incomplete:
+  wallpaper-specific placement, hit zones, action names, timing, and neutral
+  points must come from the manifest/importer contract rather than runtime
+  tuning before the generic-player goal can be closed.
 - `--doctor` prints a single launch-safe preflight report that combines
   bundle-library, validation, capability, source provenance, render-plan,
   simulated multi-display, performance, interaction, and renderer recovery
