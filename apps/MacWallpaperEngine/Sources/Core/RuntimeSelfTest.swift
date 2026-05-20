@@ -816,6 +816,9 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("video=VideoClip:1")
                 && sourceProvenanceReport.contains("spine=TextAsset:4+Texture2D:66")
                 && sourceProvenanceReport.contains("safety=windows-exe-forbidden")
+                && sourceProvenanceReport.contains("managedScripts=metadata-only")
+                && sourceProvenanceReport.contains("behaviorScripts=Assembly-CSharp:4")
+                && sourceProvenanceReport.contains("interactionOwner=SpineFaceTracker")
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceProvenanceReport.contains("wallpaper-engine-project-json")
                 && sourceProvenanceReport.contains("type=application")
@@ -823,6 +826,11 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("unity-asset-extraction-manifest")
                 && sourceProvenanceReport.contains("converter=extract_unity_assets.py")
                 && sourceProvenanceReport.contains("VideoClip=1")
+                && sourceProvenanceReport.contains("unity-managed-script-index")
+                && sourceProvenanceReport.contains("converter=unitypy-monoscript-index-v1")
+                && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
+                && sourceProvenanceReport.contains("methodBodyStatus=not-read")
+                && sourceProvenanceReport.contains("methodBodyRead=forbidden")
                 && sourceProvenanceReport.contains("windowsExecutableExecution=forbidden")
                 && sourceProvenanceReport.contains("importedFields:")
                 && sourceProvenanceReport.contains("calibratedFields:")
@@ -1631,6 +1639,7 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"macos-wallpaper-native.v2\"")
                 && manifestSchemaText.contains("\"sourceProvenance\"")
                 && manifestSchemaText.contains("\"sourceDescriptors\"")
+                && manifestSchemaText.contains("\"unity-managed-script-index\"")
                 && manifestSchemaText.contains("\"platformPolicyFields\"")
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
                 && manifestSchemaText.contains("\"tapAction\""),
@@ -1976,8 +1985,8 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=2 imported=6 calibrated=6 platformPolicy=1 unsupported=1")
-                && bundleMatrix.contains("sourceProvenance: pass safety=windows-exe-forbidden spine=TextAsset:4+Texture2D:66 video=VideoClip:1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=6 calibrated=6 platformPolicy=1 unsupported=1")
+                && bundleMatrix.contains("sourceProvenance: pass behaviorScripts=Assembly-CSharp:4 interactionOwner=SpineFaceTracker managedScripts=metadata-only safety=windows-exe-forbidden spine=TextAsset:4+Texture2D:66 video=VideoClip:1")
                 && bundleMatrix.contains("sourceDerivation: partial imported=6 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 platformPolicy=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"

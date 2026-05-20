@@ -117,6 +117,33 @@ enum RuntimeSourceProvenanceReport {
             }
         }
 
+        for descriptor in descriptors where descriptor.kind == .unityManagedScriptIndex {
+            let descriptorURL = runtime.config.projectRoot
+                .appendingPathComponent(descriptor.path)
+                .standardizedFileURL
+            guard let data = try? Data(contentsOf: descriptorURL) else {
+                warnings.append("missing(\(descriptor.path))")
+                continue
+            }
+
+            let scriptIndex = try JSONDecoder().decode(UnityManagedScriptIndexDescriptor.self, from: data)
+            try validateManagedScriptIndex(scriptIndex, descriptor: descriptor)
+            checks.insert("managedScripts=metadata-only")
+
+            let assemblyCounts = Dictionary(grouping: scriptIndex.assemblyScripts ?? [], by: \.assembly)
+                .mapValues(\.count)
+            if let assemblyCSharpCount = assemblyCounts["Assembly-CSharp"] {
+                checks.insert("behaviorScripts=Assembly-CSharp:\(assemblyCSharpCount)")
+            }
+
+            if runtime.manifest.interactions.isEmpty == false {
+                guard let candidate = scriptIndex.interactionCandidates?.first else {
+                    throw EngineError.manifest("source provenance contradiction: manifest declares interactions but \(descriptor.path) has no interaction owner candidates")
+                }
+                checks.insert("interactionOwner=\(candidate.className)")
+            }
+        }
+
         guard readableUnityExtractionCount > 0 else {
             if warnings.isEmpty {
                 return "sourceProvenance: skipped(no-readable-unity-extraction-descriptor)"
@@ -146,6 +173,18 @@ enum RuntimeSourceProvenanceReport {
         }
     }
 
+    private static func validateManagedScriptIndex(
+        _ index: UnityManagedScriptIndexDescriptor,
+        descriptor: SourceDescriptor
+    ) throws {
+        guard index.securityPolicy?.windowsExecutableExecution == "forbidden",
+              index.securityPolicy?.windowsExecutableDisassembly == "forbidden",
+              index.securityPolicy?.methodBodyRead == "forbidden",
+              index.methodBodyStatus == "not-read" else {
+            throw EngineError.manifest("source provenance safety policy must keep Unity managed script method bodies unread for \(descriptor.path)")
+        }
+    }
+
     private static func sourceDescriptorSection(_ descriptors: [SourceDescriptor]?, projectRoot: URL) -> String {
         guard let descriptors, descriptors.isEmpty == false else {
             return "sourceDescriptors: none"
@@ -158,6 +197,8 @@ enum RuntimeSourceProvenanceReport {
                 return wallpaperEngineProjectLine(descriptor: descriptor, url: descriptorURL)
             case .unityAssetExtractionManifest:
                 return unityAssetExtractionLine(descriptor: descriptor, url: descriptorURL)
+            case .unityManagedScriptIndex:
+                return unityManagedScriptIndexLine(descriptor: descriptor, url: descriptorURL)
             }
         }
         return "sourceDescriptors:\n" + lines.map { "  - \($0)" }.joined(separator: "\n")
@@ -216,6 +257,46 @@ enum RuntimeSourceProvenanceReport {
         }
     }
 
+    private static func unityManagedScriptIndexLine(descriptor: SourceDescriptor, url: URL) -> String {
+        guard let data = try? Data(contentsOf: url) else {
+            return "\(descriptor.kind.rawValue) path=\(descriptor.path) status=missing"
+        }
+
+        do {
+            let index = try JSONDecoder().decode(UnityManagedScriptIndexDescriptor.self, from: data)
+            let scripts = index.assemblyScripts ?? []
+            let assemblyCounts = Dictionary(grouping: scripts, by: \.assembly)
+                .mapValues(\.count)
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: ",")
+            let candidates = (index.interactionCandidates ?? [])
+                .map(\.className)
+                .sorted()
+                .joined(separator: ",")
+            let security = [
+                index.securityPolicy?.windowsExecutableExecution.map { "windowsExecutableExecution=\($0)" },
+                index.securityPolicy?.windowsExecutableDisassembly.map { "windowsExecutableDisassembly=\($0)" },
+                index.securityPolicy?.methodBodyRead.map { "methodBodyRead=\($0)" },
+                index.securityPolicy?.inputScope.map { "inputScope=\($0.replacingOccurrences(of: " ", with: "_"))" }
+            ]
+                .compactMap { $0 }
+                .joined(separator: ",")
+            let fields = [
+                "path=\(descriptor.path)",
+                "status=read",
+                "converter=\(index.converter ?? "unspecified")",
+                "scripts=\(assemblyCounts.isEmpty ? "none" : assemblyCounts)",
+                "interactionCandidates=\(candidates.isEmpty ? "none" : candidates)",
+                "methodBodyStatus=\(index.methodBodyStatus ?? "unspecified")",
+                "security=\(security.isEmpty ? "unspecified" : security)"
+            ]
+            return "\(descriptor.kind.rawValue) " + fields.joined(separator: " ")
+        } catch {
+            return "\(descriptor.kind.rawValue) path=\(descriptor.path) status=unreadable(\(error.localizedDescription))"
+        }
+    }
+
     private static func section(_ name: String, _ values: [String]?) -> String {
         guard let values, values.isEmpty == false else {
             return "\(name): none"
@@ -259,4 +340,48 @@ private struct UnityAssetExtractionSecurityPolicy: Decodable {
         case windowsExecutableDisassembly = "windows_executable_disassembly"
         case inputScope = "input_scope"
     }
+}
+
+private struct UnityManagedScriptIndexDescriptor: Decodable {
+    let converter: String?
+    let securityPolicy: UnityManagedScriptIndexSecurityPolicy?
+    let methodBodyStatus: String?
+    let assemblyScripts: [UnityManagedScriptRecord]?
+    let interactionCandidates: [UnityInteractionCandidate]?
+
+    private enum CodingKeys: String, CodingKey {
+        case converter
+        case securityPolicy = "security_policy"
+        case methodBodyStatus = "method_body_status"
+        case assemblyScripts = "assembly_scripts"
+        case interactionCandidates = "interaction_candidates"
+    }
+}
+
+private struct UnityManagedScriptIndexSecurityPolicy: Decodable {
+    let windowsExecutableExecution: String?
+    let windowsExecutableDisassembly: String?
+    let methodBodyRead: String?
+    let inputScope: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case windowsExecutableExecution = "windows_executable_execution"
+        case windowsExecutableDisassembly = "windows_executable_disassembly"
+        case methodBodyRead = "method_body_read"
+        case inputScope = "input_scope"
+    }
+}
+
+private struct UnityManagedScriptRecord: Decodable {
+    let assembly: String
+    let className: String
+    let namespace: String?
+    let source: String?
+    let pathID: Int?
+}
+
+private struct UnityInteractionCandidate: Decodable {
+    let assembly: String?
+    let className: String
+    let reason: String?
 }
