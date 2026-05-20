@@ -819,6 +819,7 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("managedScripts=metadata-only")
                 && sourceProvenanceReport.contains("behaviorScripts=Assembly-CSharp:4")
                 && sourceProvenanceReport.contains("interactionOwner=SpineFaceTracker")
+                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=6")
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceProvenanceReport.contains("wallpaper-engine-project-json")
                 && sourceProvenanceReport.contains("type=application")
@@ -829,6 +830,9 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("unity-managed-script-index")
                 && sourceProvenanceReport.contains("converter=unitypy-monoscript-index-v1")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
+                && sourceProvenanceReport.contains("blockedFields=6")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=6")
+                && sourceProvenanceReport.contains("requiredCapabilities=unity-managed-method-behavior-import")
                 && sourceProvenanceReport.contains("methodBodyStatus=not-read")
                 && sourceProvenanceReport.contains("methodBodyRead=forbidden")
                 && sourceProvenanceReport.contains("windowsExecutableExecution=forbidden")
@@ -1986,7 +1990,7 @@ enum RuntimeSelfTest {
         )
         check(
             bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=6 calibrated=6 platformPolicy=1 unsupported=1")
-                && bundleMatrix.contains("sourceProvenance: pass behaviorScripts=Assembly-CSharp:4 interactionOwner=SpineFaceTracker managedScripts=metadata-only safety=windows-exe-forbidden spine=TextAsset:4+Texture2D:66 video=VideoClip:1")
+                && bundleMatrix.contains("sourceProvenance: pass behaviorScripts=Assembly-CSharp:4 calibratedBlockers=Assembly-CSharp.SpineFaceTracker=6 interactionOwner=SpineFaceTracker managedScripts=metadata-only safety=windows-exe-forbidden spine=TextAsset:4+Texture2D:66 video=VideoClip:1")
                 && bundleMatrix.contains("sourceDerivation: partial imported=6 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 platformPolicy=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"

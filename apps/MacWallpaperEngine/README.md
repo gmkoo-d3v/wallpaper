@@ -224,8 +224,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   as Wallpaper Engine `project.json`, Unity asset extraction manifests, or
   Unity managed-script metadata indexes, letting diagnostics read the source
   type, executable name, preview, title, extracted asset counts, script-owner
-  candidates, and extraction safety policy without adding wallpaper-specific
-  runtime code.
+  candidates, blocked behavior fields, required importer capabilities, and
+  extraction safety policy without adding wallpaper-specific runtime code.
 - Self-test scans the generic runtime source for bundled wallpaper ids/titles so
   Imported/sample-specific behavior cannot accidentally move from manifests into
   the player implementation.

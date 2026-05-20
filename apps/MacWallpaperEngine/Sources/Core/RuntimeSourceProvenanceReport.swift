@@ -142,6 +142,26 @@ enum RuntimeSourceProvenanceReport {
                 }
                 checks.insert("interactionOwner=\(candidate.className)")
             }
+
+            let calibratedFields = Set(runtime.manifest.sourceProvenance?.calibratedFields ?? [])
+            if calibratedFields.isEmpty == false {
+                let blockedFields = scriptIndex.blockedFields ?? []
+                let blockedFieldNames = Set(blockedFields.map(\.field))
+                let missingFields = calibratedFields.subtracting(blockedFieldNames)
+                guard missingFields.isEmpty else {
+                    throw EngineError.manifest(
+                        "source provenance contradiction: calibrated field(s) lack source-adapter blocker ownership in \(descriptor.path): "
+                            + missingFields.sorted().joined(separator: ",")
+                    )
+                }
+
+                let ownerCounts = Dictionary(grouping: blockedFields.filter { calibratedFields.contains($0.field) }, by: \.owner)
+                    .mapValues(\.count)
+                    .sorted { $0.key < $1.key }
+                    .map { "\($0.key)=\($0.value)" }
+                    .joined(separator: ",")
+                checks.insert("calibratedBlockers=\(ownerCounts)")
+            }
         }
 
         guard readableUnityExtractionCount > 0 else {
@@ -274,6 +294,15 @@ enum RuntimeSourceProvenanceReport {
                 .map(\.className)
                 .sorted()
                 .joined(separator: ",")
+            let blockedFields = index.blockedFields ?? []
+            let blockedFieldOwners = Dictionary(grouping: blockedFields, by: \.owner)
+                .mapValues(\.count)
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: ",")
+            let requiredCapabilities = Set(blockedFields.map(\.requiredCapability))
+                .sorted()
+                .joined(separator: ",")
             let security = [
                 index.securityPolicy?.windowsExecutableExecution.map { "windowsExecutableExecution=\($0)" },
                 index.securityPolicy?.windowsExecutableDisassembly.map { "windowsExecutableDisassembly=\($0)" },
@@ -288,6 +317,9 @@ enum RuntimeSourceProvenanceReport {
                 "converter=\(index.converter ?? "unspecified")",
                 "scripts=\(assemblyCounts.isEmpty ? "none" : assemblyCounts)",
                 "interactionCandidates=\(candidates.isEmpty ? "none" : candidates)",
+                "blockedFields=\(blockedFields.count)",
+                "blockedFieldOwners=\(blockedFieldOwners.isEmpty ? "none" : blockedFieldOwners)",
+                "requiredCapabilities=\(requiredCapabilities.isEmpty ? "none" : requiredCapabilities)",
                 "methodBodyStatus=\(index.methodBodyStatus ?? "unspecified")",
                 "security=\(security.isEmpty ? "unspecified" : security)"
             ]
@@ -348,6 +380,7 @@ private struct UnityManagedScriptIndexDescriptor: Decodable {
     let methodBodyStatus: String?
     let assemblyScripts: [UnityManagedScriptRecord]?
     let interactionCandidates: [UnityInteractionCandidate]?
+    let blockedFields: [UnityBlockedSourceField]?
 
     private enum CodingKeys: String, CodingKey {
         case converter
@@ -355,6 +388,7 @@ private struct UnityManagedScriptIndexDescriptor: Decodable {
         case methodBodyStatus = "method_body_status"
         case assemblyScripts = "assembly_scripts"
         case interactionCandidates = "interaction_candidates"
+        case blockedFields = "blocked_fields"
     }
 }
 
@@ -383,5 +417,12 @@ private struct UnityManagedScriptRecord: Decodable {
 private struct UnityInteractionCandidate: Decodable {
     let assembly: String?
     let className: String
+    let reason: String?
+}
+
+private struct UnityBlockedSourceField: Decodable {
+    let field: String
+    let owner: String
+    let requiredCapability: String
     let reason: String?
 }
