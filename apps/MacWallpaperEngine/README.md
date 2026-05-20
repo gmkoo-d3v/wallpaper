@@ -202,6 +202,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   imported source fields, calibrated compatibility fields, and unsupported
   original-script behavior instead of hiding wallpaper-specific assumptions in
   the generic runtime.
+- Self-test scans the generic runtime source for bundled wallpaper ids/titles so
+  Imported/sample-specific behavior cannot accidentally move from manifests into
+  the player implementation.
 - Manifest validation also rejects unsupported `lookDirection` action keys
   instead of silently ignoring directions the native interaction planner cannot
   produce.
@@ -292,6 +295,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   reason, actual FPS, and p95 frame time.
 - Runtime telemetry is throttled before aggregation per display and surfaced in
   the control panel, so p95/resource snapshots do not run at render frame rate.
+- Video frame output requests BGRA Metal/IOSurface-compatible pixel buffers and
+  suppresses redundant AVPlayer rendering because the runtime presents frames
+  through Metal.
 - Display lifecycle telemetry records hot-plug/display rebuild scheduling,
   commit, rollback, and failure status so Finder-launched apps do not hide
   rebuild outcomes in stderr-only logs.

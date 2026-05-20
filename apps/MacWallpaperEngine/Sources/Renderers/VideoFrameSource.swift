@@ -3,6 +3,8 @@ import CoreVideo
 import Metal
 
 final class VideoFrameSource: NSObject {
+    static let pixelBufferOutputPolicy = "bgra-metal-iosurface-suppressed-player-rendering"
+
     private let player: AVPlayer
     private let item: AVPlayerItem
     private let output: AVPlayerItemVideoOutput
@@ -28,13 +30,17 @@ final class VideoFrameSource: NSObject {
         self.audioEnabled = audioEnabled
         let asset = AVURLAsset(url: url)
         self.item = AVPlayerItem(asset: asset)
-        self.output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
+        let pixelBufferAttributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferMetalCompatibilityKey as String: true
-        ])
+            kCVPixelBufferMetalCompatibilityKey as String: true,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+        ]
+        self.output = AVPlayerItemVideoOutput(pixelBufferAttributes: pixelBufferAttributes)
+        self.output.suppressesPlayerRendering = true
         item.add(output)
         self.player = AVPlayer(playerItem: item)
         player.actionAtItemEnd = .none
+        player.automaticallyWaitsToMinimizeStalling = false
 
         var cache: CVMetalTextureCache?
         let status = CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &cache)

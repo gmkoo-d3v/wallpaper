@@ -298,6 +298,10 @@ enum RuntimeSelfTest {
             "renderer telemetry must be throttled so p95/resource snapshots do not run at frame rate"
         )
         check(
+            VideoFrameSource.pixelBufferOutputPolicy == "bgra-metal-iosurface-suppressed-player-rendering",
+            "video frame source must request Metal/IOSurface pixel buffers and suppress redundant AVPlayer rendering"
+        )
+        check(
             RenderBlendMode(spineBlend: " Additive ") == .additive
                 && RenderBlendMode(spineBlend: "") == .normal
                 && RenderBlendMode(spineBlend: "hard-light") == nil,
@@ -1589,6 +1593,12 @@ enum RuntimeSelfTest {
                 projectRoot: runtime.config.projectRoot
             )
         }
+        try assertGenericRuntimeSourceBoundary(
+            projectRoot: runtime.config.projectRoot,
+            discoveredBundles: schemaCheckedBundles,
+            failures: &failures,
+            checks: &checks
+        )
         check(
             schemaCheckedBundles.isEmpty == false,
             "manifest schema self-test must validate at least one bundled wallpaper manifest"
@@ -5461,5 +5471,55 @@ enum RuntimeSelfTest {
     private static func occurrenceCount(_ needle: String, in haystack: String) -> Int {
         guard needle.isEmpty == false else { return 0 }
         return haystack.components(separatedBy: needle).count - 1
+    }
+
+    private static func assertGenericRuntimeSourceBoundary(
+        projectRoot: URL?,
+        discoveredBundles: [WallpaperBundleSummary],
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        checks += 1
+        guard let projectRoot else { return }
+
+        let sourcesRoot = projectRoot.appendingPathComponent("apps/MacWallpaperEngine/Sources", isDirectory: true)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: sourcesRoot.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return
+        }
+
+        let tokens = Set(discoveredBundles.flatMap { bundle -> [String] in
+            [bundle.id, bundle.displayName].filter { $0.count >= 4 }
+        })
+        guard tokens.isEmpty == false else { return }
+
+        guard let enumerator = FileManager.default.enumerator(
+            at: sourcesRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        var violations: [String] = []
+        for case let sourceURL as URL in enumerator {
+            guard sourceURL.pathExtension == "swift" else { continue }
+            guard sourceURL.lastPathComponent != "RuntimeSelfTest.swift" else { continue }
+            guard (try sourceURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+
+            let source = try String(contentsOf: sourceURL, encoding: .utf8)
+            for token in tokens.sorted() where source.contains(token) {
+                let relativePath = sourceURL.path
+                    .replacingOccurrences(of: projectRoot.path + "/", with: "")
+                violations.append("\(relativePath):\(token)")
+            }
+        }
+
+        guard violations.isEmpty else {
+            failures.append(
+                "generic runtime sources must not hard-code bundled wallpaper ids or titles: \(violations.prefix(6).joined(separator: ", "))"
+            )
+            return
+        }
     }
 }
