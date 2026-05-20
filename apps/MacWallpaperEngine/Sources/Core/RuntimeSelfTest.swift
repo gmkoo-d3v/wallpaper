@@ -2551,11 +2551,9 @@ enum RuntimeSelfTest {
         check(
             blockedPermissionStatus.canRequestAccessibilityPermission
                 && blockedPermissionStatus.text.contains("INTERACTION DEGRADED")
-                && blockedPermissionStatus.text.contains("CLICK ACTIONS DISABLED")
-                && blockedPermissionStatus.text.contains("pointer tracking only")
+                && blockedPermissionStatus.text.contains("click actions disabled")
                 && blockedPermissionStatus.text.contains("Accessibility")
-                && blockedPermissionStatus.text.contains("current app")
-                && blockedPermissionStatus.text.contains("re-add after rebuild"),
+                && blockedPermissionStatus.text.count < 90,
             "control panel interaction status must explain Accessibility-degraded click/touch interaction",
             failures: &failures,
             checks: &checks
@@ -2649,10 +2647,9 @@ enum RuntimeSelfTest {
             monitorSnapshot: deliveredInteractionSnapshot
         )
         check(
-            deliveredControlPanelText.contains("active tap:on")
-                && deliveredControlPanelText.contains("last:cgevent/leftDown/delivered")
+            deliveredControlPanelText.contains("input active tap:on")
                 && deliveredControlPanelText.contains("command:act"),
-            "control panel interaction status must surface live monitor delivery state",
+            "control panel interaction status must surface compact live monitor delivery state",
             failures: &failures,
             checks: &checks
         )
@@ -2662,7 +2659,7 @@ enum RuntimeSelfTest {
             monitorSnapshot: nil
         )
         check(
-            waitingControlPanelText.contains("monitor starting"),
+            waitingControlPanelText.contains("input starting"),
             "control panel interaction status must distinguish ready policy from missing monitor telemetry",
             failures: &failures,
             checks: &checks
@@ -2674,7 +2671,7 @@ enum RuntimeSelfTest {
         )
         check(
             degradedControlPanelText.contains("INTERACTION DEGRADED")
-                && degradedControlPanelText.contains("active tap:on")
+                && degradedControlPanelText.contains("input active tap:on")
                 && degradedControlPanelText.contains("command:act"),
             "degraded interaction permission status must remain visible while surfacing live hover monitor telemetry",
             failures: &failures,

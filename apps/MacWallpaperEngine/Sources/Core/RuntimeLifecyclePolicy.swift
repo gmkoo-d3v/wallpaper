@@ -166,7 +166,7 @@ enum RuntimeLifecyclePolicy {
         }
         guard accessibilityTrusted else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION DEGRADED / CLICK ACTIONS DISABLED; pointer tracking only until macOS Accessibility trusts the current app (re-add after rebuild if needed)",
+                text: "INTERACTION DEGRADED / Accessibility missing; click actions disabled",
                 canRequestAccessibilityPermission: true
             )
         }
@@ -186,10 +186,10 @@ enum RuntimeLifecyclePolicy {
             return permissionStatus.text
         }
         guard isHostRunning else {
-            return "\(permissionStatus.text) / monitor stopped"
+            return "\(permissionStatus.text) / input stopped"
         }
         guard let monitorSnapshot else {
-            return "\(permissionStatus.text) / monitor starting"
+            return "\(permissionStatus.text) / input starting"
         }
 
         let sourceState: String
@@ -200,10 +200,12 @@ enum RuntimeLifecyclePolicy {
         } else if monitorSnapshot.globalMonitorCount > 0 {
             sourceState = "global:\(monitorSnapshot.globalMonitorCount)"
         } else {
-            sourceState = "monitor unavailable"
+            sourceState = "idle"
         }
 
-        let activeState = monitorSnapshot.active ? "active" : "inactive"
-        return "\(permissionStatus.text) / \(activeState) \(sourceState) last:\(monitorSnapshot.lastSource)/\(monitorSnapshot.lastEvent)/\(monitorSnapshot.lastDecision) command:\(monitorSnapshot.lastCommand)"
+        guard monitorSnapshot.active else {
+            return "\(permissionStatus.text) / input \(sourceState)"
+        }
+        return "\(permissionStatus.text) / input active \(sourceState) command:\(monitorSnapshot.lastCommand)"
     }
 }
