@@ -97,6 +97,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Source derivation diagnostics distinguish fully source-derived bundle fields
   from manual calibration and unsupported source behavior, so a compatibility
   pass cannot be mistaken for complete Wallpaper Engine script rehosting.
+- Platform policy fields are reported separately from calibrated wallpaper
+  behavior: macOS desktop gating, sampling, or runtime policy can be explicit
+  without pretending source script behavior was imported.
 - The completion audit treats non-source-derived bundle behavior as incomplete:
   wallpaper-specific placement, hit zones, action names, timing, and neutral
   points must come from the manifest/importer contract rather than runtime

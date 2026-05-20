@@ -762,7 +762,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=6 calibrated=7 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=6 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         if runtime.manifest.interactions.isEmpty == false,
@@ -812,7 +812,7 @@ enum RuntimeSelfTest {
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceReport.contains("consistency: sourceProvenance: pass")
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=6 calibrated=7 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=6 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceProvenanceReport.contains("video=VideoClip:1")
                 && sourceProvenanceReport.contains("spine=TextAsset:4+Texture2D:66")
                 && sourceProvenanceReport.contains("safety=windows-exe-forbidden")
@@ -826,6 +826,7 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("windowsExecutableExecution=forbidden")
                 && sourceProvenanceReport.contains("importedFields:")
                 && sourceProvenanceReport.contains("calibratedFields:")
+                && sourceProvenanceReport.contains("platformPolicyFields:")
                 && sourceProvenanceReport.contains("unsupportedFields:"),
             "source provenance report must expose descriptor consistency plus imported, calibrated, and unsupported fields so wallpaper-specific data stays out of runtime code"
         )
@@ -1630,6 +1631,7 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"macos-wallpaper-native.v2\"")
                 && manifestSchemaText.contains("\"sourceProvenance\"")
                 && manifestSchemaText.contains("\"sourceDescriptors\"")
+                && manifestSchemaText.contains("\"platformPolicyFields\"")
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
                 && manifestSchemaText.contains("\"tapAction\""),
             "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
@@ -1974,10 +1976,10 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=2 imported=6 calibrated=7 unsupported=1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=2 imported=6 calibrated=6 platformPolicy=1 unsupported=1")
                 && bundleMatrix.contains("sourceProvenance: pass safety=windows-exe-forbidden spine=TextAsset:4+Texture2D:66 video=VideoClip:1")
-                && bundleMatrix.contains("sourceDerivation: partial imported=6 calibrated=7 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
-                && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 unsupported=0", in: bundleMatrix) >= 2,
+                && bundleMatrix.contains("sourceDerivation: partial imported=6 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 platformPolicy=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
         check(
@@ -2000,7 +2002,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("overall: incomplete")
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
                 && completionAudit.contains("automated\tfail\tsource-derived-bundle-contract")
-                && completionAudit.contains("sample_imported=partial imported=6 calibrated=7 unsupported=1")
+                && completionAudit.contains("sample_imported=partial imported=6 calibrated=6 platformPolicy=1 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
                 && completionAudit.contains("autoNative:true compositeDefault:false")

@@ -30,6 +30,7 @@ struct SourceProvenance: Decodable {
     let sourceDescriptors: [SourceDescriptor]?
     let importedFields: [String]?
     let calibratedFields: [String]?
+    let platformPolicyFields: [String]?
     let unsupportedFields: [String]?
     let notes: [String]?
 }

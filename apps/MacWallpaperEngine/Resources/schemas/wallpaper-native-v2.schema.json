@@ -151,6 +151,11 @@
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
         },
+        "platformPolicyFields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
         "unsupportedFields": {
           "type": "array",
           "minItems": 1,

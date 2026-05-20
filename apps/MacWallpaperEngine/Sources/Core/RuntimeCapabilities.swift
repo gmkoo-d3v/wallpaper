@@ -352,11 +352,12 @@ enum RuntimeCapabilities {
         guard let provenance else { return "unspecified" }
         let imported = provenance.importedFields?.count ?? 0
         let calibrated = provenance.calibratedFields?.count ?? 0
+        let platformPolicy = provenance.platformPolicyFields?.count ?? 0
         let unsupported = provenance.unsupportedFields?.count ?? 0
         let descriptors = provenance.sourceDescriptors?.count ?? 0
         let runtime = provenance.sourceRuntime.map { " runtime=\($0)" } ?? ""
         let projectType = provenance.projectType.map { " project=\($0)" } ?? ""
-        return "\(provenance.sourceType.rawValue)\(runtime)\(projectType) descriptors=\(descriptors) imported=\(imported) calibrated=\(calibrated) unsupported=\(unsupported)"
+        return "\(provenance.sourceType.rawValue)\(runtime)\(projectType) descriptors=\(descriptors) imported=\(imported) calibrated=\(calibrated) platformPolicy=\(platformPolicy) unsupported=\(unsupported)"
     }
 
     private static func sourceDerivationSummary(_ provenance: SourceProvenance?) -> String {

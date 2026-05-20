@@ -22,6 +22,7 @@ enum RuntimeSourceProvenanceReport {
             sourceDescriptorSection(provenance?.sourceDescriptors, projectRoot: runtime.config.projectRoot),
             section("importedFields", provenance?.importedFields),
             section("calibratedFields", provenance?.calibratedFields),
+            section("platformPolicyFields", provenance?.platformPolicyFields),
             section("unsupportedFields", provenance?.unsupportedFields),
             section("notes", provenance?.notes)
         ].joined(separator: "\n")
@@ -38,9 +39,10 @@ enum RuntimeSourceProvenanceReport {
 
         let importedCount = provenance.importedFields?.count ?? 0
         let calibratedCount = provenance.calibratedFields?.count ?? 0
+        let platformPolicyCount = provenance.platformPolicyFields?.count ?? 0
         let unsupportedCount = provenance.unsupportedFields?.count ?? 0
         if calibratedCount == 0, unsupportedCount == 0 {
-            return "sourceDerivation: source-derived imported=\(importedCount) calibrated=0 unsupported=0"
+            return "sourceDerivation: source-derived imported=\(importedCount) calibrated=0 platformPolicy=\(platformPolicyCount) unsupported=0"
         }
 
         var blockers: [String] = []
@@ -55,6 +57,7 @@ enum RuntimeSourceProvenanceReport {
             "sourceDerivation: partial",
             "imported=\(importedCount)",
             "calibrated=\(calibratedCount)",
+            "platformPolicy=\(platformPolicyCount)",
             "unsupported=\(unsupportedCount)",
             "blockers=\(blockers.joined(separator: "+"))"
         ].joined(separator: " ")

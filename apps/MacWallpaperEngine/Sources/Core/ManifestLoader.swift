@@ -215,6 +215,7 @@ enum ManifestLoader {
         }
         try validateStringList(provenance.importedFields, label: "sourceProvenance.importedFields")
         try validateStringList(provenance.calibratedFields, label: "sourceProvenance.calibratedFields")
+        try validateStringList(provenance.platformPolicyFields, label: "sourceProvenance.platformPolicyFields")
         try validateStringList(provenance.unsupportedFields, label: "sourceProvenance.unsupportedFields")
         try validateStringList(provenance.notes, label: "sourceProvenance.notes")
     }
