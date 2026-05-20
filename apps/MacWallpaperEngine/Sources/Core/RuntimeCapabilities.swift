@@ -157,7 +157,7 @@ enum RuntimeCapabilities {
             category: "performance",
             name: "frameScheduler",
             status: "supported",
-            detail: "target=\(runtime.renderTargetFps) idleRenderFps=\(primaryIdleRenderFps(runtime: runtime)) nativeSpinePoseFps=\(runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil)) nativeSpineIdlePoseFps=\(runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil)) max=\(manifest.runtime.maxFps) fallback=\(manifest.runtime.fallbackFps) inFlight=\(manifest.runtime.scheduler.maxInFlightCommandBuffers)"
+            detail: "target=\(runtime.renderTargetFps) activeRenderFps=\(primaryActiveRenderFps(runtime: runtime)) idleRenderFps=\(primaryIdleRenderFps(runtime: runtime)) nativeSpinePoseFps=\(runtime.nativeSpinePoseSampleFps(displayRefreshFps: nil)) nativeSpineIdlePoseFps=\(runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil)) max=\(manifest.runtime.maxFps) fallback=\(manifest.runtime.fallbackFps) inFlight=\(manifest.runtime.scheduler.maxInFlightCommandBuffers)"
         ))
         rows.append(RuntimeCapabilityRow(
             category: "render",
@@ -210,6 +210,29 @@ enum RuntimeCapabilities {
             runtime.assetCatalog.videoAsset
         }
         return runtime.idleRenderFps(
+            displayRefreshFps: nil,
+            videoAsset: selectedVideo,
+            playsVideo: selectedVideo != nil,
+            rendersNativeForeground: foregroundPlan.usesNativeSpine && role.rendersForeground
+        )
+    }
+
+    private static func primaryActiveRenderFps(runtime: NativeRuntimeCore) -> Int {
+        let role = RenderDisplayRole(kind: .primary, policy: runtime.manifest.displayPolicy.primary)
+        let compatibility = nativeSpineCompatibility(runtime: runtime)
+        let foregroundPlan = ForegroundRenderPlan.make(
+            runtime: runtime,
+            role: role,
+            compatibility: compatibility
+        )
+        let selectedVideo: VideoAsset? = if role.playsVideo == false {
+            nil
+        } else if foregroundPlan.usesCompositeVideo {
+            runtime.assetCatalog.compositeVideoAsset
+        } else {
+            runtime.assetCatalog.videoAsset
+        }
+        return runtime.activeRenderFps(
             displayRefreshFps: nil,
             videoAsset: selectedVideo,
             playsVideo: selectedVideo != nil,

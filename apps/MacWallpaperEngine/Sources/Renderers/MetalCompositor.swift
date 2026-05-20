@@ -46,6 +46,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var isUsingResourceFallbackVideo = false
     private var hasSubmittedDrawable = false
     private var idleRenderFps = 1
+    private var activeRenderFps = 1
     private var lastTelemetryPublishAt: CFTimeInterval = 0
 
     init(
@@ -116,6 +117,12 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             selectedVideo = runtime.assetCatalog.videoAsset
         }
         idleRenderFps = runtime.idleRenderFps(
+            displayRefreshFps: displayRefreshFps,
+            videoAsset: selectedVideo,
+            playsVideo: selectedVideo != nil,
+            rendersNativeForeground: foregroundPlan.usesNativeSpine && displayRole.rendersForeground && usingCompositeVideo == false
+        )
+        activeRenderFps = runtime.activeRenderFps(
             displayRefreshFps: displayRefreshFps,
             videoAsset: selectedVideo,
             playsVideo: selectedVideo != nil,
@@ -608,7 +615,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
     private func framePacingFps(resourceFps: Int, interaction: InteractionSnapshot) -> Int {
         let interactionActive = interaction.clickPulse > 0 || interaction.command != idleCommand
-        let requestedFps = interactionActive ? targetRenderFps : idleRenderFps
+        let requestedFps = interactionActive ? activeRenderFps : idleRenderFps
         return max(1, min(resourceFps, requestedFps))
     }
 

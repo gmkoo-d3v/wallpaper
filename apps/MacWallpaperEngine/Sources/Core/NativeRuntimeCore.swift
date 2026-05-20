@@ -132,6 +132,26 @@ final class NativeRuntimeCore {
         return max(1, min(requestedIdleFps, targetFps, manifest.runtime.maxFps))
     }
 
+    func activeRenderFps(
+        displayRefreshFps: Int?,
+        videoAsset: VideoAsset?,
+        playsVideo: Bool,
+        rendersNativeForeground: Bool
+    ) -> Int {
+        let targetFps = renderTargetFps(displayRefreshFps: displayRefreshFps)
+        var cadenceCandidates: [Int] = []
+        if playsVideo, let effectiveVideoFps = videoAsset?.effectiveFrameRate {
+            cadenceCandidates.append(Int(ceil(effectiveVideoFps)))
+        }
+        if rendersNativeForeground, assetCatalog.spineAsset != nil {
+            cadenceCandidates.append(nativeSpinePoseSampleFps(displayRefreshFps: displayRefreshFps))
+        }
+        guard let requestedActiveFps = cadenceCandidates.max() else {
+            return targetFps
+        }
+        return max(1, min(requestedActiveFps, targetFps, manifest.runtime.maxFps))
+    }
+
     private func requestedRenderFps(displayRefreshFps: Int?) -> Int {
         if config.matchDisplayRefresh {
             return max(displayRefreshFps ?? manifest.runtime.targetFps, 1)

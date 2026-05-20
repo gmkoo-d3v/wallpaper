@@ -221,7 +221,7 @@ final class ControlPanelWindowController: NSWindowController {
         doctorValue.toolTip = state.doctorText
         renderPlanValue.stringValue = state.renderPlanText
         telemetryValue.stringValue = state.telemetryText
-        interactionStatusValue.stringValue = state.interactionStatusText
+        interactionStatusValue.stringValue = Self.compactInteractionStatus(state.interactionStatusText)
         interactionStatusValue.toolTip = state.interactionStatusText
         interactionStatusValue.textColor = state.canRequestInteractionPermission
             ? NSColor(red: 0.65, green: 0.12, blue: 0.12, alpha: 1)
@@ -292,6 +292,34 @@ final class ControlPanelWindowController: NSWindowController {
 
         [startButton, applyButton].forEach(stylePrimaryButton)
         [stopButton, chooseBundleButton, importBundleButton, requestInteractionPermissionButton, quitButton].forEach(styleSecondaryButton)
+    }
+
+    static func compactInteractionStatus(_ status: String) -> String {
+        if status.hasPrefix("PERMISSION NEEDED") {
+            return "PERMISSION NEEDED"
+        }
+        if status.hasPrefix("OFF") || status.hasPrefix("PASSIVE") {
+            return status.components(separatedBy: " / ").prefix(2).joined(separator: " / ")
+        }
+        guard status.hasPrefix("READY") else {
+            return status
+        }
+
+        let parts = status.components(separatedBy: " / ")
+        if let commandPart = parts.last, commandPart.hasPrefix("cmd ") {
+            let command = commandPart.dropFirst(4)
+            if let source = parts.dropFirst(2).first {
+                return "READY / \(source) / \(command)"
+            }
+            return "READY / \(command)"
+        }
+        if parts.contains("stopped") {
+            return "READY / stopped"
+        }
+        if parts.contains("starting") {
+            return "READY / starting"
+        }
+        return "READY"
     }
 
     private func startRefreshTimer() {
