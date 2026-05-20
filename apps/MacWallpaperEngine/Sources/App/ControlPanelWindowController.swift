@@ -59,6 +59,12 @@ protocol ControlPanelDelegate: AnyObject {
 final class ControlPanelWindowController: NSWindowController {
     static let displayModeLabels = ["Selected Only", "Selected+Policy", "All Full"]
     static let pageLabels = ["Main", "Library", "Diagnostics"]
+    static let foregroundModeLabels = ["Auto", "Fallback Video", "Native Spine"]
+    static let foregroundModeTooltips = [
+        "Use Native Spine when supported; use video fallback only when native playback is unavailable.",
+        "Force the lower-fidelity composite video fallback for comparison or emergency recovery.",
+        "Force Native Spine rendering and block unsupported bundles unless a compatibility fallback is required."
+    ]
     static let displayModeTooltips = [
         "Only the selected primary display gets a wallpaper window.",
         "Selected primary display is full; secondary displays follow the manifest secondary policy.",
@@ -146,7 +152,7 @@ final class ControlPanelWindowController: NSWindowController {
         action: nil
     )
     private let foregroundModeControl = NSSegmentedControl(
-        labels: ["Auto", "Composite", "Native Spine"],
+        labels: ControlPanelWindowController.foregroundModeLabels,
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -568,6 +574,9 @@ final class ControlPanelWindowController: NSWindowController {
 
         let foregroundCaption = caption("FOREGROUND")
         foregroundModeControl.segmentStyle = .texturedSquare
+        for (index, tooltip) in Self.foregroundModeTooltips.enumerated() {
+            foregroundModeControl.setToolTip(tooltip, forSegment: index)
+        }
 
         row.addArrangedSubview(foregroundCaption)
         row.addArrangedSubview(foregroundModeControl)

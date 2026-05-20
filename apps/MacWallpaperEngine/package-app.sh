@@ -213,7 +213,7 @@ write_package_smoke_evidence() {
   "liveDesktopClickActions": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Current packaged accessibility status: $accessibility_status; interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
+    "evidence": "Current packaged accessibility status: $accessibility_status; interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected bundle; verify manifest-declared pointerMove/pointerDown click and gaze behavior plus empty-desktop gating.",
     "operatorNote": "Required before live-desktop-click-actions can pass."
   },
   "physicalDisplayHotplugSmoke": {

@@ -2,6 +2,26 @@ import CoreGraphics
 import Foundation
 
 enum RuntimeSmokeEvidenceWriter {
+    private struct LiveInteractionExpectation {
+        let id: String
+        let zoneID: String?
+        let action: String?
+        let isEmptyClick: Bool
+
+        var label: String {
+            if isEmptyClick {
+                return "empty-click:no-action"
+            }
+            if let zoneID, let action {
+                return "\(zoneID):\(action)"
+            }
+            if let action {
+                return "default:\(action)"
+            }
+            return id
+        }
+    }
+
     private struct EvidenceFile: Encodable {
         let schemaVersion: String
         let packagedAppLaunchSmoke: EvidenceEntry
@@ -81,16 +101,17 @@ enum RuntimeSmokeEvidenceWriter {
         )
         let telemetry = runtime.telemetry.summary()
         let liveProof = liveInteractionProof(runtime: runtime)
+        let checklistText = liveProof.checklist.isEmpty ? "no manifest-declared click/gaze checklist" : liveProof.checklist
         let evidence = """
-        runtime telemetry captured; accessibilityTrusted=\(DesktopInteractionGate.hasAccessibilityTrust()); permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); \(liveProof.evidence); telemetry=\(telemetry); \(liveProof.passed ? "live checklist satisfied by packaged telemetry: head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no-action, gaze changed direction" : "manual checklist still required: head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no-action, left-drag gaze changes direction, app-window/icon blocking verified")
+        runtime telemetry captured; accessibilityTrusted=\(DesktopInteractionGate.hasAccessibilityTrust()); permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); manifestChecklist=\(checklistText); \(liveProof.evidence); telemetry=\(telemetry); \(liveProof.passed ? "live checklist satisfied by packaged telemetry for manifest-declared interactions" : "manual checklist still required for manifest-declared interactions, empty-desktop gating, and app-window/icon blocking")
         """
         return EvidenceEntry(
             passed: liveProof.passed,
             recordedAt: recordedAt,
             evidence: oneLine(evidence),
             operatorNote: liveProof.passed
-                ? "Auto-passed because packaged runtime telemetry observed every required live click/gaze action."
-                : "Auto-generated runtime telemetry only. Set passed=true only after observing head/body/empty/gaze behavior on the trusted packaged app."
+                ? "Auto-passed because packaged runtime telemetry observed every manifest-declared live click/gaze action."
+                : "Auto-generated runtime telemetry only. Set passed=true only after observing the manifest-declared click/gaze checklist on the trusted packaged app."
         )
     }
 
@@ -125,7 +146,7 @@ enum RuntimeSmokeEvidenceWriter {
         )
     }
 
-    private static func liveInteractionProof(runtime: NativeRuntimeCore) -> (passed: Bool, evidence: String) {
+    private static func liveInteractionProof(runtime: NativeRuntimeCore) -> (passed: Bool, evidence: String, checklist: String) {
         let observations = runtime.telemetry.interactionObservationSnapshot()
         let plan = InteractionPlan(
             interactions: runtime.manifest.interactions,
@@ -133,60 +154,119 @@ enum RuntimeSmokeEvidenceWriter {
             actionTailDurations: (try? SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)) ?? [:]
         )
 
-        var headShortTap = false
-        var headHoldOrRub = false
-        var bodyTap = false
-        var emptyClickNoAction = false
-        var gazeDirection = false
+        let clickExpectations = liveClickExpectations(plan: plan)
+        let expectedMoveCommands = pointerMoveCommands(manifest: runtime.manifest)
+        var satisfiedClickExpectations = Set<String>()
+        var gazeDirection = expectedMoveCommands.isEmpty
 
         for observation in observations where observation.decision == "delivered" {
             let point = normalizedPoint(observation.point)
             let command = observation.command
             let event = observation.event
-            if ["Left", "Right", "Up", "Down"].contains(command),
+            if expectedMoveCommands.contains(command),
                event == "move" || event == "drag" {
                 gazeDirection = true
             }
-            guard let point else { continue }
-            let hit = plan.hitTest(point: point, button: .left)
-            if hit?.zoneID == "head", command == "boll", observation.clickPulse > 0 {
-                headShortTap = true
-            }
-            if hit?.zoneID == "head", command == "act", observation.clickPulse > 0 {
-                headHoldOrRub = true
-            }
-            if hit?.zoneID == "body", command == "boll", observation.clickPulse > 0 {
-                bodyTap = true
-            }
-            if hit == nil,
-               event == "leftDown" || event == "leftUp",
-               observation.clickPulse <= 0.05,
-               ["act", "boll"].contains(command) == false {
-                emptyClickNoAction = true
+            guard let point, let button = button(from: event) else { continue }
+            let hit = plan.hitTest(point: point, button: button)
+            for expectation in clickExpectations {
+                if expectation.isEmptyClick {
+                    if hit == nil,
+                       observation.clickPulse <= 0.05,
+                       clickActionCommands(expectations: clickExpectations).contains(command) == false {
+                        satisfiedClickExpectations.insert(expectation.id)
+                    }
+                    continue
+                }
+                guard observation.clickPulse > 0 else { continue }
+                if expectation.zoneID == hit?.zoneID,
+                   expectation.action == command {
+                    satisfiedClickExpectations.insert(expectation.id)
+                }
             }
         }
 
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
+        let clickExpectationsPassed = clickExpectations.allSatisfy { satisfiedClickExpectations.contains($0.id) }
         let passed = packaged
             && accessibilityTrusted
-            && headShortTap
-            && headHoldOrRub
-            && bodyTap
-            && emptyClickNoAction
+            && clickExpectationsPassed
             && gazeDirection
+        let expectedLabels = (clickExpectations.map(\.label) + (expectedMoveCommands.isEmpty ? [] : ["gaze:\(expectedMoveCommands.sorted().joined(separator: "/"))"]))
+        let missingLabels = clickExpectations
+            .filter { satisfiedClickExpectations.contains($0.id) == false }
+            .map(\.label)
+            + ((gazeDirection || expectedMoveCommands.isEmpty) ? [] : ["gaze:\(expectedMoveCommands.sorted().joined(separator: "/"))"])
         let evidence = [
             "live telemetry proof:",
             "packaged=\(packaged)",
             "accessibilityTrusted=\(accessibilityTrusted)",
-            "headShortTap=\(headShortTap)",
-            "headHoldRub=\(headHoldOrRub)",
-            "bodyTap=\(bodyTap)",
-            "emptyNoAction=\(emptyClickNoAction)",
+            "expected=\(expectedLabels.joined(separator: ","))",
+            "satisfied=\(satisfiedClickExpectations.sorted().joined(separator: ","))",
+            "missing=\(missingLabels.joined(separator: ","))",
             "gazeDirection=\(gazeDirection)",
             "observations=\(observations.count)"
         ].joined(separator: " ")
-        return (passed, evidence)
+        return (passed, evidence, expectedLabels.joined(separator: ","))
+    }
+
+    private static func liveClickExpectations(plan: InteractionPlan) -> [LiveInteractionExpectation] {
+        var expectations: [LiveInteractionExpectation] = []
+        for zone in plan.hitZoneSummaries() {
+            if let tapAction = zone.tapAction {
+                expectations.append(LiveInteractionExpectation(
+                    id: "zone:\(zone.id):tap:\(tapAction)",
+                    zoneID: zone.id,
+                    action: tapAction,
+                    isEmptyClick: false
+                ))
+            }
+            expectations.append(LiveInteractionExpectation(
+                id: "zone:\(zone.id):action:\(zone.action)",
+                zoneID: zone.id,
+                action: zone.action,
+                isEmptyClick: false
+            ))
+        }
+        if let defaultAction = plan.defaultActionSummary() {
+            expectations.append(LiveInteractionExpectation(
+                id: "default:\(defaultAction.action)",
+                zoneID: "default",
+                action: defaultAction.action,
+                isEmptyClick: false
+            ))
+        } else if expectations.isEmpty == false {
+            expectations.append(LiveInteractionExpectation(
+                id: "empty-click:no-action",
+                zoneID: nil,
+                action: nil,
+                isEmptyClick: true
+            ))
+        }
+        return expectations
+    }
+
+    private static func pointerMoveCommands(manifest: WallpaperNativeManifest) -> Set<String> {
+        guard let actions = manifest.interactions.first(where: { $0.event == .pointerMove })?.actions else {
+            return []
+        }
+        let idle = actions["idle"] ?? "idle"
+        return Set(actions.values.filter { $0 != idle })
+    }
+
+    private static func clickActionCommands(expectations: [LiveInteractionExpectation]) -> Set<String> {
+        Set(expectations.compactMap(\.action))
+    }
+
+    private static func button(from event: String) -> PointerButton? {
+        if event.hasPrefix("left") || event == "drag" {
+            return .left
+        }
+        if event.hasPrefix("right") {
+            return .right
+        }
+        return nil
     }
 
     private static func normalizedPoint(_ text: String) -> CGPoint? {

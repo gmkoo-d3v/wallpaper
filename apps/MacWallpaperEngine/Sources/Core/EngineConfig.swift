@@ -740,7 +740,7 @@ struct EngineConfig {
       --primary-display <sel>   Treat a matching display as primary. Accepts displayID:<id>, fingerprint:<hash>, arrangement:<hash>, name:<name>, or raw id/hash/name.
       --level <level>           normal | desktop | desktopMinusOne | desktopPlusOne | backstop. Default: desktop.
       --duration <seconds>      Auto-quit after a short smoke run.
-      --fps <value>             Render FPS: 30 | 60 | display. Values above 60 map to display refresh.
+      --fps <value>             Render FPS: 30 | 60 | display. Display mode is capped by manifest maxFps.
       --playback-rate <value>   Video playback rate override. Defaults to manifest asset rate.
       --audio                   Enable sound only for wallpapers whose manifest uses audioPolicy=userControlled.
       --mute, --no-audio        Keep wallpaper audio muted. Default and always enforced for muted/disabled manifests.
@@ -768,7 +768,7 @@ struct EngineConfig {
       --confirm-packaged-launch
                               With --record-manual-smoke-evidence, confirm packaged launch/no-crash smoke.
       --confirm-live-click-actions
-                              With --record-manual-smoke-evidence, confirm head/body/empty/gaze click smoke.
+                              With --record-manual-smoke-evidence, confirm manifest-declared click/gaze smoke.
       --confirm-physical-display-hotplug
                               With --record-manual-smoke-evidence, confirm selectedOnly/selectedPolicy/allFull reconnect smoke.
       --confirm-black-frame-flicker

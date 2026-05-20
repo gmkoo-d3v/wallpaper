@@ -273,9 +273,11 @@ enum BundleValidationMatrix {
             runtime: displayRuntime,
             displayMode: .all
         )
+        let highRefreshFps = min(120, runtime.manifest.runtime.maxFps)
+        let standardRefreshFps = min(60, runtime.manifest.runtime.maxFps)
         guard displayRefreshPlan.contains("displayMode: allFull"),
-              displayRefreshPlan.contains("fps=120\tfpsMode=display\tdisplayRefresh=120Hz"),
-              occurrenceCount("fps=60\tfpsMode=display\tdisplayRefresh=60Hz", in: displayRefreshPlan) == 2 else {
+              displayRefreshPlan.contains("fps=\(highRefreshFps)\tfpsMode=display\tdisplayRefresh=120Hz"),
+              occurrenceCount("fps=\(standardRefreshFps)\tfpsMode=display\tdisplayRefresh=60Hz", in: displayRefreshPlan) == 2 else {
             throw EngineError.invalidArgument(
                 "display-refresh simulated render plan is invalid for \(runtime.config.wallpaperRoot.lastPathComponent)"
             )
@@ -421,7 +423,7 @@ enum BundleValidationMatrix {
             clearDuration: true
         ))
         let displayPlan = displayRuntime.performancePlan(displayRefreshFps: 120)
-        guard displayPlan.effectiveTargetFps == 120,
+        guard displayPlan.effectiveTargetFps == min(120, runtime.manifest.runtime.maxFps),
               displayPlan.powerSavingFps == displayPlan.fallbackFps,
               displayPlan.downgradeFpsLadder.contains(displayPlan.fallbackFps) else {
             throw EngineError.invalidArgument(

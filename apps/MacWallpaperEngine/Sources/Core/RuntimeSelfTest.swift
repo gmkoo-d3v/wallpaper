@@ -48,8 +48,8 @@ enum RuntimeSelfTest {
             clearDuration: true
         ))
         check(
-            displayRefreshRuntime.renderTargetFps(displayRefreshFps: 144) == 144,
-            "display-refresh FPS mode must match monitor refresh above 60Hz"
+            displayRefreshRuntime.renderTargetFps(displayRefreshFps: 144) == manifest.runtime.maxFps,
+            "display-refresh FPS mode must honor the wallpaper manifest maxFps on high-refresh displays"
         )
         check(
             displayRefreshRuntime.renderTargetFps(displayRefreshFps: 60) == 60,
@@ -369,6 +369,13 @@ enum RuntimeSelfTest {
         check(
             ControlPanelWindowController.pageLabels == ["Main", "Library", "Diagnostics"],
             "control panel must split controls, library, and diagnostics into compact in-app pages"
+        )
+        check(
+            ControlPanelWindowController.foregroundModeLabels == ["Auto", "Fallback Video", "Native Spine"]
+                && ControlPanelWindowController.foregroundModeTooltips.count == ControlPanelWindowController.foregroundModeLabels.count
+                && ControlPanelWindowController.foregroundModeTooltips[0].contains("Native Spine")
+                && ControlPanelWindowController.foregroundModeTooltips[1].contains("lower-fidelity composite video fallback"),
+            "control panel foreground labels must make composite a fallback path, not the normal playback mode"
         )
         check(
             ControlPanelWindowController.displayModeTooltips.count == ControlPanelWindowController.displayModeLabels.count
@@ -1840,8 +1847,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("manual\tmanual\tphysical-display-hotplug-smoke")
                 && completionAudit.contains("manual\tmanual\tblack-frame-flicker-smoke")
                 && completionAudit.contains("protocol\tmanual\tlive-desktop-click-actions-protocol")
-                && completionAudit.contains("head short tap=boll")
-                && completionAudit.contains("body tap=boll")
+                && completionAudit.contains("manifest-declared pointerMove/pointerDown")
+                && completionAudit.contains("sample_imported{move:")
                 && completionAudit.contains("protocol\tmanual\tphysical-display-hotplug-smoke-protocol")
                 && completionAudit.contains("selectedOnly=primary-only")
                 && completionAudit.contains("protocol\tmanual\tblack-frame-flicker-smoke-protocol")
@@ -1861,7 +1868,7 @@ enum RuntimeSelfTest {
           "liveDesktopClickActions": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "head short tap produced boll; head hold or rub produced act; body tap produced boll; empty click produced no action; left-drag gaze changed direction"
+            "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions"
           },
           "physicalDisplayHotplugSmoke": {
             "passed": true,
@@ -1908,7 +1915,7 @@ enum RuntimeSelfTest {
           "liveDesktopClickActions": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction."
+            "evidence": "Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus empty-desktop gating."
           },
           "physicalDisplayHotplugSmoke": {
             "passed": false,
@@ -2014,7 +2021,8 @@ enum RuntimeSelfTest {
                 && runtimeSmokeEvidence.contains("\"blackFrameFlickerSmoke\"")
                 && runtimeSmokeEvidence.contains("runtime telemetry captured")
                 && runtimeSmokeEvidence.contains("live telemetry proof:")
-                && runtimeSmokeEvidence.contains("headShortTap=")
+                && runtimeSmokeEvidence.contains("expected=")
+                && runtimeSmokeEvidence.contains("manifestChecklist=")
                 && runtimeSmokeEvidence.contains("runtime physical display telemetry captured")
                 && runtimeSmokeEvidence.contains("flicker telemetry captured"),
             "runtime smoke evidence writer must generate a completion-audit-compatible evidence JSON with telemetry context"
@@ -3034,6 +3042,18 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(parsed.launchAtLogin, "EngineConfig must restore persisted launch-at-login opt-in", failures: &failures, checks: &checks)
+
+        let compositeConfig = runtime.config.replacing(foregroundMode: .compositeVideo, clearDuration: true)
+        try RuntimeSettingsStore.save(config: compositeConfig, to: settingsURL)
+        let loadedComposite = try RuntimeSettingsStore.load(from: settingsURL)
+        let parsedCompositePersistence = try EngineConfig.parse([])
+        check(
+            loadedComposite.foregroundMode == .automatic
+                && parsedCompositePersistence.foregroundMode == .automatic,
+            "persisted composite foreground mode must recover to auto so degraded fallback video cannot become the next launch default",
+            failures: &failures,
+            checks: &checks
+        )
 
         let diagnosticParse = try EngineConfig.parse(["--validate-only"])
         check(

@@ -92,8 +92,7 @@ final class NativeRuntimeCore {
         let requestedFps = requestedRenderFps(displayRefreshFps: displayRefreshFps)
         return PerformancePlan.make(
             manifest: manifest,
-            requestedFps: requestedFps,
-            maxFpsOverride: config.matchDisplayRefresh ? requestedFps : nil
+            requestedFps: requestedFps
         )
     }
 

@@ -28,7 +28,7 @@ struct PersistedEngineSettings: Codable, Equatable {
             playbackRateOverride: config.playbackRateOverride,
             audioEnabled: config.audioEnabled,
             fitMode: config.fitMode,
-            foregroundMode: config.foregroundMode,
+            foregroundMode: persistedForegroundMode(config.foregroundMode),
             launchAtLogin: config.launchAtLogin
         )
     }
@@ -45,9 +45,13 @@ struct PersistedEngineSettings: Codable, Equatable {
             playbackRateOverride: playbackRateOverride.flatMap { $0.isFinite && $0 > 0 && $0 <= 4 ? $0 : nil },
             audioEnabled: audioEnabled ?? false,
             fitMode: fitMode,
-            foregroundMode: foregroundMode,
+            foregroundMode: foregroundMode.map(Self.persistedForegroundMode),
             launchAtLogin: launchAtLogin ?? false
         )
+    }
+
+    private static func persistedForegroundMode(_ foregroundMode: ForegroundRenderMode) -> ForegroundRenderMode {
+        foregroundMode == .compositeVideo ? .automatic : foregroundMode
     }
 }
 

@@ -106,6 +106,7 @@ enum RuntimeCompletionAudit {
         let liveClickEvidence = manualEvidence?.liveDesktopClickActions
         let physicalDisplayEvidence = manualEvidence?.physicalDisplayHotplugSmoke
         let blackFrameFlickerEvidence = manualEvidence?.blackFrameFlickerSmoke
+        let liveInteractionProtocol = liveClickProtocolText(bundles: interactiveSpineBundles)
 
         let automatedItems = [
             item(
@@ -190,7 +191,7 @@ enum RuntimeCompletionAudit {
                 evidence: manualEvidenceText(
                     liveClickEvidence,
                     fallback: accessibilityTrusted
-                        ? "Accessibility trusted; manual live smoke still required: head short tap, head hold/rub, body tap, empty click, left-drag gaze"
+                        ? "Accessibility trusted; manual live smoke still required: \(liveInteractionProtocol)"
                         : "Accessibility trust missing; click actions are blocked by design until the current app is trusted"
                 )
             ),
@@ -214,7 +215,7 @@ enum RuntimeCompletionAudit {
         let protocolItems = [
             protocolItem(
                 id: "live-desktop-click-actions-protocol",
-                evidence: "launch packaged app; grant Accessibility to current app binary; enable click actions; expected head short tap=boll head hold-or-rub>=0.18s=act body tap=boll empty click=no-action left-drag gaze=Left/Right/Up/Down"
+                evidence: "launch packaged app; grant Accessibility to current app binary; enable click actions; expected \(liveInteractionProtocol)"
             ),
             protocolItem(
                 id: "physical-display-hotplug-smoke-protocol",
@@ -291,7 +292,7 @@ enum RuntimeCompletionAudit {
             liveDesktopClickActions: liveClickActionsPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed live click actions: head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no-action, left-drag gaze changed direction."
+                    evidence: "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions."
                 )
                 : existing?.liveDesktopClickActions ?? templateLiveClickEntry(),
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
@@ -396,6 +397,45 @@ enum RuntimeCompletionAudit {
         )
     }
 
+    private static func liveClickProtocolText(bundles: [WallpaperBundleSummary]) -> String {
+        let interactiveBundles = bundles.filter {
+            $0.capabilities.interactionKinds.contains("pointerMove")
+                || $0.capabilities.interactionKinds.contains("pointerDown")
+        }
+        guard interactiveBundles.isEmpty == false else {
+            return "no manifest-declared pointer interactions for the discovered bundles"
+        }
+
+        let bundleTexts = interactiveBundles.prefix(3).map { bundle -> String in
+            guard let manifest = try? ManifestLoader.load(url: bundle.manifestURL, bundleRoot: bundle.root) else {
+                return "\(bundle.id): manifest interaction checklist unavailable"
+            }
+            let plan = InteractionPlan(
+                interactions: manifest.interactions,
+                policy: manifest.interactionPolicy
+            )
+            let moveText = manifest.interactions
+                .first(where: { $0.event == .pointerMove })?
+                .actions?
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: ",") ?? "none"
+            let zoneText = plan.hitZoneSummaries().map { zone in
+                if let tapAction = zone.tapAction {
+                    return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))"
+                }
+                return "\(zone.id):\(zone.trigger.rawValue)=\(zone.action)"
+            }.joined(separator: ",")
+            let defaultText = plan.defaultActionSummary().map { "default:\($0.trigger.rawValue)=\($0.action)" } ?? "empty=no-action"
+            return "\(bundle.id){move:\(moveText); click:\(zoneText.isEmpty ? defaultText : zoneText + "," + defaultText)}"
+        }
+
+        let suffix = interactiveBundles.count > bundleTexts.count
+            ? "; +\(interactiveBundles.count - bundleTexts.count) more bundle(s)"
+            : ""
+        return "verify manifest-declared pointerMove/pointerDown behavior: \(bundleTexts.joined(separator: "; "))\(suffix)"
+    }
+
     private static func oneLine(_ value: String) -> String {
         value
             .split(whereSeparator: \.isNewline)
@@ -438,7 +478,7 @@ enum RuntimeCompletionAudit {
         try validateManualEvidenceEntry(
             evidence.liveDesktopClickActions,
             label: "liveDesktopClickActions",
-            requiredPassTokens: ["head", "body", "empty", "gaze"]
+            requiredPassTokens: ["click", "gaze"]
         )
         try validateManualEvidenceEntry(
             evidence.physicalDisplayHotplugSmoke,
@@ -479,7 +519,7 @@ enum RuntimeCompletionAudit {
     private static func templateLiveClickEntry() -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
-            evidence: "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
+            evidence: "Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus empty-desktop gating.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
             operatorNote: "Required before live-desktop-click-actions can pass."
         )
@@ -539,7 +579,7 @@ enum RuntimeCompletionAudit {
           "liveDesktopClickActions": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Grant Accessibility to the current app; enable click actions; verify head short tap=boll, head hold/rub>=0.18s=act, body tap=boll, empty click=no action, left-drag gaze changes direction.",
+            "evidence": "Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus empty-desktop gating.",
             "operatorNote": "Required before live-desktop-click-actions can pass."
           },
           "physicalDisplayHotplugSmoke": {
