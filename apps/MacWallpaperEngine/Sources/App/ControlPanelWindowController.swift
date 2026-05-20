@@ -60,6 +60,7 @@ final class ControlPanelWindowController: NSWindowController {
     static let displayModeLabels = ["Selected Only", "Selected+Policy", "All Full"]
     static let pageLabels = ["Main", "Library", "Diagnostics"]
     static let foregroundModeLabels = ["Auto", "Fallback Video", "Native Spine"]
+    static let initialWindowSize = CGSize(width: 700, height: 360)
     static let foregroundModeTooltips = [
         "Use Native Spine when supported; use video fallback only when native playback is unavailable.",
         "Force the lower-fidelity composite video fallback for comparison or emergency recovery.",
@@ -130,7 +131,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let interactionDebugOverlayToggle = NSButton(checkboxWithTitle: "Hit-zone overlay", target: nil, action: nil)
-    private let requestInteractionPermissionButton = NSButton(title: "ENABLE CLICK ACTIONS", target: nil, action: nil)
+    private let requestInteractionPermissionButton = NSButton(title: "ENABLE CLICKS", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ControlPanelWindowController.fpsLabels,
         trackingMode: .selectOne,
@@ -172,7 +173,7 @@ final class ControlPanelWindowController: NSWindowController {
     init(delegate: ControlPanelDelegate) {
         self.delegate = delegate
         let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 760, height: 430),
+            contentRect: CGRect(origin: .zero, size: Self.initialWindowSize),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -315,15 +316,15 @@ final class ControlPanelWindowController: NSWindowController {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor(red: 0.102, green: 0.129, blue: 0.161, alpha: 1).cgColor
         view.translatesAutoresizingMaskIntoConstraints = false
-        view.heightAnchor.constraint(equalToConstant: 88).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 72).isActive = true
 
         let title = NSTextField(labelWithString: "Mac Wallpaper Engine")
-        title.font = .systemFont(ofSize: 24, weight: .bold)
+        title.font = .systemFont(ofSize: 21, weight: .bold)
         title.textColor = .white
         title.translatesAutoresizingMaskIntoConstraints = false
 
         let subtitle = NSTextField(labelWithString: "Native Metal wallpaper runtime")
-        subtitle.font = .systemFont(ofSize: 13, weight: .regular)
+        subtitle.font = .systemFont(ofSize: 12, weight: .regular)
         subtitle.textColor = NSColor(white: 0.74, alpha: 1)
         subtitle.translatesAutoresizingMaskIntoConstraints = false
 
@@ -331,9 +332,9 @@ final class ControlPanelWindowController: NSWindowController {
         view.addSubview(subtitle)
         NSLayoutConstraint.activate([
             title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
-            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 18),
+            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 13),
             subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8)
+            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 6)
         ])
         return view
     }
@@ -344,7 +345,7 @@ final class ControlPanelWindowController: NSWindowController {
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.spacing = 12
+        stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
 
@@ -381,8 +382,8 @@ final class ControlPanelWindowController: NSWindowController {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -18)
+            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -12)
         ])
         return view
     }
@@ -390,7 +391,7 @@ final class ControlPanelWindowController: NSWindowController {
     private func pageStack(_ rows: [NSView]) -> NSStackView {
         let stack = NSStackView(views: rows)
         stack.orientation = .vertical
-        stack.spacing = 12
+        stack.spacing = 8
         stack.alignment = .width
         return stack
     }
@@ -449,7 +450,7 @@ final class ControlPanelWindowController: NSWindowController {
         let line = NSStackView()
         line.orientation = .horizontal
         line.alignment = .centerY
-        line.spacing = 12
+        line.spacing = 8
 
         pathValue.font = .systemFont(ofSize: 14, weight: .light)
         pathValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
@@ -459,9 +460,9 @@ final class ControlPanelWindowController: NSWindowController {
         bundleDiagnosticsValue.textColor = NSColor(red: 0.42, green: 0.42, blue: 0.42, alpha: 1)
         bundleDiagnosticsValue.lineBreakMode = .byTruncatingMiddle
         bundleDiagnosticsValue.maximumNumberOfLines = 2
-        bundlePopup.widthAnchor.constraint(equalToConstant: 220).isActive = true
-        chooseBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
-        importBundleButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
+        bundlePopup.widthAnchor.constraint(equalToConstant: 190).isActive = true
+        chooseBundleButton.widthAnchor.constraint(equalToConstant: 132).isActive = true
+        importBundleButton.widthAnchor.constraint(equalToConstant: 132).isActive = true
 
         line.addArrangedSubview(bundlePopup)
         line.addArrangedSubview(pathValue)
@@ -539,7 +540,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 12
+        row.spacing = 8
 
         let caption = NSTextField(labelWithString: "DISPLAY MODE")
         caption.font = .systemFont(ofSize: 11, weight: .medium)
@@ -550,7 +551,7 @@ final class ControlPanelWindowController: NSWindowController {
         for (index, tooltip) in Self.displayModeTooltips.enumerated() {
             displayModeControl.setToolTip(tooltip, forSegment: index)
         }
-        primaryDisplayPopup.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        primaryDisplayPopup.widthAnchor.constraint(equalToConstant: 172).isActive = true
 
         let primaryCaption = self.caption("PRIMARY")
 
@@ -566,7 +567,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 12
+        row.spacing = 8
 
         let caption = self.caption("INTERACTION")
         interactionStatusValue.font = .systemFont(ofSize: 13, weight: .light)
@@ -575,7 +576,7 @@ final class ControlPanelWindowController: NSWindowController {
         interactionStatusValue.maximumNumberOfLines = Self.interactionStatusMaximumLines
         interactionStatusValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         interactionStatusValue.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        requestInteractionPermissionButton.widthAnchor.constraint(equalToConstant: 170).isActive = true
+        requestInteractionPermissionButton.widthAnchor.constraint(equalToConstant: 128).isActive = true
         requestInteractionPermissionButton.toolTip = Self.interactionPermissionButtonTooltip
 
         row.addArrangedSubview(caption)
@@ -588,7 +589,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 12
+        row.spacing = 8
 
         let foregroundCaption = caption("FOREGROUND")
         foregroundModeControl.segmentStyle = .texturedSquare
@@ -605,7 +606,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 12
+        row.spacing = 8
 
         let fpsCaption = caption("FPS")
         let speedCaption = caption("SPEED")
@@ -635,7 +636,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 12
+        row.spacing = 8
 
         let debugCaption = caption("DEBUG")
         interactionDebugOverlayToggle.font = .systemFont(ofSize: 13, weight: .regular)
@@ -650,7 +651,7 @@ final class ControlPanelWindowController: NSWindowController {
     private func buttonRow() -> NSView {
         let row = NSStackView()
         row.orientation = .horizontal
-        row.spacing = 12
+        row.spacing = 8
         row.addArrangedSubview(startButton)
         row.addArrangedSubview(stopButton)
         row.addArrangedSubview(applyButton)
@@ -662,13 +663,13 @@ final class ControlPanelWindowController: NSWindowController {
         button.bezelStyle = .regularSquare
         button.isBordered = true
         button.contentTintColor = NSColor(red: 0.11, green: 0.41, blue: 0.83, alpha: 1)
-        button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
     }
 
     private func styleSecondaryButton(_ button: NSButton) {
         button.bezelStyle = .regularSquare
         button.isBordered = true
-        button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
     }
 
     private func segment(for mode: DisplayMode) -> Int {

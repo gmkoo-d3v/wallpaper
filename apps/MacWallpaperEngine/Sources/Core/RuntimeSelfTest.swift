@@ -371,6 +371,11 @@ enum RuntimeSelfTest {
             "control panel must split controls, library, and diagnostics into compact in-app pages"
         )
         check(
+            ControlPanelWindowController.initialWindowSize.width <= 700
+                && ControlPanelWindowController.initialWindowSize.height <= 360,
+            "control panel must keep the main window compact after moving verbose state into in-app pages and tooltips"
+        )
+        check(
             ControlPanelWindowController.foregroundModeLabels == ["Auto", "Fallback Video", "Native Spine"]
                 && ControlPanelWindowController.foregroundModeTooltips.count == ControlPanelWindowController.foregroundModeLabels.count
                 && ControlPanelWindowController.foregroundModeTooltips[0].contains("Native Spine")
@@ -750,7 +755,7 @@ enum RuntimeSelfTest {
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
             runtime: runtime,
-            interactionStatus: "INTERACTION NEEDS PERMISSION / click actions disabled"
+            interactionStatus: "PERMISSION NEEDED / click actions disabled"
         )
         check(
             doctorReport.contains("wallpaper doctor OK")
@@ -2639,7 +2644,7 @@ enum RuntimeSelfTest {
         )
         check(
             blockedPermissionStatus.canRequestAccessibilityPermission
-                && blockedPermissionStatus.text.contains("INTERACTION NEEDS PERMISSION")
+                && blockedPermissionStatus.text.contains("PERMISSION NEEDED")
                 && blockedPermissionStatus.text.contains("click actions disabled")
                 && blockedPermissionStatus.text.count < 90,
             "control panel interaction status must explain missing click/touch permission without showing a long warning sentence",
@@ -2654,7 +2659,7 @@ enum RuntimeSelfTest {
         )
         check(
             secondaryPermissionStatus.canRequestAccessibilityPermission == false
-                && secondaryPermissionStatus.text.contains("INTERACTION PASSIVE"),
+                && secondaryPermissionStatus.text.contains("PASSIVE"),
             "control panel interaction status must mark secondary displays passive instead of requesting permission",
             failures: &failures,
             checks: &checks
@@ -2710,7 +2715,7 @@ enum RuntimeSelfTest {
         )
         check(
             readyPermissionStatus.canRequestAccessibilityPermission == false
-                && readyPermissionStatus.text.contains("INTERACTION READY"),
+                && readyPermissionStatus.text.contains("READY"),
             "control panel interaction status must not request Accessibility when desktop item blocking is disabled",
             failures: &failures,
             checks: &checks
@@ -2735,8 +2740,10 @@ enum RuntimeSelfTest {
             monitorSnapshot: deliveredInteractionSnapshot
         )
         check(
-            deliveredControlPanelText.contains("input active tap:on")
-                && deliveredControlPanelText.contains("cmd:act"),
+            deliveredControlPanelText.contains("READY")
+                && deliveredControlPanelText.contains("tap")
+                && deliveredControlPanelText.contains("cmd act")
+                && deliveredControlPanelText.count < 80,
             "control panel interaction status must surface compact live monitor delivery state",
             failures: &failures,
             checks: &checks
@@ -2747,7 +2754,7 @@ enum RuntimeSelfTest {
             monitorSnapshot: nil
         )
         check(
-            waitingControlPanelText.contains("input starting"),
+            waitingControlPanelText.contains("starting"),
             "control panel interaction status must distinguish ready policy from missing monitor telemetry",
             failures: &failures,
             checks: &checks
@@ -2758,9 +2765,10 @@ enum RuntimeSelfTest {
             monitorSnapshot: deliveredInteractionSnapshot
         )
         check(
-            degradedControlPanelText.contains("INTERACTION NEEDS PERMISSION")
-                && degradedControlPanelText.contains("input active tap:on")
-                && degradedControlPanelText.contains("cmd:act"),
+            degradedControlPanelText.contains("PERMISSION NEEDED")
+                && degradedControlPanelText.contains("tap")
+                && degradedControlPanelText.contains("cmd act")
+                && degradedControlPanelText.count < 90,
             "missing-permission interaction status must remain visible while surfacing live hover monitor telemetry",
             failures: &failures,
             checks: &checks

@@ -142,36 +142,36 @@ enum RuntimeLifecyclePolicy {
     ) -> DesktopInteractionPermissionStatus {
         guard runtimeInteractive else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION OFF / runtime setting",
+                text: "OFF / runtime setting",
                 canRequestAccessibilityPermission: false
             )
         }
         guard displayRole.allowsInteraction else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION PASSIVE / secondary display",
+                text: "PASSIVE / secondary display",
                 canRequestAccessibilityPermission: false
             )
         }
         guard interactionPolicy.mode != .disabled else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION OFF / wallpaper policy",
+                text: "OFF / wallpaper policy",
                 canRequestAccessibilityPermission: false
             )
         }
         guard requiresAccessibilityTrustForDesktopItems(interactionPolicy) else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION READY / \(interactionPolicy.mode.rawValue)",
+                text: "READY / \(interactionPolicy.mode.rawValue)",
                 canRequestAccessibilityPermission: false
             )
         }
         guard accessibilityTrusted else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION NEEDS PERMISSION / click actions disabled",
+                text: "PERMISSION NEEDED / click actions disabled",
                 canRequestAccessibilityPermission: true
             )
         }
         return DesktopInteractionPermissionStatus(
-            text: "INTERACTION READY / clicks trusted",
+            text: "READY / click actions trusted",
             canRequestAccessibilityPermission: false
         )
     }
@@ -181,22 +181,22 @@ enum RuntimeLifecyclePolicy {
         isHostRunning: Bool,
         monitorSnapshot: InteractionMonitorTelemetrySnapshot?
     ) -> String {
-        guard permissionStatus.text.contains("INTERACTION READY")
-            || permissionStatus.text.contains("INTERACTION NEEDS PERMISSION") else {
+        guard permissionStatus.text.hasPrefix("READY")
+            || permissionStatus.text.hasPrefix("PERMISSION NEEDED") else {
             return permissionStatus.text
         }
         guard isHostRunning else {
-            return "\(permissionStatus.text) / input stopped"
+            return "\(permissionStatus.text) / stopped"
         }
         guard let monitorSnapshot else {
-            return "\(permissionStatus.text) / input starting"
+            return "\(permissionStatus.text) / starting"
         }
 
         let sourceState: String
         if monitorSnapshot.eventTapActive {
-            sourceState = "tap:on"
+            sourceState = "tap"
         } else if monitorSnapshot.localMonitorActive {
-            sourceState = "local:on"
+            sourceState = "local"
         } else if monitorSnapshot.globalMonitorCount > 0 {
             sourceState = "global:\(monitorSnapshot.globalMonitorCount)"
         } else {
@@ -204,8 +204,8 @@ enum RuntimeLifecyclePolicy {
         }
 
         guard monitorSnapshot.active else {
-            return "\(permissionStatus.text) / input \(sourceState)"
+            return "\(permissionStatus.text) / \(sourceState)"
         }
-        return "\(permissionStatus.text) / input active \(sourceState) cmd:\(monitorSnapshot.lastCommand)"
+        return "\(permissionStatus.text) / \(sourceState) / cmd \(monitorSnapshot.lastCommand)"
     }
 }
