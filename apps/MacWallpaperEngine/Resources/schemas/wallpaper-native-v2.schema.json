@@ -328,7 +328,11 @@
     "hitZone": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "rect", "action"],
+      "required": ["id", "action"],
+      "oneOf": [
+        { "required": ["rect"] },
+        { "required": ["ellipse"] }
+      ],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "rect": {
@@ -343,6 +347,7 @@
           "minItems": 4,
           "maxItems": 4
         },
+        "ellipse": { "$ref": "#/$defs/hitZoneEllipse" },
         "action": { "type": "string", "minLength": 1 },
         "tapAction": { "type": "string", "minLength": 1 },
         "trigger": { "enum": ["tap", "hold"] },
@@ -354,6 +359,16 @@
           "items": { "$ref": "#/$defs/pointerButton" }
         },
         "priority": { "type": "integer" }
+      }
+    },
+    "hitZoneEllipse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["center", "radiusX", "radiusY"],
+      "properties": {
+        "center": { "$ref": "#/$defs/point" },
+        "radiusX": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "radiusY": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
       }
     },
     "defaultAction": {

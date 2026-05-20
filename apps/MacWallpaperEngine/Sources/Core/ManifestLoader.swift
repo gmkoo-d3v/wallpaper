@@ -439,16 +439,45 @@ enum ManifestLoader {
         if let tapAction = hitZone.tapAction, tapAction.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) tapAction must not be empty")
         }
-        guard hitZone.rect.count == 4, hitZone.rect.allSatisfy(\.isFinite) else {
-            throw EngineError.manifest("hitZone \(hitZone.id) rect must contain four finite numbers")
+        let hasRect = hitZone.rect != nil
+        let hasEllipse = hitZone.ellipse != nil
+        guard hasRect != hasEllipse else {
+            throw EngineError.manifest("hitZone \(hitZone.id) must define exactly one shape: rect or ellipse")
         }
 
-        let x0 = hitZone.rect[0]
-        let y0 = hitZone.rect[1]
-        let x1 = hitZone.rect[2]
-        let y1 = hitZone.rect[3]
-        guard x0 >= 0, y0 >= 0, x1 <= 1, y1 <= 1, x0 < x1, y0 < y1 else {
-            throw EngineError.manifest("hitZone \(hitZone.id) rect must satisfy 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1")
+        if let rect = hitZone.rect {
+            guard rect.count == 4, rect.allSatisfy(\.isFinite) else {
+                throw EngineError.manifest("hitZone \(hitZone.id) rect must contain four finite numbers")
+            }
+
+            let x0 = rect[0]
+            let y0 = rect[1]
+            let x1 = rect[2]
+            let y1 = rect[3]
+            guard x0 >= 0, y0 >= 0, x1 <= 1, y1 <= 1, x0 < x1, y0 < y1 else {
+                throw EngineError.manifest("hitZone \(hitZone.id) rect must satisfy 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1")
+            }
+        }
+
+        if let ellipse = hitZone.ellipse {
+            guard ellipse.center.x.isFinite,
+                  ellipse.center.y.isFinite,
+                  ellipse.radiusX.isFinite,
+                  ellipse.radiusY.isFinite else {
+                throw EngineError.manifest("hitZone \(hitZone.id) ellipse must contain finite center and radius values")
+            }
+            guard ellipse.center.x >= 0,
+                  ellipse.center.x <= 1,
+                  ellipse.center.y >= 0,
+                  ellipse.center.y <= 1,
+                  ellipse.radiusX > 0,
+                  ellipse.radiusY > 0,
+                  ellipse.center.x - ellipse.radiusX >= 0,
+                  ellipse.center.x + ellipse.radiusX <= 1,
+                  ellipse.center.y - ellipse.radiusY >= 0,
+                  ellipse.center.y + ellipse.radiusY <= 1 else {
+                throw EngineError.manifest("hitZone \(hitZone.id) ellipse must stay inside normalized content bounds")
+            }
         }
         if let tailSeconds = hitZone.tailSeconds {
             try validateInteractionDuration(tailSeconds, label: "hitZone \(hitZone.id) tailSeconds")
@@ -484,7 +513,7 @@ enum ManifestLoader {
                 let rightButtons = Set(right.buttons ?? defaultButtons)
                 let sharedButtons = leftButtons.intersection(rightButtons)
                 guard sharedButtons.isEmpty == false else { continue }
-                guard hitZoneRectsOverlap(left.rect, right.rect) else { continue }
+                guard hitZoneBoundsOverlap(left, right) else { continue }
                 let leftPriority = left.priority ?? 0
                 let rightPriority = right.priority ?? 0
                 guard leftPriority == rightPriority else { continue }
@@ -494,10 +523,34 @@ enum ManifestLoader {
                     .sorted()
                     .joined(separator: "+")
                 throw EngineError.manifest(
-                    "hitZones \(left.id) and \(right.id) overlap for button(s) \(buttonText) at priority \(leftPriority); split the rects or assign distinct hit-zone priorities"
+                    "hitZones \(left.id) and \(right.id) overlap for button(s) \(buttonText) at priority \(leftPriority); split the shapes or assign distinct hit-zone priorities"
                 )
             }
         }
+    }
+
+    private static func hitZoneBoundsOverlap(_ left: HitZone, _ right: HitZone) -> Bool {
+        guard let leftBounds = hitZoneBounds(left),
+              let rightBounds = hitZoneBounds(right) else {
+            return false
+        }
+        return hitZoneRectsOverlap(leftBounds, rightBounds)
+    }
+
+    private static func hitZoneBounds(_ hitZone: HitZone) -> [Double]? {
+        if let rect = hitZone.rect {
+            return rect
+        }
+
+        guard let ellipse = hitZone.ellipse else {
+            return nil
+        }
+        return [
+            ellipse.center.x - ellipse.radiusX,
+            ellipse.center.y - ellipse.radiusY,
+            ellipse.center.x + ellipse.radiusX,
+            ellipse.center.y + ellipse.radiusY
+        ]
     }
 
     private static func hitZoneRectsOverlap(_ left: [Double], _ right: [Double]) -> Bool {

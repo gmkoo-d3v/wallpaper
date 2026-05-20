@@ -21,6 +21,7 @@ struct InteractionHitZoneSummary {
     let holdStartSeconds: CFTimeInterval
     let buttons: [PointerButton]
     let rect: [Double]
+    let shape: String
     let priority: Int
 
     var detailText: String {
@@ -30,7 +31,7 @@ struct InteractionHitZoneSummary {
         let tapText = tapAction.map {
             " tapAction=\($0) tapTail=\(String(format: "%.2fs", tapTailSeconds)) holdStart=\(String(format: "%.2fs", holdStartSeconds))"
         } ?? ""
-        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText) buttons=\(buttonText) priority=\(priority) rect=[\(rectText)] tail=\(tailText)"
+        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)"
     }
 }
 
@@ -162,7 +163,7 @@ struct InteractionPlan {
         guard interactionButtons.contains(button) else { return nil }
         let matches = (config.hitZones ?? []).enumerated().compactMap { index, hitZone -> (index: Int, hitZone: HitZone)? in
             let zoneButtons = hitZone.buttons ?? interactionButtons
-            guard zoneButtons.contains(button), contains(point: pointer, in: hitZone.rect) else { return nil }
+            guard zoneButtons.contains(button), contains(point: pointer, in: hitZone) else { return nil }
             return (index, hitZone)
         }
         if let selected = matches.max(by: { left, right in
@@ -171,8 +172,8 @@ struct InteractionPlan {
             if leftPriority != rightPriority {
                 return leftPriority < rightPriority
             }
-            let leftArea = area(of: left.hitZone.rect)
-            let rightArea = area(of: right.hitZone.rect)
+            let leftArea = area(of: left.hitZone)
+            let rightArea = area(of: right.hitZone)
             if leftArea != rightArea {
                 return leftArea > rightArea
             }
@@ -220,7 +221,8 @@ struct InteractionPlan {
                 tapTailSeconds: resolvedTapTailSeconds(for: hitZone),
                 holdStartSeconds: hitZone.holdStartSeconds ?? 0,
                 buttons: hitZone.buttons ?? interactionButtons,
-                rect: hitZone.rect,
+                rect: bounds(of: hitZone),
+                shape: shapeName(of: hitZone),
                 priority: hitZone.priority ?? 0
             )
         }
@@ -752,17 +754,43 @@ struct InteractionPlan {
         )
     }
 
-    private func contains(point: CGPoint, in rect: [Double]) -> Bool {
-        guard rect.count == 4 else { return false }
+    private func contains(point: CGPoint, in hitZone: HitZone) -> Bool {
+        if let ellipse = hitZone.ellipse {
+            let dx = (Double(point.x) - ellipse.center.x) / ellipse.radiusX
+            let dy = (Double(point.y) - ellipse.center.y) / ellipse.radiusY
+            return dx * dx + dy * dy <= 1
+        }
+
+        guard let rect = hitZone.rect, rect.count == 4 else { return false }
         return Double(point.x) >= rect[0]
             && Double(point.x) <= rect[2]
             && Double(point.y) >= rect[1]
             && Double(point.y) <= rect[3]
     }
 
-    private func area(of rect: [Double]) -> Double {
-        guard rect.count == 4 else { return .greatestFiniteMagnitude }
+    private func area(of hitZone: HitZone) -> Double {
+        if let ellipse = hitZone.ellipse {
+            return Double.pi * ellipse.radiusX * ellipse.radiusY
+        }
+
+        guard let rect = hitZone.rect, rect.count == 4 else { return .greatestFiniteMagnitude }
         return max(0, rect[2] - rect[0]) * max(0, rect[3] - rect[1])
+    }
+
+    private func bounds(of hitZone: HitZone) -> [Double] {
+        if let ellipse = hitZone.ellipse {
+            return [
+                max(0, ellipse.center.x - ellipse.radiusX),
+                max(0, ellipse.center.y - ellipse.radiusY),
+                min(1, ellipse.center.x + ellipse.radiusX),
+                min(1, ellipse.center.y + ellipse.radiusY)
+            ]
+        }
+        return hitZone.rect ?? [0, 0, 0, 0]
+    }
+
+    private func shapeName(of hitZone: HitZone) -> String {
+        hitZone.ellipse == nil ? "rect" : "ellipse"
     }
 
     private func resolvedTailSeconds(for hitZone: HitZone) -> CFTimeInterval {

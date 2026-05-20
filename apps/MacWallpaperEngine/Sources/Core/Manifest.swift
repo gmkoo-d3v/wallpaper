@@ -237,7 +237,8 @@ struct InteractionPoint: Decodable {
 
 struct HitZone: Decodable {
     let id: String
-    let rect: [Double]
+    let rect: [Double]?
+    let ellipse: HitZoneEllipse?
     let action: String
     let tapAction: String?
     let trigger: HitZoneTrigger?
@@ -246,6 +247,12 @@ struct HitZone: Decodable {
     let holdStartSeconds: Double?
     let buttons: [PointerButton]?
     let priority: Int?
+}
+
+struct HitZoneEllipse: Decodable {
+    let center: InteractionPoint
+    let radiusX: Double
+    let radiusY: Double
 }
 
 struct PointerDownDefaultAction: Decodable {
