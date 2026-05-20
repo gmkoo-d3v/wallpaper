@@ -182,6 +182,10 @@ write_package_smoke_evidence() {
   if [ -z "$PACKAGE_SMOKE_EVIDENCE" ]; then
     return
   fi
+  if [ -f "$PACKAGE_SMOKE_EVIDENCE" ]; then
+    echo "Packaged runtime smoke evidence written: $PACKAGE_SMOKE_EVIDENCE" >&2
+    return
+  fi
   if [ "$PACKAGE_SMOKE_TEST_PASSED" -ne 1 ]; then
     echo "Packaged launch smoke evidence skipped: packaged smoke test did not run successfully." >&2
     return
@@ -244,11 +248,20 @@ run_packaged_smoke_test() {
     return
   fi
 
-  if ! "$MACOS_DIR/$APP_NAME" \
-    --wallpaper-only \
-    --hidden \
-    --duration "$PACKAGE_SMOKE_TEST_DURATION" \
-    --display-mode selectedOnly >/dev/null; then
+  local smoke_args=(
+    --wallpaper-only
+    --hidden
+    --duration "$PACKAGE_SMOKE_TEST_DURATION"
+    --display-mode selectedOnly
+  )
+  if [ -n "$PACKAGE_SMOKE_EVIDENCE" ]; then
+    local evidence_dir
+    evidence_dir="$(dirname "$PACKAGE_SMOKE_EVIDENCE")"
+    mkdir -p "$evidence_dir"
+    smoke_args+=(--write-runtime-smoke-evidence "$PACKAGE_SMOKE_EVIDENCE")
+  fi
+
+  if ! "$MACOS_DIR/$APP_NAME" "${smoke_args[@]}" >/dev/null; then
     echo "Packaged hidden launch smoke test failed: $APP_DIR" >&2
     exit 1
   fi

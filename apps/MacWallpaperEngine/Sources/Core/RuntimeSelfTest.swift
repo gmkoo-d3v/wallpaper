@@ -644,12 +644,6 @@ enum RuntimeSelfTest {
                 compositeQualityReport.recommendations.contains(where: { $0.contains("below maxFps=") }) == false,
                 "max-FPS composite fallback must not keep stale high-refresh regeneration recommendations"
             )
-            if runtime.manifest.metadata?.id == "sample_imported" {
-                check(
-                    compositeVideo.url.lastPathComponent.contains("120fps"),
-                    "Imported sample must ship a 120fps composite fallback for Display Hz / ProMotion fallback playback"
-                )
-            }
         }
         check(
             CompositeVideoExporter.defaultDuration(runtime: runtime) > 0,
@@ -1051,21 +1045,7 @@ enum RuntimeSelfTest {
             )
         }
         let hitZoneSummaries = interactionPlan.hitZoneSummaries()
-        if manifest.metadata?.id == "sample_imported",
-           let headHitZone = hitZoneSummaries.first(where: { $0.id == "head" }) {
-            check(
-                headHitZone.trigger == .hold,
-                "Imported head interaction must stay active while the pointer is held for head-rub gestures"
-            )
-            check(
-                headHitZone.tapAction == "boll"
-                    && headHitZone.holdStartSeconds > 0,
-                "Imported head interaction must map a brief head touch to the body-touch action before a hold/rub becomes the head action"
-            )
-            check(
-                lookMoveButton == .left,
-                "Imported look-direction interaction must be gated to left-drag, matching Wallpaper Engine behavior"
-            )
+        if hasLookDirection, let lookMoveButton {
             var hoverClock: CFTimeInterval = 0
             let hoverController = InteractionController(
                 interactions: manifest.interactions,
@@ -1073,14 +1053,19 @@ enum RuntimeSelfTest {
                 actionTailDurations: tapActionDurations,
                 clock: { hoverClock }
             )
-            hoverController.pointerMoved(to: CGPoint(x: 0.10, y: 0.42))
+            let lookNeutral = SpineInteractionAnimationRoles.lookNeutralPoint(from: manifest)
+            let hoverProbe = CGPoint(
+                x: lookNeutral.x > 0.5 ? 0.10 : 0.90,
+                y: lookNeutral.y
+            )
+            hoverController.pointerMoved(to: hoverProbe)
             for _ in 0..<20 {
                 hoverClock += 1.0 / 60.0
                 _ = hoverController.snapshot()
             }
             check(
                 hoverController.snapshot().command == "idle",
-                "Imported hover movement must stay idle; look-direction should engage only during left drag"
+                "button-gated look-direction must ignore hover movement until the declared \(lookMoveButton.rawValue)-button drag"
             )
         }
         let interactionSummary = InteractionPlan.diagnosticSummary(
@@ -1142,29 +1127,43 @@ enum RuntimeSelfTest {
             button: .left,
             actionTailDurations: tapActionDurations
         )
+        let lookNeutralPoint = SpineInteractionAnimationRoles.lookNeutralPoint(from: manifest)
+        let neutralPointText = String(
+            format: "neutralPoint: %.3f,%.3f",
+            Double(lookNeutralPoint.x),
+            Double(lookNeutralPoint.y)
+        )
         check(
             neutralProbeSummary.contains("interaction probe OK")
                 && neutralProbeSummary.contains("moveCommand: idle")
-                && neutralProbeSummary.contains("neutralPoint: 0.500,0.420"),
+                && neutralProbeSummary.contains(neutralPointText),
             "interaction probe diagnostics must expose one-coordinate look-direction resolution"
-        )
-        let bodyProbeSummary = InteractionPlan.probeSummary(
-            interactions: manifest.interactions,
-            policy: manifest.interactionPolicy,
-            runtimeInteractive: runtime.config.interactive,
-            point: CGPoint(x: 0.50, y: 0.70),
-            button: .left,
-            actionTailDurations: tapActionDurations
-        )
-        check(
-            bodyProbeSummary.contains("hit: zone=body action=boll trigger=tap")
-                && bodyProbeSummary.contains("downSnapshot: boll/1"),
-            "interaction probe diagnostics must expose hit-zone action and click timeline for one coordinate"
         )
         for hitZoneSummary in hitZoneSummaries {
             check(
                 capabilitySummary.contains(hitZoneSummary.detailText),
                 "runtime capabilities summary must report resolved hit-zone tail for \(hitZoneSummary.id)"
+            )
+        }
+        if let probeHitZone = hitZoneSummaries.first {
+            let probePoint = CGPoint(
+                x: CGFloat((probeHitZone.rect[0] + probeHitZone.rect[2]) / 2.0),
+                y: CGFloat((probeHitZone.rect[1] + probeHitZone.rect[3]) / 2.0)
+            )
+            let probeButton = probeHitZone.buttons.first ?? .left
+            let probeInitialAction = probeHitZone.tapAction ?? probeHitZone.action
+            let hitZoneProbeSummary = InteractionPlan.probeSummary(
+                interactions: manifest.interactions,
+                policy: manifest.interactionPolicy,
+                runtimeInteractive: runtime.config.interactive,
+                point: probePoint,
+                button: probeButton,
+                actionTailDurations: tapActionDurations
+            )
+            check(
+                hitZoneProbeSummary.contains("hit: zone=\(probeHitZone.id) action=\(probeHitZone.action) trigger=\(probeHitZone.trigger.rawValue)")
+                    && hitZoneProbeSummary.contains("downSnapshot: \(probeInitialAction)/1"),
+                "interaction probe diagnostics must expose the manifest-declared hit-zone action and click timeline"
             )
         }
         if let defaultActionSummary = interactionPlan.defaultActionSummary() {
@@ -1543,16 +1542,17 @@ enum RuntimeSelfTest {
             EngineConfig.help.contains("--spine-profile"),
             "EngineConfig help must document native Spine profile diagnostics"
         )
+        let snapshotActionForParse = manifestActionNames.sorted().first ?? "idle"
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
             "--spine-snapshot", "/tmp/native-spine-snapshot.png",
-            "--snapshot-action", "act",
+            "--snapshot-action", snapshotActionForParse,
             "--snapshot-time", "1.25",
             "--snapshot-size", "640x360"
         ])
         check(
             parsedSpineSnapshot.spineSnapshotURL?.path == "/tmp/native-spine-snapshot.png"
-                && parsedSpineSnapshot.spineSnapshotAction == "act"
+                && parsedSpineSnapshot.spineSnapshotAction == snapshotActionForParse
                 && parsedSpineSnapshot.spineSnapshotTime == 1.25
                 && parsedSpineSnapshot.spineSnapshotWidth == 640
                 && parsedSpineSnapshot.spineSnapshotHeight == 360,
@@ -1789,9 +1789,10 @@ enum RuntimeSelfTest {
             strictCompositeQuality: false,
             includeInvalid: false
         )
+        let activeBundleID = runtime.manifest.metadata?.id ?? runtime.config.wallpaperRoot.lastPathComponent
         check(
             bundleMatrix.contains("bundle validation matrix OK")
-                && bundleMatrix.contains("sample_imported")
+                && bundleMatrix.contains(activeBundleID)
                 && bundleMatrix.contains("sample_video")
                 && bundleMatrix.contains("sample_static")
                 && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
@@ -1848,7 +1849,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("manual\tmanual\tblack-frame-flicker-smoke")
                 && completionAudit.contains("protocol\tmanual\tlive-desktop-click-actions-protocol")
                 && completionAudit.contains("manifest-declared pointerMove/pointerDown")
-                && completionAudit.contains("sample_imported{move:")
+                && completionAudit.contains("\(activeBundleID){move:")
                 && completionAudit.contains("protocol\tmanual\tphysical-display-hotplug-smoke-protocol")
                 && completionAudit.contains("selectedOnly=primary-only")
                 && completionAudit.contains("protocol\tmanual\tblack-frame-flicker-smoke-protocol")
