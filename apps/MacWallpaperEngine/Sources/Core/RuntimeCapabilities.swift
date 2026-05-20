@@ -39,6 +39,7 @@ struct NativeSpineCompatibility {
 
 struct WallpaperBundleCapabilityInfo: Equatable {
     let sourceSummary: String
+    let sourceDerivationSummary: String
     let assetKinds: [String]
     let layerKinds: [String]
     let interactionKinds: [String]
@@ -54,6 +55,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     var briefText: String {
         [
             "source: \(sourceSummary)",
+            "derivation: \(sourceDerivationSummary)",
             "assets: \(assetKinds.joined(separator: "+"))",
             "layers: \(layerKinds.joined(separator: "+"))",
             "interactions: \(interactionKinds.joined(separator: "+"))",
@@ -72,6 +74,16 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             return "\(nativeSpineStatus)(\(nativeSpineDegradations.joined(separator: "; ")))"
         }
         return nativeSpineStatus
+    }
+
+    var sourceDerivationBadge: String {
+        if sourceDerivationSummary.hasPrefix("partial") {
+            return "partial-source"
+        }
+        if sourceDerivationSummary.hasPrefix("source-derived") {
+            return "source-derived"
+        }
+        return "source-unknown"
     }
 
     var qualitySummary: String {
@@ -109,6 +121,7 @@ enum RuntimeCapabilities {
 
         rows.append(assetRow(name: "staticImage", isPresent: manifest.assets.staticImage != nil, detail: manifest.assets.staticImage?.path))
         rows.append(sourceProvenanceRow(manifest.sourceProvenance))
+        rows.append(sourceDerivationRow(manifest.sourceProvenance))
         rows.append(videoAssetRow(
             name: "video",
             config: manifest.assets.video,
@@ -284,6 +297,7 @@ enum RuntimeCapabilities {
 
         return WallpaperBundleCapabilityInfo(
             sourceSummary: sourceProvenanceSummary(manifest.sourceProvenance),
+            sourceDerivationSummary: sourceDerivationSummary(manifest.sourceProvenance),
             assetKinds: assetKinds,
             layerKinds: layerKinds.isEmpty ? ["none"] : layerKinds,
             interactionKinds: interactionKinds,
@@ -316,6 +330,24 @@ enum RuntimeCapabilities {
         )
     }
 
+    private static func sourceDerivationRow(_ provenance: SourceProvenance?) -> RuntimeCapabilityRow {
+        let summary = sourceDerivationSummary(provenance)
+        let status: String
+        if summary.hasPrefix("partial") {
+            status = "partial"
+        } else if summary.hasPrefix("source-derived") {
+            status = "source-derived"
+        } else {
+            status = "unknown"
+        }
+        return RuntimeCapabilityRow(
+            category: "source",
+            name: "derivation",
+            status: status,
+            detail: summary
+        )
+    }
+
     private static func sourceProvenanceSummary(_ provenance: SourceProvenance?) -> String {
         guard let provenance else { return "unspecified" }
         let imported = provenance.importedFields?.count ?? 0
@@ -325,6 +357,11 @@ enum RuntimeCapabilities {
         let runtime = provenance.sourceRuntime.map { " runtime=\($0)" } ?? ""
         let projectType = provenance.projectType.map { " project=\($0)" } ?? ""
         return "\(provenance.sourceType.rawValue)\(runtime)\(projectType) descriptors=\(descriptors) imported=\(imported) calibrated=\(calibrated) unsupported=\(unsupported)"
+    }
+
+    private static func sourceDerivationSummary(_ provenance: SourceProvenance?) -> String {
+        RuntimeSourceProvenanceReport.derivationStatus(provenance: provenance)
+            .replacingOccurrences(of: "sourceDerivation: ", with: "")
     }
 
     private static func videoAssetRow(

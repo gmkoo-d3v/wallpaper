@@ -28,7 +28,11 @@ enum RuntimeSourceProvenanceReport {
     }
 
     static func derivationStatus(runtime: NativeRuntimeCore) -> String {
-        guard let provenance = runtime.manifest.sourceProvenance else {
+        derivationStatus(provenance: runtime.manifest.sourceProvenance)
+    }
+
+    static func derivationStatus(provenance: SourceProvenance?) -> String {
+        guard let provenance else {
             return "sourceDerivation: unknown(no-source-provenance)"
         }
 

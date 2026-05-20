@@ -77,7 +77,7 @@ final class ControlPanelWindowController: NSWindowController {
     static let interactionPermissionButtonTooltip = "Enable macOS Accessibility permission so desktop-empty click/touch actions can run while Finder icons stay protected. After rebuilding an ad-hoc signed app, re-add the current app if clicks stay disabled."
 
     static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
-        "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)]"
+        "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)/\(bundle.capabilities.sourceDerivationBadge)]"
     }
 
     static func bundlePopupTooltip(for bundle: WallpaperBundleSummary) -> String {

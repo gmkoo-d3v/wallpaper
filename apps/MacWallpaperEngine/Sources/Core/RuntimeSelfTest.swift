@@ -573,6 +573,12 @@ enum RuntimeSelfTest {
                     .contains("/\(expectedInteractionRequirement)/"),
                 "control panel bundle popup title must expose interaction permission requirement before selection"
             )
+            check(
+                ControlPanelWindowController
+                    .bundlePopupTitle(for: validatedBundle)
+                    .contains("/\(validatedBundle.capabilities.sourceDerivationBadge)]"),
+                "control panel bundle popup title must expose source derivation status before selection"
+            )
             let bundlePopupTooltip = ControlPanelWindowController.bundlePopupTooltip(for: validatedBundle)
             check(
                 bundlePopupTooltip.contains(validatedBundle.id)
@@ -746,6 +752,10 @@ enum RuntimeSelfTest {
         check(
             capabilitySummary.contains(expectedDesktopItemGate),
             "runtime capabilities summary must disclose the effective desktop item gate"
+        )
+        check(
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=6 calibrated=7 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
+            "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         if runtime.manifest.interactions.isEmpty == false,
            runtime.manifest.interactionPolicy?.blockDesktopItems ?? true {
