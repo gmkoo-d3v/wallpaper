@@ -142,7 +142,9 @@ struct SpineGeometryDiagnostics {
             softLimitMs: softLimitMs,
             frameBudgetMs: frameBudgetMs
         )
-        let cacheProbe = renderer.diagnosticPoseCacheProbe(command: "idle")
+        let cacheProbe = renderer.diagnosticPoseCacheProbe(
+            command: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest)
+        )
         let cacheStats = cacheProbe.stats
         let profileStatus = invalidSamples.isEmpty ? "renderable" : "invalid-samples"
 
@@ -243,6 +245,7 @@ struct SpineGeometryDiagnostics {
                 fallback: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18
             ),
             lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
+            idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
             loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
             oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
         )
@@ -284,7 +287,7 @@ struct SpineGeometryDiagnostics {
             }
         }
         if names.isEmpty {
-            names.insert("idle")
+            names.insert(SpineInteractionAnimationRoles.idleAnimationName(from: manifest))
         }
         return Array(names).sorted()
     }

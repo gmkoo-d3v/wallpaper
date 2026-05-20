@@ -75,6 +75,7 @@ struct WallpaperSnapshotDiagnostics {
                         fallback: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18
                     ),
                     lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
+                    idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
                     loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
                     oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
                 )

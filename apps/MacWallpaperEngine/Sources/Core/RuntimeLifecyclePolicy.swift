@@ -142,19 +142,19 @@ enum RuntimeLifecyclePolicy {
     ) -> DesktopInteractionPermissionStatus {
         guard runtimeInteractive else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION OFF / disabled in runtime settings",
+                text: "INTERACTION OFF / runtime setting",
                 canRequestAccessibilityPermission: false
             )
         }
         guard displayRole.allowsInteraction else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION PASSIVE / selected display role does not receive desktop input",
+                text: "INTERACTION PASSIVE / secondary display",
                 canRequestAccessibilityPermission: false
             )
         }
         guard interactionPolicy.mode != .disabled else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION OFF / disabled by wallpaper policy",
+                text: "INTERACTION OFF / wallpaper policy",
                 canRequestAccessibilityPermission: false
             )
         }
@@ -166,12 +166,12 @@ enum RuntimeLifecyclePolicy {
         }
         guard accessibilityTrusted else {
             return DesktopInteractionPermissionStatus(
-                text: "INTERACTION DEGRADED / Accessibility missing; click actions disabled",
+                text: "INTERACTION NEEDS PERMISSION / click actions disabled",
                 canRequestAccessibilityPermission: true
             )
         }
         return DesktopInteractionPermissionStatus(
-            text: "INTERACTION READY / Accessibility trusted",
+            text: "INTERACTION READY / clicks trusted",
             canRequestAccessibilityPermission: false
         )
     }
@@ -182,7 +182,7 @@ enum RuntimeLifecyclePolicy {
         monitorSnapshot: InteractionMonitorTelemetrySnapshot?
     ) -> String {
         guard permissionStatus.text.contains("INTERACTION READY")
-            || permissionStatus.text.contains("INTERACTION DEGRADED") else {
+            || permissionStatus.text.contains("INTERACTION NEEDS PERMISSION") else {
             return permissionStatus.text
         }
         guard isHostRunning else {
@@ -206,6 +206,6 @@ enum RuntimeLifecyclePolicy {
         guard monitorSnapshot.active else {
             return "\(permissionStatus.text) / input \(sourceState)"
         }
-        return "\(permissionStatus.text) / input active \(sourceState) command:\(monitorSnapshot.lastCommand)"
+        return "\(permissionStatus.text) / input active \(sourceState) cmd:\(monitorSnapshot.lastCommand)"
     }
 }

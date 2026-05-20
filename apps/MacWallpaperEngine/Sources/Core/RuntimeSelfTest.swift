@@ -389,11 +389,11 @@ enum RuntimeSelfTest {
             "control panel FPS labels must expose only fixed 30/60 plus display refresh matching"
         )
         check(
-            ControlPanelWindowController.interactionStatusMaximumLines >= 3
+            ControlPanelWindowController.interactionStatusMaximumLines == 1
                 && ControlPanelWindowController.doctorStatusMaximumLines >= 5
                 && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility")
                 && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("rebuilding"),
-            "control panel must preserve readable doctor/interaction diagnostics and explain permission requests"
+            "control panel must keep main interaction status compact while preserving detailed doctor diagnostics and permission tooltips"
         )
         check(
             ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
@@ -750,7 +750,7 @@ enum RuntimeSelfTest {
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
             runtime: runtime,
-            interactionStatus: "INTERACTION DEGRADED / CLICK ACTIONS DISABLED; pointer tracking only until macOS Accessibility trusts the current app (re-add after rebuild if needed)"
+            interactionStatus: "INTERACTION NEEDS PERMISSION / click actions disabled"
         )
         check(
             doctorReport.contains("wallpaper doctor OK")
@@ -852,6 +852,35 @@ enum RuntimeSelfTest {
                 target: unsmoothedTarget
             ) == unsmoothedTarget,
             "interaction pointerSmoothing=0 must disable smoothing and apply target coordinates immediately"
+        )
+        let customLookPlan = InteractionPlan(
+            interactions: [
+                InteractionConfig(
+                    event: .pointerMove,
+                    mapping: "lookDirection",
+                    actions: [
+                        "left": "lookWest",
+                        "right": "lookEast",
+                        "up": "lookNorth",
+                        "down": "lookSouth",
+                        "idle": "lookCenter"
+                    ],
+                    neutralPoint: nil,
+                    deadZone: nil,
+                    hitZones: nil,
+                    defaultAction: nil,
+                    buttons: nil
+                )
+            ],
+            policy: nil
+        )
+        check(
+            customLookPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "lookCenter") == "lookWest"
+                && customLookPlan.command(for: CGPoint(x: 0.90, y: 0.50), previousCommand: "lookCenter") == "lookEast"
+                && customLookPlan.command(for: CGPoint(x: 0.50, y: 0.10), previousCommand: "lookCenter") == "lookNorth"
+                && customLookPlan.command(for: CGPoint(x: 0.50, y: 0.90), previousCommand: "lookCenter") == "lookSouth"
+                && customLookPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "lookEast") == "lookCenter",
+            "look-direction interaction plan must use manifest action names instead of hard-coded animation names"
         )
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"
@@ -2572,11 +2601,10 @@ enum RuntimeSelfTest {
         )
         check(
             blockedPermissionStatus.canRequestAccessibilityPermission
-                && blockedPermissionStatus.text.contains("INTERACTION DEGRADED")
+                && blockedPermissionStatus.text.contains("INTERACTION NEEDS PERMISSION")
                 && blockedPermissionStatus.text.contains("click actions disabled")
-                && blockedPermissionStatus.text.contains("Accessibility")
                 && blockedPermissionStatus.text.count < 90,
-            "control panel interaction status must explain Accessibility-degraded click/touch interaction",
+            "control panel interaction status must explain missing click/touch permission without showing a long warning sentence",
             failures: &failures,
             checks: &checks
         )
@@ -2670,7 +2698,7 @@ enum RuntimeSelfTest {
         )
         check(
             deliveredControlPanelText.contains("input active tap:on")
-                && deliveredControlPanelText.contains("command:act"),
+                && deliveredControlPanelText.contains("cmd:act"),
             "control panel interaction status must surface compact live monitor delivery state",
             failures: &failures,
             checks: &checks
@@ -2692,10 +2720,10 @@ enum RuntimeSelfTest {
             monitorSnapshot: deliveredInteractionSnapshot
         )
         check(
-            degradedControlPanelText.contains("INTERACTION DEGRADED")
+            degradedControlPanelText.contains("INTERACTION NEEDS PERMISSION")
                 && degradedControlPanelText.contains("input active tap:on")
-                && degradedControlPanelText.contains("command:act"),
-            "degraded interaction permission status must remain visible while surfacing live hover monitor telemetry",
+                && degradedControlPanelText.contains("cmd:act"),
+            "missing-permission interaction status must remain visible while surfacing live hover monitor telemetry",
             failures: &failures,
             checks: &checks
         )

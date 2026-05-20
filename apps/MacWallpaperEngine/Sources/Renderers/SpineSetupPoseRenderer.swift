@@ -509,7 +509,8 @@ final class SpineSetupPoseRenderer {
     private var poseCacheFrameHits = 0
     private var poseCacheMisses = 0
     private var poseCacheStores = 0
-    private var activeAnimationName = "idle"
+    private let idleAnimationName: String
+    private var activeAnimationName: String
     private var activeAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
     private var previousOverlayAnimationName: String?
     private var previousOverlayAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
@@ -534,6 +535,7 @@ final class SpineSetupPoseRenderer {
         lookNeutralPoint: CGPoint = CGPoint(x: 0.5, y: 0.5),
         lookDeadZone: CGPoint? = nil,
         lookIdleDeadZone: Double = 0.18,
+        idleAnimationName: String = "idle",
         loopingAnimationNames: Set<String> = ["idle"],
         oneShotAnimationNames: Set<String> = [],
         audioOutputEnabled: Bool = false
@@ -608,6 +610,12 @@ final class SpineSetupPoseRenderer {
             return false
         }
         self.playbackRate = max(0.01, Double(playbackRate))
+        let resolvedIdleAnimationName = animations[idleAnimationName] == nil ? "idle" : idleAnimationName
+        guard animations[resolvedIdleAnimationName] != nil else {
+            throw EngineError.renderer("Missing Spine idle animation: \(idleAnimationName)")
+        }
+        self.idleAnimationName = resolvedIdleAnimationName
+        self.activeAnimationName = resolvedIdleAnimationName
         let clampedPoseSampleFps = max(1, min(poseSampleFps, 240))
         let requestedIdlePoseSampleFps = idlePoseSampleFps ?? clampedPoseSampleFps
         self.poseSampleFps = Double(clampedPoseSampleFps)
@@ -620,8 +628,9 @@ final class SpineSetupPoseRenderer {
             minValue: 0,
             maxValue: 0.49
         )
-        self.loopingAnimationNames = loopingAnimationNames.union(["idle"])
-        self.oneShotAnimationNames = oneShotAnimationNames.subtracting(loopingAnimationNames)
+        let resolvedLoopingAnimationNames = loopingAnimationNames.union([resolvedIdleAnimationName])
+        self.loopingAnimationNames = resolvedLoopingAnimationNames
+        self.oneShotAnimationNames = oneShotAnimationNames.subtracting(resolvedLoopingAnimationNames)
         self.referenceScale = referenceScale
         self.rendererStartedAt = CACurrentMediaTime()
         self.batchCount = builtBatches.count
@@ -674,7 +683,7 @@ final class SpineSetupPoseRenderer {
     }
 
     func diagnosticGeometrySamples(actionNames: [String]) -> [GeometrySample] {
-        let uniqueActionNames = Array(Set(actionNames.isEmpty ? ["idle"] : actionNames)).sorted()
+        let uniqueActionNames = Array(Set(actionNames.isEmpty ? [idleAnimationName] : actionNames)).sorted()
         let originalPhysicsStates = physicsStates
         defer { physicsStates = originalPhysicsStates }
 
@@ -759,18 +768,18 @@ final class SpineSetupPoseRenderer {
 
     private func batches(command: String, pointer: CGPoint, now: CFTimeInterval = CACurrentMediaTime()) -> [Batch] {
         let animationName = resolvedAnimationName(command: command, now: now)
-        guard let activeAnimation = animations[animationName] ?? animations["idle"] else {
+        guard let activeAnimation = animations[animationName] ?? animations[idleAnimationName] else {
             return cachedBatches
         }
         let activeAnimationTime = time(in: activeAnimation, now: now)
-        let idleAnimation = animations["idle"]
+        let idleAnimation = animations[idleAnimationName]
         let idleAnimationTime = idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0
         playDueAudioEvents(animation: activeAnimation, currentTime: activeAnimationTime)
         let physicsTime = max(0, now - rendererStartedAt) * playbackRate
         let posePhysicsTime = physicsConstraintsEnabled ? physicsTime : 0
         let canUsePoseFrameCache = physicsConstraintsEnabled == false
         let transitionMix = animationTransitionMix(now: now)
-        let activeOverlayAnimation = activeAnimation.name == "idle" ? nil : activeAnimation
+        let activeOverlayAnimation = activeAnimation.name == idleAnimationName ? nil : activeAnimation
         let activeOverlayMix = activeOverlayAnimation == nil ? 0 : transitionMix
         let previousOverlayAnimation = previousOverlayAnimationName.flatMap { animations[$0] }
         let previousOverlayTime = previousOverlayAnimation.map {
@@ -788,7 +797,7 @@ final class SpineSetupPoseRenderer {
         let quantizedPhysicsFrame = Int((posePhysicsTime * sampleFps).rounded())
         let quantizedTransition = Int((transitionMix * sampleFps).rounded())
         let quantizedLookMix = Int((lookMix * sampleFps).rounded())
-        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame)"
+        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(idleAnimationName):\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame)"
         if cacheKey == cachedPoseKey {
             poseCacheExactHits += 1
             return cachedBatches
@@ -946,7 +955,7 @@ final class SpineSetupPoseRenderer {
     }
 
     private func sampleFps(for animationName: String) -> Double {
-        animationName == "idle" ? idlePoseSampleFps : poseSampleFps
+        animationName == idleAnimationName ? idlePoseSampleFps : poseSampleFps
     }
 
     private func poseCacheStats() -> PoseCacheStats {
@@ -1006,10 +1015,10 @@ final class SpineSetupPoseRenderer {
         time: Double,
         overlayMix: Double? = nil
     ) throws -> [VertexBatch] {
-        let overlayAnimation = animation.name == "idle" ? nil : animation
+        let overlayAnimation = animation.name == idleAnimationName ? nil : animation
         let effectiveOverlayMix = overlayAnimation == nil ? 0 : min(max(overlayMix ?? 1, 0), 1)
         let pose = evaluate(
-            baseAnimation: animations["idle"],
+            baseAnimation: animations[idleAnimationName],
             baseTime: time,
             previousOverlayAnimation: nil,
             previousOverlayTime: 0,
@@ -1034,18 +1043,18 @@ final class SpineSetupPoseRenderer {
     }
 
     private func resolvedAnimationName(command: String, now: CFTimeInterval) -> String {
-        let requested = animations[command] == nil ? "idle" : command
+        let requested = animations[command] == nil ? idleAnimationName : command
         let current = animations[activeAnimationName]
 
         if oneShotAnimationNames.contains(activeAnimationName),
            let current,
            (now - activeAnimationStartedAt) * playbackRate < max(current.duration, 0.1),
-           requested == "idle" {
+           requested == idleAnimationName {
             return activeAnimationName
         }
 
         if requested != activeAnimationName {
-            previousOverlayAnimationName = activeAnimationName == "idle" ? nil : activeAnimationName
+            previousOverlayAnimationName = activeAnimationName == idleAnimationName ? nil : activeAnimationName
             previousOverlayAnimationStartedAt = activeAnimationStartedAt
             activeAnimationName = requested
             activeAnimationStartedAt = now

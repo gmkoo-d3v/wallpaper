@@ -71,7 +71,7 @@ final class ControlPanelWindowController: NSWindowController {
         "All displays render the full wallpaper; secondary displays remain passive."
     ]
     static let fpsLabels = ["30", "60", "Display Hz"]
-    static let interactionStatusMaximumLines = 3
+    static let interactionStatusMaximumLines = 1
     static let doctorStatusMaximumLines = 5
     static let interactionPermissionButtonTooltip = "Enable macOS Accessibility permission so desktop-empty click/touch actions can run while Finder icons stay protected. After rebuilding an ad-hoc signed app, re-add the current app if clicks stay disabled."
 
@@ -172,7 +172,7 @@ final class ControlPanelWindowController: NSWindowController {
     init(delegate: ControlPanelDelegate) {
         self.delegate = delegate
         let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 860, height: 560),
+            contentRect: CGRect(x: 0, y: 0, width: 760, height: 430),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -315,10 +315,10 @@ final class ControlPanelWindowController: NSWindowController {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor(red: 0.102, green: 0.129, blue: 0.161, alpha: 1).cgColor
         view.translatesAutoresizingMaskIntoConstraints = false
-        view.heightAnchor.constraint(equalToConstant: 116).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 88).isActive = true
 
         let title = NSTextField(labelWithString: "Mac Wallpaper Engine")
-        title.font = .systemFont(ofSize: 30, weight: .bold)
+        title.font = .systemFont(ofSize: 24, weight: .bold)
         title.textColor = .white
         title.translatesAutoresizingMaskIntoConstraints = false
 
@@ -330,8 +330,8 @@ final class ControlPanelWindowController: NSWindowController {
         view.addSubview(title)
         view.addSubview(subtitle)
         NSLayoutConstraint.activate([
-            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 26),
+            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 18),
             subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
             subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8)
         ])
@@ -344,7 +344,7 @@ final class ControlPanelWindowController: NSWindowController {
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.spacing = 18
+        stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
 
@@ -355,6 +355,7 @@ final class ControlPanelWindowController: NSWindowController {
         pageControl.setToolTip("Doctor, render plan, and telemetry details.", forSegment: 2)
 
         let mainPage = pageStack([
+            compactStatusRow(),
             modeRow(),
             interactionStatusRow(),
             foregroundRow(),
@@ -373,16 +374,15 @@ final class ControlPanelWindowController: NSWindowController {
         ])
         pageViews = [mainPage, libraryPage, diagnosticsPage]
 
-        stack.addArrangedSubview(infoRow(label: "STATUS", value: statusValue))
         stack.addArrangedSubview(pageControl)
         pageViews.forEach(stack.addArrangedSubview)
         updateVisiblePage()
 
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 22),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -24)
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -18)
         ])
         return view
     }
@@ -390,9 +390,27 @@ final class ControlPanelWindowController: NSWindowController {
     private func pageStack(_ rows: [NSView]) -> NSStackView {
         let stack = NSStackView(views: rows)
         stack.orientation = .vertical
-        stack.spacing = 18
+        stack.spacing = 12
         stack.alignment = .width
         return stack
+    }
+
+    private func compactStatusRow() -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 18
+
+        let caption = caption("STATUS")
+        statusValue.font = .systemFont(ofSize: 13, weight: .medium)
+        statusValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
+        statusValue.lineBreakMode = .byTruncatingMiddle
+        statusValue.maximumNumberOfLines = 1
+        statusValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        row.addArrangedSubview(caption)
+        row.addArrangedSubview(statusValue)
+        return row
     }
 
     private func updateVisiblePage() {
@@ -521,7 +539,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 18
+        row.spacing = 12
 
         let caption = NSTextField(labelWithString: "DISPLAY MODE")
         caption.font = .systemFont(ofSize: 11, weight: .medium)
@@ -532,7 +550,7 @@ final class ControlPanelWindowController: NSWindowController {
         for (index, tooltip) in Self.displayModeTooltips.enumerated() {
             displayModeControl.setToolTip(tooltip, forSegment: index)
         }
-        primaryDisplayPopup.widthAnchor.constraint(equalToConstant: 260).isActive = true
+        primaryDisplayPopup.widthAnchor.constraint(equalToConstant: 220).isActive = true
 
         let primaryCaption = self.caption("PRIMARY")
 
@@ -548,16 +566,16 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 18
+        row.spacing = 12
 
         let caption = self.caption("INTERACTION")
         interactionStatusValue.font = .systemFont(ofSize: 13, weight: .light)
         interactionStatusValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
-        interactionStatusValue.lineBreakMode = .byWordWrapping
+        interactionStatusValue.lineBreakMode = .byTruncatingMiddle
         interactionStatusValue.maximumNumberOfLines = Self.interactionStatusMaximumLines
         interactionStatusValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         interactionStatusValue.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        requestInteractionPermissionButton.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        requestInteractionPermissionButton.widthAnchor.constraint(equalToConstant: 170).isActive = true
         requestInteractionPermissionButton.toolTip = Self.interactionPermissionButtonTooltip
 
         row.addArrangedSubview(caption)
@@ -570,7 +588,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 18
+        row.spacing = 12
 
         let foregroundCaption = caption("FOREGROUND")
         foregroundModeControl.segmentStyle = .texturedSquare
@@ -587,7 +605,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 18
+        row.spacing = 12
 
         let fpsCaption = caption("FPS")
         let speedCaption = caption("SPEED")
@@ -617,7 +635,7 @@ final class ControlPanelWindowController: NSWindowController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 18
+        row.spacing = 12
 
         let debugCaption = caption("DEBUG")
         interactionDebugOverlayToggle.font = .systemFont(ofSize: 13, weight: .regular)

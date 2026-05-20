@@ -1,11 +1,21 @@
 import CoreGraphics
 
 enum SpineInteractionAnimationRoles {
+    static func idleAnimationName(from manifest: WallpaperNativeManifest) -> String {
+        for interaction in manifest.interactions where interaction.event == .pointerMove {
+            if let idle = interaction.actions?["idle"], idle.isEmpty == false {
+                return idle
+            }
+        }
+        return "idle"
+    }
+
     static func lookAnimationNames(from manifest: WallpaperNativeManifest) -> Set<String> {
         var names: Set<String> = []
+        let idleAnimationName = idleAnimationName(from: manifest)
         for interaction in manifest.interactions where interaction.event == .pointerMove {
             interaction.actions?.forEach { key, action in
-                if key != "idle" && action != "idle" {
+                if key != "idle" && action != idleAnimationName {
                     names.insert(action)
                 }
             }
@@ -14,7 +24,7 @@ enum SpineInteractionAnimationRoles {
     }
 
     static func loopingAnimationNames(from manifest: WallpaperNativeManifest) -> Set<String> {
-        var names: Set<String> = ["idle"]
+        var names: Set<String> = [idleAnimationName(from: manifest)]
         for interaction in manifest.interactions where interaction.event == .pointerDown {
             if (interaction.defaultAction?.trigger ?? .tap) == .hold,
                let action = interaction.defaultAction?.action {

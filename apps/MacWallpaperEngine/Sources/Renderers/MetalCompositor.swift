@@ -185,6 +185,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                     fallback: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18
                 ),
                 lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
+                idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
                 oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
                 audioOutputEnabled: runtime.audioOutputEnabled
@@ -606,9 +607,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     }
 
     private static func idleCommand(from manifest: WallpaperNativeManifest) -> String {
-        manifest.interactions
-            .first { $0.event == .pointerMove && $0.mapping == "lookDirection" }?
-            .actions?["idle"] ?? "idle"
+        SpineInteractionAnimationRoles.idleAnimationName(from: manifest)
     }
 
     private static func makeSolidOverlayTexture(device: MTLDevice) -> MTLTexture? {

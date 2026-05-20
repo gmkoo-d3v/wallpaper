@@ -104,7 +104,12 @@ struct InteractionPlan {
         let pointer = clamp(point)
         guard let config = interactions.first(where: { $0.event == .pointerMove }),
               config.mapping == "lookDirection",
-              let actions = config.actions else {
+              let actions = config.actions,
+              let idleAction = actions["idle"],
+              let leftAction = actions["left"],
+              let rightAction = actions["right"],
+              let upAction = actions["up"],
+              let downAction = actions["down"] else {
             return "idle"
         }
         let neutral = Self.point(config.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
@@ -112,13 +117,13 @@ struct InteractionPlan {
         let dx = pointer.x - neutral.x
         let dy = pointer.y - neutral.y
         if abs(dx) < deadZone.x, abs(dy) < deadZone.y {
-            return actions["idle"] ?? "idle"
+            return idleAction
         }
         if abs(dx) > abs(dy) + directionSwitchMargin {
-            return dx < 0 ? (actions["left"] ?? "Left") : (actions["right"] ?? "Right")
+            return dx < 0 ? leftAction : rightAction
         }
         if abs(dy) > abs(dx) + directionSwitchMargin {
-            return dy < 0 ? (actions["up"] ?? "Up") : (actions["down"] ?? "Down")
+            return dy < 0 ? upAction : downAction
         }
         return previousCommand
     }
@@ -275,13 +280,15 @@ struct InteractionPlan {
         let clickButtons = (clickConfig?.buttons ?? [.left]).map(\.rawValue).joined(separator: "+")
         let zones = plan.hitZoneSummaries()
         let defaultAction = plan.defaultActionSummary()
+        let idleProbePrevious = moveConfig?.actions?["idle"] ?? "idle"
+        let stickyProbePrevious = moveConfig?.actions?["right"] ?? idleProbePrevious
         let moveProbeText = [
-            "left=\(plan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle"))",
-            "right=\(plan.command(for: CGPoint(x: 0.90, y: 0.50), previousCommand: "idle"))",
-            "up=\(plan.command(for: CGPoint(x: 0.50, y: 0.10), previousCommand: "idle"))",
-            "down=\(plan.command(for: CGPoint(x: 0.50, y: 0.90), previousCommand: "idle"))",
-            "center=\(plan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right"))",
-            "neutral=\(plan.command(for: neutralPoint, previousCommand: "Right"))"
+            "left=\(plan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: idleProbePrevious))",
+            "right=\(plan.command(for: CGPoint(x: 0.90, y: 0.50), previousCommand: idleProbePrevious))",
+            "up=\(plan.command(for: CGPoint(x: 0.50, y: 0.10), previousCommand: idleProbePrevious))",
+            "down=\(plan.command(for: CGPoint(x: 0.50, y: 0.90), previousCommand: idleProbePrevious))",
+            "center=\(plan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: stickyProbePrevious))",
+            "neutral=\(plan.command(for: neutralPoint, previousCommand: stickyProbePrevious))"
         ].joined(separator: " ")
         var lines = [
             "interaction plan OK",
@@ -432,8 +439,10 @@ struct InteractionPlan {
         let moveConfig = interactions.first { $0.event == .pointerMove }
         let neutralPoint = Self.point(moveConfig?.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
         let moveDeadZone = Self.point(moveConfig?.deadZone, fallback: CGPoint(x: plan.idleDeadZone, y: plan.idleDeadZone))
-        let moveCommand = plan.command(for: clampedPoint, previousCommand: "idle")
-        let stickyCommand = plan.command(for: clampedPoint, previousCommand: "Right")
+        let idleProbePrevious = moveConfig?.actions?["idle"] ?? "idle"
+        let stickyProbePrevious = moveConfig?.actions?["right"] ?? idleProbePrevious
+        let moveCommand = plan.command(for: clampedPoint, previousCommand: idleProbePrevious)
+        let stickyCommand = plan.command(for: clampedPoint, previousCommand: stickyProbePrevious)
         let hit = plan.hitTest(point: clampedPoint, button: button)
 
         let clock = InteractionDiagnosticClock()
