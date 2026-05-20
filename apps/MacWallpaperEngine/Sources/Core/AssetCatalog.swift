@@ -13,6 +13,8 @@ struct VideoAsset {
     let url: URL
     let playbackRate: Float
     let contentAspect: Double
+    let nominalFrameRate: Double
+    let effectiveFrameRate: Double?
 }
 
 struct StaticImageAsset {
@@ -107,10 +109,13 @@ final class AssetCatalog {
         guard let config else { return nil }
         let url = root.appendingPathComponent(config.path).standardizedFileURL
         let metadata = try VideoMetadataInspector.inspect(url: url)
+        let playbackRate = config.playbackRate ?? 1.0
         return VideoAsset(
             url: url,
-            playbackRate: config.playbackRate ?? 1.0,
-            contentAspect: aspect(size: metadata.presentationSize)
+            playbackRate: playbackRate,
+            contentAspect: aspect(size: metadata.presentationSize),
+            nominalFrameRate: Double(metadata.nominalFrameRate),
+            effectiveFrameRate: metadata.effectiveFrameRate(playbackRate: playbackRate)
         )
     }
 

@@ -685,6 +685,27 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("render\tcontentAspect\tsupported"),
             "runtime capabilities summary must expose the resolved wallpaper content aspect"
         )
+        let expectedPrimaryIdleRenderFps = runtime.idleRenderFps(
+            displayRefreshFps: nil,
+            videoAsset: runtime.assetCatalog.videoAsset,
+            playsVideo: runtime.assetCatalog.videoAsset != nil,
+            rendersNativeForeground: runtime.assetCatalog.spineAsset != nil
+                && RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported
+        )
+        check(
+            expectedPrimaryIdleRenderFps <= runtime.renderTargetFps
+                && capabilitySummary.contains("idleRenderFps=\(expectedPrimaryIdleRenderFps)"),
+            "runtime capabilities summary must expose idle frame pacing derived from source media and native Spine idle cadence"
+        )
+        if let videoAsset = runtime.assetCatalog.videoAsset,
+           let effectiveVideoFps = videoAsset.effectiveFrameRate,
+           effectiveVideoFps < Double(runtime.renderTargetFps),
+           runtime.assetCatalog.spineAsset != nil {
+            check(
+                expectedPrimaryIdleRenderFps <= Int(ceil(effectiveVideoFps)),
+                "native Spine idle frame pacing must not exceed lower-FPS source media when no interaction is active"
+            )
+        }
         check(
             capabilitySummary.contains(
                 "audio\tpolicy\t\(runtime.audioCapabilityStatus)\tpolicy=\(effectiveAudioPolicy.rawValue) userOptIn=\(runtime.config.audioEnabled) output=\(runtime.audioOutputSummary)"

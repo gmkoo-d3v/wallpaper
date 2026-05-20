@@ -26,6 +26,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private let interactionHitZones: [InteractionHitZoneSummary]
     private let governor: ResourceGovernor
     private let semaphore: DispatchSemaphore
+    private let targetRenderFps: Int
+    private let idleCommand: String
 
     private var videoSource: VideoFrameSource?
     private var deskOcclusionSource: VideoFrameSource?
@@ -42,6 +44,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var isPausedByThermal = false
     private var isUsingResourceFallbackVideo = false
     private var hasSubmittedDrawable = false
+    private var idleRenderFps = 1
 
     init(
         device: MTLDevice,
@@ -81,6 +84,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             videoOnlyFallbackEnabled: foregroundPlan.allowsVideoOnlyResourceFallback
         )
         self.semaphore = DispatchSemaphore(value: displayPerformancePlan.maxInFlightCommandBuffers)
+        self.targetRenderFps = displayTargetFps
+        self.idleCommand = Self.idleCommand(from: runtime.manifest)
         self.normalPipelineState = try Self.makePipeline(device: device, blendMode: .normal)
         self.additivePipelineState = try Self.makePipeline(device: device, blendMode: .additive)
         self.multiplyPipelineState = try Self.makePipeline(device: device, blendMode: .multiply)
@@ -108,6 +113,12 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         } else {
             selectedVideo = runtime.assetCatalog.videoAsset
         }
+        idleRenderFps = runtime.idleRenderFps(
+            displayRefreshFps: displayRefreshFps,
+            videoAsset: selectedVideo,
+            playsVideo: selectedVideo != nil,
+            rendersNativeForeground: foregroundPlan.usesNativeSpine && displayRole.rendersForeground && usingCompositeVideo == false
+        )
 
         if let selectedVideo {
             self.videoSource = try VideoFrameSource(
@@ -233,10 +244,6 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             }
         }
 
-        if view.preferredFramesPerSecond != currentFps {
-            view.preferredFramesPerSecond = max(currentFps, 1)
-        }
-
         setResourceFallbackVideoActive(governor.shouldUseVideoOnlyFallback && resourceFallbackVideoSource != nil)
 
         guard semaphore.wait(timeout: .now()) == .success else {
@@ -272,6 +279,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         encoder.setRenderPipelineState(normalPipelineState)
         let interactionSnapshot = interaction.snapshot()
+        let pacedFps = framePacingFps(resourceFps: currentFps, interaction: interactionSnapshot)
+        if shouldPause == false, view.preferredFramesPerSecond != pacedFps {
+            view.preferredFramesPerSecond = pacedFps
+        }
 
         let baseVideoTexture: MTLTexture?
         if shouldPause {
@@ -586,6 +597,18 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
     private func premultipliedColor(red: Float, green: Float, blue: Float, alpha: Float) -> SIMD4<Float> {
         SIMD4<Float>(red * alpha, green * alpha, blue * alpha, alpha)
+    }
+
+    private func framePacingFps(resourceFps: Int, interaction: InteractionSnapshot) -> Int {
+        let interactionActive = interaction.clickPulse > 0 || interaction.command != idleCommand
+        let requestedFps = interactionActive ? targetRenderFps : idleRenderFps
+        return max(1, min(resourceFps, requestedFps))
+    }
+
+    private static func idleCommand(from manifest: WallpaperNativeManifest) -> String {
+        manifest.interactions
+            .first { $0.event == .pointerMove && $0.mapping == "lookDirection" }?
+            .actions?["idle"] ?? "idle"
     }
 
     private static func makeSolidOverlayTexture(device: MTLDevice) -> MTLTexture? {
