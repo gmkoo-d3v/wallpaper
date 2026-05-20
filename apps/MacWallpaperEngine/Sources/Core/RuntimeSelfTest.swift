@@ -796,6 +796,10 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("wallpaper-engine-project-json")
                 && sourceProvenanceReport.contains("type=application")
                 && sourceProvenanceReport.contains("file=Sample_Imported.exe")
+                && sourceProvenanceReport.contains("unity-asset-extraction-manifest")
+                && sourceProvenanceReport.contains("converter=extract_unity_assets.py")
+                && sourceProvenanceReport.contains("VideoClip=1")
+                && sourceProvenanceReport.contains("windowsExecutableExecution=forbidden")
                 && sourceProvenanceReport.contains("importedFields:")
                 && sourceProvenanceReport.contains("calibratedFields:")
                 && sourceProvenanceReport.contains("unsupportedFields:"),
@@ -1943,7 +1947,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=1 imported=6 calibrated=7 unsupported=1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=2 imported=6 calibrated=7 unsupported=1")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )

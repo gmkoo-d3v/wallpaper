@@ -41,6 +41,7 @@ struct SourceDescriptor: Decodable {
 
 enum SourceDescriptorKind: String, Decodable {
     case wallpaperEngineProjectJSON = "wallpaper-engine-project-json"
+    case unityAssetExtractionManifest = "unity-asset-extraction-manifest"
 }
 
 enum SourceProvenanceType: String, Decodable {

@@ -168,7 +168,7 @@
       "additionalProperties": false,
       "required": ["kind", "path"],
       "properties": {
-        "kind": { "enum": ["wallpaper-engine-project-json"] },
+        "kind": { "enum": ["wallpaper-engine-project-json", "unity-asset-extraction-manifest"] },
         "path": { "type": "string", "minLength": 1 }
       }
     },

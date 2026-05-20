@@ -35,6 +35,8 @@ enum RuntimeSourceProvenanceReport {
             switch descriptor.kind {
             case .wallpaperEngineProjectJSON:
                 return wallpaperEngineProjectLine(descriptor: descriptor, url: descriptorURL)
+            case .unityAssetExtractionManifest:
+                return unityAssetExtractionLine(descriptor: descriptor, url: descriptorURL)
             }
         }
         return "sourceDescriptors:\n" + lines.map { "  - \($0)" }.joined(separator: "\n")
@@ -62,6 +64,37 @@ enum RuntimeSourceProvenanceReport {
         }
     }
 
+    private static func unityAssetExtractionLine(descriptor: SourceDescriptor, url: URL) -> String {
+        guard let data = try? Data(contentsOf: url) else {
+            return "\(descriptor.kind.rawValue) path=\(descriptor.path) status=missing"
+        }
+
+        do {
+            let manifest = try JSONDecoder().decode(UnityAssetExtractionDescriptor.self, from: data)
+            let counts = (manifest.counts ?? [:])
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: ",")
+            let security = [
+                manifest.securityPolicy?.windowsExecutableExecution.map { "windowsExecutableExecution=\($0)" },
+                manifest.securityPolicy?.windowsExecutableDisassembly.map { "windowsExecutableDisassembly=\($0)" },
+                manifest.securityPolicy?.inputScope.map { "inputScope=\($0.replacingOccurrences(of: " ", with: "_"))" }
+            ]
+                .compactMap { $0 }
+                .joined(separator: ",")
+            let fields = [
+                "path=\(descriptor.path)",
+                "status=read",
+                "converter=\(manifest.converter ?? "unspecified")",
+                "counts=\(counts.isEmpty ? "none" : counts)",
+                "security=\(security.isEmpty ? "unspecified" : security)"
+            ]
+            return "\(descriptor.kind.rawValue) " + fields.joined(separator: " ")
+        } catch {
+            return "\(descriptor.kind.rawValue) path=\(descriptor.path) status=unreadable(\(error.localizedDescription))"
+        }
+    }
+
     private static func section(_ name: String, _ values: [String]?) -> String {
         guard let values, values.isEmpty == false else {
             return "\(name): none"
@@ -81,4 +114,28 @@ private struct WallpaperEngineProjectDescriptor: Decodable {
     let title: String?
     let type: String?
     let version: Int?
+}
+
+private struct UnityAssetExtractionDescriptor: Decodable {
+    let converter: String?
+    let securityPolicy: UnityAssetExtractionSecurityPolicy?
+    let counts: [String: Int]?
+
+    private enum CodingKeys: String, CodingKey {
+        case converter
+        case securityPolicy = "security_policy"
+        case counts
+    }
+}
+
+private struct UnityAssetExtractionSecurityPolicy: Decodable {
+    let windowsExecutableExecution: String?
+    let windowsExecutableDisassembly: String?
+    let inputScope: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case windowsExecutableExecution = "windows_executable_execution"
+        case windowsExecutableDisassembly = "windows_executable_disassembly"
+        case inputScope = "input_scope"
+    }
 }
