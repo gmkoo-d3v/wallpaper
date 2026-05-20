@@ -483,6 +483,13 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
     }
 
     func controlPanelRequestInteractionPermission() {
+        guard RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(
+            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
+        ) else {
+            host?.refreshInteractionState()
+            controlPanel?.refresh()
+            return
+        }
         _ = DesktopInteractionGate.requestAccessibilityTrustPrompt()
         _ = DesktopInteractionGate.openAccessibilitySettings()
         host?.refreshInteractionState()

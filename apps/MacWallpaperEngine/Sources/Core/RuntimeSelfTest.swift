@@ -228,6 +228,12 @@ enum RuntimeSelfTest {
             "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
         )
         check(
+            RuntimeLifecyclePolicy.trustedAccessibilityRequestPolicy == "skip-prompt-when-already-trusted"
+                && RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(accessibilityTrusted: true) == false
+                && RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(accessibilityTrusted: false),
+            "user-initiated Accessibility requests must not reopen prompts/settings after this exact app is already trusted"
+        )
+        check(
             RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays.first == 1
                 && (RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays.last ?? 0) >= 30,
             "user-initiated Accessibility requests must poll permission recovery long enough for System Settings approval"
@@ -359,6 +365,10 @@ enum RuntimeSelfTest {
         check(
             ControlPanelWindowController.displayModeLabels == ["Selected Only", "Selected+Policy", "All Full"],
             "control panel display mode labels must make selected-display-only the default"
+        )
+        check(
+            ControlPanelWindowController.pageLabels == ["Main", "Library", "Diagnostics"],
+            "control panel must split controls, library, and diagnostics into compact in-app pages"
         )
         check(
             ControlPanelWindowController.displayModeTooltips.count == ControlPanelWindowController.displayModeLabels.count

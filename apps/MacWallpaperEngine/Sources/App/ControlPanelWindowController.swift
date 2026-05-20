@@ -58,6 +58,7 @@ protocol ControlPanelDelegate: AnyObject {
 
 final class ControlPanelWindowController: NSWindowController {
     static let displayModeLabels = ["Selected Only", "Selected+Policy", "All Full"]
+    static let pageLabels = ["Main", "Library", "Diagnostics"]
     static let displayModeTooltips = [
         "Only the selected primary display gets a wallpaper window.",
         "Selected primary display is full; secondary displays follow the manifest secondary policy.",
@@ -108,6 +109,12 @@ final class ControlPanelWindowController: NSWindowController {
     private let telemetryValue = NSTextField(labelWithString: "")
     private let interactionStatusValue = NSTextField(labelWithString: "")
     private let previewImageView = NSImageView(frame: .zero)
+    private let pageControl = NSSegmentedControl(
+        labels: ControlPanelWindowController.pageLabels,
+        trackingMode: .selectOne,
+        target: nil,
+        action: nil
+    )
     private let displayModeControl = NSSegmentedControl(
         labels: ControlPanelWindowController.displayModeLabels,
         trackingMode: .selectOne,
@@ -153,12 +160,13 @@ final class ControlPanelWindowController: NSWindowController {
     private let bundlePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private var availableBundles: [WallpaperBundleSummary] = []
     private var displaySelectionOptions: [DisplaySelectionOption] = []
+    private var pageViews: [NSView] = []
     private var refreshTimer: Timer?
 
     init(delegate: ControlPanelDelegate) {
         self.delegate = delegate
         let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 860, height: 700),
+            contentRect: CGRect(x: 0, y: 0, width: 860, height: 560),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -232,6 +240,7 @@ final class ControlPanelWindowController: NSWindowController {
         requestInteractionPermissionButton.isEnabled = state.canRequestInteractionPermission
         startButton.isEnabled = state.isRunning == false
         stopButton.isEnabled = state.isRunning
+        updateVisiblePage()
     }
 
     private func buildInterface() {
@@ -267,6 +276,8 @@ final class ControlPanelWindowController: NSWindowController {
         importBundleButton.action = #selector(importBundle)
         requestInteractionPermissionButton.target = self
         requestInteractionPermissionButton.action = #selector(requestInteractionPermission)
+        pageControl.target = self
+        pageControl.action = #selector(selectPage)
         bundlePopup.target = self
         bundlePopup.action = #selector(selectLibraryBundle)
         quitButton.target = self
@@ -298,10 +309,10 @@ final class ControlPanelWindowController: NSWindowController {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor(red: 0.102, green: 0.129, blue: 0.161, alpha: 1).cgColor
         view.translatesAutoresizingMaskIntoConstraints = false
-        view.heightAnchor.constraint(equalToConstant: 150).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 116).isActive = true
 
         let title = NSTextField(labelWithString: "Mac Wallpaper Engine")
-        title.font = .systemFont(ofSize: 36, weight: .bold)
+        title.font = .systemFont(ofSize: 30, weight: .bold)
         title.textColor = .white
         title.translatesAutoresizingMaskIntoConstraints = false
 
@@ -314,9 +325,9 @@ final class ControlPanelWindowController: NSWindowController {
         view.addSubview(subtitle)
         NSLayoutConstraint.activate([
             title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 34),
+            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 26),
             subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12)
+            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8)
         ])
         return view
     }
@@ -331,26 +342,58 @@ final class ControlPanelWindowController: NSWindowController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
 
+        pageControl.segmentStyle = .texturedSquare
+        pageControl.selectedSegment = 0
+        pageControl.setToolTip("Wallpaper controls and live interaction state.", forSegment: 0)
+        pageControl.setToolTip("Bundle selection, import, and preview.", forSegment: 1)
+        pageControl.setToolTip("Doctor, render plan, and telemetry details.", forSegment: 2)
+
+        let mainPage = pageStack([
+            modeRow(),
+            interactionStatusRow(),
+            foregroundRow(),
+            renderRow(),
+            debugRow(),
+            buttonRow()
+        ])
+        let libraryPage = pageStack([
+            bundleRow(),
+            bundlePreviewRow()
+        ])
+        let diagnosticsPage = pageStack([
+            doctorRow(),
+            renderPlanRow(),
+            telemetryRow()
+        ])
+        pageViews = [mainPage, libraryPage, diagnosticsPage]
+
         stack.addArrangedSubview(infoRow(label: "STATUS", value: statusValue))
-        stack.addArrangedSubview(bundleRow())
-        stack.addArrangedSubview(bundlePreviewRow())
-        stack.addArrangedSubview(doctorRow())
-        stack.addArrangedSubview(renderPlanRow())
-        stack.addArrangedSubview(telemetryRow())
-        stack.addArrangedSubview(modeRow())
-        stack.addArrangedSubview(interactionStatusRow())
-        stack.addArrangedSubview(foregroundRow())
-        stack.addArrangedSubview(renderRow())
-        stack.addArrangedSubview(debugRow())
-        stack.addArrangedSubview(buttonRow())
+        stack.addArrangedSubview(pageControl)
+        pageViews.forEach(stack.addArrangedSubview)
+        updateVisiblePage()
 
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 28),
+            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 22),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -24)
         ])
         return view
+    }
+
+    private func pageStack(_ rows: [NSView]) -> NSStackView {
+        let stack = NSStackView(views: rows)
+        stack.orientation = .vertical
+        stack.spacing = 18
+        stack.alignment = .width
+        return stack
+    }
+
+    private func updateVisiblePage() {
+        let selected = max(0, min(pageControl.selectedSegment, pageViews.count - 1))
+        for (index, view) in pageViews.enumerated() {
+            view.isHidden = index != selected
+        }
     }
 
     private func infoRow(label: String, value: NSTextField) -> NSView {
@@ -838,6 +881,10 @@ final class ControlPanelWindowController: NSWindowController {
     @objc private func requestInteractionPermission() {
         delegate?.controlPanelRequestInteractionPermission()
         refresh()
+    }
+
+    @objc private func selectPage() {
+        updateVisiblePage()
     }
 
     @objc private func selectLibraryBundle() {
