@@ -28,6 +28,7 @@
         "description": { "type": "string" }
       }
     },
+    "sourceProvenance": { "$ref": "#/$defs/sourceProvenance" },
     "runtime": {
       "type": "object",
       "additionalProperties": false,
@@ -118,6 +119,45 @@
     }
   },
   "$defs": {
+    "sourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceType"],
+      "properties": {
+        "sourceType": {
+          "enum": [
+            "wallpaper-engine-application",
+            "wallpaper-engine-scene",
+            "wallpaper-engine-web",
+            "native",
+            "sample",
+            "unknown"
+          ]
+        },
+        "sourceRuntime": { "type": "string", "minLength": 1 },
+        "projectType": { "type": "string", "minLength": 1 },
+        "importedFields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "calibratedFields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "unsupportedFields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "notes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "performanceTier": {
       "type": "object",
       "additionalProperties": false,

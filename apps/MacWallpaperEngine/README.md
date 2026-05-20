@@ -198,6 +198,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Interaction state is manifest-driven: wallpaper-specific animation names,
   hit-zone ids, tap/hold timing, and neutral points belong in the bundle
   manifest/imported source data, not in renderer or input-controller defaults.
+- Converted bundles can declare `sourceProvenance` so diagnostics distinguish
+  imported source fields, calibrated compatibility fields, and unsupported
+  original-script behavior instead of hiding wallpaper-specific assumptions in
+  the generic runtime.
 - Manifest validation also rejects unsupported `lookDirection` action keys
   instead of silently ignoring directions the native interaction planner cannot
   produce.

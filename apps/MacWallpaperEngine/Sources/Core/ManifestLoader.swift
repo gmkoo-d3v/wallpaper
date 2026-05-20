@@ -43,6 +43,7 @@ enum ManifestLoader {
         }
         try WallpaperBundleFilesystemGuard.rejectSymlinkEntries(in: requestedBundleRoot)
         try validateMetadata(manifest.metadata)
+        try validateSourceProvenance(manifest.sourceProvenance)
         guard manifest.runtime.targetFps > 0,
               manifest.runtime.fallbackFps > 0,
               manifest.runtime.maxFps >= manifest.runtime.targetFps,
@@ -196,6 +197,35 @@ enum ManifestLoader {
         if let title = metadata.title {
             guard title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 throw EngineError.manifest("metadata.title must not be empty")
+            }
+        }
+    }
+
+    private static func validateSourceProvenance(_ provenance: SourceProvenance?) throws {
+        guard let provenance else { return }
+        try validateOptionalNonEmpty(provenance.sourceRuntime, label: "sourceProvenance.sourceRuntime")
+        try validateOptionalNonEmpty(provenance.projectType, label: "sourceProvenance.projectType")
+        try validateStringList(provenance.importedFields, label: "sourceProvenance.importedFields")
+        try validateStringList(provenance.calibratedFields, label: "sourceProvenance.calibratedFields")
+        try validateStringList(provenance.unsupportedFields, label: "sourceProvenance.unsupportedFields")
+        try validateStringList(provenance.notes, label: "sourceProvenance.notes")
+    }
+
+    private static func validateOptionalNonEmpty(_ value: String?, label: String) throws {
+        guard let value else { return }
+        guard value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            throw EngineError.manifest("\(label) must not be empty")
+        }
+    }
+
+    private static func validateStringList(_ values: [String]?, label: String) throws {
+        guard let values else { return }
+        guard values.isEmpty == false else {
+            throw EngineError.manifest("\(label) must not be empty when declared")
+        }
+        for value in values {
+            guard value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                throw EngineError.manifest("\(label) entries must not be empty")
             }
         }
     }

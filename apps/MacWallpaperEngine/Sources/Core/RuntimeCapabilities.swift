@@ -38,6 +38,7 @@ struct NativeSpineCompatibility {
 }
 
 struct WallpaperBundleCapabilityInfo: Equatable {
+    let sourceSummary: String
     let assetKinds: [String]
     let layerKinds: [String]
     let interactionKinds: [String]
@@ -52,6 +53,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
 
     var briefText: String {
         [
+            "source: \(sourceSummary)",
             "assets: \(assetKinds.joined(separator: "+"))",
             "layers: \(layerKinds.joined(separator: "+"))",
             "interactions: \(interactionKinds.joined(separator: "+"))",
@@ -106,6 +108,7 @@ enum RuntimeCapabilities {
         var rows: [RuntimeCapabilityRow] = []
 
         rows.append(assetRow(name: "staticImage", isPresent: manifest.assets.staticImage != nil, detail: manifest.assets.staticImage?.path))
+        rows.append(sourceProvenanceRow(manifest.sourceProvenance))
         rows.append(videoAssetRow(
             name: "video",
             config: manifest.assets.video,
@@ -280,6 +283,7 @@ enum RuntimeCapabilities {
         let qualityStatus = qualityReport.status == "not-used" ? "ok" : qualityReport.status
 
         return WallpaperBundleCapabilityInfo(
+            sourceSummary: sourceProvenanceSummary(manifest.sourceProvenance),
             assetKinds: assetKinds,
             layerKinds: layerKinds.isEmpty ? ["none"] : layerKinds,
             interactionKinds: interactionKinds,
@@ -301,6 +305,25 @@ enum RuntimeCapabilities {
             status: isPresent ? "supported" : "not-used",
             detail: detail ?? "none"
         )
+    }
+
+    private static func sourceProvenanceRow(_ provenance: SourceProvenance?) -> RuntimeCapabilityRow {
+        RuntimeCapabilityRow(
+            category: "source",
+            name: "provenance",
+            status: provenance == nil ? "unspecified" : "declared",
+            detail: sourceProvenanceSummary(provenance)
+        )
+    }
+
+    private static func sourceProvenanceSummary(_ provenance: SourceProvenance?) -> String {
+        guard let provenance else { return "unspecified" }
+        let imported = provenance.importedFields?.count ?? 0
+        let calibrated = provenance.calibratedFields?.count ?? 0
+        let unsupported = provenance.unsupportedFields?.count ?? 0
+        let runtime = provenance.sourceRuntime.map { " runtime=\($0)" } ?? ""
+        let projectType = provenance.projectType.map { " project=\($0)" } ?? ""
+        return "\(provenance.sourceType.rawValue)\(runtime)\(projectType) imported=\(imported) calibrated=\(calibrated) unsupported=\(unsupported)"
     }
 
     private static func videoAssetRow(

@@ -1565,9 +1565,10 @@ enum RuntimeSelfTest {
         check(
             manifestSchemaJSON?["title"] as? String == "Mac Wallpaper Engine Native Manifest v2"
                 && manifestSchemaText.contains("\"macos-wallpaper-native.v2\"")
+                && manifestSchemaText.contains("\"sourceProvenance\"")
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
                 && manifestSchemaText.contains("\"tapAction\""),
-            "manifest schema resource must be valid JSON and cover current v2 interaction fields"
+            "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
         )
         let schemaCheckedBundles = WallpaperBundleCatalog.discover(
             in: runtime.config.projectRoot.appendingPathComponent("wallpapers")
@@ -1901,6 +1902,11 @@ enum RuntimeSelfTest {
         check(
             occurrenceCount("libraryReport: listed=3 invalid=0 capabilities", in: bundleMatrix) == 3,
             "bundle validation matrix must validate the bundle library list report and capability rows"
+        )
+        check(
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application imported=6 calibrated=7 unsupported=1")
+                && occurrenceCount("source: sample runtime=native project=test-fixture imported=2 calibrated=0 unsupported=0", in: bundleMatrix) >= 2,
+            "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
         check(
             bundleMatrix.contains("golden: pass fixtures: 3")

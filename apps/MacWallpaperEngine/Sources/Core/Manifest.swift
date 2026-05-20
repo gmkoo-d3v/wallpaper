@@ -3,6 +3,7 @@ import Foundation
 struct WallpaperNativeManifest: Decodable {
     let schemaVersion: String
     let metadata: WallpaperMetadata?
+    let sourceProvenance: SourceProvenance?
     let runtime: RuntimeConfig
     let displayPolicy: DisplayPolicy
     let thermalPolicy: ThermalPolicy
@@ -20,6 +21,25 @@ struct WallpaperMetadata: Decodable {
     let author: String?
     let version: String?
     let description: String?
+}
+
+struct SourceProvenance: Decodable {
+    let sourceType: SourceProvenanceType
+    let sourceRuntime: String?
+    let projectType: String?
+    let importedFields: [String]?
+    let calibratedFields: [String]?
+    let unsupportedFields: [String]?
+    let notes: [String]?
+}
+
+enum SourceProvenanceType: String, Decodable {
+    case wallpaperEngineApplication = "wallpaper-engine-application"
+    case wallpaperEngineScene = "wallpaper-engine-scene"
+    case wallpaperEngineWeb = "wallpaper-engine-web"
+    case native
+    case sample
+    case unknown
 }
 
 struct InteractionPolicy: Decodable {
