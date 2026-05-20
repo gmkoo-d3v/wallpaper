@@ -17,12 +17,96 @@ enum RuntimeSourceProvenanceReport {
             "projectType: \(projectType)",
             "boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter",
             "policy: wallpaper-specific placement, hit zones, action names, timing, and neutral points must stay in the manifest or importer output.",
+            "consistency: \(consistencyLine(runtime: runtime))",
             sourceDescriptorSection(provenance?.sourceDescriptors, projectRoot: runtime.config.projectRoot),
             section("importedFields", provenance?.importedFields),
             section("calibratedFields", provenance?.calibratedFields),
             section("unsupportedFields", provenance?.unsupportedFields),
             section("notes", provenance?.notes)
         ].joined(separator: "\n")
+    }
+
+    static func consistencyStatus(runtime: NativeRuntimeCore) throws -> String {
+        let descriptors = runtime.manifest.sourceProvenance?.sourceDescriptors ?? []
+        guard descriptors.isEmpty == false else {
+            return "sourceProvenance: skipped(no-descriptors)"
+        }
+
+        var readableUnityExtractionCount = 0
+        var checks = Set<String>()
+        var warnings: [String] = []
+
+        for descriptor in descriptors where descriptor.kind == .unityAssetExtractionManifest {
+            let descriptorURL = runtime.config.projectRoot
+                .appendingPathComponent(descriptor.path)
+                .standardizedFileURL
+            guard let data = try? Data(contentsOf: descriptorURL) else {
+                warnings.append("missing(\(descriptor.path))")
+                continue
+            }
+
+            let extraction = try JSONDecoder().decode(UnityAssetExtractionDescriptor.self, from: data)
+            readableUnityExtractionCount += 1
+            try validateSecurityPolicy(extraction.securityPolicy, descriptor: descriptor)
+            checks.insert("safety=windows-exe-forbidden")
+
+            let counts = extraction.counts ?? [:]
+            if runtime.manifest.assets.video != nil {
+                let videoCount = counts["VideoClip"] ?? 0
+                guard videoCount > 0 else {
+                    throw EngineError.manifest("source provenance contradiction: manifest declares a video asset but \(descriptor.path) reports VideoClip=0")
+                }
+                checks.insert("video=VideoClip:\(videoCount)")
+            }
+
+            if runtime.manifest.assets.spine != nil {
+                let textAssetCount = counts["TextAsset"] ?? 0
+                let textureCount = counts["Texture2D"] ?? 0
+                guard textAssetCount > 0 else {
+                    throw EngineError.manifest("source provenance contradiction: manifest declares a Spine asset but \(descriptor.path) reports TextAsset=0")
+                }
+                guard textureCount > 0 else {
+                    throw EngineError.manifest("source provenance contradiction: manifest declares a Spine asset but \(descriptor.path) reports Texture2D=0")
+                }
+                checks.insert("spine=TextAsset:\(textAssetCount)+Texture2D:\(textureCount)")
+            }
+
+            if runtime.manifest.assets.staticImage != nil {
+                let imageSourceCount = (counts["Texture2D"] ?? 0) + (counts["Sprite"] ?? 0)
+                guard imageSourceCount > 0 else {
+                    throw EngineError.manifest("source provenance contradiction: manifest declares a static image asset but \(descriptor.path) reports no Texture2D/Sprite assets")
+                }
+                checks.insert("staticImage=TextureOrSprite:\(imageSourceCount)")
+            }
+        }
+
+        guard readableUnityExtractionCount > 0 else {
+            if warnings.isEmpty {
+                return "sourceProvenance: skipped(no-readable-unity-extraction-descriptor)"
+            }
+            return "sourceProvenance: warn \(warnings.sorted().joined(separator: "+"))"
+        }
+
+        let checkText = checks.isEmpty ? "no-asset-cross-checks" : checks.sorted().joined(separator: " ")
+        return "sourceProvenance: pass \(checkText)"
+    }
+
+    private static func consistencyLine(runtime: NativeRuntimeCore) -> String {
+        do {
+            return try consistencyStatus(runtime: runtime)
+        } catch {
+            return "sourceProvenance: fail \(error.localizedDescription)"
+        }
+    }
+
+    private static func validateSecurityPolicy(
+        _ policy: UnityAssetExtractionSecurityPolicy?,
+        descriptor: SourceDescriptor
+    ) throws {
+        guard policy?.windowsExecutableExecution == "forbidden",
+              policy?.windowsExecutableDisassembly == "forbidden" else {
+            throw EngineError.manifest("source provenance safety policy must forbid Windows executable execution and disassembly for \(descriptor.path)")
+        }
     }
 
     private static func sourceDescriptorSection(_ descriptors: [SourceDescriptor]?, projectRoot: URL) -> String {

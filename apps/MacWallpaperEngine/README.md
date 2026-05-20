@@ -90,6 +90,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   wallpaper, which source descriptor files were read, which fields are
   calibrated compatibility values, and which source behaviors are still
   unsupported by the importer/runtime.
+- Source provenance diagnostics cross-check readable Unity extraction manifests
+  against declared bundle assets, so a bundle that declares video or Spine while
+  its extraction summary lacks `VideoClip`, `TextAsset`, or `Texture2D` is
+  caught by validation instead of becoming a renderer-specific workaround.
 - `--doctor` prints a single launch-safe preflight report that combines
   bundle-library, validation, capability, source provenance, render-plan,
   simulated multi-display, performance, interaction, and renderer recovery
