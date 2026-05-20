@@ -27,6 +27,17 @@ struct InteractionTelemetryEntry {
     let snapshot: InteractionMonitorTelemetrySnapshot
 }
 
+struct InteractionTelemetryObservation: Equatable {
+    let displayName: String
+    let roleName: String
+    let source: String
+    let event: String
+    let decision: String
+    let point: String
+    let command: String
+    let clickPulse: Double
+}
+
 struct DisplayLifecycleTelemetryEntry {
     let event: String
     let status: String
@@ -35,10 +46,12 @@ struct DisplayLifecycleTelemetryEntry {
 
 final class RuntimeTelemetryStore {
     private static let maxLifecycleEntries = 5
+    private static let maxInteractionObservations = 120
 
     private let lock = NSLock()
     private var entriesByDisplay: [String: RuntimeTelemetryEntry] = [:]
     private var interactionEntriesByDisplay: [String: InteractionTelemetryEntry] = [:]
+    private var interactionObservations: [InteractionTelemetryObservation] = []
     private var displayLifecycleEntries: [DisplayLifecycleTelemetryEntry] = []
 
     func record(displayName: String, role: RenderDisplayRole, snapshot: ResourceGovernorSnapshot) {
@@ -63,9 +76,23 @@ final class RuntimeTelemetryStore {
             roleName: "\(role.kind.label):\(role.policy.rawValue)",
             snapshot: snapshot
         )
+        let observation = InteractionTelemetryObservation(
+            displayName: displayName,
+            roleName: entry.roleName,
+            source: snapshot.lastSource,
+            event: snapshot.lastEvent,
+            decision: snapshot.lastDecision,
+            point: snapshot.lastPoint,
+            command: snapshot.lastCommand,
+            clickPulse: snapshot.lastClickPulse
+        )
 
         lock.lock()
         interactionEntriesByDisplay[displayName] = entry
+        interactionObservations.append(observation)
+        if interactionObservations.count > Self.maxInteractionObservations {
+            interactionObservations.removeFirst(interactionObservations.count - Self.maxInteractionObservations)
+        }
         lock.unlock()
     }
 
@@ -108,6 +135,14 @@ final class RuntimeTelemetryStore {
         }
     }
 
+    func interactionObservationSnapshot() -> [InteractionTelemetryObservation] {
+        lock.lock()
+        let entries = interactionObservations
+        lock.unlock()
+
+        return entries
+    }
+
     func summary() -> String {
         let entries = snapshot()
         let interactionEntries = interactionSnapshot()
@@ -134,7 +169,8 @@ final class RuntimeTelemetryStore {
             let active = data.active ? "active" : "inactive"
             let tap = data.eventTapActive ? "tap:on" : "tap:off"
             let local = data.localMonitorActive ? "local:on" : "local:off"
-            return "\(entry.displayName) \(entry.roleName) interaction \(active) \(tap) \(local) global:\(data.globalMonitorCount) last:\(data.lastSource)/\(data.lastEvent)/\(data.lastDecision) point:\(data.lastPoint) command:\(data.lastCommand)/\(format(data.lastClickPulse)) delivered:\(data.deliveredEvents) blocked:\(data.blockedEvents)"
+            let observed = interactionObservedCommandSummary(displayName: entry.displayName)
+            return "\(entry.displayName) \(entry.roleName) interaction \(active) \(tap) \(local) global:\(data.globalMonitorCount) last:\(data.lastSource)/\(data.lastEvent)/\(data.lastDecision) point:\(data.lastPoint) command:\(data.lastCommand)/\(format(data.lastClickPulse)) delivered:\(data.deliveredEvents) blocked:\(data.blockedEvents) observed:\(observed)"
         }
         let lifecycleSummary = lifecycleEntries.map {
             "display lifecycle \($0.event) \($0.status): \($0.detail)"
@@ -144,5 +180,26 @@ final class RuntimeTelemetryStore {
 
     private func format(_ value: Double) -> String {
         String(format: "%.1f", value)
+    }
+
+    private func interactionObservedCommandSummary(displayName: String) -> String {
+        lock.lock()
+        let commands = interactionObservations
+            .filter { $0.displayName == displayName && $0.decision == "delivered" }
+            .map(\.command)
+        lock.unlock()
+
+        let unique = commands
+            .filter { $0.isEmpty == false && $0 != "unknown" }
+            .uniquePreservingOrder()
+        return unique.isEmpty ? "none" : unique.joined(separator: "+")
+    }
+
+}
+
+private extension Array where Element == String {
+    func uniquePreservingOrder() -> [String] {
+        var seen = Set<String>()
+        return filter { seen.insert($0).inserted }
     }
 }

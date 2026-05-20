@@ -2003,6 +2003,8 @@ enum RuntimeSelfTest {
                 && runtimeSmokeEvidence.contains("\"liveDesktopClickActions\"")
                 && runtimeSmokeEvidence.contains("\"blackFrameFlickerSmoke\"")
                 && runtimeSmokeEvidence.contains("runtime telemetry captured")
+                && runtimeSmokeEvidence.contains("live telemetry proof:")
+                && runtimeSmokeEvidence.contains("headShortTap=")
                 && runtimeSmokeEvidence.contains("runtime physical display telemetry captured")
                 && runtimeSmokeEvidence.contains("flicker telemetry captured"),
             "runtime smoke evidence writer must generate a completion-audit-compatible evidence JSON with telemetry context"
@@ -2250,7 +2252,8 @@ enum RuntimeSelfTest {
             interactionTelemetrySummary.contains("interaction active")
                 && interactionTelemetrySummary.contains("last:nsevent/leftDown/delivered")
                 && interactionTelemetrySummary.contains("command:act/1.0")
-                && interactionTelemetrySummary.contains("delivered:1"),
+                && interactionTelemetrySummary.contains("delivered:1")
+                && interactionTelemetrySummary.contains("observed:act"),
             "runtime telemetry summary must expose live desktop interaction monitor status and active command",
             failures: &failures,
             checks: &checks
