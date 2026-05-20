@@ -112,6 +112,7 @@ struct InteractionPlan {
               let downAction = actions["down"] else {
             return "idle"
         }
+        let effectivePreviousCommand = previousCommand == "idle" ? idleAction : previousCommand
         let neutral = Self.point(config.neutralPoint, fallback: CGPoint(x: 0.5, y: 0.5))
         let deadZone = Self.point(config.deadZone, fallback: CGPoint(x: idleDeadZone, y: idleDeadZone))
         let dx = pointer.x - neutral.x
@@ -125,7 +126,13 @@ struct InteractionPlan {
         if abs(dy) > abs(dx) + directionSwitchMargin {
             return dy < 0 ? upAction : downAction
         }
-        return previousCommand
+        return effectivePreviousCommand
+    }
+
+    func idleCommand() -> String {
+        interactions.first {
+            $0.event == .pointerMove && $0.mapping == "lookDirection"
+        }?.actions?["idle"] ?? "idle"
     }
 
     func allowsPointerMove(button: PointerButton?) -> Bool {

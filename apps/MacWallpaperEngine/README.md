@@ -195,6 +195,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   the highest priority, then the smallest rect, then declaration order.
 - Manifest validation rejects incomplete `lookDirection` action maps; bundles
   must declare `left`, `right`, `up`, `down`, and `idle` explicitly.
+- Interaction state is manifest-driven: wallpaper-specific animation names,
+  hit-zone ids, tap/hold timing, and neutral points belong in the bundle
+  manifest/imported source data, not in renderer or input-controller defaults.
 - Manifest validation also rejects unsupported `lookDirection` action keys
   instead of silently ignoring directions the native interaction planner cannot
   produce.

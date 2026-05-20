@@ -853,25 +853,26 @@ enum RuntimeSelfTest {
             ) == unsmoothedTarget,
             "interaction pointerSmoothing=0 must disable smoothing and apply target coordinates immediately"
         )
+        let customLookInteractions = [
+            InteractionConfig(
+                event: .pointerMove,
+                mapping: "lookDirection",
+                actions: [
+                    "left": "lookWest",
+                    "right": "lookEast",
+                    "up": "lookNorth",
+                    "down": "lookSouth",
+                    "idle": "lookCenter"
+                ],
+                neutralPoint: nil,
+                deadZone: nil,
+                hitZones: nil,
+                defaultAction: nil,
+                buttons: nil
+            )
+        ]
         let customLookPlan = InteractionPlan(
-            interactions: [
-                InteractionConfig(
-                    event: .pointerMove,
-                    mapping: "lookDirection",
-                    actions: [
-                        "left": "lookWest",
-                        "right": "lookEast",
-                        "up": "lookNorth",
-                        "down": "lookSouth",
-                        "idle": "lookCenter"
-                    ],
-                    neutralPoint: nil,
-                    deadZone: nil,
-                    hitZones: nil,
-                    defaultAction: nil,
-                    buttons: nil
-                )
-            ],
+            interactions: customLookInteractions,
             policy: nil
         )
         check(
@@ -881,6 +882,37 @@ enum RuntimeSelfTest {
                 && customLookPlan.command(for: CGPoint(x: 0.50, y: 0.90), previousCommand: "lookCenter") == "lookSouth"
                 && customLookPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "lookEast") == "lookCenter",
             "look-direction interaction plan must use manifest action names instead of hard-coded animation names"
+        )
+        var customLookClock: CFTimeInterval = 0
+        let customLookController = InteractionController(
+            interactions: customLookInteractions,
+            policy: InteractionPolicy(
+                mode: .desktopEmptyOnly,
+                blockApplicationWindows: true,
+                blockDesktopItems: true,
+                pointerSmoothing: 0,
+                pointerSampleFps: 60,
+                idleDeadZone: 0.12,
+                directionSwitchMargin: 0.04,
+                defaultClickTailSeconds: 1.15,
+                releaseFadeSeconds: 0.20
+            ),
+            clock: { customLookClock }
+        )
+        check(
+            customLookController.snapshot().command == "lookCenter",
+            "interaction controller initial state must use the manifest-declared idle action"
+        )
+        customLookController.pointerMoved(to: CGPoint(x: 0.90, y: 0.50))
+        customLookClock += 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+        check(
+            customLookController.snapshot().command == "lookEast",
+            "interaction controller must resolve custom manifest look actions during pointer movement"
+        )
+        customLookController.resetPointerTracking()
+        check(
+            customLookController.snapshot().command == "lookCenter",
+            "interaction controller reset must return to the manifest-declared idle action"
         )
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"

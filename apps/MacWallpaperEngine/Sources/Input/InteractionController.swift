@@ -15,7 +15,7 @@ final class InteractionController {
     private var pointerState = CGPoint(x: 0.5, y: 0.5)
     private var smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
     private var lastSmoothSampleAt: CFTimeInterval
-    private var moveCommandState = "idle"
+    private var moveCommandState: String
     private var clickCommandState: String?
     private var clickCommandExpiresAt: CFTimeInterval = 0
     private var clickCommandHeld = false
@@ -30,6 +30,7 @@ final class InteractionController {
     private var pressedButton: PointerButton?
     private var pressStartedAt: CFTimeInterval = 0
     private let plan: InteractionPlan
+    private let idleCommand: String
     private let clock: () -> CFTimeInterval
 
     init(
@@ -41,11 +42,17 @@ final class InteractionController {
         self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
         self.releaseFadeDuration = policy?.releaseFadeSeconds ?? 0.20
         self.activeClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
-        self.plan = InteractionPlan(
+        let resolvedPlan = InteractionPlan(
             interactions: interactions,
             policy: policy,
             actionTailDurations: actionTailDurations
         )
+        self.plan = resolvedPlan
+        self.idleCommand = resolvedPlan.idleCommand()
+        self.moveCommandState = resolvedPlan.idleCommand()
+        let neutralPoint = resolvedPlan.lookNeutralPoint()
+        self.pointerState = neutralPoint
+        self.smoothedPointerState = neutralPoint
         self.clock = clock
         self.lastSmoothSampleAt = clock()
     }
@@ -90,7 +97,7 @@ final class InteractionController {
             pointerState = pointer
         } else {
             pointerState = plan.lookNeutralPoint()
-            moveCommandState = "idle"
+            moveCommandState = idleCommand
         }
         lock.unlock()
     }
@@ -183,10 +190,11 @@ final class InteractionController {
     func resetPointerTracking() {
         lock.lock()
         let now = clock()
-        pointerState = CGPoint(x: 0.5, y: 0.5)
-        smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
+        let neutralPoint = plan.lookNeutralPoint()
+        pointerState = neutralPoint
+        smoothedPointerState = neutralPoint
         lastSmoothSampleAt = now
-        moveCommandState = "idle"
+        moveCommandState = idleCommand
         clickCommandState = nil
         clickCommandExpiresAt = 0
         clickCommandHeld = false
@@ -298,7 +306,7 @@ final class InteractionController {
         pressedButton = nil
         if plan.allowsPointerMove(button: nil) == false {
             pointerState = plan.lookNeutralPoint()
-            moveCommandState = "idle"
+            moveCommandState = idleCommand
         }
     }
 }
