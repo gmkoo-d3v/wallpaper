@@ -3,8 +3,11 @@ import Foundation
 enum AccessibilityDiagnostics {
     static func statusText(requestPrompt: Bool = false) -> String {
         let beforeTrusted = DesktopInteractionGate.hasAccessibilityTrust()
-        let promptResult = requestPrompt ? DesktopInteractionGate.requestAccessibilityTrustPrompt() : nil
-        let settingsOpened = requestPrompt ? DesktopInteractionGate.openAccessibilitySettings() : nil
+        let shouldRequestPrompt = requestPrompt && RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(
+            accessibilityTrusted: beforeTrusted
+        )
+        let promptResult = shouldRequestPrompt ? DesktopInteractionGate.requestAccessibilityTrustPrompt() : nil
+        let settingsOpened = shouldRequestPrompt ? DesktopInteractionGate.openAccessibilitySettings() : nil
         let afterTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         let packageMetadata = packageSigningMetadataText()
 
@@ -21,6 +24,9 @@ enum AccessibilityDiagnostics {
             lines.append("promptReturnedTrusted: \(promptResult)")
         } else {
             lines.append("promptRequested: false")
+            if requestPrompt, beforeTrusted {
+                lines.append("promptSkipped: already-trusted")
+            }
         }
         if let settingsOpened {
             lines.append("settingsOpened: \(settingsOpened)")

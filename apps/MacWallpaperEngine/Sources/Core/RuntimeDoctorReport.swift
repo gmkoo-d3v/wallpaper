@@ -74,10 +74,11 @@ enum RuntimeDoctorReport {
     }
 
     private static func packageSigningReport() -> String {
+        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         var lines = [
             "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unavailable")",
             "bundlePath: \(Bundle.main.bundleURL.path)",
-            "accessibilityTrust: \(DesktopInteractionGate.hasAccessibilityTrust() ? "trusted" : "missing")"
+            "accessibilityTrust: \(accessibilityTrusted ? "trusted" : "missing")"
         ]
 
         if let metadata = packageSigningMetadataText() {
@@ -87,9 +88,7 @@ enum RuntimeDoctorReport {
             lines.append("metadata: unavailable(source-or-unpackaged-run)")
         }
 
-        lines.append(
-            "clickActionNote: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding the current .app"
-        )
+        lines.append("clickActionNote: \(clickActionNote(accessibilityTrusted: accessibilityTrusted))")
         return lines.joined(separator: "\n")
     }
 
@@ -100,8 +99,17 @@ enum RuntimeDoctorReport {
         }
 
         let mode = metadata["codesignMode"] ?? "unknown"
-        let action = mode == "adhoc" ? " / re-add current app after rebuild if clicks fail" : ""
+        let action = mode == "adhoc" && trust == "missing"
+            ? " / add or re-add current app to enable clicks"
+            : ""
         return "signing: \(mode) / accessibility=\(trust)\(action)"
+    }
+
+    private static func clickActionNote(accessibilityTrusted: Bool) -> String {
+        if accessibilityTrusted {
+            return "current app is trusted; click/touch actions can run without reopening the Accessibility prompt"
+        }
+        return "click/touch actions require macOS Accessibility trust; add or re-add the current .app"
     }
 
     private static func packageSigningMetadata() -> [String: String]? {

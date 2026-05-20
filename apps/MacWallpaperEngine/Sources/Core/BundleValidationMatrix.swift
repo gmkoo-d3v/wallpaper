@@ -456,7 +456,7 @@ enum BundleValidationMatrix {
         guard requiredSections.allSatisfy({ report.contains($0) }),
               report.contains("validBundles:"),
               report.contains("includeCapabilities: true"),
-              report.contains("click/touch actions require macOS Accessibility trust"),
+              report.contains("clickActionNote:"),
               report.contains(runtime.config.wallpaperRoot.path),
               report.contains(runtime.config.manifestURL.path) else {
             throw EngineError.invalidArgument(

@@ -254,6 +254,14 @@ enum RuntimeSelfTest {
                 && accessibilityStatusText.contains("appPath:"),
             "Accessibility diagnostics must expose current trust state without prompting by default"
         )
+        if DesktopInteractionGate.hasAccessibilityTrust() {
+            let trustedRequestStatusText = AccessibilityDiagnostics.statusText(requestPrompt: true)
+            check(
+                trustedRequestStatusText.contains("promptRequested: false")
+                    && trustedRequestStatusText.contains("promptSkipped: already-trusted"),
+                "Accessibility diagnostics must not reopen prompts or System Settings after this exact app is already trusted"
+            )
+        }
         check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
                 usesPassiveEventMonitoring: true,
@@ -794,7 +802,7 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("displayMode: allFull")
                 && doctorReport.contains("== performance-plan ==")
                 && doctorReport.contains("== package-signing ==")
-                && doctorReport.contains("click/touch actions require macOS Accessibility trust")
+                && doctorReport.contains("clickActionNote:")
                 && doctorReport.contains("== interaction-plan ==")
                 && doctorReport.contains("== renderer-recovery =="),
             "runtime doctor report must combine bundle library, validation, capability, render-mode matrix, performance, package signing, interaction, and recovery diagnostics"
@@ -832,10 +840,13 @@ enum RuntimeSelfTest {
         )
         if let packageSigningURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
            FileManager.default.fileExists(atPath: packageSigningURL.path) {
+            let expectedSigningAction = DesktopInteractionGate.hasAccessibilityTrust()
+                ? "signing: adhoc"
+                : "add or re-add current app"
             check(
                 doctorControlPanelSummary.contains("signing: adhoc")
-                    && doctorControlPanelSummary.contains("re-add current app"),
-                "packaged ad-hoc builds must surface the Accessibility re-add hint in the control-panel doctor summary"
+                    && doctorControlPanelSummary.contains(expectedSigningAction),
+                "packaged ad-hoc builds must surface trusted state or a re-add action in the control-panel doctor summary"
             )
         }
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
