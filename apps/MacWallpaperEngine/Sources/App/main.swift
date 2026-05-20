@@ -158,6 +158,11 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if config.sourceProvenanceReportOnly {
+        print(RuntimeSourceProvenanceReport.make(runtime: runtime))
+        exit(EXIT_SUCCESS)
+    }
+
     if config.doctorReportOnly {
         print(try RuntimeDoctorReport.make(runtime: runtime))
         exit(EXIT_SUCCESS)

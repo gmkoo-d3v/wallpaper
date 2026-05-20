@@ -100,6 +100,7 @@ struct EngineConfig {
     let simulatedRenderPlanOnly: Bool
     let performancePlanOnly: Bool
     let runtimeCapabilitiesOnly: Bool
+    let sourceProvenanceReportOnly: Bool
     let doctorReportOnly: Bool
     let interactionPlanOnly: Bool
     let interactionProbePoint: CGPoint?
@@ -160,6 +161,7 @@ struct EngineConfig {
         simulatedRenderPlanOnly: Bool? = nil,
         performancePlanOnly: Bool? = nil,
         runtimeCapabilitiesOnly: Bool? = nil,
+        sourceProvenanceReportOnly: Bool? = nil,
         doctorReportOnly: Bool? = nil,
         interactionPlanOnly: Bool? = nil,
         interactionProbePoint: CGPoint? = nil,
@@ -206,6 +208,7 @@ struct EngineConfig {
             simulatedRenderPlanOnly: simulatedRenderPlanOnly ?? self.simulatedRenderPlanOnly,
             performancePlanOnly: performancePlanOnly ?? self.performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly ?? self.runtimeCapabilitiesOnly,
+            sourceProvenanceReportOnly: sourceProvenanceReportOnly ?? self.sourceProvenanceReportOnly,
             doctorReportOnly: doctorReportOnly ?? self.doctorReportOnly,
             interactionPlanOnly: interactionPlanOnly ?? self.interactionPlanOnly,
             interactionProbePoint: interactionProbePoint ?? self.interactionProbePoint,
@@ -272,6 +275,7 @@ struct EngineConfig {
         var simulatedRenderPlanOnly = false
         var performancePlanOnly = false
         var runtimeCapabilitiesOnly = false
+        var sourceProvenanceReportOnly = false
         var doctorReportOnly = false
         var interactionPlanOnly = false
         var interactionProbePoint: CGPoint?
@@ -411,6 +415,8 @@ struct EngineConfig {
                 performancePlanOnly = true
             case "--runtime-capabilities":
                 runtimeCapabilitiesOnly = true
+            case "--source-provenance":
+                sourceProvenanceReportOnly = true
             case "--doctor":
                 doctorReportOnly = true
             case "--interaction-plan":
@@ -555,6 +561,7 @@ struct EngineConfig {
             || simulatedRenderPlanOnly
             || performancePlanOnly
             || runtimeCapabilitiesOnly
+            || sourceProvenanceReportOnly
             || doctorReportOnly
             || interactionPlanOnly
             || interactionProbePoint != nil
@@ -654,6 +661,7 @@ struct EngineConfig {
             simulatedRenderPlanOnly: simulatedRenderPlanOnly,
             performancePlanOnly: performancePlanOnly,
             runtimeCapabilitiesOnly: runtimeCapabilitiesOnly,
+            sourceProvenanceReportOnly: sourceProvenanceReportOnly,
             doctorReportOnly: doctorReportOnly,
             interactionPlanOnly: interactionPlanOnly,
             interactionProbePoint: interactionProbePoint,
@@ -782,6 +790,7 @@ struct EngineConfig {
       --simulated-render-plan  Print the same renderer path over a deterministic three-display fixture and exit.
       --performance-plan       Print manifest performance budget mapping and exit.
       --runtime-capabilities   Print manifest feature support and fallback mapping, then exit.
+      --source-provenance      Print imported/calibrated/unsupported source fields, then exit.
       --doctor                 Print bundle library, validation, capability, display, performance, interaction, and recovery preflight report, then exit.
       --interaction-plan       Print pointer move/click mapping and hit-zone probes, then exit.
       --probe-interaction <x,y>

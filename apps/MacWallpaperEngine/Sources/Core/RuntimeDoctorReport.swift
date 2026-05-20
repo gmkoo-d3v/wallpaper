@@ -44,6 +44,7 @@ enum RuntimeDoctorReport {
             section("bundle-library", bundleLibraryReport(runtime: runtime)),
             section("validation", runtime.validationSummary()),
             section("runtime-capabilities", runtime.runtimeCapabilitiesSummary()),
+            section("source-provenance", RuntimeSourceProvenanceReport.make(runtime: runtime)),
             section("render-plan", DisplayPlanner.headlessRenderSummary(runtime: runtime)),
             section("physical-render-plan", DisplayPlanner.renderSummary(runtime: runtime)),
             section("simulated-render-plan", DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime)),

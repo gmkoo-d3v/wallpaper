@@ -86,10 +86,13 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--runtime-capabilities` reports the loaded bundle's manifest features,
   supported runtime paths, fallback paths, and explicit unsupported Spine
   feature classes.
+- `--source-provenance` reports which manifest fields came from the source
+  wallpaper, which fields are calibrated compatibility values, and which source
+  behaviors are still unsupported by the importer/runtime.
 - `--doctor` prints a single launch-safe preflight report that combines
-  bundle-library, validation, capability, render-plan, simulated multi-display,
-  performance, interaction, and renderer recovery diagnostics for the selected
-  bundle.
+  bundle-library, validation, capability, source provenance, render-plan,
+  simulated multi-display, performance, interaction, and renderer recovery
+  diagnostics for the selected bundle.
 - The control panel shows a compact doctor summary for the selected bundle so
   native support, composite quality, display mode, and interaction readiness are
   visible before starting playback.
@@ -503,6 +506,7 @@ swift run MacWallpaperEngine --completion-audit --strict-composite-quality --man
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
 swift run MacWallpaperEngine --doctor
+swift run MacWallpaperEngine --source-provenance
 swift run MacWallpaperEngine --recovery-plan
 swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --probe-interaction 0.5,0.42

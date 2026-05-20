@@ -773,6 +773,7 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("includeCapabilities: true")
                 && doctorReport.contains("== validation ==")
                 && doctorReport.contains("== runtime-capabilities ==")
+                && doctorReport.contains("== source-provenance ==")
                 && doctorReport.contains("== render-plan ==")
                 && doctorReport.contains("== physical-render-plan ==")
                 && doctorReport.contains("== simulated-render-plan ==")
@@ -786,6 +787,15 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("== interaction-plan ==")
                 && doctorReport.contains("== renderer-recovery =="),
             "runtime doctor report must combine bundle library, validation, capability, render-mode matrix, performance, package signing, interaction, and recovery diagnostics"
+        )
+        let sourceProvenanceReport = RuntimeSourceProvenanceReport.make(runtime: runtime)
+        check(
+            sourceProvenanceReport.contains("source provenance OK")
+                && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
+                && sourceProvenanceReport.contains("importedFields:")
+                && sourceProvenanceReport.contains("calibratedFields:")
+                && sourceProvenanceReport.contains("unsupportedFields:"),
+            "source provenance report must expose imported, calibrated, and unsupported fields so wallpaper-specific data stays out of runtime code"
         )
         check(
             doctorControlPanelSummary.contains("doctor: OK")
@@ -1570,6 +1580,10 @@ enum RuntimeSelfTest {
         check(
             EngineConfig.help.contains("--print-manifest-schema"),
             "EngineConfig help must document wallpaper manifest schema export"
+        )
+        check(
+            EngineConfig.help.contains("--source-provenance"),
+            "EngineConfig help must document source provenance diagnostics"
         )
         let manifestSchemaText = try ManifestSchemaResource.loadText(projectRoot: runtime.config.projectRoot)
         let manifestSchemaJSON = try JSONSerialization.jsonObject(
@@ -3260,6 +3274,19 @@ enum RuntimeSelfTest {
         check(
             doctorParse.foregroundMode == .automatic,
             "runtime doctor diagnostics must ignore persisted foreground mode",
+            failures: &failures,
+            checks: &checks
+        )
+        let sourceProvenanceParse = try EngineConfig.parse(["--source-provenance"])
+        check(
+            sourceProvenanceParse.sourceProvenanceReportOnly,
+            "EngineConfig must parse source provenance diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            sourceProvenanceParse.foregroundMode == .automatic,
+            "source provenance diagnostics must ignore persisted foreground mode",
             failures: &failures,
             checks: &checks
         )
