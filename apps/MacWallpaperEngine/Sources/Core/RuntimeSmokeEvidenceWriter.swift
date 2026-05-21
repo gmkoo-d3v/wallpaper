@@ -157,7 +157,7 @@ enum RuntimeSmokeEvidenceWriter {
         let clickExpectations = liveClickExpectations(plan: plan)
         let expectedMoveCommands = pointerMoveCommands(manifest: runtime.manifest)
         var satisfiedClickExpectations = Set<String>()
-        var gazeDirection = expectedMoveCommands.isEmpty
+        var satisfiedMoveCommands = Set<String>()
 
         for observation in observations where observation.decision == "delivered" {
             let point = normalizedPoint(observation.point)
@@ -165,7 +165,7 @@ enum RuntimeSmokeEvidenceWriter {
             let event = observation.event
             if expectedMoveCommands.contains(command),
                event == "move" || event == "drag" {
-                gazeDirection = true
+                satisfiedMoveCommands.insert(command)
             }
             guard let point, let button = button(from: event) else { continue }
             let hit = plan.hitTest(point: point, button: button)
@@ -189,23 +189,26 @@ enum RuntimeSmokeEvidenceWriter {
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         let clickExpectationsPassed = clickExpectations.allSatisfy { satisfiedClickExpectations.contains($0.id) }
+        let moveExpectationsPassed = expectedMoveCommands.isSubset(of: satisfiedMoveCommands)
         let passed = packaged
             && accessibilityTrusted
             && clickExpectationsPassed
-            && gazeDirection
+            && moveExpectationsPassed
         let expectedLabels = (clickExpectations.map(\.label) + (expectedMoveCommands.isEmpty ? [] : ["gaze:\(expectedMoveCommands.sorted().joined(separator: "/"))"]))
+        let missingMoveCommands = expectedMoveCommands.subtracting(satisfiedMoveCommands)
         let missingLabels = clickExpectations
             .filter { satisfiedClickExpectations.contains($0.id) == false }
             .map(\.label)
-            + ((gazeDirection || expectedMoveCommands.isEmpty) ? [] : ["gaze:\(expectedMoveCommands.sorted().joined(separator: "/"))"])
+            + (missingMoveCommands.isEmpty ? [] : ["gaze:\(missingMoveCommands.sorted().joined(separator: "/"))"])
         let evidence = [
             "live telemetry proof:",
             "packaged=\(packaged)",
             "accessibilityTrusted=\(accessibilityTrusted)",
             "expected=\(expectedLabels.joined(separator: ","))",
             "satisfied=\(satisfiedClickExpectations.sorted().joined(separator: ","))",
+            "satisfiedGaze=\(satisfiedMoveCommands.sorted().joined(separator: "/"))",
             "missing=\(missingLabels.joined(separator: ","))",
-            "gazeDirection=\(gazeDirection)",
+            "gazeComplete=\(moveExpectationsPassed)",
             "observations=\(observations.count)"
         ].joined(separator: " ")
         return (passed, evidence, expectedLabels.joined(separator: ","))

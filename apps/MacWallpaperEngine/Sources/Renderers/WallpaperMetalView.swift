@@ -381,6 +381,117 @@ final class WallpaperMetalView: MTKView {
         recordDirectInteraction(event: "rightUp", decision: "delivered", point: point, delivered: true)
     }
 
+    func runRuntimeInteractionSmoke() {
+        guard displayRole.allowsInteraction,
+              interactionPolicy.mode != .disabled,
+              runtime.manifest.interactions.isEmpty == false else {
+            return
+        }
+
+        let actionTailDurations = (try? SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)) ?? [:]
+        let plan = InteractionPlan(
+            interactions: runtime.manifest.interactions,
+            policy: runtime.manifest.interactionPolicy,
+            actionTailDurations: actionTailDurations
+        )
+        var delay: TimeInterval = 0.0
+
+        for point in smokeGazePoints(plan: plan) {
+            for _ in 0..<12 {
+                scheduleInteractionSmokeStep(after: delay) { view in
+                    view.interaction.pointerDragged(to: point, button: .left)
+                    view.recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
+                }
+                delay += 0.08
+            }
+        }
+
+        for zone in plan.hitZoneSummaries() where zone.buttons.contains(.left) {
+            let point = center(of: zone.rect)
+            if zone.tapAction != nil {
+                scheduleInteractionSmokeStep(after: delay) { view in
+                    view.interaction.pointerDown(at: point, button: .left)
+                    view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
+                }
+                delay += 0.05
+                scheduleInteractionSmokeStep(after: delay) { view in
+                    view.interaction.pointerUp(at: point, button: .left)
+                    view.recordDirectInteraction(event: "leftUp", decision: "delivered", point: point, delivered: true)
+                }
+                delay += 0.20
+            }
+
+            scheduleInteractionSmokeStep(after: delay) { view in
+                view.interaction.pointerDown(at: point, button: .left)
+                view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
+            }
+            delay += max(0.05, zone.trigger == .hold ? zone.holdStartSeconds + 0.12 : 0.05)
+            scheduleInteractionSmokeStep(after: delay) { view in
+                view.interaction.pointerDragged(to: point, button: .left)
+                view.recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
+            }
+            delay += 0.05
+            scheduleInteractionSmokeStep(after: delay) { view in
+                view.interaction.pointerUp(at: point, button: .left)
+                view.recordDirectInteraction(event: "leftUp", decision: "delivered", point: point, delivered: true)
+            }
+            delay += 0.25
+        }
+
+        if let emptyPoint = smokeEmptyPoint(plan: plan) {
+            scheduleInteractionSmokeStep(after: delay) { view in
+                view.interaction.pointerDown(at: emptyPoint, button: .left)
+                view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: emptyPoint, delivered: true)
+            }
+            delay += 0.05
+            scheduleInteractionSmokeStep(after: delay) { view in
+                view.interaction.pointerUp(at: emptyPoint, button: .left)
+                view.recordDirectInteraction(event: "leftUp", decision: "delivered", point: emptyPoint, delivered: true)
+            }
+        }
+    }
+
+    private func scheduleInteractionSmokeStep(
+        after delay: TimeInterval,
+        _ step: @escaping (WallpaperMetalView) -> Void
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            step(self)
+        }
+    }
+
+    private func smokeGazePoints(plan: InteractionPlan) -> [CGPoint] {
+        let neutral = plan.lookNeutralPoint()
+        return [
+            CGPoint(x: 0.95, y: neutral.y),
+            CGPoint(x: 0.05, y: neutral.y),
+            CGPoint(x: neutral.x, y: 0.05),
+            CGPoint(x: neutral.x, y: 0.95)
+        ]
+    }
+
+    private func smokeEmptyPoint(plan: InteractionPlan) -> CGPoint? {
+        let candidates = [
+            CGPoint(x: 0.04, y: 0.04),
+            CGPoint(x: 0.96, y: 0.04),
+            CGPoint(x: 0.04, y: 0.96),
+            CGPoint(x: 0.96, y: 0.96),
+            plan.lookNeutralPoint()
+        ]
+        return candidates.first { plan.hitTest(point: $0, button: .left) == nil }
+    }
+
+    private func center(of bounds: [Double]) -> CGPoint {
+        guard bounds.count == 4 else {
+            return CGPoint(x: 0.5, y: 0.5)
+        }
+        return CGPoint(
+            x: CGFloat((bounds[0] + bounds[2]) / 2.0),
+            y: CGFloat((bounds[1] + bounds[3]) / 2.0)
+        )
+    }
+
     private var shouldHandleDirectMouseEvents: Bool {
         RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
             interactionPolicy: interactionPolicy

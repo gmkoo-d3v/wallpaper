@@ -48,6 +48,13 @@ final class WallpaperHost: NSObject {
         }
     }
 
+    func runRuntimeInteractionSmoke() {
+        for window in windows {
+            guard let metalView = window.contentView as? WallpaperMetalView else { continue }
+            metalView.runRuntimeInteractionSmoke()
+        }
+    }
+
     deinit {
         stop()
     }

@@ -36,6 +36,11 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
             if runtime.config.launchWallpaper {
                 try startHost()
             }
+            if runtime.config.runtimeInteractionSmoke {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    self?.host?.runRuntimeInteractionSmoke()
+                }
+            }
             if runtime.config.launchControlPanel {
                 showControlPanel()
             }
@@ -623,6 +628,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             compositeExportDuration: nil,
             strictCompositeQuality: false,
             runtimeSmokeEvidenceURL: nil,
+            runtimeInteractionSmoke: false,
             selfTestOnly: false,
             startHidden: false,
             interactive: true,
