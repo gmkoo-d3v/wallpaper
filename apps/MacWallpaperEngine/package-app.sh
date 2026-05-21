@@ -20,6 +20,7 @@ PACKAGE_SMOKE_TEST="${PACKAGE_SMOKE_TEST:-auto}"
 PACKAGE_SMOKE_TEST_DURATION="${PACKAGE_SMOKE_TEST_DURATION:-2}"
 PACKAGE_SMOKE_EVIDENCE="${PACKAGE_SMOKE_EVIDENCE:-}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+CODESIGN_IDENTITY_NAME="${CODESIGN_IDENTITY_NAME:-Mac Wallpaper Engine Local Development}"
 CODESIGN_DEEP="${CODESIGN_DEEP:-1}"
 VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
 PACKAGE_SMOKE_TEST_PASSED=0
@@ -87,6 +88,27 @@ case "$PACKAGE_SMOKE_TEST" in
     ;;
 esac
 
+resolve_codesign_identity() {
+  case "$CODESIGN_IDENTITY" in
+    auto|AUTO)
+      if ! command -v security >/dev/null 2>&1; then
+        echo "CODESIGN_IDENTITY=auto requires the macOS security tool." >&2
+        exit 1
+      fi
+
+      if security find-identity -v -p codesigning | grep -F "\"$CODESIGN_IDENTITY_NAME\"" >/dev/null; then
+        CODESIGN_IDENTITY="$CODESIGN_IDENTITY_NAME"
+        return
+      fi
+
+      echo "No stable local codesign identity named '$CODESIGN_IDENTITY_NAME' was found." >&2
+      echo "Create one with: apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes" >&2
+      echo "Then package with: CODESIGN_IDENTITY=auto apps/MacWallpaperEngine/package-app.sh" >&2
+      exit 1
+      ;;
+  esac
+}
+
 print_composite_quality_notice() {
   local bundle_dir="$1"
   local bundle_name="$2"
@@ -152,7 +174,7 @@ sign_app_bundle() {
 
   if [ "$CODESIGN_IDENTITY" = "-" ]; then
     echo "Packaged app was ad-hoc signed. macOS Accessibility permission may need to be re-granted after each rebuild." >&2
-    echo "Set CODESIGN_IDENTITY to a stable local signing identity to keep TCC/Accessibility identity stable during development." >&2
+    echo "Set CODESIGN_IDENTITY=auto after creating a local identity with apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes to keep TCC/Accessibility identity stable during development." >&2
   else
     echo "Packaged app signed with identity: $CODESIGN_IDENTITY" >&2
   fi
@@ -280,6 +302,8 @@ if [ ! -d "$WALLPAPER_SOURCE" ]; then
   echo "Wallpaper source directory is missing: $WALLPAPER_SOURCE" >&2
   exit 1
 fi
+
+resolve_codesign_identity
 
 swift build -c release --package-path "$SCRIPT_DIR"
 

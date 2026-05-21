@@ -604,9 +604,20 @@ Accessibility and signing note:
   --accessibility-status` to confirm the exact packaged binary state, or
   `--request-accessibility` to ask macOS for trust and open the Accessibility
   settings pane before live interaction smoke.
-- For repeated development builds, set `CODESIGN_IDENTITY` to a stable local
-  signing identity before packaging so Accessibility trust is tied to a stable
-  code-signing requirement instead of a changing ad-hoc code hash:
+- For repeated development builds, create or use a stable local signing identity
+  before packaging so Accessibility trust is tied to a stable code-signing
+  requirement instead of a changing ad-hoc code hash. The helper creates a local
+  development identity in the login keychain. It adds a private key and trusted
+  local root certificate for code signing, so run it only on a development Mac
+  you control and only after accepting the persistent keychain change:
+
+```bash
+apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes
+CODESIGN_IDENTITY=auto apps/MacWallpaperEngine/package-app.sh
+```
+
+`CODESIGN_IDENTITY=auto` looks for `Mac Wallpaper Engine Local Development` by
+default. To use a different existing identity:
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Example Name" apps/MacWallpaperEngine/package-app.sh
