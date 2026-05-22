@@ -104,6 +104,7 @@ enum RuntimeCompletionAudit {
             bundles: bundles,
             validationMatrix: validationMatrix
         )
+        let genericPlayerContract = genericPlayerContractEvidence(bundles: bundles)
         let sourceDerivation = sourceDerivationEvidence(bundles: bundles)
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
@@ -131,6 +132,12 @@ enum RuntimeCompletionAudit {
                 passed: wallpaperBundleContract.passed,
                 evidence: wallpaperBundleContract.evidence,
                 risk: "wallpaper-specific placement, hit zones, action names, timing, and neutral points must stay in the manifest/source-adapter bundle contract, not the generic runtime"
+            ),
+            item(
+                id: "generic-player-contract",
+                passed: genericPlayerContract.passed,
+                evidence: genericPlayerContract.evidence,
+                risk: "the runtime must interpret bundle-declared assets, layers, interactions, hit zones, timings, and action names instead of owning wallpaper-specific behavior"
             ),
             item(
                 id: "renderer-family-coverage",
@@ -445,6 +452,105 @@ enum RuntimeCompletionAudit {
             "\($0.id)=\($0.capabilities.sourceDerivationSummary)"
         }
         return bundleSummaries.joined(separator: "; ")
+    }
+
+    private static func genericPlayerContractEvidence(
+        bundles: [WallpaperBundleSummary]
+    ) -> (passed: Bool, evidence: String) {
+        var passed = true
+        let bundleSummaries = bundles.map { bundle -> String in
+            do {
+                let manifest = try ManifestLoader.load(url: bundle.manifestURL, bundleRoot: bundle.root)
+                let declaredAssetIds = Set(declaredAssetIDs(manifest))
+                let layerRefs = Set(manifest.layers.map(\.asset))
+                let missingLayerRefs = layerRefs.subtracting(declaredAssetIds).sorted()
+                let actionNames = referencedInteractionActions(in: manifest.interactions).sorted()
+                let interactionText = interactionOwnershipText(manifest)
+                var checks: [String] = []
+                if manifest.layers.isEmpty {
+                    checks.append("no-layers")
+                }
+                if missingLayerRefs.isEmpty == false {
+                    checks.append("missing-layer-assets=\(missingLayerRefs.joined(separator: ","))")
+                }
+                if manifest.interactions.isEmpty == false, manifest.assets.spine == nil {
+                    checks.append("interactive-without-spine")
+                }
+                if checks.isEmpty == false {
+                    passed = false
+                }
+                let status = checks.isEmpty ? "manifest-owned" : "invalid(\(checks.joined(separator: "+")))"
+                return "\(bundle.id)=\(status) assets[\(declaredAssetIds.sorted().joined(separator: "+"))] layers[\(manifest.layers.map { "\($0.id):\($0.type.rawValue)->\($0.asset)" }.joined(separator: ","))] interactions[\(interactionText)] actions[\(actionNames.isEmpty ? "none" : actionNames.joined(separator: "+"))]"
+            } catch {
+                passed = false
+                return "\(bundle.id)=invalid(\(oneLine(String(describing: error))))"
+            }
+        }
+        return (passed, bundleSummaries.joined(separator: "; "))
+    }
+
+    private static func declaredAssetIDs(_ manifest: WallpaperNativeManifest) -> [String] {
+        [
+            manifest.assets.staticImage?.id,
+            manifest.assets.video?.id,
+            manifest.assets.compositeVideo?.id,
+            manifest.assets.spine?.id
+        ].compactMap { $0 }
+    }
+
+    private static func referencedInteractionActions(in interactions: [InteractionConfig]) -> Set<String> {
+        var actions = Set<String>()
+        for interaction in interactions {
+            interaction.actions?.values.forEach { actions.insert($0) }
+            interaction.hitZones?.forEach {
+                actions.insert($0.action)
+                if let tapAction = $0.tapAction {
+                    actions.insert(tapAction)
+                }
+            }
+            if let defaultAction = interaction.defaultAction {
+                actions.insert(defaultAction.action)
+            }
+        }
+        return actions
+    }
+
+    private static func interactionOwnershipText(_ manifest: WallpaperNativeManifest) -> String {
+        guard manifest.interactions.isEmpty == false else { return "none" }
+        let plan = InteractionPlan(
+            interactions: manifest.interactions,
+            policy: manifest.interactionPolicy
+        )
+        let moveText = manifest.interactions
+            .filter { $0.event == .pointerMove }
+            .map { interaction -> String in
+                let actions = interaction.actions?
+                    .sorted { $0.key < $1.key }
+                    .map { "\($0.key)=\($0.value)" }
+                    .joined(separator: ",") ?? "none"
+                let neutral = interaction.neutralPoint.map { "neutral=\(formatPoint($0))" } ?? "neutral=default"
+                let deadZone = interaction.deadZone.map { "deadZone=\(formatPoint($0))" } ?? "deadZone=policy"
+                let buttons = "buttons=\(interaction.buttons?.map(\.rawValue).joined(separator: "+") ?? "any")"
+                return "pointerMove{\(actions);\(neutral);\(deadZone);\(buttons)}"
+            }
+        let clickZones = plan.hitZoneSummaries().map(\.detailText)
+        let defaultActions = manifest.interactions
+            .filter { $0.event == .pointerDown }
+            .compactMap {
+                InteractionPlan(
+                    interactions: [$0],
+                    policy: manifest.interactionPolicy
+                ).defaultActionSummary()?.detailText
+            }
+        let downText = [
+            clickZones.isEmpty ? nil : "zones{\(clickZones.joined(separator: ","))}",
+            defaultActions.isEmpty ? "default=none" : "default{\(defaultActions.joined(separator: ","))}"
+        ].compactMap { $0 }.joined(separator: ";")
+        return (moveText + (downText.isEmpty ? [] : ["pointerDown{\(downText)}"])).joined(separator: "|")
+    }
+
+    private static func formatPoint(_ point: InteractionPoint) -> String {
+        "(\(String(format: "%.2f", point.x)),\(String(format: "%.2f", point.y)))"
     }
 
     private static func liveClickProtocolText(bundles: [WallpaperBundleSummary]) -> String {
