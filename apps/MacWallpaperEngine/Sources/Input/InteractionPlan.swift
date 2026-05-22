@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -45,6 +46,25 @@ struct InteractionDefaultActionSummary {
         let buttonText = buttons.map(\.rawValue).joined(separator: "+")
         let tailText = String(format: "%.2fs", tailSeconds)
         return "\(action) trigger=\(trigger.rawValue) buttons=\(buttonText) tail=\(tailText)"
+    }
+}
+
+struct PointerMoveInputMask: Equatable {
+    let acceptsUnbuttoned: Bool
+    let buttons: Set<PointerButton>
+
+    static let none = PointerMoveInputMask(acceptsUnbuttoned: false, buttons: [])
+    static let all = PointerMoveInputMask(acceptsUnbuttoned: true, buttons: [.left, .right])
+
+    var acceptsAnyMove: Bool {
+        acceptsUnbuttoned || buttons.isEmpty == false
+    }
+
+    func accepts(button: PointerButton?) -> Bool {
+        guard let button else {
+            return acceptsUnbuttoned
+        }
+        return buttons.contains(button)
     }
 }
 
@@ -137,16 +157,17 @@ struct InteractionPlan {
     }
 
     func allowsPointerMove(button: PointerButton?) -> Bool {
+        pointerMoveInputMask().accepts(button: button)
+    }
+
+    func pointerMoveInputMask() -> PointerMoveInputMask {
         guard let config = interactions.first(where: { $0.event == .pointerMove }) else {
-            return false
+            return .none
         }
         guard let buttons = config.buttons else {
-            return true
+            return .all
         }
-        guard let button else {
-            return false
-        }
-        return buttons.contains(button)
+        return PointerMoveInputMask(acceptsUnbuttoned: false, buttons: Set(buttons))
     }
 
     func lookNeutralPoint() -> CGPoint {
@@ -325,7 +346,8 @@ struct InteractionPlan {
             policy: effectivePolicy,
             accessibilityTrusted: accessibilityTrusted
         ) + inputSourceProbeLines(
-            policy: effectivePolicy
+            policy: effectivePolicy,
+            pointerMoveInputMask: plan.pointerMoveInputMask()
         ) + [
             "pointerDownButtons: \(clickConfig == nil ? "none" : clickButtons)",
             "defaultAction: \(defaultAction?.detailText ?? "none")",
@@ -541,37 +563,62 @@ struct InteractionPlan {
         ].joined(separator: " ")
     }
 
-    private static func inputSourceProbeLines(policy: InteractionPolicy) -> [String] {
+    private static func inputSourceProbeLines(
+        policy: InteractionPolicy,
+        pointerMoveInputMask: PointerMoveInputMask
+    ) -> [String] {
         let passiveTrustedEventTap = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
             usesPassiveEventMonitoring: true,
             eventTapStarted: true,
-            accessibilityTrusted: true
+            accessibilityTrusted: true,
+            pointerMoveInputMask: pointerMoveInputMask
         ))
         let passiveTrustedFallback = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
             usesPassiveEventMonitoring: true,
             eventTapStarted: false,
-            accessibilityTrusted: true
+            accessibilityTrusted: true,
+            pointerMoveInputMask: pointerMoveInputMask
         ))
         let passiveMissingTrust = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
             usesPassiveEventMonitoring: true,
             eventTapStarted: false,
-            accessibilityTrusted: false
+            accessibilityTrusted: false,
+            pointerMoveInputMask: pointerMoveInputMask
         ))
         let plainWindow = formatInputSources(DesktopMouseInteractionMonitor.inputSources(
             usesPassiveEventMonitoring: false,
             eventTapStarted: false,
-            accessibilityTrusted: false
+            accessibilityTrusted: false,
+            pointerMoveInputMask: pointerMoveInputMask
         ))
+        let moveEvents = formatEventMask(
+            DesktopMouseInteractionMonitor.globalMoveEventMask(pointerMoveInputMask: pointerMoveInputMask)
+        )
         return [
             [
                 "inputSourceProbes:",
                 "policy=\(policy.mode.rawValue)",
+                "moveEvents=\(moveEvents)",
                 "passiveTrustedEventTap=\(passiveTrustedEventTap)",
                 "passiveTrustedFallback=\(passiveTrustedFallback)",
                 "passiveMissingTrust=\(passiveMissingTrust)",
                 "plainWindow=\(plainWindow)"
             ].joined(separator: " ")
         ]
+    }
+
+    private static func formatEventMask(_ mask: NSEvent.EventTypeMask) -> String {
+        var labels: [String] = []
+        if mask.contains(.mouseMoved) {
+            labels.append("hover")
+        }
+        if mask.contains(.leftMouseDragged) {
+            labels.append("leftDrag")
+        }
+        if mask.contains(.rightMouseDragged) {
+            labels.append("rightDrag")
+        }
+        return labels.isEmpty ? "none" : labels.joined(separator: "+")
     }
 
     private static func formatInputSources(_ sources: DesktopMouseInteractionMonitor.InputSources) -> String {

@@ -384,12 +384,12 @@ enum RuntimeSelfTest {
             "control panel display mode labels must make selected-display-only the default"
         )
         check(
-            ControlPanelWindowController.pageLabels == ["Main", "Library", "Diagnostics"],
-            "control panel must split controls, library, and diagnostics into compact in-app pages"
+            ControlPanelWindowController.pageLabels == ["Run", "Controls", "Library", "Diagnostics"],
+            "control panel must split runtime, controls, library, and diagnostics into compact in-app pages"
         )
         check(
-            ControlPanelWindowController.initialWindowSize.width <= 700
-                && ControlPanelWindowController.initialWindowSize.height <= 360,
+            ControlPanelWindowController.initialWindowSize.width <= 640
+                && ControlPanelWindowController.initialWindowSize.height <= 320,
             "control panel must keep the main window compact after moving verbose state into in-app pages and tooltips"
         )
         check(
@@ -1271,6 +1271,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("eventGateProbes:")
                 && interactionSummary.contains("eventGateTrustedProbes:")
                 && interactionSummary.contains("inputSourceProbes:")
+                && interactionSummary.contains("moveEvents=leftDrag")
                 && interactionSummary.contains("passiveMissingTrust=globalMove")
                 && interactionSummary.contains("passiveTrustedEventTap=eventTap")
                 && interactionSummary.contains("passiveTrustedFallback=globalMove+globalClick")
@@ -2994,6 +2995,34 @@ enum RuntimeSelfTest {
                 && DesktopMouseInteractionMonitor.eventKindName(for: .rightMouseUp) == "rightUp"
                 && DesktopMouseInteractionMonitor.eventKindName(for: .mouseMoved) == "move",
             "desktop interaction event tap must map global mouse click and move events",
+            failures: &failures,
+            checks: &checks
+        )
+        let hoverMoveMask = PointerMoveInputMask.all
+        let dragOnlyMoveMask = PointerMoveInputMask(acceptsUnbuttoned: false, buttons: [.left])
+        check(
+            DesktopMouseInteractionMonitor.globalMoveEventMask(pointerMoveInputMask: hoverMoveMask).contains(.mouseMoved)
+                && DesktopMouseInteractionMonitor.globalMoveEventMask(pointerMoveInputMask: hoverMoveMask).contains(.leftMouseDragged)
+                && DesktopMouseInteractionMonitor.globalMoveEventMask(pointerMoveInputMask: dragOnlyMoveMask).contains(.mouseMoved) == false
+                && DesktopMouseInteractionMonitor.globalMoveEventMask(pointerMoveInputMask: dragOnlyMoveMask).contains(.leftMouseDragged),
+            "desktop interaction monitor must derive hover vs drag move sources from manifest pointerMove buttons",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.inputSources(
+                usesPassiveEventMonitoring: true,
+                eventTapStarted: false,
+                accessibilityTrusted: true,
+                pointerMoveInputMask: .none
+            ).useGlobalMoveMonitor == false
+                && DesktopMouseInteractionMonitor.inputSources(
+                    usesPassiveEventMonitoring: true,
+                    eventTapStarted: false,
+                    accessibilityTrusted: true,
+                    pointerMoveInputMask: dragOnlyMoveMask
+                ).useGlobalMoveMonitor,
+            "desktop interaction monitor must avoid unneeded global move monitors when a bundle declares no pointerMove",
             failures: &failures,
             checks: &checks
         )

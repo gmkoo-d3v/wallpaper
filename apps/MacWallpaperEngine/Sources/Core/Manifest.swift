@@ -220,7 +220,7 @@ enum InteractionEvent: String, Decodable {
     case pointerDown
 }
 
-enum PointerButton: String, Decodable {
+enum PointerButton: String, Decodable, Hashable {
     case left
     case right
 }

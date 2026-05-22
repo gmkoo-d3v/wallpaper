@@ -12,6 +12,7 @@ final class WallpaperMetalView: MTKView {
     private let compositor: MetalCompositor
     private let interaction: InteractionController
     private let interactionPolicy: InteractionPolicy
+    private let pointerMoveInputMask: PointerMoveInputMask
     private let displayPolicy: DisplayPolicy
     private let displayRole: RenderDisplayRole
     private let interactionCoordinateMapper: InteractionCoordinateMapper
@@ -71,6 +72,11 @@ final class WallpaperMetalView: MTKView {
             releaseFadeSeconds: nil
         )
         let actionTailDurations = (try? SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)) ?? [:]
+        self.pointerMoveInputMask = InteractionPlan(
+            interactions: runtime.manifest.interactions,
+            policy: manifestInteractionPolicy,
+            actionTailDurations: actionTailDurations
+        ).pointerMoveInputMask()
         self.interaction = InteractionController(
             interactions: runtime.manifest.interactions,
             policy: manifestInteractionPolicy,
@@ -98,7 +104,7 @@ final class WallpaperMetalView: MTKView {
         wantsLayer = true
         layer?.backgroundColor = Self.warmupLayerBackground
         layer?.isOpaque = true
-        window?.acceptsMouseMovedEvents = true
+        window?.acceptsMouseMovedEvents = pointerMoveInputMask.acceptsUnbuttoned
     }
 
     @available(*, unavailable)
@@ -192,6 +198,7 @@ final class WallpaperMetalView: MTKView {
             mouseMonitor = DesktopMouseInteractionMonitor(
                 window: window,
                 policy: interactionPolicy,
+                pointerMoveInputMask: pointerMoveInputMask,
                 onMove: { [weak self] point, button in
                     guard let self else { return }
                     guard let contentPoint = self.interactionContentPoint(fromWindowNormalized: point) else {
@@ -236,7 +243,7 @@ final class WallpaperMetalView: MTKView {
                     )
                 }
             )
-            window.acceptsMouseMovedEvents = true
+            window.acceptsMouseMovedEvents = pointerMoveInputMask.acceptsUnbuttoned
         }
 
         window?.makeFirstResponder(self)

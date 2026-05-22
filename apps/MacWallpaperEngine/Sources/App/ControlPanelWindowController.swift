@@ -58,9 +58,9 @@ protocol ControlPanelDelegate: AnyObject {
 
 final class ControlPanelWindowController: NSWindowController {
     static let displayModeLabels = ["Selected Only", "Selected+Policy", "All Full"]
-    static let pageLabels = ["Main", "Library", "Diagnostics"]
+    static let pageLabels = ["Run", "Controls", "Library", "Diagnostics"]
     static let foregroundModeLabels = ["Auto Native", "Fallback Video", "Force Native"]
-    static let initialWindowSize = CGSize(width: 700, height: 360)
+    static let initialWindowSize = CGSize(width: 640, height: 320)
     static let foregroundModeTooltips = [
         "Prefer Native Spine. Use video fallback only when native playback is unavailable.",
         "Force the lower-fidelity composite video fallback for comparison or emergency recovery.",
@@ -379,18 +379,21 @@ final class ControlPanelWindowController: NSWindowController {
 
         pageControl.segmentStyle = .texturedSquare
         pageControl.selectedSegment = 0
-        pageControl.setToolTip("Wallpaper controls and live interaction state.", forSegment: 0)
-        pageControl.setToolTip("Bundle selection, import, and preview.", forSegment: 1)
-        pageControl.setToolTip("Doctor, render plan, and telemetry details.", forSegment: 2)
+        pageControl.setToolTip("Start, stop, foreground mode, and live interaction state.", forSegment: 0)
+        pageControl.setToolTip("Display, render, and debug controls.", forSegment: 1)
+        pageControl.setToolTip("Bundle selection, import, and preview.", forSegment: 2)
+        pageControl.setToolTip("Doctor, render plan, and telemetry details.", forSegment: 3)
 
         let mainPage = pageStack([
             compactStatusRow(),
-            modeRow(),
             interactionStatusRow(),
             foregroundRow(),
-            renderRow(),
-            debugRow(),
             buttonRow()
+        ])
+        let controlsPage = pageStack([
+            modeRow(),
+            renderRow(),
+            debugRow()
         ])
         let libraryPage = pageStack([
             bundleRow(),
@@ -401,7 +404,7 @@ final class ControlPanelWindowController: NSWindowController {
             renderPlanRow(),
             telemetryRow()
         ])
-        pageViews = [mainPage, libraryPage, diagnosticsPage]
+        pageViews = [mainPage, controlsPage, libraryPage, diagnosticsPage]
 
         stack.addArrangedSubview(pageControl)
         pageViews.forEach(stack.addArrangedSubview)

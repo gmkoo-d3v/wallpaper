@@ -5,6 +5,7 @@ import QuartzCore
 final class DesktopMouseInteractionMonitor {
     private weak var window: NSWindow?
     private let policy: InteractionPolicy
+    private let pointerMoveInputMask: PointerMoveInputMask
     private let onMove: (CGPoint, PointerButton?) -> Void
     private let onDown: (CGPoint, PointerButton) -> Void
     private let onUp: (CGPoint, PointerButton) -> Void
@@ -68,6 +69,7 @@ final class DesktopMouseInteractionMonitor {
     init(
         window: NSWindow,
         policy: InteractionPolicy,
+        pointerMoveInputMask: PointerMoveInputMask,
         onMove: @escaping (CGPoint, PointerButton?) -> Void,
         onDown: @escaping (CGPoint, PointerButton) -> Void,
         onUp: @escaping (CGPoint, PointerButton) -> Void,
@@ -78,6 +80,7 @@ final class DesktopMouseInteractionMonitor {
     ) {
         self.window = window
         self.policy = policy
+        self.pointerMoveInputMask = pointerMoveInputMask
         self.onMove = onMove
         self.onDown = onDown
         self.onUp = onUp
@@ -108,7 +111,8 @@ final class DesktopMouseInteractionMonitor {
         let inputSources = Self.inputSources(
             usesPassiveEventMonitoring: usesPassiveEventMonitoring,
             eventTapStarted: eventTapStarted,
-            accessibilityTrusted: accessibilityTrusted
+            accessibilityTrusted: accessibilityTrusted,
+            pointerMoveInputMask: pointerMoveInputMask
         )
         isActive = true
         guard localMonitor == nil, monitors.isEmpty else {
@@ -122,15 +126,7 @@ final class DesktopMouseInteractionMonitor {
 
         if inputSources.useLocalMonitor {
             localMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: [
-                    .mouseMoved,
-                    .leftMouseDragged,
-                    .rightMouseDragged,
-                    .leftMouseDown,
-                    .leftMouseUp,
-                    .rightMouseDown,
-                    .rightMouseUp
-                ],
+                matching: Self.localEventMask(pointerMoveInputMask: pointerMoveInputMask),
                 handler: { [weak self] event in
                     self?.handleLocal(event: event)
                     return event
@@ -187,10 +183,7 @@ final class DesktopMouseInteractionMonitor {
     private func startEventTap() -> Bool {
         guard eventTap == nil, eventTapRunLoopSource == nil else { return true }
 
-        let eventTypes: [CGEventType] = [
-            .mouseMoved,
-            .leftMouseDragged,
-            .rightMouseDragged,
+        let eventTypes: [CGEventType] = Self.cgMoveEventTypes(pointerMoveInputMask: pointerMoveInputMask) + [
             .leftMouseDown,
             .leftMouseUp,
             .rightMouseDown,
@@ -245,8 +238,10 @@ final class DesktopMouseInteractionMonitor {
     }
 
     private func addGlobalMoveMonitor() {
+        let eventMask = Self.globalMoveEventMask(pointerMoveInputMask: pointerMoveInputMask)
+        guard eventMask.isEmpty == false else { return }
         if let monitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
+            matching: eventMask,
             handler: { [weak self] event in
                 self?.handle(event: event, kind: .move)
             }
@@ -293,13 +288,15 @@ final class DesktopMouseInteractionMonitor {
     static func inputSources(
         usesPassiveEventMonitoring: Bool,
         eventTapStarted: Bool,
-        accessibilityTrusted: Bool
+        accessibilityTrusted: Bool,
+        pointerMoveInputMask: PointerMoveInputMask = .all
     ) -> InputSources {
+        let usesPointerMoveMonitoring = pointerMoveInputMask.acceptsAnyMove
         if usesPassiveEventMonitoring {
             return InputSources(
                 useEventTap: eventTapStarted,
                 useLocalMonitor: false,
-                useGlobalMoveMonitor: eventTapStarted == false,
+                useGlobalMoveMonitor: usesPointerMoveMonitoring && eventTapStarted == false,
                 useGlobalClickMonitors: accessibilityTrusted && eventTapStarted == false
             )
         }
@@ -316,6 +313,45 @@ final class DesktopMouseInteractionMonitor {
         accessibilityTrusted: Bool
     ) -> Bool {
         usesPassiveEventMonitoring && accessibilityTrusted
+    }
+
+    static func localEventMask(pointerMoveInputMask: PointerMoveInputMask) -> NSEvent.EventTypeMask {
+        var mask: NSEvent.EventTypeMask = [
+            .leftMouseDown,
+            .leftMouseUp,
+            .rightMouseDown,
+            .rightMouseUp
+        ]
+        mask.formUnion(globalMoveEventMask(pointerMoveInputMask: pointerMoveInputMask))
+        return mask
+    }
+
+    static func globalMoveEventMask(pointerMoveInputMask: PointerMoveInputMask) -> NSEvent.EventTypeMask {
+        var mask: NSEvent.EventTypeMask = []
+        if pointerMoveInputMask.acceptsUnbuttoned {
+            mask.insert(.mouseMoved)
+        }
+        if pointerMoveInputMask.buttons.contains(.left) {
+            mask.insert(.leftMouseDragged)
+        }
+        if pointerMoveInputMask.buttons.contains(.right) {
+            mask.insert(.rightMouseDragged)
+        }
+        return mask
+    }
+
+    static func cgMoveEventTypes(pointerMoveInputMask: PointerMoveInputMask) -> [CGEventType] {
+        var eventTypes: [CGEventType] = []
+        if pointerMoveInputMask.acceptsUnbuttoned {
+            eventTypes.append(.mouseMoved)
+        }
+        if pointerMoveInputMask.buttons.contains(.left) {
+            eventTypes.append(.leftMouseDragged)
+        }
+        if pointerMoveInputMask.buttons.contains(.right) {
+            eventTypes.append(.rightMouseDragged)
+        }
+        return eventTypes
     }
 
     private func startDecision(inputSources: InputSources) -> String {
