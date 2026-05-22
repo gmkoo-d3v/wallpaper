@@ -44,6 +44,7 @@ fi
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
+p12_password="$(openssl rand -base64 32)"
 
 cat > "$tmpdir/openssl.cnf" <<EOF
 [ req ]
@@ -75,23 +76,45 @@ openssl req \
 
 openssl pkcs12 \
   -export \
+  -legacy \
   -inkey "$tmpdir/identity.key" \
   -in "$tmpdir/identity.crt" \
   -out "$tmpdir/identity.p12" \
   -name "$IDENTITY_NAME" \
-  -passout pass: >/dev/null 2>&1
+  -passout "pass:$p12_password" >/dev/null 2>&1
 
-security import "$tmpdir/identity.p12" \
-  -k "$KEYCHAIN" \
-  -P "" \
-  -T /usr/bin/codesign >/dev/null
+if ! security import "$tmpdir/identity.p12" \
+    -k "$KEYCHAIN" \
+    -P "$p12_password" \
+    -T /usr/bin/codesign >/dev/null; then
+  cat >&2 <<EOF
+Could not import the local code-signing identity into the login keychain.
 
-security add-trusted-cert \
-  -d \
-  -r trustRoot \
-  -p codeSign \
-  -k "$KEYCHAIN" \
-  "$tmpdir/identity.crt" >/dev/null
+This helper exports the identity as a legacy PKCS#12 file for compatibility
+with macOS security(1). If this still fails, create an existing signing
+identity manually and package with:
+
+  CODESIGN_IDENTITY="Your Signing Identity" apps/MacWallpaperEngine/package-app.sh
+EOF
+  exit 1
+fi
+
+if ! security add-trusted-cert \
+    -d \
+    -r trustRoot \
+    -p codeSign \
+    -k "$KEYCHAIN" \
+    "$tmpdir/identity.crt" >/dev/null; then
+  cat >&2 <<EOF
+The identity was generated, but macOS did not grant certificate trust.
+
+If you canceled the authorization dialog, rerun this helper and approve the
+trust change. Without a trusted stable signing identity, package-app.sh will
+fall back to ad-hoc signing and macOS may ask you to re-add Accessibility
+permission after rebuilds.
+EOF
+  exit 1
+fi
 
 echo "Created local code-signing identity: $IDENTITY_NAME"
 echo "Keychain: $KEYCHAIN"
