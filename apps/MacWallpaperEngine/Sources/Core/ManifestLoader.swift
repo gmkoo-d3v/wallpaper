@@ -55,6 +55,11 @@ enum ManifestLoader {
                 throw EngineError.manifest("runtime.nativeSpinePoseFps must satisfy 1...maxFps")
             }
         }
+        if let idleRenderFps = manifest.runtime.idleRenderFps {
+            guard idleRenderFps > 0, idleRenderFps <= manifest.runtime.maxFps else {
+                throw EngineError.manifest("runtime.idleRenderFps must satisfy 1...maxFps")
+            }
+        }
         if let nativeSpineIdlePoseFps = manifest.runtime.nativeSpineIdlePoseFps {
             guard nativeSpineIdlePoseFps > 0, nativeSpineIdlePoseFps <= manifest.runtime.maxFps else {
                 throw EngineError.manifest("runtime.nativeSpineIdlePoseFps must satisfy 1...maxFps")

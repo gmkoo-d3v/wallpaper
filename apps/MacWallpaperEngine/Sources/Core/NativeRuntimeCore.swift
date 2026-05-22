@@ -129,7 +129,8 @@ final class NativeRuntimeCore {
         guard let requestedIdleFps = cadenceCandidates.max() else {
             return 1
         }
-        return max(1, min(requestedIdleFps, targetFps, manifest.runtime.maxFps))
+        let manifestIdleFps = manifest.runtime.idleRenderFps ?? manifest.runtime.maxFps
+        return max(1, min(requestedIdleFps, targetFps, manifestIdleFps, manifest.runtime.maxFps))
     }
 
     func activeRenderFps(
