@@ -43,12 +43,13 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   avoid hand-editing JSON while still requiring an explicit human confirmation
   for the live desktop, hot-plug, and no-black-frame/no-flicker evidence gates.
 - `PACKAGE_SMOKE_EVIDENCE=<json> apps/MacWallpaperEngine/package-app.sh`
-  writes a partial manual-smoke evidence file after the packaged hidden launch
-  smoke test passes, closing only the packaged app launch row while leaving live
-  click, physical hot-plug, and black-frame/flicker evidence for the operator.
-  The generated file
-  includes the packaged interaction trust state and current physical display
-  count to make the remaining manual smoke run reproducible.
+  runs an 8s packaged hidden launch smoke, injects the manifest-declared gaze
+  and click actions into the active wallpaper view, and writes a manual-smoke
+  evidence file. The packaged launch row closes automatically. Live click
+  evidence closes only when the current packaged app is already Accessibility
+  trusted and telemetry observes every manifest-declared action; otherwise the
+  file keeps the operator checklist open with captured trust, interaction, and
+  physical display context.
 - `--write-runtime-smoke-evidence <json>` records launch, Accessibility,
   interaction-monitor telemetry, and physical-display render-plan context from a
   running app before exit. It enriches the manual evidence file without marking
