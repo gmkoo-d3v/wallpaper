@@ -2242,6 +2242,10 @@ enum RuntimeSelfTest {
                 && runtimeSmokeEvidence.contains("expected=")
                 && runtimeSmokeEvidence.contains("manifestChecklist=")
                 && runtimeSmokeEvidence.contains("runtime physical display telemetry captured")
+                && runtimeSmokeEvidence.contains("physicalDisplayModeMatrix=")
+                && runtimeSmokeEvidence.contains("selectedOnly={render plan OK")
+                && runtimeSmokeEvidence.contains("selectedPolicy={render plan OK")
+                && runtimeSmokeEvidence.contains("allFull={render plan OK")
                 && runtimeSmokeEvidence.contains("flicker telemetry captured"),
             "runtime smoke evidence writer must generate a completion-audit-compatible evidence JSON with telemetry context"
         )

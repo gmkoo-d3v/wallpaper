@@ -460,15 +460,20 @@ enum DisplayPlanner {
         """
     }
 
-    static func renderSummary(runtime: NativeRuntimeCore) -> String {
+    static func renderSummary(runtime: NativeRuntimeCore, displayMode: DisplayMode? = nil) -> String {
         let displays = currentDisplaySnapshots()
         guard let primary = primaryDisplay(in: displays, runtime: runtime) else {
             return "render plan: no screens detected"
         }
 
+        let effectiveDisplayMode = displayMode ?? runtime.config.displayMode
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
         let lines = displays.enumerated().map { index, display in
-            let role = role(for: display, primary: primary, runtime: runtime)
+            let role = role(
+                isPrimary: display.displayID == primary.displayID,
+                displayMode: effectiveDisplayMode,
+                manifest: runtime.manifest
+            )
             let roleName = role.map { "\($0.kind.label):\($0.policy.rawValue)" } ?? "none"
             let path = role.map {
                 renderPathSummary(runtime: runtime, role: $0, displayRefreshFps: display.maximumFramesPerSecond)
@@ -481,7 +486,7 @@ enum DisplayPlanner {
         displayProbe: physical(coregraphics)
         displayCount: \(displays.count)
         foregroundMode: \(runtime.config.foregroundMode.rawValue)
-        displayMode: \(runtime.config.displayMode.cliName)
+        displayMode: \(effectiveDisplayMode.cliName)
         primarySelection: \(primarySelectionSummary(primary: primary, runtime: runtime))
         nativeCompatibility: \(compatibility.statusText) \(compatibility.detailText)
         \(lines.joined(separator: "\n"))

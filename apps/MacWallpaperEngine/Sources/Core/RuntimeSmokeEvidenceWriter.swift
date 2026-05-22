@@ -117,11 +117,12 @@ enum RuntimeSmokeEvidenceWriter {
 
     private static func physicalDisplayEntry(runtime: NativeRuntimeCore, recordedAt: String) -> EvidenceEntry {
         let renderPlan = DisplayPlanner.renderSummary(runtime: runtime)
+        let modeMatrix = physicalDisplayModeMatrix(runtime: runtime)
         let lifecycle = runtime.telemetry.displayLifecycleSnapshot()
             .map { "\($0.event)/\($0.status):\($0.detail)" }
             .joined(separator: " | ")
         let evidence = """
-        runtime physical display telemetry captured; renderPlan=\(renderPlan); displayLifecycle=\(lifecycle.isEmpty ? "none-recorded" : lifecycle); manual checklist still required: selectedOnly, selectedPolicy, allFull, reconnect or wake, restored wallpaper windows on target displays
+        runtime physical display telemetry captured; renderPlan=\(renderPlan); physicalDisplayModeMatrix=\(modeMatrix); displayLifecycle=\(lifecycle.isEmpty ? "none-recorded" : lifecycle); manual checklist still required: reconnect or wake and restored wallpaper windows on target displays
         """
         return EvidenceEntry(
             passed: false,
@@ -132,11 +133,12 @@ enum RuntimeSmokeEvidenceWriter {
     }
 
     private static func blackFrameFlickerEntry(runtime: NativeRuntimeCore, recordedAt: String) -> EvidenceEntry {
+        let modeMatrix = physicalDisplayModeMatrix(runtime: runtime)
         let lifecycle = runtime.telemetry.displayLifecycleSnapshot()
             .map { "\($0.event)/\($0.status):\($0.detail)" }
             .joined(separator: " | ")
         let evidence = """
-        runtime black-frame/flicker telemetry captured; foregroundMode=\(runtime.config.foregroundMode.rawValue); displayMode=\(runtime.config.displayMode.cliName); displayLifecycle=\(lifecycle.isEmpty ? "none-recorded" : lifecycle); manual checklist still required: packaged start, mode switch, display rebuild or wake, no black frame, no visible flicker loop, no crash
+        runtime black-frame/flicker telemetry captured; foregroundMode=\(runtime.config.foregroundMode.rawValue); displayMode=\(runtime.config.displayMode.cliName); physicalDisplayModeMatrix=\(modeMatrix); displayLifecycle=\(lifecycle.isEmpty ? "none-recorded" : lifecycle); manual checklist still required: visually observe packaged mode switch, display rebuild or wake, no black frame, no visible flicker loop, no crash
         """
         return EvidenceEntry(
             passed: false,
@@ -144,6 +146,16 @@ enum RuntimeSmokeEvidenceWriter {
             evidence: oneLine(evidence),
             operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing black-frame/flicker behavior on the packaged app."
         )
+    }
+
+    private static func physicalDisplayModeMatrix(runtime: NativeRuntimeCore) -> String {
+        [
+            ("selectedOnly", DisplayMode.primaryOnly),
+            ("selectedPolicy", DisplayMode.primaryAnimated),
+            ("allFull", DisplayMode.all)
+        ].map { label, mode in
+            "\(label)={\(oneLine(DisplayPlanner.renderSummary(runtime: runtime, displayMode: mode)))}"
+        }.joined(separator: " | ")
     }
 
     private static func liveInteractionProof(runtime: NativeRuntimeCore) -> (passed: Bool, evidence: String, checklist: String) {
