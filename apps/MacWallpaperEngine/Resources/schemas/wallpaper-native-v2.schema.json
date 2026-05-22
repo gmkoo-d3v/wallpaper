@@ -41,6 +41,7 @@
         "idleRenderFps": { "type": "integer", "minimum": 1, "maximum": 240 },
         "nativeSpinePoseFps": { "type": "integer", "minimum": 1, "maximum": 240 },
         "nativeSpineIdlePoseFps": { "type": "integer", "minimum": 1, "maximum": 240 },
+        "physicsIdlePolicy": { "enum": ["dynamic", "sleep-when-idle"] },
         "audioPolicy": { "enum": ["muted", "userControlled", "disabled"] },
         "performanceTiers": {
           "type": "array",

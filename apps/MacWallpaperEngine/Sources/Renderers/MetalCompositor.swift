@@ -194,6 +194,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                     fallback: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18
                 ),
                 lookIdleDeadZone: runtime.manifest.interactionPolicy?.idleDeadZone ?? 0.18,
+                physicsIdlePolicy: runtime.manifest.runtime.effectivePhysicsIdlePolicy,
                 idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
                 oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),

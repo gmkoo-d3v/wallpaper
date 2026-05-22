@@ -81,6 +81,7 @@ struct RuntimeConfig: Decodable {
     let idleRenderFps: Int?
     let nativeSpinePoseFps: Int?
     let nativeSpineIdlePoseFps: Int?
+    let physicsIdlePolicy: PhysicsIdlePolicy?
     let audioPolicy: AudioPolicy?
     let performanceTiers: [PerformanceTier]?
     let scheduler: SchedulerConfig
@@ -88,6 +89,15 @@ struct RuntimeConfig: Decodable {
     var effectiveAudioPolicy: AudioPolicy {
         audioPolicy ?? .muted
     }
+
+    var effectivePhysicsIdlePolicy: PhysicsIdlePolicy {
+        physicsIdlePolicy ?? .dynamic
+    }
+}
+
+enum PhysicsIdlePolicy: String, Decodable {
+    case dynamic
+    case sleepWhenIdle = "sleep-when-idle"
 }
 
 enum AudioPolicy: String, Decodable {

@@ -281,6 +281,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Reusable native Spine mesh buffers when batch structure is stable.
 - Bounded native Spine pose-frame cache for repeated quantized animation frames,
   capped by entry count and memory budget to avoid unbounded RSS growth.
+- Manifest-owned `runtime.physicsIdlePolicy` lets bundles opt into sleeping
+  native Spine physics while the wallpaper is fully idle, allowing idle pose
+  frame-cache reuse without hardcoding bundle-specific behavior in the player.
 - Pointer movement and click command mapping.
 - Pointer smoothing advances on render snapshots, not only on macOS mouse
   events, so look-direction commands keep converging after the cursor stops.
@@ -486,7 +489,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   the parsed physics constraint subset, while broader parity remains a future
   profiler-backed hardening target.
 - Visual hit-zone editor for authoring new bundles.
-- Profiler-backed native Spine optimization beyond the bounded pose-frame cache.
+- Profiler-backed native Spine optimization beyond bounded pose-frame cache and
+  manifest-owned idle physics sleep.
 - Exact Finder desktop icon hit-testing without disabling interaction when
   Accessibility trust is unavailable.
 

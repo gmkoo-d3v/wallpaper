@@ -495,6 +495,7 @@ final class SpineSetupPoseRenderer {
     private let lookAnimationNames: Set<String>
     private let lookNeutralPoint: CGPoint
     private let lookDeadZone: CGPoint
+    private let physicsIdlePolicy: PhysicsIdlePolicy
     private let loopingAnimationNames: Set<String>
     private let oneShotAnimationNames: Set<String>
     private let physicsConstraintsEnabled: Bool
@@ -509,6 +510,7 @@ final class SpineSetupPoseRenderer {
     private var poseCacheFrameHits = 0
     private var poseCacheMisses = 0
     private var poseCacheStores = 0
+    private var physicsIdleSleeping = false
     private let idleAnimationName: String
     private var activeAnimationName: String
     private var activeAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
@@ -535,6 +537,7 @@ final class SpineSetupPoseRenderer {
         lookNeutralPoint: CGPoint = CGPoint(x: 0.5, y: 0.5),
         lookDeadZone: CGPoint? = nil,
         lookIdleDeadZone: Double = 0.18,
+        physicsIdlePolicy: PhysicsIdlePolicy = .dynamic,
         idleAnimationName: String = "idle",
         loopingAnimationNames: Set<String> = ["idle"],
         oneShotAnimationNames: Set<String> = [],
@@ -628,6 +631,7 @@ final class SpineSetupPoseRenderer {
             minValue: 0,
             maxValue: 0.49
         )
+        self.physicsIdlePolicy = physicsIdlePolicy
         let resolvedLoopingAnimationNames = loopingAnimationNames.union([resolvedIdleAnimationName])
         self.loopingAnimationNames = resolvedLoopingAnimationNames
         self.oneShotAnimationNames = oneShotAnimationNames.subtracting(resolvedLoopingAnimationNames)
@@ -775,9 +779,6 @@ final class SpineSetupPoseRenderer {
         let idleAnimation = animations[idleAnimationName]
         let idleAnimationTime = idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0
         playDueAudioEvents(animation: activeAnimation, currentTime: activeAnimationTime)
-        let physicsTime = max(0, now - rendererStartedAt) * playbackRate
-        let posePhysicsTime = physicsConstraintsEnabled ? physicsTime : 0
-        let canUsePoseFrameCache = physicsConstraintsEnabled == false
         let transitionMix = animationTransitionMix(now: now)
         let activeOverlayAnimation = activeAnimation.name == idleAnimationName ? nil : activeAnimation
         let activeOverlayMix = activeOverlayAnimation == nil ? 0 : transitionMix
@@ -789,6 +790,19 @@ final class SpineSetupPoseRenderer {
         if transitionMix >= 1.0 {
             previousOverlayAnimationName = nil
         }
+        let physicsTime = max(0, now - rendererStartedAt) * playbackRate
+        let sleepPhysicsForIdle = shouldSleepPhysicsForIdle(
+            animationName: activeAnimation.name,
+            pointer: pointer,
+            transitionMix: transitionMix,
+            previousOverlayAnimation: previousOverlayAnimation
+        )
+        if sleepPhysicsForIdle != physicsIdleSleeping {
+            resetPhysicsStates(at: sleepPhysicsForIdle ? 0 : physicsTime)
+            physicsIdleSleeping = sleepPhysicsForIdle
+        }
+        let posePhysicsTime = physicsConstraintsEnabled && sleepPhysicsForIdle == false ? physicsTime : 0
+        let canUsePoseFrameCache = physicsConstraintsEnabled == false || sleepPhysicsForIdle
         let sampleFps = previousOverlayAnimation == nil ? sampleFps(for: animationName) : poseSampleFps
         let lookMix = lookAnimationNames.contains(activeAnimation.name) ? pointerLookMix(pointer) : 1.0
         let quantizedFrame = Int((activeAnimationTime * sampleFps).rounded())
@@ -852,6 +866,33 @@ final class SpineSetupPoseRenderer {
             fputs("Spine animation pose failed: \(error.localizedDescription)\n", stderr)
         }
         return cachedBatches
+    }
+
+    private func shouldSleepPhysicsForIdle(
+        animationName: String,
+        pointer: CGPoint,
+        transitionMix: Double,
+        previousOverlayAnimation: SpineAnimation?
+    ) -> Bool {
+        guard physicsConstraintsEnabled,
+              physicsIdlePolicy == .sleepWhenIdle,
+              animationName == idleAnimationName,
+              previousOverlayAnimation == nil,
+              transitionMix >= 1.0 else {
+            return false
+        }
+        let dx = abs(Double(pointer.x - lookNeutralPoint.x))
+        let dy = abs(Double(pointer.y - lookNeutralPoint.y))
+        return dx <= Double(lookDeadZone.x) && dy <= Double(lookDeadZone.y)
+    }
+
+    private func resetPhysicsStates(at time: Double) {
+        guard physicsStates.isEmpty == false else { return }
+        physicsStates = Dictionary(uniqueKeysWithValues: physicsStates.keys.map { key in
+            var state = PhysicsRuntimeState()
+            state.lastTime = time
+            return (key, state)
+        })
     }
 
     private func playDueAudioEvents(animation: SpineAnimation, currentTime: Double) {
