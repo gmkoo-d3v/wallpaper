@@ -2046,10 +2046,10 @@ enum RuntimeSelfTest {
         )
         check(
             completionAudit.contains("wallpaper completion audit")
-                && completionAudit.contains("overall: incomplete")
+                && completionAudit.contains("overall: automated-pass/manual-evidence-open")
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
-                && completionAudit.contains("automated\tfail\tsource-derived-bundle-contract")
-                && completionAudit.contains("sample_imported=partial imported=11 calibrated=5 platformPolicy=1 unsupported=1")
+                && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
+                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=11 calibrated=5 platformPolicy=1 unsupported=1); derivation(partial imported=11 calibrated=5 platformPolicy=1 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
                 && completionAudit.contains("autoNative:true compositeDefault:false")
@@ -2064,6 +2064,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("protocol\tmanual\tphysical-display-hotplug-smoke-protocol")
                 && completionAudit.contains("selectedOnly=primary-only")
                 && completionAudit.contains("protocol\tmanual\tblack-frame-flicker-smoke-protocol")
+                && completionAudit.contains("scope\tdeferred\tfull-source-behavior-import")
                 && completionAudit.contains("scope\tdeferred\tfull-spine-4.2-parity"),
             "completion audit must summarize objective-level automated evidence and exact manual smoke protocols without falsely claiming full manual/product completion"
         )
@@ -2106,8 +2107,8 @@ enum RuntimeSelfTest {
             manualEvidenceURL: manualSmokeEvidenceURL
         )
         check(
-            completionAuditWithManualEvidence.contains("overall: incomplete")
-                && completionAuditWithManualEvidence.contains("automated\tfail\tsource-derived-bundle-contract")
+            completionAuditWithManualEvidence.contains("overall: complete-evidence-pass")
+                && completionAuditWithManualEvidence.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAuditWithManualEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
                 && completionAuditWithManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
                 && completionAuditWithManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
@@ -2154,8 +2155,8 @@ enum RuntimeSelfTest {
             manualEvidenceURL: packageOnlySmokeEvidenceURL
         )
         check(
-            completionAuditWithPackageEvidence.contains("overall: incomplete")
-                && completionAuditWithPackageEvidence.contains("automated\tfail\tsource-derived-bundle-contract")
+            completionAuditWithPackageEvidence.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithPackageEvidence.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAuditWithPackageEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tlive-desktop-click-actions")
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke")
@@ -2181,8 +2182,8 @@ enum RuntimeSelfTest {
                 && manualRecordReport.contains("live-desktop-click-actions")
                 && manualRecordReport.contains("physical-display-hotplug-smoke")
                 && manualRecordReport.contains("black-frame-flicker-smoke")
-                && completionAuditWithRecordedManualEvidence.contains("overall: incomplete")
-                && completionAuditWithRecordedManualEvidence.contains("automated\tfail\tsource-derived-bundle-contract")
+                && completionAuditWithRecordedManualEvidence.contains("overall: complete-evidence-pass")
+                && completionAuditWithRecordedManualEvidence.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
@@ -2214,8 +2215,8 @@ enum RuntimeSelfTest {
             manualEvidenceURL: manualSmokeTemplateURL
         )
         check(
-            completionAuditWithUnfilledTemplate.contains("overall: incomplete")
-                && completionAuditWithUnfilledTemplate.contains("automated\tfail\tsource-derived-bundle-contract")
+            completionAuditWithUnfilledTemplate.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithUnfilledTemplate.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAuditWithUnfilledTemplate.contains("manual\tmanual\tpackaged-app-launch-smoke")
                 && completionAuditWithUnfilledTemplate.contains("manual evidence failed:"),
             "unfilled manual smoke templates must not close audit evidence or be overridden by fallback pass conditions"
@@ -2251,8 +2252,8 @@ enum RuntimeSelfTest {
             manualEvidenceURL: runtimeSmokeEvidenceURL
         )
         check(
-            completionAuditWithRuntimeSmoke.contains("overall: incomplete")
-                && completionAuditWithRuntimeSmoke.contains("automated\tfail\tsource-derived-bundle-contract")
+            completionAuditWithRuntimeSmoke.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithRuntimeSmoke.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tlive-desktop-click-actions")
                 && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tphysical-display-hotplug-smoke")
                 && completionAuditWithRuntimeSmoke.contains("manual\tmanual\tblack-frame-flicker-smoke")

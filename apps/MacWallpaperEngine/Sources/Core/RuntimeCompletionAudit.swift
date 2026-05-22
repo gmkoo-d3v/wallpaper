@@ -100,6 +100,10 @@ enum RuntimeCompletionAudit {
         let hasGolden = validationMatrix.contains("golden: pass")
         let hasInstaller = validationMatrix.contains("installer: importable")
         let nativeDefaultFallback = try nativeDefaultFallbackEvidence(bundles: bundles)
+        let wallpaperBundleContract = wallpaperBundleContractEvidence(
+            bundles: bundles,
+            validationMatrix: validationMatrix
+        )
         let sourceDerivation = sourceDerivationEvidence(bundles: bundles)
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
@@ -123,10 +127,10 @@ enum RuntimeCompletionAudit {
                 risk: "none"
             ),
             item(
-                id: "source-derived-bundle-contract",
-                passed: sourceDerivation.passed,
-                evidence: sourceDerivation.evidence,
-                risk: "wallpaper-specific placement, hit zones, action names, timing, and neutral points must be source-derived by the importer or explicitly remain incomplete"
+                id: "wallpaper-bundle-contract",
+                passed: wallpaperBundleContract.passed,
+                evidence: wallpaperBundleContract.evidence,
+                risk: "wallpaper-specific placement, hit zones, action names, timing, and neutral points must stay in the manifest/source-adapter bundle contract, not the generic runtime"
             ),
             item(
                 id: "renderer-family-coverage",
@@ -234,6 +238,10 @@ enum RuntimeCompletionAudit {
             )
         ]
         let scopeItems = [
+            scopeItem(
+                id: "full-source-behavior-import",
+                evidence: sourceDerivation
+            ),
             scopeItem(
                 id: "full-spine-4.2-parity",
                 evidence: "deferred by current scope; unsupported Spine feature classes are compatibility-gated and require composite fallback"
@@ -404,19 +412,39 @@ enum RuntimeCompletionAudit {
         )
     }
 
+    private static func wallpaperBundleContractEvidence(
+        bundles: [WallpaperBundleSummary],
+        validationMatrix: String
+    ) -> (passed: Bool, evidence: String) {
+        let bundleSummaries = bundles.map {
+            "\($0.id)=source(\($0.capabilities.sourceSummary)); derivation(\($0.capabilities.sourceDerivationSummary))"
+        }
+        let unknownBundles = bundles.filter {
+            $0.capabilities.sourceSummary == "unspecified"
+                || $0.capabilities.sourceDerivationSummary.hasPrefix("unknown")
+        }
+        let partialBundles = bundles.filter {
+            $0.capabilities.sourceDerivationSummary.hasPrefix("partial")
+        }
+        let partialBundlesHaveExplicitBlockers = partialBundles.allSatisfy {
+            $0.capabilities.sourceDerivationSummary.contains("blockers=")
+        }
+        let partialSourceProvenanceChecked = partialBundles.isEmpty
+            || validationMatrix.contains("sourceProvenance: pass")
+            || validationMatrix.contains("sourceProvenance: warn")
+        return (
+            unknownBundles.isEmpty && partialBundlesHaveExplicitBlockers && partialSourceProvenanceChecked,
+            bundleSummaries.joined(separator: "; ")
+        )
+    }
+
     private static func sourceDerivationEvidence(
         bundles: [WallpaperBundleSummary]
-    ) -> (passed: Bool, evidence: String) {
+    ) -> String {
         let bundleSummaries = bundles.map {
             "\($0.id)=\($0.capabilities.sourceDerivationSummary)"
         }
-        let incompleteBundles = bundles.filter {
-            $0.capabilities.sourceDerivationSummary.hasPrefix("source-derived") == false
-        }
-        return (
-            incompleteBundles.isEmpty,
-            bundleSummaries.joined(separator: "; ")
-        )
+        return bundleSummaries.joined(separator: "; ")
     }
 
     private static func liveClickProtocolText(bundles: [WallpaperBundleSummary]) -> String {
