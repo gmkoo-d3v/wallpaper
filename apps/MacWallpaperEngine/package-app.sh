@@ -20,7 +20,7 @@ PACKAGE_SMOKE_TEST="${PACKAGE_SMOKE_TEST:-auto}"
 PACKAGE_SMOKE_TEST_DURATION="${PACKAGE_SMOKE_TEST_DURATION:-8}"
 PACKAGE_SMOKE_EVIDENCE="${PACKAGE_SMOKE_EVIDENCE:-}"
 PACKAGE_RUNTIME_INTERACTION_SMOKE="${PACKAGE_RUNTIME_INTERACTION_SMOKE:-1}"
-CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-auto-if-available}"
 CODESIGN_IDENTITY_NAME="${CODESIGN_IDENTITY_NAME:-Mac Wallpaper Engine Local Development}"
 CODESIGN_DEEP="${CODESIGN_DEEP:-1}"
 VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
@@ -106,6 +106,16 @@ esac
 
 resolve_codesign_identity() {
   case "$CODESIGN_IDENTITY" in
+    auto-if-available|AUTO-IF-AVAILABLE)
+      if command -v security >/dev/null 2>&1 \
+        && security find-identity -v -p codesigning | grep -F "\"$CODESIGN_IDENTITY_NAME\"" >/dev/null; then
+        CODESIGN_IDENTITY="$CODESIGN_IDENTITY_NAME"
+        return
+      fi
+
+      CODESIGN_IDENTITY="-"
+      return
+      ;;
     auto|AUTO)
       if ! command -v security >/dev/null 2>&1; then
         echo "CODESIGN_IDENTITY=auto requires the macOS security tool." >&2
@@ -190,7 +200,7 @@ sign_app_bundle() {
 
   if [ "$CODESIGN_IDENTITY" = "-" ]; then
     echo "Packaged app was ad-hoc signed. macOS Accessibility permission may need to be re-granted after each rebuild." >&2
-    echo "Set CODESIGN_IDENTITY=auto after creating a local identity with apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes to keep TCC/Accessibility identity stable during development." >&2
+    echo "Create a local identity with apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes; future package runs will pick it up automatically." >&2
   else
     echo "Packaged app signed with identity: $CODESIGN_IDENTITY" >&2
   fi
@@ -208,7 +218,7 @@ bundleID: $BUNDLE_ID
 codesignIdentity: $CODESIGN_IDENTITY
 codesignMode: $codesign_mode
 codesignDeep: $CODESIGN_DEEP_ENABLED
-accessibilityTrustHint: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding this app in System Settings
+accessibilityTrustHint: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding this app in System Settings; create the local development identity to keep trust stable across rebuilds
 EOF
 }
 
