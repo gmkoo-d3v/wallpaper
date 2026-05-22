@@ -59,10 +59,10 @@ protocol ControlPanelDelegate: AnyObject {
 final class ControlPanelWindowController: NSWindowController {
     static let displayModeLabels = ["Selected Only", "Selected+Policy", "All Full"]
     static let pageLabels = ["Main", "Library", "Diagnostics"]
-    static let foregroundModeLabels = ["Auto", "Fallback Video", "Native Spine"]
+    static let foregroundModeLabels = ["Auto Native", "Fallback Video", "Force Native"]
     static let initialWindowSize = CGSize(width: 700, height: 360)
     static let foregroundModeTooltips = [
-        "Use Native Spine when supported; use video fallback only when native playback is unavailable.",
+        "Prefer Native Spine. Use video fallback only when native playback is unavailable.",
         "Force the lower-fidelity composite video fallback for comparison or emergency recovery.",
         "Force Native Spine rendering and block unsupported bundles unless a compatibility fallback is required."
     ]
@@ -74,7 +74,7 @@ final class ControlPanelWindowController: NSWindowController {
     static let fpsLabels = ["30", "60", "Display Hz"]
     static let interactionStatusMaximumLines = 1
     static let doctorStatusMaximumLines = 5
-    static let interactionPermissionButtonTooltip = "Enable macOS Accessibility permission so desktop-empty click/touch actions can run while Finder icons stay protected. After rebuilding an ad-hoc signed app, re-add the current app if clicks stay disabled."
+    static let interactionPermissionButtonTooltip = "Open macOS Accessibility settings for this exact app so desktop-empty click/touch actions can run while Finder icons stay protected. If an ad-hoc rebuilt app is already listed but clicks stay disabled, remove the old entry and add the current app."
 
     static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
         "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)/\(bundle.capabilities.sourceDerivationBadge)]"
@@ -131,7 +131,7 @@ final class ControlPanelWindowController: NSWindowController {
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let interactionDebugOverlayToggle = NSButton(checkboxWithTitle: "Hit-zone overlay", target: nil, action: nil)
-    private let requestInteractionPermissionButton = NSButton(title: "ENABLE CLICKS", target: nil, action: nil)
+    private let requestInteractionPermissionButton = NSButton(title: "CHECK ACCESS", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ControlPanelWindowController.fpsLabels,
         trackingMode: .selectOne,

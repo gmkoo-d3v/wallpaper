@@ -375,6 +375,7 @@ struct InteractionPlan {
                     button: probeButton,
                     trigger: zone.trigger,
                     tailSeconds: zone.tailSeconds,
+                    holdStartSeconds: zone.holdStartSeconds,
                     interactions: interactions,
                     policy: policy,
                     actionTailDurations: actionTailDurations
@@ -414,6 +415,7 @@ struct InteractionPlan {
                 button: probeButton,
                 trigger: defaultAction.trigger,
                 tailSeconds: defaultAction.tailSeconds,
+                holdStartSeconds: 0,
                 interactions: interactions,
                 policy: policy,
                 actionTailDurations: actionTailDurations
@@ -595,6 +597,7 @@ struct InteractionPlan {
         button: PointerButton,
         trigger: HitZoneTrigger,
         tailSeconds: CFTimeInterval,
+        holdStartSeconds: CFTimeInterval,
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
         actionTailDurations: [String: CFTimeInterval]
@@ -629,7 +632,10 @@ struct InteractionPlan {
                 "expired@\(formatInteractionNumber(safeTail + 0.10))=\(snapshotText(expired))"
             ].joined(separator: " ")
         case .hold:
-            let holdSampleTime = max(0.10, safeTail / 2.0)
+            let preHoldSampleTime = max(0.016, min(max(holdStartSeconds - 0.05, 0.016), holdStartSeconds))
+            clock.time = preHoldSampleTime
+            let preHeld = controller.snapshot()
+            let holdSampleTime = max(0.10, holdStartSeconds + 0.05)
             clock.time = holdSampleTime
             let held = controller.snapshot()
             controller.pointerUp(at: point, button: button)
@@ -643,6 +649,7 @@ struct InteractionPlan {
                 "button=\(button.rawValue)",
                 "trigger=\(trigger.rawValue)",
                 "down@0.000=\(snapshotText(down))",
+                "preHold@\(formatInteractionNumber(preHoldSampleTime))=\(snapshotText(preHeld))",
                 "held@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(held))",
                 "up@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(up))",
                 "fade@\(formatInteractionNumber(holdSampleTime + (safeTail / 2.0)))=\(snapshotText(fade))",

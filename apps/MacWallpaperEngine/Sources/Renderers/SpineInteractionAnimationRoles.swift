@@ -32,7 +32,9 @@ enum SpineInteractionAnimationRoles {
             }
             interaction.hitZones?
                 .filter { ($0.trigger ?? .tap) == .hold }
-                .forEach { names.insert($0.action) }
+                .forEach { hitZone in
+                    names.insert(hitZone.action)
+                }
         }
         return names
     }
@@ -46,7 +48,12 @@ enum SpineInteractionAnimationRoles {
             }
             interaction.hitZones?
                 .filter { ($0.trigger ?? .tap) == .tap }
-                .forEach { names.insert($0.action) }
+                .forEach { hitZone in
+                    names.insert(hitZone.action)
+                }
+            interaction.hitZones?
+                .compactMap(\.tapAction)
+                .forEach { names.insert($0) }
         }
         return names
     }

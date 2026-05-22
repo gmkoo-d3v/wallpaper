@@ -317,6 +317,9 @@ struct SpineAnimationDiagnostics {
                 for zone in sortedZones {
                     let trigger = zone.trigger?.rawValue ?? HitZoneTrigger.tap.rawValue
                     references.append(ActionReference(action: zone.action, use: "pointerDown.\(zone.id).\(trigger)"))
+                    if let tapAction = zone.tapAction {
+                        references.append(ActionReference(action: tapAction, use: "pointerDown.\(zone.id).tapAction"))
+                    }
                 }
             }
         }

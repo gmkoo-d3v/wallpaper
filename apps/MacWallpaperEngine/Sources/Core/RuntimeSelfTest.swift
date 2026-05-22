@@ -224,8 +224,8 @@ enum RuntimeSelfTest {
             "desktop-empty blocked events must not reset gaze while app-window and desktop-icon input is ignored"
         )
         check(
-            RuntimeLifecyclePolicy.accessibilityPromptPolicy == "user-initiated-only",
-            "wallpaper startup must not trigger the macOS Accessibility prompt without a user action"
+            RuntimeLifecyclePolicy.accessibilityPromptPolicy == "settings-open-user-initiated-no-runtime-prompt",
+            "wallpaper startup and control panel refresh must not trigger repeated macOS Accessibility prompts"
         )
         check(
             RuntimeLifecyclePolicy.trustedAccessibilityRequestPolicy == "skip-prompt-when-already-trusted"
@@ -393,7 +393,7 @@ enum RuntimeSelfTest {
             "control panel must keep the main window compact after moving verbose state into in-app pages and tooltips"
         )
         check(
-            ControlPanelWindowController.foregroundModeLabels == ["Auto", "Fallback Video", "Native Spine"]
+            ControlPanelWindowController.foregroundModeLabels == ["Auto Native", "Fallback Video", "Force Native"]
                 && ControlPanelWindowController.foregroundModeTooltips.count == ControlPanelWindowController.foregroundModeLabels.count
                 && ControlPanelWindowController.foregroundModeTooltips[0].contains("Native Spine")
                 && ControlPanelWindowController.foregroundModeTooltips[1].contains("lower-fidelity composite video fallback"),
@@ -414,7 +414,7 @@ enum RuntimeSelfTest {
             ControlPanelWindowController.interactionStatusMaximumLines == 1
                 && ControlPanelWindowController.doctorStatusMaximumLines >= 5
                 && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility")
-                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("rebuilding"),
+                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("current app"),
             "control panel must keep main interaction status compact while preserving detailed doctor diagnostics and permission tooltips"
         )
         check(
@@ -788,7 +788,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=7 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=11 calibrated=5 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         if runtime.manifest.interactions.isEmpty == false,
@@ -843,25 +843,27 @@ enum RuntimeSelfTest {
         let sourceManagedScriptStatusOK = (
             sourceProvenanceReport.contains("behaviorScripts=Assembly-CSharp:4")
                 && sourceProvenanceReport.contains("interactionOwner=SpineFaceTracker")
-                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=6")
+                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=5")
         ) || (
             sourceProvenanceReport.contains("scripts=Assembly-CSharp=4")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=6")
+                && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=5")
         )
         check(
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=7 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=11 calibrated=5 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceManagedScriptStatusOK
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceArchiveDescriptorStatusOK
                 && sourceProvenanceReport.contains("unity-managed-script-index")
                 && sourceProvenanceReport.contains("converter=unitypy-monoscript-index-v1")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
-                && sourceProvenanceReport.contains("blockedFields=6")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=6")
+                && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
+                && sourceProvenanceReport.contains("blockedFields=5")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=5")
                 && sourceProvenanceReport.contains("requiredCapabilities=unity-managed-method-behavior-import")
                 && sourceProvenanceReport.contains("methodBodyStatus=not-read")
                 && sourceProvenanceReport.contains("methodBodyRead=forbidden")
@@ -2021,9 +2023,9 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=7 calibrated=6 platformPolicy=1 unsupported=1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=11 calibrated=5 platformPolicy=1 unsupported=1")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=7 calibrated=6 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=11 calibrated=5 platformPolicy=1 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 platformPolicy=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
@@ -2047,7 +2049,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("overall: incomplete")
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
                 && completionAudit.contains("automated\tfail\tsource-derived-bundle-contract")
-                && completionAudit.contains("sample_imported=partial imported=7 calibrated=6 platformPolicy=1 unsupported=1")
+                && completionAudit.contains("sample_imported=partial imported=11 calibrated=5 platformPolicy=1 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
                 && completionAudit.contains("autoNative:true compositeDefault:false")

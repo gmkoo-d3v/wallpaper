@@ -281,7 +281,12 @@ struct SpineGeometryDiagnostics {
         var names = Set<String>()
         for interaction in manifest.interactions {
             interaction.actions?.values.forEach { names.insert($0) }
-            interaction.hitZones?.forEach { names.insert($0.action) }
+            interaction.hitZones?.forEach {
+                names.insert($0.action)
+                if let tapAction = $0.tapAction {
+                    names.insert(tapAction)
+                }
+            }
             if let defaultAction = interaction.defaultAction {
                 names.insert(defaultAction.action)
             }

@@ -143,6 +143,11 @@ enum RuntimeSourceProvenanceReport {
                 checks.insert("interactionOwner=\(candidate.className)")
             }
 
+            let serializedFieldCounts = serializedFieldCounts(scriptIndex.serializedBehaviourFields)
+            if serializedFieldCounts.isEmpty == false {
+                checks.insert("serializedFields=\(serializedFieldCounts)")
+            }
+
             let calibratedFields = Set(runtime.manifest.sourceProvenance?.calibratedFields ?? [])
             if calibratedFields.isEmpty == false {
                 let blockedFields = scriptIndex.blockedFields ?? []
@@ -295,6 +300,7 @@ enum RuntimeSourceProvenanceReport {
                 .sorted()
                 .joined(separator: ",")
             let blockedFields = index.blockedFields ?? []
+            let serializedFields = serializedFieldCounts(index.serializedBehaviourFields)
             let blockedFieldOwners = Dictionary(grouping: blockedFields, by: \.owner)
                 .mapValues(\.count)
                 .sorted { $0.key < $1.key }
@@ -317,6 +323,7 @@ enum RuntimeSourceProvenanceReport {
                 "converter=\(index.converter ?? "unspecified")",
                 "scripts=\(assemblyCounts.isEmpty ? "none" : assemblyCounts)",
                 "interactionCandidates=\(candidates.isEmpty ? "none" : candidates)",
+                "serializedFields=\(serializedFields.isEmpty ? "none" : serializedFields)",
                 "blockedFields=\(blockedFields.count)",
                 "blockedFieldOwners=\(blockedFieldOwners.isEmpty ? "none" : blockedFieldOwners)",
                 "requiredCapabilities=\(requiredCapabilities.isEmpty ? "none" : requiredCapabilities)",
@@ -339,6 +346,19 @@ enum RuntimeSourceProvenanceReport {
             .map { "  - \($0)" }
             .joined(separator: "\n")
         return "\(name):\n\(itemText)"
+    }
+
+    private static func serializedFieldCounts(_ records: [UnitySerializedBehaviourFields]?) -> String {
+        Dictionary(
+            grouping: records ?? [],
+            by: { "\($0.assembly ?? "unknown").\($0.className ?? "unknown")" }
+        )
+            .mapValues { groupedRecords in
+                groupedRecords.reduce(0) { $0 + ($1.fields?.count ?? 0) }
+            }
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: ",")
     }
 }
 
@@ -380,6 +400,7 @@ private struct UnityManagedScriptIndexDescriptor: Decodable {
     let methodBodyStatus: String?
     let assemblyScripts: [UnityManagedScriptRecord]?
     let interactionCandidates: [UnityInteractionCandidate]?
+    let serializedBehaviourFields: [UnitySerializedBehaviourFields]?
     let blockedFields: [UnityBlockedSourceField]?
 
     private enum CodingKeys: String, CodingKey {
@@ -388,6 +409,7 @@ private struct UnityManagedScriptIndexDescriptor: Decodable {
         case methodBodyStatus = "method_body_status"
         case assemblyScripts = "assembly_scripts"
         case interactionCandidates = "interaction_candidates"
+        case serializedBehaviourFields = "serialized_behaviour_fields"
         case blockedFields = "blocked_fields"
     }
 }
@@ -418,6 +440,56 @@ private struct UnityInteractionCandidate: Decodable {
     let assembly: String?
     let className: String
     let reason: String?
+}
+
+private struct UnitySerializedBehaviourFields: Decodable {
+    let source: String?
+    let pathID: Int?
+    let assembly: String?
+    let className: String?
+    let gameObjectPathID: Int?
+    let gameObjectName: String?
+    let fieldNameEvidence: String?
+    let fields: [UnitySerializedBehaviourField]?
+    let limitations: [String]?
+}
+
+private struct UnitySerializedBehaviourField: Decodable {
+    let name: String
+    let kind: String
+    let value: UnitySerializedValue?
+    let fileID: Int?
+    let pathID: Int?
+    let rawOffset: Int?
+}
+
+private enum UnitySerializedValue: Decodable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let string = try? container.decode(String.self) {
+            self = .string(string)
+            return
+        }
+        if let number = try? container.decode(Double.self) {
+            self = .number(number)
+            return
+        }
+        if let bool = try? container.decode(Bool.self) {
+            self = .bool(bool)
+            return
+        }
+        throw DecodingError.typeMismatch(
+            UnitySerializedValue.self,
+            DecodingError.Context(
+                codingPath: decoder.codingPath,
+                debugDescription: "Unsupported Unity serialized value type"
+            )
+        )
+    }
 }
 
 private struct UnityBlockedSourceField: Decodable {

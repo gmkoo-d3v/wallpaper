@@ -505,7 +505,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             controlPanel?.refresh()
             return
         }
-        _ = DesktopInteractionGate.requestAccessibilityTrustPrompt()
         _ = DesktopInteractionGate.openAccessibilitySettings()
         host?.refreshInteractionState()
         for delay in RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays {
