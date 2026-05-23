@@ -615,7 +615,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     }
 
     private func framePacingFps(resourceFps: Int, interaction: InteractionSnapshot) -> Int {
-        let interactionActive = interaction.clickPulse > 0 || interaction.command != idleCommand
+        let interactionActive = interaction.clickPulse > 0 || interaction.isInputActive
         let requestedFps = interactionActive ? activeRenderFps : idleRenderFps
         return max(1, min(resourceFps, requestedFps))
     }

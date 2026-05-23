@@ -1013,15 +1013,26 @@ enum RuntimeSelfTest {
             ),
             clock: { customLookClock }
         )
+        let initialCustomLookSnapshot = customLookController.snapshot()
         check(
-            customLookController.snapshot().command == "lookCenter",
-            "interaction controller initial state must use the manifest-declared idle action"
+            initialCustomLookSnapshot.command == "lookCenter"
+                && initialCustomLookSnapshot.isInputActive == false,
+            "interaction controller initial state must use the manifest-declared idle action without active input pacing"
         )
         customLookController.pointerMoved(to: CGPoint(x: 0.90, y: 0.50))
         customLookClock += 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+        let movedCustomLookSnapshot = customLookController.snapshot()
         check(
-            customLookController.snapshot().command == "lookEast",
-            "interaction controller must resolve custom manifest look actions during pointer movement"
+            movedCustomLookSnapshot.command == "lookEast"
+                && movedCustomLookSnapshot.isInputActive,
+            "interaction controller must resolve custom manifest look actions during pointer movement and mark input pacing active"
+        )
+        customLookClock += 0.25
+        let settledCustomLookSnapshot = customLookController.snapshot()
+        check(
+            settledCustomLookSnapshot.command == "lookEast"
+                && settledCustomLookSnapshot.isInputActive == false,
+            "stable off-center gaze must keep its manifest command without forcing active render cadence forever"
         )
         customLookController.resetPointerTracking()
         check(
