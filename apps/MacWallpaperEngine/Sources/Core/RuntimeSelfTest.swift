@@ -2082,6 +2082,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
+                && completionAudit.contains("automated\tpass\tgeneric-runtime-source-boundary")
+                && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("sample_imported=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
                 && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=11 calibrated=5 platformPolicy=3 unsupported=1); derivation(partial imported=11 calibrated=5 platformPolicy=3 unsupported=1")

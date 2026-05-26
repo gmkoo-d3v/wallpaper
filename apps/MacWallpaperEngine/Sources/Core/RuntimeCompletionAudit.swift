@@ -105,6 +105,10 @@ enum RuntimeCompletionAudit {
             validationMatrix: validationMatrix
         )
         let genericPlayerContract = genericPlayerContractEvidence(bundles: bundles)
+        let genericSourceBoundary = try genericRuntimeSourceBoundaryEvidence(
+            projectRoot: projectRoot,
+            bundles: bundles
+        )
         let sourceDerivation = sourceDerivationEvidence(bundles: bundles)
         let packaged = packageSigningMetadataText() != nil
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
@@ -138,6 +142,12 @@ enum RuntimeCompletionAudit {
                 passed: genericPlayerContract.passed,
                 evidence: genericPlayerContract.evidence,
                 risk: "the runtime must interpret bundle-declared assets, layers, interactions, hit zones, timings, and action names instead of owning wallpaper-specific behavior"
+            ),
+            item(
+                id: "generic-runtime-source-boundary",
+                passed: genericSourceBoundary.passed,
+                evidence: genericSourceBoundary.evidence,
+                risk: "wallpaper ids, titles, and non-generic action tokens must stay in wallpaper bundles, source adapters, tests, or docs instead of the generic runtime"
             ),
             item(
                 id: "renderer-family-coverage",
@@ -487,6 +497,113 @@ enum RuntimeCompletionAudit {
             }
         }
         return (passed, bundleSummaries.joined(separator: "; "))
+    }
+
+    private static func genericRuntimeSourceBoundaryEvidence(
+        projectRoot: URL?,
+        bundles: [WallpaperBundleSummary]
+    ) throws -> (passed: Bool, evidence: String) {
+        guard let projectRoot else {
+            return (true, "source scan skipped: project root unavailable in this runtime context")
+        }
+
+        let sourcesRoot = projectRoot.appendingPathComponent("apps/MacWallpaperEngine/Sources", isDirectory: true)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: sourcesRoot.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return (true, "source scan skipped: Swift source tree unavailable")
+        }
+
+        let tokens = try genericRuntimeBoundaryTokens(bundles: bundles)
+        guard tokens.isEmpty == false else {
+            return (true, "source scan passed: no bundle-owned tokens require scanning")
+        }
+
+        guard let enumerator = FileManager.default.enumerator(
+            at: sourcesRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return (false, "source scan failed: unable to enumerate \(sourcesRoot.path)")
+        }
+
+        let allowedFiles: Set<String> = [
+            "RuntimeSelfTest.swift"
+        ]
+        var violations: [String] = []
+        for case let sourceURL as URL in enumerator {
+            guard sourceURL.pathExtension == "swift" else { continue }
+            guard allowedFiles.contains(sourceURL.lastPathComponent) == false else { continue }
+            guard (try sourceURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+
+            let source = try String(contentsOf: sourceURL, encoding: .utf8)
+            for token in tokens where source.contains(token) {
+                let relativePath = sourceURL.path
+                    .replacingOccurrences(of: projectRoot.path + "/", with: "")
+                violations.append("\(relativePath):\(token)")
+            }
+        }
+
+        guard violations.isEmpty else {
+            return (
+                false,
+                "source scan failed: \(violations.prefix(8).joined(separator: ","))"
+            )
+        }
+        return (
+            true,
+            "source scan passed: checked \(tokens.count) bundle-owned token(s) outside tests"
+        )
+    }
+
+    private static func genericRuntimeBoundaryTokens(
+        bundles: [WallpaperBundleSummary]
+    ) throws -> [String] {
+        let genericInteractionTokens: Set<String> = [
+            "idle",
+            "left",
+            "right",
+            "up",
+            "down",
+            "Left",
+            "Right",
+            "Up",
+            "Down",
+            "head",
+            "body",
+            "default"
+        ]
+        var tokens = Set<String>()
+        for bundle in bundles {
+            for token in [bundle.id, bundle.displayName] where token.count >= 4 {
+                tokens.insert(token)
+            }
+            guard let manifest = try? ManifestLoader.load(url: bundle.manifestURL, bundleRoot: bundle.root) else {
+                continue
+            }
+            for interaction in manifest.interactions {
+                if let actionValues = interaction.actions?.values {
+                    for action in actionValues where action.count >= 4 {
+                        if genericInteractionTokens.contains(action) == false {
+                            tokens.insert(action)
+                        }
+                    }
+                }
+                for zone in interaction.hitZones ?? [] {
+                    for token in [zone.id, zone.action, zone.tapAction].compactMap({ $0 }) where token.count >= 4 {
+                        if genericInteractionTokens.contains(token) == false {
+                            tokens.insert(token)
+                        }
+                    }
+                }
+                if let defaultAction = interaction.defaultAction?.action,
+                   defaultAction.count >= 4,
+                   genericInteractionTokens.contains(defaultAction) == false {
+                    tokens.insert(defaultAction)
+                }
+            }
+        }
+        return tokens.sorted()
     }
 
     private static func declaredAssetIDs(_ manifest: WallpaperNativeManifest) -> [String] {
