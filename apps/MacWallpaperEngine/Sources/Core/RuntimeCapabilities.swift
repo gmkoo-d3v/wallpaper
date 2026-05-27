@@ -658,7 +658,7 @@ enum RuntimeCapabilities {
         }
         let eventFeatureDetail = [
             scan.hasEventData ? "events=ignored(non-visual)" : "events=none",
-            scan.hasAudioData ? "audio=playback" : "audio=none",
+            scan.hasAudioData ? "audio=ignored(non-visual)" : "audio=none",
             sequenceDetail
         ].joined(separator: " ")
 

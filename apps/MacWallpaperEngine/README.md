@@ -240,8 +240,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Control panel display settings expose the same primary display selector used
   by `--primary-display`, preserving configured selectors even when a display is
   temporarily disconnected.
-- Control panel bundle, display, interaction, FPS, playback, audio opt-in,
-  launch-at-login, fit, and foreground renderer selections persist under
+- Control panel bundle, display, interaction, FPS, playback, fit, and foreground
+  renderer selections persist under
   Application Support and are restored on the next normal app launch unless an
   explicit CLI flag overrides them.
 - Validation, self-test, capability, display-plan, render-plan, and performance
@@ -302,10 +302,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   array-form and legacy object-form `skins` exports.
 - Non-visual Spine event timelines are tolerated and ignored by the native
   renderer instead of forcing a composite fallback.
-- Spine audio event timelines are scheduled by the native renderer for
-  AVAudioPlayer-compatible files when `userControlled` audio is explicitly
-  enabled; muted and disabled manifests stay silent without forcing composite
-  fallback.
+- Spine audio event timelines are tolerated as non-visual metadata and ignored
+  by the native renderer; the app never opens microphone or audio-output
+  capture/playback paths.
 - Spine `sequence` metadata and `attachments.sequence` timelines are supported
   for otherwise supported region/mesh attachments, selecting alternate atlas
   regions without forcing a composite fallback.
@@ -387,10 +386,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Packaging also prints non-failing composite fallback recommendations, so
   high-refresh regeneration work is visible without blocking ordinary 60fps
   release builds.
-- Packaging runs an automatic hidden packaged-app launch smoke test when a
-  macOS WindowServer is available, catching "starts then immediately exits"
-  regressions after source and packaged bundle validation. Set
-  `PACKAGE_SMOKE_TEST=0` to skip or `PACKAGE_SMOKE_TEST=1` to force it.
+- Packaging does not launch the wallpaper app by default; the packaged player
+  is user-started. Set `PACKAGE_SMOKE_TEST=1` when an explicit release gate
+  should run a hidden packaged-app launch smoke test after validation.
 - `PACKAGE_VALIDATE_ONLY=1` runs the same source-bundle package validation
   without replacing the existing `dist/MacWallpaperEngine.app`.
 - Strict packaging prints the composite quality report before failing, so the
@@ -412,9 +410,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   background policy.
 - Startup host failures keep the control panel open when UI is available so
   users can choose another bundle instead of watching the app silently exit.
-- Control panel launch-at-login registration uses the macOS login item API for
-  packaged `.app` builds; denial or unavailable packaging state is surfaced as a
-  recoverable settings error instead of crashing the wallpaper runtime.
+- The packaged player is manual-start only. It does not register itself as a
+  login item.
 - Repeated host renderer start failures are persisted by
   wallpaper/display/renderer key and enter safe mode after bounded retries,
   yielding to the system wallpaper instead of looping window creation across
@@ -471,10 +468,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   - `Native Spine`: background video plus native Spine mesh/timeline foreground.
 - Foreground renderer selection is centralized so render diagnostics and the
   Metal compositor use the same native/composite/fallback decision.
-- Manifest `runtime.audioPolicy` is enforced for video-backed renderers;
-  bundled wallpapers default to `muted`, `--audio` and the control panel audio
-  opt-in can enable output only for `userControlled` manifests, and
-  `muted`/`disabled` manifests remain silent even when the user toggles audio.
+- Manifest `runtime.audioPolicy` is parsed for bundle compatibility, but this
+  player is visual-only: video and Spine audio paths stay muted/ignored and
+  `--audio` is rejected.
 
 ## Not Yet Implemented
 
@@ -538,8 +534,6 @@ swift run MacWallpaperEngine --interaction-plan
 swift run MacWallpaperEngine --probe-interaction 0.5,0.42
 swift run MacWallpaperEngine --probe-interaction 0.5,0.70 --probe-button left
 swift run MacWallpaperEngine --foreground-mode native --interaction-debug-overlay
-swift run MacWallpaperEngine --audio --runtime-capabilities
-swift run MacWallpaperEngine --launch-at-login --control-panel-only
 swift run MacWallpaperEngine --spine-animation-plan
 swift run MacWallpaperEngine --spine-profile
 swift run MacWallpaperEngine --wallpaper-golden-check
@@ -609,20 +603,8 @@ Accessibility and signing note:
   --accessibility-status` to confirm the exact packaged binary state, or
   `--request-accessibility` to ask macOS for trust and open the Accessibility
   settings pane before live interaction smoke.
-- For repeated development builds, create or use a stable local signing identity
-  before packaging so Accessibility trust is tied to a stable code-signing
-  requirement instead of a changing ad-hoc code hash. The helper creates a local
-  development identity in the login keychain. It adds a private key and trusted
-  local root certificate for code signing, so run it only on a development Mac
-  you control and only after accepting the persistent keychain change:
-
-```bash
-apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes
-CODESIGN_IDENTITY=auto apps/MacWallpaperEngine/package-app.sh
-```
-
-`CODESIGN_IDENTITY=auto` looks for `Mac Wallpaper Engine Local Development` by
-default. To use a different existing identity:
+- Packaging defaults to ad-hoc signing and never creates keychain identities or
+  trusted certificates. To use signing, pass an existing identity explicitly:
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Example Name" apps/MacWallpaperEngine/package-app.sh

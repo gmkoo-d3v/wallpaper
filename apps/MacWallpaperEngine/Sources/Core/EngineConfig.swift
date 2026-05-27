@@ -198,7 +198,7 @@ struct EngineConfig {
             renderFps: renderFps ?? self.renderFps,
             matchDisplayRefresh: matchDisplayRefresh ?? self.matchDisplayRefresh,
             playbackRateOverride: playbackRateOverride ?? self.playbackRateOverride,
-            audioEnabled: audioEnabled ?? self.audioEnabled,
+            audioEnabled: false,
             fitMode: fitMode ?? self.fitMode,
             foregroundMode: foregroundMode ?? self.foregroundMode,
             interactionDebugOverlay: interactionDebugOverlay ?? self.interactionDebugOverlay,
@@ -238,7 +238,7 @@ struct EngineConfig {
             interactive: interactive ?? self.interactive,
             launchControlPanel: launchControlPanel ?? self.launchControlPanel,
             launchWallpaper: launchWallpaper ?? self.launchWallpaper,
-            launchAtLogin: launchAtLogin ?? self.launchAtLogin,
+            launchAtLogin: false,
             videoEnabled: videoEnabled ?? self.videoEnabled,
             metalEnabled: metalEnabled ?? self.metalEnabled,
             plainWindowStyle: plainWindowStyle ?? self.plainWindowStyle
@@ -266,10 +266,8 @@ struct EngineConfig {
         var explicitInteractive = false
         var explicitRenderFps = false
         var explicitPlaybackRateOverride = false
-        var explicitAudioEnabled = false
         var explicitFitMode = false
         var explicitForegroundMode = false
-        var explicitLaunchAtLogin = false
         var validateOnly = false
         var displayPlanOnly = false
         var physicalDisplayPlanOnly = false
@@ -380,11 +378,9 @@ struct EngineConfig {
                 playbackRateOverride = parsed
                 explicitPlaybackRateOverride = true
             case "--audio":
-                audioEnabled = true
-                explicitAudioEnabled = true
+                throw EngineError.invalidArgument("--audio is not supported; Mac Wallpaper Engine is a visual wallpaper player and stays muted.")
             case "--mute", "--no-audio":
                 audioEnabled = false
-                explicitAudioEnabled = true
             case "--fit-mode":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -539,11 +535,9 @@ struct EngineConfig {
             case "--no-wallpaper":
                 launchWallpaper = false
             case "--launch-at-login":
-                launchAtLogin = true
-                explicitLaunchAtLogin = true
+                throw EngineError.invalidArgument("--launch-at-login is not supported; start Mac Wallpaper Engine manually.")
             case "--no-launch-at-login":
                 launchAtLogin = false
-                explicitLaunchAtLogin = true
             case "--no-video":
                 videoEnabled = false
             case "--no-metal":
@@ -599,17 +593,11 @@ struct EngineConfig {
             if !explicitPlaybackRateOverride {
                 playbackRateOverride = persistedSettings.playbackRateOverride
             }
-            if !explicitAudioEnabled, let persisted = persistedSettings.audioEnabled {
-                audioEnabled = persisted
-            }
             if !explicitFitMode, let persisted = persistedSettings.fitMode {
                 fitMode = persisted
             }
             if !explicitForegroundMode, let persisted = persistedSettings.foregroundMode {
                 foregroundMode = persisted
-            }
-            if !explicitLaunchAtLogin, let persisted = persistedSettings.launchAtLogin {
-                launchAtLogin = persisted
             }
         }
 
@@ -757,8 +745,7 @@ struct EngineConfig {
       --duration <seconds>      Auto-quit after a short smoke run.
       --fps <value>             Render FPS: 30 | 60 | display. Display mode is capped by manifest maxFps.
       --playback-rate <value>   Video playback rate override. Defaults to manifest asset rate.
-      --audio                   Enable sound only for wallpapers whose manifest uses audioPolicy=userControlled.
-      --mute, --no-audio        Keep wallpaper audio muted. Default and always enforced for muted/disabled manifests.
+      --mute, --no-audio        Keep wallpaper audio muted. Default.
       --fit-mode <mode>         contain | fill. Default: contain.
       --foreground-mode <mode>  auto | composite | native. Default: auto.
       --interaction-debug-overlay
@@ -845,8 +832,7 @@ struct EngineConfig {
       --control-panel-only      Show only the control panel; do not start wallpaper windows.
       --wallpaper-only          Start wallpaper windows without the control panel.
       --no-wallpaper            Do not start wallpaper windows.
-      --launch-at-login         Register the packaged app as a macOS login item.
-      --no-launch-at-login      Unregister the packaged app login item. Default.
+      --no-launch-at-login      Keep manual-start mode. Default.
       --no-video                Disable video decoding and draw static fallback only.
       --no-metal                Use a plain NSView instead of MTKView for windowing diagnostics.
       --plain-window-style      Use titled normal app windows for windowing diagnostics.

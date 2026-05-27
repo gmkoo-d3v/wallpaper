@@ -26,10 +26,10 @@ struct PersistedEngineSettings: Codable, Equatable {
             renderFps: config.renderFps,
             matchDisplayRefresh: config.matchDisplayRefresh,
             playbackRateOverride: config.playbackRateOverride,
-            audioEnabled: config.audioEnabled,
+            audioEnabled: false,
             fitMode: config.fitMode,
             foregroundMode: persistedForegroundMode(config.foregroundMode),
-            launchAtLogin: config.launchAtLogin
+            launchAtLogin: false
         )
     }
 
@@ -43,10 +43,10 @@ struct PersistedEngineSettings: Codable, Equatable {
             renderFps: renderFps.flatMap { [30, 60].contains($0) ? $0 : nil },
             matchDisplayRefresh: matchDisplayRefresh ?? (renderFps.map { $0 > 60 } ?? false),
             playbackRateOverride: playbackRateOverride.flatMap { $0.isFinite && $0 > 0 && $0 <= 4 ? $0 : nil },
-            audioEnabled: audioEnabled ?? false,
+            audioEnabled: false,
             fitMode: fitMode,
             foregroundMode: foregroundMode.map(Self.persistedForegroundMode),
-            launchAtLogin: launchAtLogin ?? false
+            launchAtLogin: false
         )
     }
 

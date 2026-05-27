@@ -32,7 +32,6 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         do {
-            try applyLaunchAtLoginSetting(runtime.config.launchAtLogin)
             if runtime.config.launchWallpaper {
                 try startHost()
             }
@@ -180,16 +179,6 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func applyLaunchAtLoginSetting(_ enabled: Bool) throws {
-        let status = LaunchAtLoginController.status()
-        if enabled == false,
-           status != .enabled,
-           status != .requiresApproval {
-            return
-        }
-        try LaunchAtLoginController.setEnabled(enabled)
-    }
-
     private func restartHost(
         displayMode: DisplayMode,
         primaryDisplaySelector: String?,
@@ -197,8 +186,6 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         renderFps: Int,
         matchDisplayRefresh: Bool,
         playbackRate: Float,
-        audioEnabled: Bool,
-        launchAtLogin: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -221,16 +208,15 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
                 renderFps: renderFps,
                 matchDisplayRefresh: matchDisplayRefresh,
                 playbackRateOverride: playbackRate,
-                audioEnabled: audioEnabled,
+                audioEnabled: false,
                 fitMode: fitMode,
                 foregroundMode: foregroundMode,
                 interactionDebugOverlay: interactionDebugOverlay,
                 startHidden: false,
                 clearDuration: true,
-                launchAtLogin: launchAtLogin
+                launchAtLogin: false
             )
             let nextRuntime = try NativeRuntimeCore(config: nextConfig)
-            try applyLaunchAtLoginSetting(nextRuntime.config.launchAtLogin)
             if wasRunning {
                 do {
                     try replaceRunningHost(with: nextRuntime)
@@ -320,12 +306,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 renderFps: 60,
                 matchDisplayRefresh: false,
                 playbackRate: 1.0,
-                audioEnabled: false,
-                audioControlEnabled: false,
-                audioStatusText: "AUDIO MUTED / no wallpaper bundle selected",
-                launchAtLogin: false,
-                launchAtLoginControlEnabled: LaunchAtLoginController.status() != .unavailable,
-                launchAtLoginStatusText: LaunchAtLoginController.controlPanelText(desiredEnabled: false),
                 fitMode: .contain,
                 foregroundMode: .automatic,
                 interactionDebugOverlay: false,
@@ -369,12 +349,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             renderFps: runtime.renderTargetFps,
             matchDisplayRefresh: runtime.config.matchDisplayRefresh,
             playbackRate: runtime.selectedPlaybackRate,
-            audioEnabled: runtime.config.audioEnabled,
-            audioControlEnabled: runtime.manifest.runtime.effectiveAudioPolicy == .userControlled,
-            audioStatusText: audioStatusText(for: runtime),
-            launchAtLogin: runtime.config.launchAtLogin,
-            launchAtLoginControlEnabled: LaunchAtLoginController.status() != .unavailable,
-            launchAtLoginStatusText: LaunchAtLoginController.controlPanelText(desiredEnabled: runtime.config.launchAtLogin),
             fitMode: runtime.config.fitMode,
             foregroundMode: runtime.config.foregroundMode,
             interactionDebugOverlay: runtime.config.interactionDebugOverlay,
@@ -418,8 +392,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         renderFps: Int,
         matchDisplayRefresh: Bool,
         playbackRate: Float,
-        audioEnabled: Bool,
-        launchAtLogin: Bool,
         fitMode: RenderFitMode,
         foregroundMode: ForegroundRenderMode,
         interactionDebugOverlay: Bool
@@ -431,8 +403,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             renderFps: renderFps,
             matchDisplayRefresh: matchDisplayRefresh,
             playbackRate: playbackRate,
-            audioEnabled: audioEnabled,
-            launchAtLogin: launchAtLogin,
             fitMode: fitMode,
             foregroundMode: foregroundMode,
             interactionDebugOverlay: interactionDebugOverlay
@@ -542,19 +512,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
-    }
-
-    private func audioStatusText(for runtime: NativeRuntimeCore) -> String {
-        switch runtime.manifest.runtime.effectiveAudioPolicy {
-        case .muted:
-            return "AUDIO MUTED / manifest policy=muted"
-        case .disabled:
-            return "AUDIO DISABLED / manifest policy=disabled"
-        case .userControlled:
-            return runtime.config.audioEnabled
-                ? "AUDIO ENABLED / user opt-in"
-                : "AUDIO MUTED / waiting for user opt-in"
-        }
     }
 
     private func primaryInteractionSnapshot(for runtime: NativeRuntimeCore) -> InteractionMonitorTelemetrySnapshot? {

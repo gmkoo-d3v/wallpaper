@@ -9,8 +9,6 @@ final class VideoFrameSource: NSObject {
     private let item: AVPlayerItem
     private let output: AVPlayerItemVideoOutput
     private let playbackRate: Float
-    private let audioPolicy: AudioPolicy
-    private let audioEnabled: Bool
     private let lock = NSLock()
     private var textureCache: CVMetalTextureCache?
     private var lastTexture: CVMetalTexture?
@@ -21,13 +19,9 @@ final class VideoFrameSource: NSObject {
     init(
         url: URL,
         device: MTLDevice,
-        playbackRate: Float = 1.0,
-        audioPolicy: AudioPolicy = .muted,
-        audioEnabled: Bool = false
+        playbackRate: Float = 1.0
     ) throws {
         self.playbackRate = playbackRate
-        self.audioPolicy = audioPolicy
-        self.audioEnabled = audioEnabled
         let asset = AVURLAsset(url: url)
         self.item = AVPlayerItem(asset: asset)
         let pixelBufferAttributes: [String: Any] = [
@@ -49,7 +43,7 @@ final class VideoFrameSource: NSObject {
         }
         self.textureCache = cache
         super.init()
-        configureAudioPolicy()
+        mutePlayerAudio()
 
         NotificationCenter.default.addObserver(
             self,
@@ -156,14 +150,8 @@ final class VideoFrameSource: NSObject {
         }
     }
 
-    private func configureAudioPolicy() {
-        switch audioPolicy {
-        case .muted, .disabled:
-            player.isMuted = true
-            player.volume = 0
-        case .userControlled:
-            player.isMuted = audioEnabled == false
-            player.volume = audioEnabled ? 1.0 : 0
-        }
+    private func mutePlayerAudio() {
+        player.isMuted = true
+        player.volume = 0
     }
 }

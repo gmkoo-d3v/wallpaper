@@ -13,14 +13,14 @@ final class NativeRuntimeCore {
         config.matchDisplayRefresh ? "display" : "\(renderTargetFps)"
     }
     var audioOutputEnabled: Bool {
-        manifest.runtime.effectiveAudioPolicy == .userControlled && config.audioEnabled
+        false
     }
     var audioOutputSummary: String {
         switch manifest.runtime.effectiveAudioPolicy {
+        case .userControlled:
+            return "disabled-visual-player"
         case .muted:
             return "muted"
-        case .userControlled:
-            return config.audioEnabled ? "enabled-user-opt-in" : "muted-until-user-opt-in"
         case .disabled:
             return "disabled-muted"
         }
@@ -29,7 +29,7 @@ final class NativeRuntimeCore {
         if manifest.runtime.effectiveAudioPolicy == .disabled {
             return "disabled"
         }
-        return audioOutputEnabled ? "enabled" : "muted"
+        return "muted"
     }
     var selectedPlaybackRate: Float {
         if let playbackRateOverride = config.playbackRateOverride {

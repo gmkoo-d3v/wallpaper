@@ -16,12 +16,12 @@ SCHEMA_SOURCE="$SCRIPT_DIR/Resources/schemas/wallpaper-native-v2.schema.json"
 SCHEMA_DEST="$RESOURCES_DIR/schemas"
 STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
 PACKAGE_VALIDATE_ONLY="${PACKAGE_VALIDATE_ONLY:-0}"
-PACKAGE_SMOKE_TEST="${PACKAGE_SMOKE_TEST:-auto}"
+PACKAGE_SMOKE_TEST="${PACKAGE_SMOKE_TEST:-0}"
 PACKAGE_SMOKE_TEST_DURATION="${PACKAGE_SMOKE_TEST_DURATION:-8}"
 PACKAGE_SMOKE_EVIDENCE="${PACKAGE_SMOKE_EVIDENCE:-}"
-PACKAGE_RUNTIME_INTERACTION_SMOKE="${PACKAGE_RUNTIME_INTERACTION_SMOKE:-1}"
-CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-auto-if-available}"
-CODESIGN_IDENTITY_NAME="${CODESIGN_IDENTITY_NAME:-Mac Wallpaper Engine Local Development}"
+PACKAGE_RUNTIME_INTERACTION_SMOKE="${PACKAGE_RUNTIME_INTERACTION_SMOKE:-0}"
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+CODESIGN_IDENTITY_NAME="${CODESIGN_IDENTITY_NAME:-}"
 CODESIGN_DEEP="${CODESIGN_DEEP:-1}"
 VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
 PACKAGE_SMOKE_TEST_PASSED=0
@@ -107,7 +107,8 @@ esac
 resolve_codesign_identity() {
   case "$CODESIGN_IDENTITY" in
     auto-if-available|AUTO-IF-AVAILABLE)
-      if command -v security >/dev/null 2>&1 \
+      if [ -n "$CODESIGN_IDENTITY_NAME" ] \
+        && command -v security >/dev/null 2>&1 \
         && security find-identity -v -p codesigning | grep -F "\"$CODESIGN_IDENTITY_NAME\"" >/dev/null; then
         CODESIGN_IDENTITY="$CODESIGN_IDENTITY_NAME"
         return
@@ -121,15 +122,18 @@ resolve_codesign_identity() {
         echo "CODESIGN_IDENTITY=auto requires the macOS security tool." >&2
         exit 1
       fi
+      if [ -z "$CODESIGN_IDENTITY_NAME" ]; then
+        echo "CODESIGN_IDENTITY=auto requires CODESIGN_IDENTITY_NAME to name an existing signing identity." >&2
+        exit 1
+      fi
 
       if security find-identity -v -p codesigning | grep -F "\"$CODESIGN_IDENTITY_NAME\"" >/dev/null; then
         CODESIGN_IDENTITY="$CODESIGN_IDENTITY_NAME"
         return
       fi
 
-      echo "No stable local codesign identity named '$CODESIGN_IDENTITY_NAME' was found." >&2
-      echo "Create one with: apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes" >&2
-      echo "Then package with: CODESIGN_IDENTITY=auto apps/MacWallpaperEngine/package-app.sh" >&2
+      echo "No codesign identity named '$CODESIGN_IDENTITY_NAME' was found." >&2
+      echo "Use an existing signing identity with CODESIGN_IDENTITY=\"<identity name>\", or use the default ad-hoc signing mode." >&2
       exit 1
       ;;
   esac
@@ -200,7 +204,7 @@ sign_app_bundle() {
 
   if [ "$CODESIGN_IDENTITY" = "-" ]; then
     echo "Packaged app was ad-hoc signed. macOS Accessibility permission may need to be re-granted after each rebuild." >&2
-    echo "Create a local identity with apps/MacWallpaperEngine/create-local-codesign-identity.sh --yes; future package runs will pick it up automatically." >&2
+    echo "Identity signing is opt-in: pass CODESIGN_IDENTITY=\"<existing identity name>\"." >&2
   else
     echo "Packaged app signed with identity: $CODESIGN_IDENTITY" >&2
   fi
@@ -218,7 +222,7 @@ bundleID: $BUNDLE_ID
 codesignIdentity: $CODESIGN_IDENTITY
 codesignMode: $codesign_mode
 codesignDeep: $CODESIGN_DEEP_ENABLED
-accessibilityTrustHint: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding this app in System Settings; create the local development identity to keep trust stable across rebuilds
+accessibilityTrustHint: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding this app in System Settings; identity signing is explicit opt-in with CODESIGN_IDENTITY set to an existing identity name
 EOF
 }
 

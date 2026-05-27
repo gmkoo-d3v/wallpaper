@@ -3269,7 +3269,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        check(loaded.audioEnabled == true, "runtime settings must persist audio opt-in", failures: &failures, checks: &checks)
+        check(loaded.audioEnabled == false, "runtime settings must not persist audio opt-in; player is visual-only", failures: &failures, checks: &checks)
         check(loaded.fitMode == .fill, "runtime settings must persist fit mode", failures: &failures, checks: &checks)
         check(
             loaded.foregroundMode == .nativeSpine,
@@ -3277,7 +3277,12 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        check(loaded.launchAtLogin == true, "runtime settings must persist launch-at-login opt-in", failures: &failures, checks: &checks)
+        check(
+            loaded.launchAtLogin == false,
+            "runtime settings must not persist automatic launch; player is manual-start only",
+            failures: &failures,
+            checks: &checks
+        )
         check(
             RuntimeSettingsStore.validWallpaperRoot(from: loaded)?.standardizedFileURL.path == tunedConfig.wallpaperRoot.standardizedFileURL.path,
             "runtime settings must only restore a validated wallpaper root",
@@ -3319,7 +3324,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        check(parsed.audioEnabled, "EngineConfig must restore persisted audio opt-in", failures: &failures, checks: &checks)
+        check(parsed.audioEnabled == false, "EngineConfig must ignore persisted audio opt-in; player is visual-only", failures: &failures, checks: &checks)
         check(parsed.fitMode == .fill, "EngineConfig must restore persisted fit mode", failures: &failures, checks: &checks)
         check(
             parsed.foregroundMode == .nativeSpine,
@@ -3327,7 +3332,12 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        check(parsed.launchAtLogin, "EngineConfig must restore persisted launch-at-login opt-in", failures: &failures, checks: &checks)
+        check(
+            parsed.launchAtLogin == false,
+            "EngineConfig must ignore persisted automatic launch; player is manual-start only",
+            failures: &failures,
+            checks: &checks
+        )
 
         let compositeConfig = runtime.config.replacing(foregroundMode: .compositeVideo, clearDuration: true)
         try RuntimeSettingsStore.save(config: compositeConfig, to: settingsURL)
@@ -3374,7 +3384,7 @@ enum RuntimeSelfTest {
         )
         check(
             diagnosticParse.audioEnabled == false,
-            "diagnostic validation must ignore persisted audio opt-in",
+            "diagnostic validation must keep audio disabled",
             failures: &failures,
             checks: &checks
         )
@@ -3508,31 +3518,29 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        let audioOptInOverride = try EngineConfig.parse(["--audio"])
-        check(
-            audioOptInOverride.audioEnabled,
-            "EngineConfig must parse explicit audio opt-in",
-            failures: &failures,
-            checks: &checks
-        )
-        let mutedOverride = try EngineConfig.parse(["--audio", "--mute"])
+        do {
+            _ = try EngineConfig.parse(["--audio"])
+            failures.append("EngineConfig must reject audio because the player is visual-only")
+        } catch {
+            checks += 1
+        }
+        let mutedOverride = try EngineConfig.parse(["--mute"])
         check(
             mutedOverride.audioEnabled == false,
-            "EngineConfig must let explicit mute override audio opt-in",
+            "EngineConfig must accept explicit mute as the visual-only default",
             failures: &failures,
             checks: &checks
         )
-        let launchAtLoginOverride = try EngineConfig.parse(["--launch-at-login"])
-        check(
-            launchAtLoginOverride.launchAtLogin,
-            "EngineConfig must parse launch-at-login opt-in",
-            failures: &failures,
-            checks: &checks
-        )
-        let launchAtLoginDisabledOverride = try EngineConfig.parse(["--launch-at-login", "--no-launch-at-login"])
+        do {
+            _ = try EngineConfig.parse(["--launch-at-login"])
+            failures.append("EngineConfig must reject launch-at-login because the player is manual-start only")
+        } catch {
+            checks += 1
+        }
+        let launchAtLoginDisabledOverride = try EngineConfig.parse(["--no-launch-at-login"])
         check(
             launchAtLoginDisabledOverride.launchAtLogin == false,
-            "EngineConfig must let explicit launch-at-login disable override opt-in",
+            "EngineConfig must accept explicit no-launch-at-login as manual-start mode",
             failures: &failures,
             checks: &checks
         )
@@ -5204,8 +5212,8 @@ enum RuntimeSelfTest {
         ))
         check(
             userControlledMutedRuntime.audioOutputEnabled == false
-                && userControlledMutedRuntime.audioOutputSummary == "muted-until-user-opt-in",
-            "userControlled audio policy must stay muted until explicit user opt-in",
+                && userControlledMutedRuntime.audioOutputSummary == "disabled-visual-player",
+            "userControlled audio policy must remain disabled in the visual-only player",
             failures: &failures,
             checks: &checks
         )
@@ -5218,10 +5226,10 @@ enum RuntimeSelfTest {
             launchWallpaper: false
         ))
         check(
-            userControlledEnabledRuntime.audioOutputEnabled
-                && userControlledEnabledRuntime.audioCapabilityStatus == "enabled"
-                && userControlledEnabledRuntime.runtimeCapabilitiesSummary().contains("audio\tpolicy\tenabled\tpolicy=userControlled userOptIn=true output=enabled-user-opt-in"),
-            "userControlled audio policy must enable output only after explicit user opt-in",
+            userControlledEnabledRuntime.audioOutputEnabled == false
+                && userControlledEnabledRuntime.audioCapabilityStatus == "muted"
+                && userControlledEnabledRuntime.runtimeCapabilitiesSummary().contains("audio\tpolicy\tmuted\tpolicy=userControlled userOptIn=false output=disabled-visual-player"),
+            "userControlled audio policy must stay disabled even when old settings request audio",
             failures: &failures,
             checks: &checks
         )
@@ -5234,7 +5242,7 @@ enum RuntimeSelfTest {
         check(
             manifestMutedWithOptInRuntime.audioOutputEnabled == false
                 && manifestMutedWithOptInRuntime.audioOutputSummary == "muted",
-            "manifest muted audio policy must remain silent even if the user toggles audio opt-in",
+            "manifest muted audio policy must remain silent even if old settings request audio",
             failures: &failures,
             checks: &checks
         )
@@ -5267,8 +5275,8 @@ enum RuntimeSelfTest {
         ))
         check(
             audioEventRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored(non-visual) audio=playback sequence=none"),
-            "capability diagnostics must expose native Spine audio event playback support",
+                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored(non-visual) audio=ignored(non-visual) sequence=none"),
+            "capability diagnostics must expose Spine audio events as ignored non-visual data",
             failures: &failures,
             checks: &checks
         )
@@ -5511,8 +5519,8 @@ enum RuntimeSelfTest {
         check(compatibility.reasonText.contains("unsupported blend modes"), "compatibility gate must report unsupported Spine blend modes", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("audio event playback") == false, "audio event playback must not force composite fallback when native visual rendering is otherwise compatible", failures: &failures, checks: &checks)
         check(
-            unsupportedRuntime.runtimeCapabilitiesSummary().contains("audio=playback"),
-            "capability diagnostics must report Spine audio event playback support separately from visual compatibility",
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("audio=ignored(non-visual)"),
+            "capability diagnostics must report Spine audio events as ignored separately from visual compatibility",
             failures: &failures,
             checks: &checks
         )
