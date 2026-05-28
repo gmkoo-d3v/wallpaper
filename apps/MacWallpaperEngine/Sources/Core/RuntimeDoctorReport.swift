@@ -74,11 +74,10 @@ enum RuntimeDoctorReport {
     }
 
     private static func packageSigningReport() -> String {
-        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         var lines = [
             "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unavailable")",
             "bundlePath: \(Bundle.main.bundleURL.path)",
-            "accessibilityTrust: \(accessibilityTrusted ? "trusted" : "missing")"
+            "accessibilityAPIUsed: false"
         ]
 
         if let metadata = packageSigningMetadataText() {
@@ -88,28 +87,21 @@ enum RuntimeDoctorReport {
             lines.append("metadata: unavailable(source-or-unpackaged-run)")
         }
 
-        lines.append("clickActionNote: \(clickActionNote(accessibilityTrusted: accessibilityTrusted))")
+        lines.append("clickActionNote: \(clickActionNote())")
         return lines.joined(separator: "\n")
     }
 
     private static func packageSigningSummaryLine() -> String {
-        let trust = DesktopInteractionGate.hasAccessibilityTrust() ? "trusted" : "missing"
         guard let metadata = packageSigningMetadata() else {
-            return "signing: source-or-unpackaged / accessibility=\(trust)"
+            return "signing: source-or-unpackaged / input=permissionless accessibilityAPI=false"
         }
 
         let mode = metadata["codesignMode"] ?? "unknown"
-        let action = mode == "adhoc" && trust == "missing"
-            ? " / add or re-add current app to enable clicks"
-            : ""
-        return "signing: \(mode) / accessibility=\(trust)\(action)"
+        return "signing: \(mode) / input=permissionless accessibilityAPI=false"
     }
 
-    private static func clickActionNote(accessibilityTrusted: Bool) -> String {
-        if accessibilityTrusted {
-            return "current app is trusted; click/touch actions can run without reopening the Accessibility prompt"
-        }
-        return "click/touch actions require macOS Accessibility trust; add or re-add the current .app"
+    private static func clickActionNote() -> String {
+        "no Accessibility prompt or AX API is used; click/touch actions run with best-effort desktop-item filtering"
     }
 
     private static func packageSigningMetadata() -> [String: String]? {

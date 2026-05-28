@@ -103,7 +103,7 @@ enum RuntimeSmokeEvidenceWriter {
         let liveProof = liveInteractionProof(runtime: runtime)
         let checklistText = liveProof.checklist.isEmpty ? "no manifest-declared click/gaze checklist" : liveProof.checklist
         let evidence = """
-        runtime telemetry captured; accessibilityTrusted=\(DesktopInteractionGate.hasAccessibilityTrust()); permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); manifestChecklist=\(checklistText); \(liveProof.evidence); telemetry=\(telemetry); \(liveProof.passed ? "live checklist satisfied by packaged telemetry for manifest-declared interactions" : "manual checklist still required for manifest-declared interactions, empty-desktop gating, and app-window/icon blocking")
+        runtime telemetry captured; inputPolicy=no-permission-best-effort; accessibilityAPIUsed=false; permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); manifestChecklist=\(checklistText); \(liveProof.evidence); telemetry=\(telemetry); \(liveProof.passed ? "live checklist satisfied by packaged telemetry for manifest-declared interactions" : "manual checklist still required for manifest-declared interactions and application-window gating")
         """
         return EvidenceEntry(
             passed: liveProof.passed,
@@ -111,7 +111,7 @@ enum RuntimeSmokeEvidenceWriter {
             evidence: oneLine(evidence),
             operatorNote: liveProof.passed
                 ? "Auto-passed because packaged runtime telemetry observed every manifest-declared live click/gaze action."
-                : "Auto-generated runtime telemetry only. Set passed=true only after observing the manifest-declared click/gaze checklist on the trusted packaged app."
+                : "Auto-generated runtime telemetry only. Set passed=true only after observing the manifest-declared click/gaze checklist on the packaged app. Do not grant Accessibility for this smoke."
         )
     }
 
@@ -199,11 +199,9 @@ enum RuntimeSmokeEvidenceWriter {
         }
 
         let packaged = packageSigningMetadataText() != nil
-        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         let clickExpectationsPassed = clickExpectations.allSatisfy { satisfiedClickExpectations.contains($0.id) }
         let moveExpectationsPassed = expectedMoveCommands.isSubset(of: satisfiedMoveCommands)
         let passed = packaged
-            && accessibilityTrusted
             && clickExpectationsPassed
             && moveExpectationsPassed
         let expectedLabels = (clickExpectations.map(\.label) + (expectedMoveCommands.isEmpty ? [] : ["gaze:\(expectedMoveCommands.sorted().joined(separator: "/"))"]))
@@ -215,7 +213,7 @@ enum RuntimeSmokeEvidenceWriter {
         let evidence = [
             "live telemetry proof:",
             "packaged=\(packaged)",
-            "accessibilityTrusted=\(accessibilityTrusted)",
+            "inputPolicy=no-permission-best-effort",
             "expected=\(expectedLabels.joined(separator: ","))",
             "satisfied=\(satisfiedClickExpectations.sorted().joined(separator: ","))",
             "satisfiedGaze=\(satisfiedMoveCommands.sorted().joined(separator: "/"))",

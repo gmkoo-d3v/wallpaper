@@ -1,42 +1,24 @@
 import Foundation
 
 enum AccessibilityDiagnostics {
-    static func statusText(requestPrompt: Bool = false) -> String {
-        let beforeTrusted = DesktopInteractionGate.hasAccessibilityTrust()
-        let shouldRequestPrompt = requestPrompt && RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(
-            accessibilityTrusted: beforeTrusted
-        )
-        let promptResult = shouldRequestPrompt ? DesktopInteractionGate.requestAccessibilityTrustPrompt() : nil
-        let settingsOpened = shouldRequestPrompt ? DesktopInteractionGate.openAccessibilitySettings() : nil
-        let afterTrusted = DesktopInteractionGate.hasAccessibilityTrust()
+    static func statusText() -> String {
         let packageMetadata = packageSigningMetadataText()
 
         var lines = [
-            "accessibility diagnostics OK",
-            "accessibilityStatus: \(afterTrusted ? "trusted" : "missing")",
-            "accessibilityStatusBeforePrompt: \(beforeTrusted ? "trusted" : "missing")",
+            "input permission diagnostics OK",
+            "accessibilityStatus: unsupported",
+            "accessibilityPromptSupported: false",
+            "accessibilityAPIUsed: false",
+            "inputPolicy: no-permission-best-effort",
             "appPath: \(Bundle.main.bundlePath)",
             "executablePath: \(CommandLine.arguments.first ?? "unknown")",
             "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unknown")"
         ]
-        if let promptResult {
-            lines.append("promptRequested: true")
-            lines.append("promptReturnedTrusted: \(promptResult)")
-        } else {
-            lines.append("promptRequested: false")
-            if requestPrompt, beforeTrusted {
-                lines.append("promptSkipped: already-trusted")
-            }
-        }
-        if let settingsOpened {
-            lines.append("settingsOpened: \(settingsOpened)")
-        }
         if let packageMetadata {
             lines.append("packageMetadata: \(oneLine(packageMetadata))")
         } else {
             lines.append("packageMetadata: missing")
         }
-        lines.append("next: if accessibilityStatus is missing, add this exact app in System Settings > Privacy & Security > Accessibility, then rerun --accessibility-status")
         return lines.joined(separator: "\n")
     }
 

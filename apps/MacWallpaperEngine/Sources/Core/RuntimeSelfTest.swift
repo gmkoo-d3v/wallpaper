@@ -212,8 +212,8 @@ enum RuntimeSelfTest {
             "window visibility pause policy must be explicit"
         )
         check(
-            RuntimeLifecyclePolicy.desktopItemTrustPolicy == "fail-closed-without-accessibility-trust",
-            "desktop item interaction policy must fail closed without Accessibility trust"
+            RuntimeLifecyclePolicy.desktopItemTrustPolicy == "no-permission-best-effort-desktop-items",
+            "desktop item interaction policy must avoid mandatory Accessibility trust"
         )
         check(
             RuntimeLifecyclePolicy.outsideContentTrackingPolicy == "ignore-same-window-outside-content-without-idle-reset",
@@ -224,44 +224,22 @@ enum RuntimeSelfTest {
             "desktop-empty blocked events must not reset gaze while app-window and desktop-icon input is ignored"
         )
         check(
-            RuntimeLifecyclePolicy.accessibilityPromptPolicy == "settings-open-user-initiated-no-runtime-prompt",
-            "wallpaper startup and control panel refresh must not trigger repeated macOS Accessibility prompts"
-        )
-        check(
-            RuntimeLifecyclePolicy.trustedAccessibilityRequestPolicy == "skip-prompt-when-already-trusted"
-                && RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(accessibilityTrusted: true) == false
-                && RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(accessibilityTrusted: false),
-            "user-initiated Accessibility requests must not reopen prompts/settings after this exact app is already trusted"
-        )
-        check(
-            RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays.first == 1
-                && (RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays.last ?? 0) >= 30,
-            "user-initiated Accessibility requests must poll permission recovery long enough for System Settings approval"
+            RuntimeLifecyclePolicy.accessibilityPromptPolicy == "never-request-accessibility",
+            "wallpaper startup and control panel refresh must not trigger macOS Accessibility prompts"
         )
         check(
             DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt",
             "startup Accessibility trust checks must use no-prompt probes"
         )
-        check(
-            DesktopInteractionGate.accessibilitySettingsURL.contains("Privacy_Accessibility"),
-            "user-initiated Accessibility requests must be able to open the macOS Accessibility settings pane"
-        )
         let accessibilityStatusText = AccessibilityDiagnostics.statusText()
         check(
-            accessibilityStatusText.contains("accessibility diagnostics OK")
+            accessibilityStatusText.contains("input permission diagnostics OK")
                 && accessibilityStatusText.contains("accessibilityStatus:")
-                && accessibilityStatusText.contains("promptRequested: false")
+                && accessibilityStatusText.contains("accessibilityPromptSupported: false")
+                && accessibilityStatusText.contains("inputPolicy: no-permission-best-effort")
                 && accessibilityStatusText.contains("appPath:"),
-            "Accessibility diagnostics must expose current trust state without prompting by default"
+            "input diagnostics must expose current trust state without prompting"
         )
-        if DesktopInteractionGate.hasAccessibilityTrust() {
-            let trustedRequestStatusText = AccessibilityDiagnostics.statusText(requestPrompt: true)
-            check(
-                trustedRequestStatusText.contains("promptRequested: false")
-                    && trustedRequestStatusText.contains("promptSkipped: already-trusted"),
-                "Accessibility diagnostics must not reopen prompts or System Settings after this exact app is already trusted"
-            )
-        }
         check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
                 usesPassiveEventMonitoring: true,
@@ -274,7 +252,7 @@ enum RuntimeSelfTest {
                 usesPassiveEventMonitoring: true,
                 accessibilityTrusted: true
             ),
-            "passive wallpaper input may use a CGEvent tap only after Accessibility trust is already granted"
+            "passive wallpaper input may use a CGEvent tap only if Accessibility trust already exists"
         )
         check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
@@ -412,16 +390,14 @@ enum RuntimeSelfTest {
         )
         check(
             ControlPanelWindowController.interactionStatusMaximumLines == 1
-                && ControlPanelWindowController.doctorStatusMaximumLines >= 5
-                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("Accessibility")
-                && ControlPanelWindowController.interactionPermissionButtonTooltip.contains("current app"),
-            "control panel must keep main interaction status compact while preserving detailed doctor diagnostics and permission tooltips"
+                && ControlPanelWindowController.doctorStatusMaximumLines >= 5,
+            "control panel must keep main interaction status compact while preserving detailed doctor diagnostics"
         )
         check(
             ControlPanelWindowController.compactInteractionStatus(
-                "READY / click actions trusted / tap / cmd act"
-            ) == "READY / tap / act",
-            "control panel main page must hide trusted Accessibility plumbing while preserving actionable live interaction state"
+                "READY / desktop-empty-only / global:2 / cmd act"
+            ) == "READY / global:2 / act",
+            "control panel main page must hide policy plumbing while preserving actionable live interaction state"
         )
         check(
             ControlPanelFailureStatusPolicy.lastErrorAfterNonDegradingSelectionFailure(
@@ -791,7 +767,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must report pointer movement support"
         )
         let expectedDesktopItemGate = (runtime.manifest.interactionPolicy?.blockDesktopItems ?? true)
-            ? "desktopItemGate=requires-accessibility-trust"
+            ? "desktopItemGate=best-effort"
             : "desktopItemGate=not-required"
         check(
             capabilitySummary.contains(expectedDesktopItemGate),
@@ -807,18 +783,18 @@ enum RuntimeSelfTest {
                 RuntimeCapabilities.desktopItemGate(
                     policy: runtime.manifest.interactionPolicy,
                     accessibilityTrusted: false
-                ).contains("action=\(RuntimeCapabilities.missingAccessibilityTrustAction)")
+                ) == "best-effort(current=no-permission,no-ax-api)"
                     && RuntimeCapabilities.desktopItemGate(
                         policy: runtime.manifest.interactionPolicy,
                         accessibilityTrusted: true
-                    ) == "requires-accessibility-trust(current=trusted)",
-                "runtime capabilities must expose a deterministic recovery action when Accessibility trust is missing"
+                    ) == "best-effort(current=no-permission,no-ax-api)",
+                "runtime capabilities must expose no-permission desktop-item mode without AX API"
             )
         }
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
         let doctorControlPanelSummary = RuntimeDoctorReport.controlPanelSummary(
             runtime: runtime,
-            interactionStatus: "PERMISSION NEEDED / click actions disabled"
+            interactionStatus: "READY / desktop-empty-only / no-permission"
         )
         let doctorHasSourceProvenanceStatus = doctorReport.contains("consistency: sourceProvenance: pass")
             || doctorReport.contains("consistency: sourceProvenance: warn")
@@ -889,19 +865,16 @@ enum RuntimeSelfTest {
                 && doctorControlPanelSummary.contains("quality:")
                 && doctorControlPanelSummary.contains("display:")
                 && doctorControlPanelSummary.contains("signing:")
-                && doctorControlPanelSummary.contains("accessibility=")
+                && doctorControlPanelSummary.contains("accessibilityAPI=false")
                 && doctorControlPanelSummary.contains("interaction:"),
             "runtime doctor control-panel summary must expose compact preflight, signing, and interaction status"
         )
         if let packageSigningURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
            FileManager.default.fileExists(atPath: packageSigningURL.path) {
-            let expectedSigningAction = DesktopInteractionGate.hasAccessibilityTrust()
-                ? "signing: adhoc"
-                : "add or re-add current app"
             check(
                 doctorControlPanelSummary.contains("signing: adhoc")
-                    && doctorControlPanelSummary.contains(expectedSigningAction),
-                "packaged ad-hoc builds must surface trusted state or a re-add action in the control-panel doctor summary"
+                    && doctorControlPanelSummary.contains("input=permissionless"),
+                "packaged ad-hoc builds must surface permissionless input mode in the control-panel doctor summary"
             )
         }
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
@@ -1290,7 +1263,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("pointerDownButtons:")
                 && interactionSummary.contains("desktopMonitor: ready")
                 && interactionSummary.contains("eventGateProbes:")
-                && interactionSummary.contains("eventGateTrustedProbes:")
+                && interactionSummary.contains("eventGatePreciseItemProbes:")
                 && interactionSummary.contains("inputSourceProbes:")
                 && interactionSummary.contains("moveEvents=leftDrag")
                 && interactionSummary.contains("passiveMissingTrust=globalMove")
@@ -1321,11 +1294,11 @@ enum RuntimeSelfTest {
             accessibilityTrusted: false
         )
         check(
-            missingPermissionInteractionSummary.contains("desktopMonitor: degraded(desktop-empty-only,pointer-tracking-only-accessibility-missing)")
+            missingPermissionInteractionSummary.contains("desktopMonitor: ready(desktop-empty-only,no-permission-best-effort)")
                 && missingPermissionInteractionSummary.contains("emptyDesktopMove=eligible")
-                && missingPermissionInteractionSummary.contains("emptyDesktop=blockedAccessibilityTrust")
-                && missingPermissionInteractionSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false"),
-            "interaction diagnostics must explain pointer-tracking-only degradation when desktop-item-safe click interaction lacks Accessibility permission"
+                && missingPermissionInteractionSummary.contains("emptyDesktop=eligible")
+                && missingPermissionInteractionSummary.contains("eventGateNoPermissionProbes: desktopItemPrecision=best-effort"),
+            "interaction diagnostics must explain no-permission best-effort click interaction"
         )
         let neutralProbeSummary = InteractionPlan.probeSummary(
             interactions: manifest.interactions,
@@ -1747,8 +1720,8 @@ enum RuntimeSelfTest {
         )
         check(
             EngineConfig.help.contains("--accessibility-status")
-                && EngineConfig.help.contains("--request-accessibility"),
-            "EngineConfig help must document user-initiated Accessibility status and request diagnostics"
+                && EngineConfig.help.contains("--request-accessibility") == false,
+            "EngineConfig help must document no-prompt input diagnostics and omit Accessibility request flow"
         )
         check(
             EngineConfig.help.contains("--completion-audit")
@@ -2035,9 +2008,9 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
-            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+accessibility-gated+pointer-tracking-only-without-trust)")
+            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+no-permission-best-effort)")
                 && occurrenceCount("interactionPlan: passive(no-interactions)", in: bundleMatrix) >= 2,
-            "bundle validation matrix must validate active desktop-gated interactions and passive no-interaction bundles"
+            "bundle validation matrix must validate active no-permission desktop interactions and passive no-interaction bundles"
         )
         check(
             bundleMatrix.contains("performancePlan: target=60 fallback=30 budgeted")
@@ -2166,7 +2139,7 @@ enum RuntimeSelfTest {
           "liveDesktopClickActions": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus empty-desktop gating."
+            "evidence": "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating."
           },
           "physicalDisplayHotplugSmoke": {
             "passed": false,
@@ -2561,7 +2534,7 @@ enum RuntimeSelfTest {
                 useGlobalMoveMonitor: true,
                 useGlobalClickMonitors: true
             ),
-            "desktop mouse monitor may fall back to global monitors only after Accessibility trust exists",
+            "desktop mouse monitor may fall back to permissionless global monitors",
             failures: &failures,
             checks: &checks
         )
@@ -2574,9 +2547,9 @@ enum RuntimeSelfTest {
                 useEventTap: false,
                 useLocalMonitor: false,
                 useGlobalMoveMonitor: true,
-                useGlobalClickMonitors: false
+                useGlobalClickMonitors: true
             ),
-            "desktop mouse monitor may attach pointer-tracking-only global move monitoring before Accessibility trust without enabling click delivery",
+            "desktop mouse monitor may attach permissionless global move and click monitoring without Accessibility trust",
             failures: &failures,
             checks: &checks
         )
@@ -2808,11 +2781,10 @@ enum RuntimeSelfTest {
             accessibilityTrusted: false
         )
         check(
-            blockedPermissionStatus.canRequestAccessibilityPermission
-                && blockedPermissionStatus.text.contains("PERMISSION NEEDED")
-                && blockedPermissionStatus.text.contains("click actions disabled")
+            blockedPermissionStatus.text.contains("READY")
+                && blockedPermissionStatus.text.contains("best-effort-desktop-items")
                 && blockedPermissionStatus.text.count < 90,
-            "control panel interaction status must explain missing click/touch permission without showing a long warning sentence",
+            "control panel interaction status must expose no-permission click/touch mode without showing a long warning sentence",
             failures: &failures,
             checks: &checks
         )
@@ -2823,8 +2795,7 @@ enum RuntimeSelfTest {
             accessibilityTrusted: true
         )
         check(
-            secondaryPermissionStatus.canRequestAccessibilityPermission == false
-                && secondaryPermissionStatus.text.contains("PASSIVE"),
+            secondaryPermissionStatus.text.contains("PASSIVE"),
             "control panel interaction status must mark secondary displays passive instead of requesting permission",
             failures: &failures,
             checks: &checks
@@ -2879,8 +2850,7 @@ enum RuntimeSelfTest {
             accessibilityTrusted: false
         )
         check(
-            readyPermissionStatus.canRequestAccessibilityPermission == false
-                && readyPermissionStatus.text.contains("READY"),
+            readyPermissionStatus.text.contains("READY"),
             "control panel interaction status must not request Accessibility when desktop item blocking is disabled",
             failures: &failures,
             checks: &checks
@@ -2930,11 +2900,11 @@ enum RuntimeSelfTest {
             monitorSnapshot: deliveredInteractionSnapshot
         )
         check(
-            degradedControlPanelText.contains("PERMISSION NEEDED")
+            degradedControlPanelText.contains("READY")
                 && degradedControlPanelText.contains("tap")
                 && degradedControlPanelText.contains("cmd act")
                 && degradedControlPanelText.count < 90,
-            "missing-permission interaction status must remain visible while surfacing live hover monitor telemetry",
+            "no-permission interaction status must remain visible while surfacing live hover monitor telemetry",
             failures: &failures,
             checks: &checks
         )
@@ -3093,7 +3063,7 @@ enum RuntimeSelfTest {
                 coveredByApplicationWindow: false,
                 likelyDesktopItem: false
             ) == .eligible,
-            "desktop interaction gate must allow empty desktop when trusted",
+            "desktop interaction gate must allow empty desktop",
             failures: &failures,
             checks: &checks
         )
@@ -3103,8 +3073,8 @@ enum RuntimeSelfTest {
                 accessibilityTrusted: false,
                 coveredByApplicationWindow: false,
                 likelyDesktopItem: false
-            ) == .blockedAccessibilityTrust,
-            "desktop interaction gate must fail closed when desktop item blocking requires missing Accessibility trust",
+            ) == .eligible,
+            "desktop interaction gate must allow no-permission empty desktop clicks",
             failures: &failures,
             checks: &checks
         )

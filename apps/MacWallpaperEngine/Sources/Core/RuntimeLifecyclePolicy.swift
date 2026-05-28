@@ -2,7 +2,6 @@ import Foundation
 
 struct DesktopInteractionPermissionStatus {
     let text: String
-    let canRequestAccessibilityPermission: Bool
 }
 
 enum WindowWarmupMoment: Equatable {
@@ -27,16 +26,14 @@ enum DisplayRebuildCommitDecision: Equatable {
 enum RuntimeLifecyclePolicy {
     static let startupFailurePolicy = "control-panel-recovery"
     static let visibilityPausePolicy = "pause-when-occluded-or-fullscreen-obscured"
-    static let desktopItemTrustPolicy = "fail-closed-without-accessibility-trust"
-    static let missingTrustInteractionDegradePolicy = "pointer-tracking-only-without-accessibility-trust"
+    static let desktopItemTrustPolicy = "no-permission-best-effort-desktop-items"
+    static let missingTrustInteractionDegradePolicy = "no-permission-pointer-and-click-monitoring"
     static let displayRebuildPolicy = "debounced-atomic-rollback"
     static let runningHostReplacementPolicy = "start-replacement-before-retiring-current-host"
     static let rendererFailureRecoveryPolicy = RendererRecoveryPolicy.policyName
     static let outsideContentTrackingPolicy = "ignore-same-window-outside-content-without-idle-reset"
     static let blockedDesktopEventTrackingPolicy = "ignore-blocked-desktop-events-without-idle-reset"
-    static let accessibilityPromptPolicy = "settings-open-user-initiated-no-runtime-prompt"
-    static let trustedAccessibilityRequestPolicy = "skip-prompt-when-already-trusted"
-    static let accessibilityPermissionRefreshDelays: [TimeInterval] = [1, 3, 5, 10, 20, 30]
+    static let accessibilityPromptPolicy = "never-request-accessibility"
     static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background-before-first-pause"
     static let visibleWindowFirstDrawPolicy = "preorder-and-postorder-bounded-visible-draw-retries"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
@@ -127,11 +124,7 @@ enum RuntimeLifecyclePolicy {
     }
 
     static func requiresAccessibilityTrustForDesktopItems(_ interactionPolicy: InteractionPolicy) -> Bool {
-        interactionPolicy.mode == .desktopEmptyOnly && interactionPolicy.blockDesktopItems
-    }
-
-    static func shouldOpenAccessibilityPermissionRequest(accessibilityTrusted: Bool) -> Bool {
-        accessibilityTrusted == false
+        false
     }
 
     static func interactionPermissionStatus(
@@ -141,39 +134,19 @@ enum RuntimeLifecyclePolicy {
         accessibilityTrusted: Bool
     ) -> DesktopInteractionPermissionStatus {
         guard runtimeInteractive else {
-            return DesktopInteractionPermissionStatus(
-                text: "OFF / runtime setting",
-                canRequestAccessibilityPermission: false
-            )
+            return DesktopInteractionPermissionStatus(text: "OFF / runtime setting")
         }
         guard displayRole.allowsInteraction else {
-            return DesktopInteractionPermissionStatus(
-                text: "PASSIVE / secondary display",
-                canRequestAccessibilityPermission: false
-            )
+            return DesktopInteractionPermissionStatus(text: "PASSIVE / secondary display")
         }
         guard interactionPolicy.mode != .disabled else {
-            return DesktopInteractionPermissionStatus(
-                text: "OFF / wallpaper policy",
-                canRequestAccessibilityPermission: false
-            )
+            return DesktopInteractionPermissionStatus(text: "OFF / wallpaper policy")
         }
-        guard requiresAccessibilityTrustForDesktopItems(interactionPolicy) else {
-            return DesktopInteractionPermissionStatus(
-                text: "READY / \(interactionPolicy.mode.rawValue)",
-                canRequestAccessibilityPermission: false
-            )
+        if interactionPolicy.mode == .desktopEmptyOnly, interactionPolicy.blockDesktopItems {
+            _ = accessibilityTrusted
+            return DesktopInteractionPermissionStatus(text: "READY / \(interactionPolicy.mode.rawValue) / best-effort-desktop-items")
         }
-        guard accessibilityTrusted else {
-            return DesktopInteractionPermissionStatus(
-                text: "PERMISSION NEEDED / click actions disabled",
-                canRequestAccessibilityPermission: true
-            )
-        }
-        return DesktopInteractionPermissionStatus(
-            text: "READY / click actions trusted",
-            canRequestAccessibilityPermission: false
-        )
+        return DesktopInteractionPermissionStatus(text: "READY / \(interactionPolicy.mode.rawValue)")
     }
 
     static func interactionControlPanelText(
@@ -182,7 +155,7 @@ enum RuntimeLifecyclePolicy {
         monitorSnapshot: InteractionMonitorTelemetrySnapshot?
     ) -> String {
         guard permissionStatus.text.hasPrefix("READY")
-            || permissionStatus.text.hasPrefix("PERMISSION NEEDED") else {
+        else {
             return permissionStatus.text
         }
         guard isHostRunning else {

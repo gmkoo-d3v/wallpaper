@@ -758,8 +758,7 @@ struct EngineConfig {
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
       --print-manifest-schema   Print the wallpaper.native.json JSON Schema for bundle authoring, then exit.
-      --accessibility-status    Print current macOS Accessibility trust state for this exact binary, then exit.
-      --request-accessibility   User-initiated Accessibility prompt plus System Settings open, then exit.
+      --accessibility-status    Print no-prompt input permission diagnostics for this exact binary, then exit.
       --completion-audit       Print objective-level automated evidence and remaining manual completion evidence.
       --manual-smoke-evidence <json>
                               With --completion-audit, read user-recorded packaged launch, live click, and physical display smoke evidence.
@@ -821,7 +820,7 @@ struct EngineConfig {
       --strict-composite-quality
                               Fail validation/quality-plan when composite fallback FPS is below target.
       --write-runtime-smoke-evidence <json>
-                              During a running app smoke, write current launch, Accessibility, interaction, and physical-display telemetry into a manual smoke evidence JSON before exit.
+                              During a running app smoke, write current launch, input, interaction, and physical-display telemetry into a manual smoke evidence JSON before exit.
       --run-runtime-interaction-smoke
                               During a running app smoke, synthesize manifest-declared pointer move/click actions through the active wallpaper view for telemetry verification.
       --self-test              Run built-in policy/runtime self checks and exit.

@@ -526,14 +526,11 @@ struct InteractionPlan {
         guard runtimeInteractive else { return "disabled(runtime-settings)" }
         guard interactions.isEmpty == false else { return "passive(no-interactions)" }
         guard policy.mode != .disabled else { return "disabled(policy)" }
-        guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(policy) else {
-            return "ready(\(policy.mode.rawValue))"
+        if policy.mode == .desktopEmptyOnly, policy.blockDesktopItems {
+            _ = accessibilityTrusted
+            return "ready(\(policy.mode.rawValue),no-permission-best-effort)"
         }
-
-        let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
-        return trusted
-            ? "ready(\(policy.mode.rawValue),accessibility-trusted)"
-            : "degraded(\(policy.mode.rawValue),pointer-tracking-only-accessibility-missing)"
+        return "ready(\(policy.mode.rawValue))"
     }
 
     private static func eventGateProbeLines(
@@ -543,8 +540,8 @@ struct InteractionPlan {
         let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
         return [
             eventGateProbeText(label: "eventGateProbes", policy: policy, accessibilityTrusted: trusted),
-            eventGateProbeText(label: "eventGateTrustedProbes", policy: policy, accessibilityTrusted: true),
-            eventGateProbeText(label: "eventGateMissingTrustProbes", policy: policy, accessibilityTrusted: false)
+            eventGateProbeText(label: "eventGatePreciseItemProbes", policy: policy, accessibilityTrusted: true),
+            eventGateProbeText(label: "eventGateNoPermissionProbes", policy: policy, accessibilityTrusted: false)
         ]
     }
 
@@ -555,7 +552,7 @@ struct InteractionPlan {
     ) -> String {
         [
             "\(label):",
-            "accessibilityTrusted=\(accessibilityTrusted)",
+            "desktopItemPrecision=\(accessibilityTrusted ? "precise" : "best-effort")",
             "emptyDesktopMove=\(DesktopInteractionGate.pointerMoveEligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: false).rawValue)",
             "emptyDesktop=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: false, likelyDesktopItem: false).rawValue)",
             "appWindow=\(DesktopInteractionGate.eligibilityDecision(policy: policy, accessibilityTrusted: accessibilityTrusted, coveredByApplicationWindow: true, likelyDesktopItem: false).rawValue)",

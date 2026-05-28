@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import QuartzCore
 
 final class DesktopMouseInteractionMonitor {
@@ -297,7 +296,7 @@ final class DesktopMouseInteractionMonitor {
                 useEventTap: eventTapStarted,
                 useLocalMonitor: false,
                 useGlobalMoveMonitor: usesPointerMoveMonitoring && eventTapStarted == false,
-                useGlobalClickMonitors: accessibilityTrusted && eventTapStarted == false
+                useGlobalClickMonitors: eventTapStarted == false
             )
         }
         return InputSources(
@@ -748,12 +747,10 @@ final class DesktopMouseInteractionMonitor {
 
 enum DesktopInteractionGate {
     static let accessibilityTrustCheckPolicy = "check-without-prompt"
-    static let accessibilitySettingsURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 
     enum EligibilityDecision: String {
         case eligible
         case blockedDisabled
-        case blockedAccessibilityTrust
         case blockedApplicationWindow
         case blockedDesktopItem
     }
@@ -770,9 +767,6 @@ enum DesktopInteractionGate {
         case .always:
             return .eligible
         case .desktopEmptyOnly:
-            if policy.blockDesktopItems && accessibilityTrusted == false {
-                return .blockedAccessibilityTrust
-            }
             if policy.blockApplicationWindows && coveredByApplicationWindow {
                 return .blockedApplicationWindow
             }
@@ -789,34 +783,16 @@ enum DesktopInteractionGate {
         coveredByApplicationWindow: Bool,
         likelyDesktopItem: Bool
     ) -> EligibilityDecision {
-        guard accessibilityTrusted == false,
-              policy.mode == .desktopEmptyOnly,
-              policy.blockDesktopItems else {
-            return eligibilityDecision(
-                policy: policy,
-                accessibilityTrusted: accessibilityTrusted,
-                coveredByApplicationWindow: coveredByApplicationWindow,
-                likelyDesktopItem: likelyDesktopItem
-            )
-        }
-        if policy.blockApplicationWindows && coveredByApplicationWindow {
-            return .blockedApplicationWindow
-        }
-        return .eligible
+        eligibilityDecision(
+            policy: policy,
+            accessibilityTrusted: accessibilityTrusted,
+            coveredByApplicationWindow: coveredByApplicationWindow,
+            likelyDesktopItem: likelyDesktopItem
+        )
     }
 
     static func hasAccessibilityTrust() -> Bool {
-        AXIsProcessTrusted()
-    }
-
-    static func requestAccessibilityTrustPrompt() -> Bool {
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        return AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
-    }
-
-    static func openAccessibilitySettings() -> Bool {
-        guard let url = URL(string: accessibilitySettingsURL) else { return false }
-        return NSWorkspace.shared.open(url)
+        false
     }
 
     static func isCoveredByApplicationWindow(screenPoint: CGPoint) -> Bool {
@@ -885,45 +861,11 @@ enum DesktopInteractionGate {
             return false
         }
 
-        guard hasAccessibilityTrust() else {
-            return false
-        }
-
-        return accessibilityElementLooksInteractive(at: screenPoint, conservativeOnError: true)
+        return false
     }
 
     static func isLikelyDesktopItem(screenPoint: CGPoint) -> Bool {
-        guard hasAccessibilityTrust() else {
-            return false
-        }
-
-        return accessibilityElementLooksInteractive(at: screenPoint, conservativeOnError: false)
-    }
-
-    private static func accessibilityElementLooksInteractive(at screenPoint: CGPoint, conservativeOnError: Bool) -> Bool {
-        let systemWide = AXUIElementCreateSystemWide()
-        var rawElement: AXUIElement?
-        let error = AXUIElementCopyElementAtPosition(
-            systemWide,
-            Float(screenPoint.x),
-            Float(screenPoint.y),
-            &rawElement
-        )
-        guard error == .success, let element = rawElement else {
-            return conservativeOnError
-        }
-
-        var rawRole: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &rawRole)
-        let role = rawRole as? String ?? ""
-
-        let interactiveRoles: Set<String> = [
-            kAXButtonRole as String,
-            kAXImageRole as String,
-            kAXStaticTextRole as String,
-            "AXIcon"
-        ]
-        return interactiveRoles.contains(role)
+        false
     }
 
     private static func contains(bounds: CGRect, appKitPoint: CGPoint) -> Bool {

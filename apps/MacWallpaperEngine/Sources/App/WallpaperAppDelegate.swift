@@ -69,12 +69,12 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showControlPanel()
-        refreshRuntimeStateAfterExternalPermissionChange()
+        refreshRuntimeState()
         return true
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        refreshRuntimeStateAfterExternalPermissionChange()
+        refreshRuntimeState()
     }
 
     private func installStatusMenu() {
@@ -129,7 +129,7 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
         controlPanel?.refresh()
     }
 
-    private func refreshRuntimeStateAfterExternalPermissionChange() {
+    private func refreshRuntimeState() {
         host?.refreshInteractionState()
         controlPanel?.refresh()
     }
@@ -310,7 +310,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
                 foregroundMode: .automatic,
                 interactionDebugOverlay: false,
                 interactionStatusText: "INTERACTION OFF / no wallpaper bundle selected",
-                canRequestInteractionPermission: false,
                 wallpaperRoot: nil,
                 wallpaperPath: "No wallpaper bundle selected",
                 bundleInfoText: "No validated wallpaper bundle is selected.",
@@ -333,7 +332,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
         }
         let selectedBundle = currentBundleSummary(from: libraryState.bundles, currentRoot: runtime.config.wallpaperRoot)
         let interactionPermission = interactionPermissionStatus(for: runtime)
-        if host != nil, interactionPermission.canRequestAccessibilityPermission == false {
+        if host != nil {
             host?.refreshInteractionState()
         }
         let interactionStatusText = RuntimeLifecyclePolicy.interactionControlPanelText(
@@ -353,7 +352,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             foregroundMode: runtime.config.foregroundMode,
             interactionDebugOverlay: runtime.config.interactionDebugOverlay,
             interactionStatusText: interactionStatusText,
-            canRequestInteractionPermission: interactionPermission.canRequestAccessibilityPermission,
             wallpaperRoot: runtime.config.wallpaperRoot,
             wallpaperPath: runtime.config.wallpaperRoot.path,
             bundleInfoText: bundleInfoText(for: selectedBundle),
@@ -465,25 +463,6 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             )
             controlPanel?.refresh()
         }
-    }
-
-    func controlPanelRequestInteractionPermission() {
-        guard RuntimeLifecyclePolicy.shouldOpenAccessibilityPermissionRequest(
-            accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
-        ) else {
-            host?.refreshInteractionState()
-            controlPanel?.refresh()
-            return
-        }
-        _ = DesktopInteractionGate.openAccessibilitySettings()
-        host?.refreshInteractionState()
-        for delay in RuntimeLifecyclePolicy.accessibilityPermissionRefreshDelays {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.host?.refreshInteractionState()
-                self?.controlPanel?.refresh()
-            }
-        }
-        controlPanel?.refresh()
     }
 
     func controlPanelQuit() {

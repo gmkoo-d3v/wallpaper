@@ -18,11 +18,6 @@ do {
         exit(EXIT_SUCCESS)
     }
 
-    if arguments.contains("--request-accessibility") {
-        print(AccessibilityDiagnostics.statusText(requestPrompt: true))
-        exit(EXIT_SUCCESS)
-    }
-
     if let manualSmokeTemplatePath = value(after: "--write-manual-smoke-template", in: arguments) {
         print(try RuntimeCompletionAudit.writeManualSmokeEvidenceTemplate(
             to: URL(fileURLWithPath: manualSmokeTemplatePath, relativeTo: nil).standardizedFileURL

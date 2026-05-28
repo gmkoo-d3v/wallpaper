@@ -46,18 +46,15 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   runs an 8s packaged hidden launch smoke, injects the manifest-declared gaze
   and click actions into the active wallpaper view, and writes a manual-smoke
   evidence file. The packaged launch row closes automatically. Live click
-  evidence closes only when the current packaged app is already Accessibility
-  trusted and telemetry observes every manifest-declared action; otherwise the
-  file keeps the operator checklist open with captured trust, interaction, and
-  physical display context.
-- `--write-runtime-smoke-evidence <json>` records launch, Accessibility,
+  evidence closes only when telemetry observes every manifest-declared action;
+  otherwise the file keeps the operator checklist open with captured input,
+  interaction, and physical display context.
+- `--write-runtime-smoke-evidence <json>` records launch, no-prompt input,
   interaction-monitor telemetry, and physical-display render-plan context from a
   running app before exit. It enriches the manual evidence file without marking
   live click or hot-plug rows as passed until the operator records the checklist.
-- `--accessibility-status` and `--request-accessibility` identify the exact
-  binary macOS must trust for desktop click/touch actions. The request command is
-  user-initiated, opens the Accessibility settings pane, and exits without
-  starting wallpaper windows.
+- `--accessibility-status` prints no-prompt input diagnostics. The app does not
+  request Accessibility permission or use AX APIs.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
   current physical monitor layout.
@@ -164,8 +161,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - `--interaction-plan` reports the effective pointerMove neutral point and
   dead-zone used by both the interaction planner and native Spine look blending.
 - `--interaction-plan` also reports event-gate decisions for empty desktop,
-  missing Accessibility trust, covering application windows, and Finder desktop
-  items so blocked live clicks have a matching CLI diagnosis.
+  no-permission best-effort input, covering application windows, and Finder
+  desktop items so blocked live clicks have a matching CLI diagnosis.
 - In the current native-metal manifest, declared pointer interactions require a
   Spine asset because interaction actions resolve to native Spine animations;
   video-only and static-image bundles must remain passive.
@@ -425,20 +422,19 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   the control panel and other same-process UI windows as covering application
   windows, so UI clicks do not leak into the wallpaper.
 - Desktop interaction eligibility is centralized and self-tested for application
-  window, desktop item, disabled mode, and missing Accessibility trust cases.
+  window, desktop item, disabled mode, and no-permission input cases.
 - Same-window pointer movement outside the mapped wallpaper content rect is
   ignored without resetting gaze; app-window, desktop-item, and monitor-exit
   gates remain the tracking-stop boundary.
-- Desktop icon hit-testing fails closed without Accessibility trust when
-  `blockDesktopItems` is enabled for click/touch actions, while pointer-move
-  or button-drag gaze tracking can remain available when no application window
-  covers the cursor.
+- Desktop icon hit-testing is best-effort without Accessibility or AX APIs when
+  `blockDesktopItems` is enabled for click/touch actions. Pointer-move and
+  button-drag gaze tracking remain available when no application window covers
+  the cursor.
 - The bundled Imported sample keeps `blockDesktopItems=true` so Finder desktop
-  icons remain protected; click reaction requires macOS Accessibility trust,
-  app-window blocking remains enabled, desktop wallpaper windows stay
-  mouse-passive, passive monitors provide click delivery after trust is granted,
-  pointer/drag tracking remains available before trust, and passive secondary
-  windows stay mouse-passive.
+  icons use best-effort filtering; app-window blocking remains enabled, desktop
+  wallpaper windows stay mouse-passive, passive monitors provide click delivery,
+  pointer/drag tracking remains available, and passive secondary windows stay
+  mouse-passive.
 - `desktop-empty-only` bundles that do not block Finder desktop items route
   direct NSResponder mouse events only in plain diagnostic windows; desktop
   wallpaper windows preserve pass-through click ownership.
@@ -588,21 +584,16 @@ Packaged app:
 ~/project/wall-paper/dist/MacWallpaperEngine.app
 ```
 
-Accessibility and signing note:
+Input and signing note:
 
 - The package script ad-hoc signs by default (`CODESIGN_IDENTITY=-`). This is
-  convenient for local builds, but macOS TCC may treat each rebuilt binary as a
-  new Accessibility client. If click/touch actions still report
-  `accessibility-missing` after rebuilding, remove the old entry from System
-  Settings > Privacy & Security > Accessibility and add the current
-  `dist/MacWallpaperEngine.app` again.
+  convenient for local builds. Mac Wallpaper Engine does not request
+  Accessibility permission or use AX APIs.
 - Packaged builds include a `package-signing` doctor section so `--doctor`
-  shows the bundle identifier, signing mode, current Accessibility trust state,
-  and the re-add hint for click/touch recovery.
+  shows the bundle identifier, signing mode, and no-prompt input policy.
 - Run `dist/MacWallpaperEngine.app/Contents/MacOS/MacWallpaperEngine
-  --accessibility-status` to confirm the exact packaged binary state, or
-  `--request-accessibility` to ask macOS for trust and open the Accessibility
-  settings pane before live interaction smoke.
+  --accessibility-status` to confirm the exact packaged binary state and
+  no-prompt input policy before live interaction smoke.
 - Packaging defaults to ad-hoc signing and never creates keychain identities or
   trusted certificates. To use signing, pass an existing identity explicitly:
 

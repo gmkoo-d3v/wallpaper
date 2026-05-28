@@ -203,7 +203,7 @@ sign_app_bundle() {
   codesign "${sign_args[@]}" >/dev/null
 
   if [ "$CODESIGN_IDENTITY" = "-" ]; then
-    echo "Packaged app was ad-hoc signed. macOS Accessibility permission may need to be re-granted after each rebuild." >&2
+    echo "Packaged app was ad-hoc signed. Mac Wallpaper Engine does not request Accessibility permission." >&2
     echo "Identity signing is opt-in: pass CODESIGN_IDENTITY=\"<existing identity name>\"." >&2
   else
     echo "Packaged app signed with identity: $CODESIGN_IDENTITY" >&2
@@ -222,7 +222,7 @@ bundleID: $BUNDLE_ID
 codesignIdentity: $CODESIGN_IDENTITY
 codesignMode: $codesign_mode
 codesignDeep: $CODESIGN_DEEP_ENABLED
-accessibilityTrustHint: click/touch actions require macOS Accessibility trust; ad-hoc signed rebuilds may need re-adding this app in System Settings; identity signing is explicit opt-in with CODESIGN_IDENTITY set to an existing identity name
+inputPermissionHint: no Accessibility prompt or AX API is used; click/touch actions run with best-effort desktop-item filtering; identity signing is explicit opt-in with CODESIGN_IDENTITY set to an existing identity name
 EOF
 }
 
@@ -252,9 +252,9 @@ write_package_smoke_evidence() {
   local interaction_status
   interaction_status="$("$MACOS_DIR/$APP_NAME" --interaction-plan 2>/dev/null | sed -n 's/^desktopMonitor: //p' | head -n 1)"
   interaction_status="$(json_safe_text "${interaction_status:-unknown}")"
-  local accessibility_status
-  accessibility_status="$("$MACOS_DIR/$APP_NAME" --accessibility-status 2>/dev/null | awk -F': ' '/^accessibilityStatus:/ {print $2; exit}')"
-  accessibility_status="$(json_safe_text "${accessibility_status:-unknown}")"
+  local input_permission_status
+  input_permission_status="$("$MACOS_DIR/$APP_NAME" --accessibility-status 2>/dev/null | awk -F': ' '/^inputPolicy:/ {print $2; exit}')"
+  input_permission_status="$(json_safe_text "${input_permission_status:-unknown}")"
   local physical_display_count
   physical_display_count="$("$MACOS_DIR/$APP_NAME" --physical-render-plan 2>/dev/null | awk '/^displayCount:/ {print $2; exit}')"
   physical_display_count="$(json_safe_text "${physical_display_count:-unknown}")"
@@ -269,8 +269,8 @@ write_package_smoke_evidence() {
   "liveDesktopClickActions": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Current packaged accessibility status: $accessibility_status; interaction status: $interaction_status. Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected bundle; verify manifest-declared pointerMove/pointerDown click and gaze behavior plus empty-desktop gating.",
-    "operatorNote": "Required before live-desktop-click-actions can pass."
+    "evidence": "Current packaged input policy: $input_permission_status; interaction status: $interaction_status. Run --interaction-plan for the selected bundle; verify manifest-declared pointerMove/pointerDown click and gaze behavior plus application-window gating. No Accessibility permission should be requested.",
+    "operatorNote": "Manual live interaction confirmation is still required, but no macOS Accessibility grant is part of the checklist."
   },
   "physicalDisplayHotplugSmoke": {
     "passed": false,

@@ -12,7 +12,6 @@ struct ControlPanelState {
     let foregroundMode: ForegroundRenderMode
     let interactionDebugOverlay: Bool
     let interactionStatusText: String
-    let canRequestInteractionPermission: Bool
     let wallpaperRoot: URL?
     let wallpaperPath: String
     let bundleInfoText: String
@@ -44,7 +43,6 @@ protocol ControlPanelDelegate: AnyObject {
     )
     func controlPanelChooseWallpaperBundle(_ url: URL)
     func controlPanelImportWallpaperBundle(_ url: URL)
-    func controlPanelRequestInteractionPermission()
     func controlPanelQuit()
 }
 
@@ -66,7 +64,6 @@ final class ControlPanelWindowController: NSWindowController {
     static let fpsLabels = ["30", "60", "Display Hz"]
     static let interactionStatusMaximumLines = 1
     static let doctorStatusMaximumLines = 5
-    static let interactionPermissionButtonTooltip = "Open macOS Accessibility settings for this exact app so desktop-empty click/touch actions can run while Finder icons stay protected. If an ad-hoc rebuilt app is already listed but clicks stay disabled, remove the old entry and add the current app."
 
     static func bundlePopupTitle(for bundle: WallpaperBundleSummary) -> String {
         "\(bundle.displayName) [\(bundle.capabilities.nativeSpineStatus)/\(bundle.capabilities.interactionRequirement)/\(bundle.capabilities.qualitySummary)/\(bundle.capabilities.sourceDerivationBadge)]"
@@ -123,7 +120,6 @@ final class ControlPanelWindowController: NSWindowController {
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
     private let interactionDebugOverlayToggle = NSButton(checkboxWithTitle: "Hit-zone overlay", target: nil, action: nil)
-    private let requestInteractionPermissionButton = NSButton(title: "CHECK ACCESS", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ControlPanelWindowController.fpsLabels,
         trackingMode: .selectOne,
@@ -213,9 +209,7 @@ final class ControlPanelWindowController: NSWindowController {
         telemetryValue.stringValue = state.telemetryText
         interactionStatusValue.stringValue = Self.compactInteractionStatus(state.interactionStatusText)
         interactionStatusValue.toolTip = state.interactionStatusText
-        interactionStatusValue.textColor = state.canRequestInteractionPermission
-            ? NSColor(red: 0.65, green: 0.12, blue: 0.12, alpha: 1)
-            : NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
+        interactionStatusValue.textColor = NSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
         availableBundles = state.availableBundles
         displaySelectionOptions = state.displaySelectionOptions
         reloadBundlePopup(currentRoot: state.wallpaperRoot)
@@ -227,8 +221,6 @@ final class ControlPanelWindowController: NSWindowController {
         fitModeControl.selectedSegment = segment(forFitMode: state.fitMode)
         foregroundModeControl.selectedSegment = segment(forForegroundMode: state.foregroundMode)
         interactionDebugOverlayToggle.state = state.interactionDebugOverlay ? .on : .off
-        requestInteractionPermissionButton.isHidden = state.canRequestInteractionPermission == false
-        requestInteractionPermissionButton.isEnabled = state.canRequestInteractionPermission
         startButton.isEnabled = state.isRunning == false
         stopButton.isEnabled = state.isRunning
         updateVisiblePage()
@@ -265,8 +257,6 @@ final class ControlPanelWindowController: NSWindowController {
         chooseBundleButton.action = #selector(chooseBundle)
         importBundleButton.target = self
         importBundleButton.action = #selector(importBundle)
-        requestInteractionPermissionButton.target = self
-        requestInteractionPermissionButton.action = #selector(requestInteractionPermission)
         pageControl.target = self
         pageControl.action = #selector(selectPage)
         bundlePopup.target = self
@@ -275,13 +265,10 @@ final class ControlPanelWindowController: NSWindowController {
         quitButton.action = #selector(quitApp)
 
         [startButton, applyButton].forEach(stylePrimaryButton)
-        [stopButton, chooseBundleButton, importBundleButton, requestInteractionPermissionButton, quitButton].forEach(styleSecondaryButton)
+        [stopButton, chooseBundleButton, importBundleButton, quitButton].forEach(styleSecondaryButton)
     }
 
     static func compactInteractionStatus(_ status: String) -> String {
-        if status.hasPrefix("PERMISSION NEEDED") {
-            return "PERMISSION NEEDED"
-        }
         if status.hasPrefix("OFF") || status.hasPrefix("PASSIVE") {
             return status.components(separatedBy: " / ").prefix(2).joined(separator: " / ")
         }
@@ -591,12 +578,9 @@ final class ControlPanelWindowController: NSWindowController {
         interactionStatusValue.maximumNumberOfLines = Self.interactionStatusMaximumLines
         interactionStatusValue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         interactionStatusValue.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        requestInteractionPermissionButton.widthAnchor.constraint(equalToConstant: 128).isActive = true
-        requestInteractionPermissionButton.toolTip = Self.interactionPermissionButtonTooltip
 
         row.addArrangedSubview(caption)
         row.addArrangedSubview(interactionStatusValue)
-        row.addArrangedSubview(requestInteractionPermissionButton)
         return row
     }
 
@@ -910,11 +894,6 @@ final class ControlPanelWindowController: NSWindowController {
         if panel.runModal() == .OK, let url = panel.url {
             delegate?.controlPanelImportWallpaperBundle(url)
         }
-        refresh()
-    }
-
-    @objc private func requestInteractionPermission() {
-        delegate?.controlPanelRequestInteractionPermission()
         refresh()
     }
 

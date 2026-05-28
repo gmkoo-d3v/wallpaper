@@ -303,7 +303,7 @@ enum BundleValidationMatrix {
               summary.contains("pointerMoveProbes:"),
               summary.contains("pointerDownButtons:"),
               summary.contains("eventGateProbes:"),
-              summary.contains("eventGateTrustedProbes:"),
+              summary.contains("eventGatePreciseItemProbes:"),
               summary.contains("pointerMoveNeutralPoint:"),
               summary.contains("pointerMoveDeadZone:"),
               summary.contains("coordinateProbes:"),
@@ -370,8 +370,8 @@ enum BundleValidationMatrix {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
-        if RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(effectivePolicy) {
-            let missingTrustSummary = InteractionPlan.diagnosticSummary(
+        if effectivePolicy.mode == .desktopEmptyOnly && effectivePolicy.blockDesktopItems {
+            let noPermissionSummary = InteractionPlan.diagnosticSummary(
                 interactions: runtime.manifest.interactions,
                 policy: runtime.manifest.interactionPolicy,
                 runtimeInteractive: runtime.config.interactive,
@@ -380,15 +380,15 @@ enum BundleValidationMatrix {
                 contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
                 accessibilityTrusted: false
             )
-            guard missingTrustSummary.contains("desktopMonitor: degraded(desktop-empty-only,pointer-tracking-only-accessibility-missing)"),
-                  missingTrustSummary.contains("emptyDesktopMove=eligible"),
-                  missingTrustSummary.contains("emptyDesktop=blockedAccessibilityTrust"),
-                  missingTrustSummary.contains("eventGateMissingTrustProbes: accessibilityTrusted=false") else {
+            guard noPermissionSummary.contains("desktopMonitor: ready(desktop-empty-only,no-permission-best-effort)"),
+                  noPermissionSummary.contains("emptyDesktopMove=eligible"),
+                  noPermissionSummary.contains("emptyDesktop=eligible"),
+                  noPermissionSummary.contains("eventGateNoPermissionProbes: desktopItemPrecision=best-effort") else {
                 throw EngineError.invalidArgument(
-                    "interaction diagnostics do not expose missing Accessibility trust for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                    "interaction diagnostics do not expose no-permission input behavior for \(runtime.config.wallpaperRoot.lastPathComponent)"
                 )
             }
-            return "interactionPlan: active(desktop-empty-only+accessibility-gated+pointer-tracking-only-without-trust)"
+            return "interactionPlan: active(desktop-empty-only+no-permission-best-effort)"
         }
 
         return "interactionPlan: active"

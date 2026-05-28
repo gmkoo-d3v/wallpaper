@@ -98,8 +98,6 @@ struct WallpaperBundleCapabilityInfo: Equatable {
 }
 
 enum RuntimeCapabilities {
-    static let missingAccessibilityTrustAction = "grant-or-readd-current-app"
-
     static func summary(runtime: NativeRuntimeCore) -> String {
         let rows = makeRows(runtime: runtime)
         let rowText = rows.map(\.line).joined(separator: "\n")
@@ -583,7 +581,7 @@ enum RuntimeCapabilities {
             return "always"
         case .desktopEmptyOnly:
             let blocksDesktopItems = policy?.blockDesktopItems ?? true
-            return blocksDesktopItems ? "accessibility-required" : "desktop-empty"
+            return blocksDesktopItems ? "desktop-empty-best-effort" : "desktop-empty"
         }
     }
 
@@ -600,23 +598,9 @@ enum RuntimeCapabilities {
     ) -> String {
         let mode = policy?.mode ?? .desktopEmptyOnly
         let blocksDesktopItems = policy?.blockDesktopItems ?? true
-        let effectivePolicy = InteractionPolicy(
-            mode: mode,
-            blockApplicationWindows: policy?.blockApplicationWindows ?? true,
-            blockDesktopItems: blocksDesktopItems,
-            pointerSmoothing: nil,
-            pointerSampleFps: nil,
-            idleDeadZone: nil,
-            directionSwitchMargin: nil,
-            defaultClickTailSeconds: nil,
-            releaseFadeSeconds: nil
-        )
-        guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(effectivePolicy) else {
-            return "not-required"
-        }
-        return accessibilityTrusted
-            ? "requires-accessibility-trust(current=trusted)"
-            : "requires-accessibility-trust(current=missing,pointer-only,action=\(missingAccessibilityTrustAction))"
+        guard mode == .desktopEmptyOnly, blocksDesktopItems else { return "not-required" }
+        _ = accessibilityTrusted
+        return "best-effort(current=no-permission,no-ax-api)"
     }
 
     private static func spineRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {

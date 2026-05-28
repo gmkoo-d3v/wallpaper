@@ -111,7 +111,6 @@ enum RuntimeCompletionAudit {
         )
         let sourceDerivation = sourceDerivationEvidence(bundles: bundles)
         let packaged = packageSigningMetadataText() != nil
-        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
         let packagedEvidence = manualEvidence?.packagedAppLaunchSmoke
         let liveClickEvidence = manualEvidence?.liveDesktopClickActions
         let physicalDisplayEvidence = manualEvidence?.physicalDisplayHotplugSmoke
@@ -171,7 +170,7 @@ enum RuntimeCompletionAudit {
                     && interactionFamilies.contains("pointerDown")
                     && validationMatrix.contains("interactionPlan: active"),
                 evidence: "interactions=\(interactionFamilies.sorted().joined(separator: "+")) desktop-empty gate validated",
-                risk: "manual desktop click delivery still depends on macOS Accessibility trust"
+                risk: "manual desktop click delivery still needs live observation; no macOS Accessibility grant is part of the product path"
             ),
             item(
                 id: "multi-display-lifecycle",
@@ -218,9 +217,7 @@ enum RuntimeCompletionAudit {
                 ),
                 evidence: manualEvidenceText(
                     liveClickEvidence,
-                    fallback: accessibilityTrusted
-                        ? "Accessibility trusted; manual live smoke still required: \(liveInteractionProtocol)"
-                        : "Accessibility trust missing; click actions are blocked by design until the current app is trusted"
+                    fallback: "no-permission input policy; manual live smoke still required: \(liveInteractionProtocol)"
                 )
             ),
             manualItem(
@@ -243,7 +240,7 @@ enum RuntimeCompletionAudit {
         let protocolItems = [
             protocolItem(
                 id: "live-desktop-click-actions-protocol",
-                evidence: "launch packaged app; grant Accessibility to current app binary; enable click actions; expected \(liveInteractionProtocol)"
+                evidence: "launch packaged app; do not grant Accessibility; enable click actions; expected \(liveInteractionProtocol)"
             ),
             protocolItem(
                 id: "physical-display-hotplug-smoke-protocol",
@@ -792,7 +789,7 @@ enum RuntimeCompletionAudit {
     private static func templateLiveClickEntry() -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
-            evidence: "Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus empty-desktop gating.",
+            evidence: "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
             operatorNote: "Required before live-desktop-click-actions can pass."
         )
@@ -852,7 +849,7 @@ enum RuntimeCompletionAudit {
           "liveDesktopClickActions": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Grant Accessibility to the current app; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus empty-desktop gating.",
+            "evidence": "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating.",
             "operatorNote": "Required before live-desktop-click-actions can pass."
           },
           "physicalDisplayHotplugSmoke": {
