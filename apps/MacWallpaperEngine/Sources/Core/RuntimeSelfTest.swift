@@ -1653,6 +1653,15 @@ enum RuntimeSelfTest {
             parsedSimulatedRenderPlan.simulatedRenderPlanOnly,
             "EngineConfig must parse simulated multi-display render plan diagnostics"
         )
+        let parsedRuntimeDisplayRebuildSmoke = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--run-runtime-display-rebuild-smoke",
+            "--validate-only"
+        ])
+        check(
+            parsedRuntimeDisplayRebuildSmoke.runtimeDisplayRebuildSmoke,
+            "EngineConfig must parse runtime display rebuild smoke diagnostics"
+        )
         check(
             EngineConfig.help.contains("--simulated-render-plan"),
             "EngineConfig help must document simulated multi-display render plan diagnostics"
@@ -1740,8 +1749,10 @@ enum RuntimeSelfTest {
             "EngineConfig help must document manual smoke evidence recording"
         )
         check(
-            EngineConfig.help.contains("--write-runtime-smoke-evidence"),
-            "EngineConfig help must document runtime smoke telemetry evidence generation"
+            EngineConfig.help.contains("--write-runtime-smoke-evidence")
+                && EngineConfig.help.contains("--run-runtime-interaction-smoke")
+                && EngineConfig.help.contains("--run-runtime-display-rebuild-smoke"),
+            "EngineConfig help must document runtime smoke telemetry, interaction, and display-rebuild evidence generation"
         )
         check(
             EngineConfig.help.contains("--spine-profile"),

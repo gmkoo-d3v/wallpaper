@@ -55,6 +55,16 @@ final class WallpaperHost: NSObject {
         }
     }
 
+    func runRuntimeDisplayRebuildSmoke() {
+        guard isRunning else { return }
+        runtime.telemetry.recordDisplayLifecycle(
+            event: "display-rebuild-smoke",
+            status: "requested",
+            detail: "synthetic screen-parameter rebuild requested by runtime smoke"
+        )
+        screenParametersChanged()
+    }
+
     deinit {
         stop()
     }

@@ -35,8 +35,14 @@ final class WallpaperAppDelegate: NSObject, NSApplicationDelegate {
             if runtime.config.launchWallpaper {
                 try startHost()
             }
+            if runtime.config.runtimeDisplayRebuildSmoke {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                    self?.host?.runRuntimeDisplayRebuildSmoke()
+                }
+            }
             if runtime.config.runtimeInteractionSmoke {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                let delay: TimeInterval = runtime.config.runtimeDisplayRebuildSmoke ? 2.0 : 1.0
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     self?.host?.runRuntimeInteractionSmoke()
                 }
             }
@@ -564,6 +570,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             strictCompositeQuality: false,
             runtimeSmokeEvidenceURL: nil,
             runtimeInteractionSmoke: false,
+            runtimeDisplayRebuildSmoke: false,
             selfTestOnly: false,
             startHidden: false,
             interactive: true,

@@ -123,6 +123,7 @@ struct EngineConfig {
     let strictCompositeQuality: Bool
     let runtimeSmokeEvidenceURL: URL?
     let runtimeInteractionSmoke: Bool
+    let runtimeDisplayRebuildSmoke: Bool
     let selfTestOnly: Bool
     let startHidden: Bool
     let interactive: Bool
@@ -185,6 +186,7 @@ struct EngineConfig {
         strictCompositeQuality: Bool? = nil,
         runtimeSmokeEvidenceURL: URL? = nil,
         runtimeInteractionSmoke: Bool? = nil,
+        runtimeDisplayRebuildSmoke: Bool? = nil,
         selfTestOnly: Bool? = nil
     ) -> EngineConfig {
         EngineConfig(
@@ -233,6 +235,7 @@ struct EngineConfig {
             strictCompositeQuality: strictCompositeQuality ?? self.strictCompositeQuality,
             runtimeSmokeEvidenceURL: runtimeSmokeEvidenceURL ?? self.runtimeSmokeEvidenceURL,
             runtimeInteractionSmoke: runtimeInteractionSmoke ?? self.runtimeInteractionSmoke,
+            runtimeDisplayRebuildSmoke: runtimeDisplayRebuildSmoke ?? self.runtimeDisplayRebuildSmoke,
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
             startHidden: startHidden ?? self.startHidden,
             interactive: interactive ?? self.interactive,
@@ -299,6 +302,7 @@ struct EngineConfig {
         var strictCompositeQuality = false
         var runtimeSmokeEvidenceURL: URL?
         var runtimeInteractionSmoke = false
+        var runtimeDisplayRebuildSmoke = false
         var selfTestOnly = false
         var startHidden = false
         var interactive = true
@@ -517,6 +521,8 @@ struct EngineConfig {
                 runtimeSmokeEvidenceURL = try valueURL(arguments, index, option: argument)
             case "--run-runtime-interaction-smoke":
                 runtimeInteractionSmoke = true
+            case "--run-runtime-display-rebuild-smoke":
+                runtimeDisplayRebuildSmoke = true
             case "--self-test":
                 selfTestOnly = true
             case "--hidden":
@@ -678,6 +684,7 @@ struct EngineConfig {
             strictCompositeQuality: strictCompositeQuality,
             runtimeSmokeEvidenceURL: runtimeSmokeEvidenceURL,
             runtimeInteractionSmoke: runtimeInteractionSmoke,
+            runtimeDisplayRebuildSmoke: runtimeDisplayRebuildSmoke,
             selfTestOnly: selfTestOnly,
             startHidden: startHidden,
             interactive: interactive,
@@ -823,6 +830,8 @@ struct EngineConfig {
                               During a running app smoke, write current launch, input, interaction, and physical-display telemetry into a manual smoke evidence JSON before exit.
       --run-runtime-interaction-smoke
                               During a running app smoke, synthesize manifest-declared pointer move/click actions through the active wallpaper view for telemetry verification.
+      --run-runtime-display-rebuild-smoke
+                              During a running app smoke, trigger the debounced display-window rebuild path once for lifecycle telemetry.
       --self-test              Run built-in policy/runtime self checks and exit.
       --validate-only           Validate manifest and assets without opening windows.
       --hidden                  Build host but keep windows hidden.
