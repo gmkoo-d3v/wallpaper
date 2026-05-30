@@ -832,12 +832,14 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         float2 position;
         float2 texCoord;
         float4 color;
+        float4 darkColor;
     };
 
     struct RasterData {
         float4 position [[position]];
         float2 texCoord;
         float4 color;
+        float4 darkColor;
         float4 effects;
     };
 
@@ -864,6 +866,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             out.texCoord = fract(out.texCoord);
         }
         out.color = vertices[vertexID].color;
+        out.darkColor = vertices[vertexID].darkColor;
         out.effects = uniforms.effectParams;
         return out;
     }
@@ -902,7 +905,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             float blue = colorTexture.sample(textureSampler, in.texCoord - chromaticStep).b;
             sample = float4(red, sample.g, blue, sample.a);
         }
-        return sample * in.color;
+        float4 tinted = sample * in.color;
+        tinted.rgb += max(sample.a - sample.rgb, float3(0.0)) * in.darkColor.rgb * in.color.a;
+        return tinted;
     }
     """
 }

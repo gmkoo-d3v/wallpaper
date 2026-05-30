@@ -164,6 +164,7 @@ final class SpineSetupPoseRenderer {
         let boneName: String?
         var attachment: String?
         var color: SIMD4<Float>
+        let darkColor: SIMD4<Float>
         let blendMode: RenderBlendMode
     }
 
@@ -3597,9 +3598,6 @@ final class SpineSetupPoseRenderer {
             if raw["bone"] == nil {
                 fputs("Spine slot \(name) has no bone; unweighted attachments will use local coordinates\n", stderr)
             }
-            if raw["dark"] != nil {
-                throw EngineError.asset("Spine slot \(name) uses unsupported two-color tint")
-            }
             let rawBlend = raw["blend"] as? String
             guard let blendMode = RenderBlendMode(spineBlend: rawBlend) else {
                 throw EngineError.asset("Spine slot \(name) uses unsupported blend mode: \(rawBlend ?? "unknown")")
@@ -3609,6 +3607,7 @@ final class SpineSetupPoseRenderer {
                 boneName: raw["bone"] as? String,
                 attachment: raw["attachment"] as? String,
                 color: parseColor(raw["color"] as? String),
+                darkColor: parseDarkColor(raw["dark"] as? String),
                 blendMode: blendMode
             ))
         }
@@ -4005,7 +4004,12 @@ final class SpineSetupPoseRenderer {
                     let localU = attachment.uvs[uvIndex]
                     let localV = attachment.uvs[uvIndex + 1]
                     let texCoord = atlasTexCoord(localU: localU, localV: localV, region: region, page: page)
-                    return RenderVertex(position: position, texCoord: texCoord, color: slot.color)
+                    return RenderVertex(
+                        position: position,
+                        texCoord: texCoord,
+                        color: slot.color,
+                        darkColor: slot.darkColor
+                    )
                 }
                 appendTriangle(triangle, clippingPolygons: activeClipPolygons, into: &expanded)
             }
@@ -4194,7 +4198,8 @@ final class SpineSetupPoseRenderer {
         RenderVertex(
             position: first.position + ((second.position - first.position) * t),
             texCoord: first.texCoord + ((second.texCoord - first.texCoord) * t),
-            color: first.color + ((second.color - first.color) * t)
+            color: first.color + ((second.color - first.color) * t),
+            darkColor: first.darkColor + ((second.darkColor - first.darkColor) * t)
         )
     }
 
@@ -4244,6 +4249,10 @@ final class SpineSetupPoseRenderer {
                 && vertex.color.y.isFinite
                 && vertex.color.z.isFinite
                 && vertex.color.w.isFinite
+                && vertex.darkColor.x.isFinite
+                && vertex.darkColor.y.isFinite
+                && vertex.darkColor.z.isFinite
+                && vertex.darkColor.w.isFinite
         }
         let uvInRange = vertices.allSatisfy { vertex in
             vertex.texCoord.x >= -0.0001
@@ -4293,6 +4302,10 @@ final class SpineSetupPoseRenderer {
                 hashFloat(vertex.color.y, into: &hash)
                 hashFloat(vertex.color.z, into: &hash)
                 hashFloat(vertex.color.w, into: &hash)
+                hashFloat(vertex.darkColor.x, into: &hash)
+                hashFloat(vertex.darkColor.y, into: &hash)
+                hashFloat(vertex.darkColor.z, into: &hash)
+                hashFloat(vertex.darkColor.w, into: &hash)
             }
         }
         return "fp=\(String(format: "%016llx", hash))"
@@ -4753,5 +4766,26 @@ final class SpineSetupPoseRenderer {
         let green = Float((value >> 8) & 0xff) / 255.0
         let blue = Float(value & 0xff) / 255.0
         return SIMD4<Float>(red, green, blue, 1)
+    }
+
+    private static func parseDarkColor(_ raw: String?) -> SIMD4<Float> {
+        guard let raw else {
+            return SIMD4<Float>(0, 0, 0, 0)
+        }
+        let rgbText: String
+        if raw.count == 8 {
+            rgbText = String(raw.prefix(6))
+        } else if raw.count == 6 {
+            rgbText = raw
+        } else {
+            return SIMD4<Float>(0, 0, 0, 0)
+        }
+        guard let value = UInt32(rgbText, radix: 16) else {
+            return SIMD4<Float>(0, 0, 0, 0)
+        }
+        let red = Float((value >> 16) & 0xff) / 255.0
+        let green = Float((value >> 8) & 0xff) / 255.0
+        let blue = Float(value & 0xff) / 255.0
+        return SIMD4<Float>(red, green, blue, 0)
     }
 }

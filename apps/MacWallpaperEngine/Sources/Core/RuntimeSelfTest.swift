@@ -5273,7 +5273,8 @@ enum RuntimeSelfTest {
               "name": "slot",
               "bone": "root",
               "attachment": "linked",
-              "blend": "additive"
+              "blend": "additive",
+              "dark": "222222ff"
             },
             {
               "name": "markers",
@@ -5512,6 +5513,13 @@ enum RuntimeSelfTest {
             linkedMeshRuntime.runtimeCapabilitiesSummary()
                 .contains("spine\tblendModes\tsupported\tused=additive,screen unsupported=none"),
             "runtime capabilities must report additive and screen Spine blend modes as native-supported",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            linkedMeshRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\tslotFeatures\tsupported\tsupported=slot/slot:static-two-color-tint unsupported=none"),
+            "runtime capabilities must report static Spine two-color tint as native-supported on a renderable fixture",
             failures: &failures,
             checks: &checks
         )
@@ -6282,7 +6290,7 @@ enum RuntimeSelfTest {
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported constraint usages"), "compatibility gate must report unsupported constraint usages", failures: &failures, checks: &checks)
-        check(compatibility.reasonText.contains("unsupported slot features"), "compatibility gate must report unsupported Spine slot setup features", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("unsupported slot features") == false, "static Spine two-color tint must not force unsupported native compatibility", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported blend modes"), "compatibility gate must report unsupported Spine blend modes", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("audio event playback") == false, "audio event playback must not force composite fallback when native visual rendering is otherwise compatible", failures: &failures, checks: &checks)
         check(
@@ -6312,9 +6320,10 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
-            unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tslotFeatures\tunsupported")
-                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("slot/face:two-color-tint"),
-            "capability diagnostics must expose unsupported native Spine slot features",
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tslotFeatures\tsupported")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("slot/face:static-two-color-tint")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("unsupported=none"),
+            "capability diagnostics must report static Spine two-color tint as renderer-supported",
             failures: &failures,
             checks: &checks
         )

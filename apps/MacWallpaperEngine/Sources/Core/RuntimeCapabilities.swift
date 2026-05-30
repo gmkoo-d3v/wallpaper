@@ -777,7 +777,7 @@ enum RuntimeCapabilities {
                 category: "spine",
                 name: "slotFeatures",
                 status: scan.unsupportedSlotFeatures.isEmpty ? "supported" : "unsupported",
-                detail: "unsupported=\(scan.unsupportedSlotFeatures.listOrNone)"
+                detail: "supported=\(scan.supportedSlotFeatures.listOrNone) unsupported=\(scan.unsupportedSlotFeatures.listOrNone)"
             ),
             constraintCapabilityRow(scan),
             RuntimeCapabilityRow(
@@ -832,6 +832,7 @@ private struct SpineFeatureScan {
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
     var blendModes: Set<String> = []
+    var supportedSlotFeatures: Set<String> = []
     var unsupportedSlotFeatures: Set<String> = []
     var unsupportedConstraintUsages: Set<String> = []
     var degradedConstraintUsages: Set<String> = []
@@ -908,7 +909,7 @@ private struct SpineFeatureScan {
         for slot in slots {
             let name = slot["name"] as? String ?? "unnamed"
             if slot["dark"] != nil {
-                unsupportedSlotFeatures.insert("slot/\(name):two-color-tint")
+                supportedSlotFeatures.insert("slot/\(name):static-two-color-tint")
             }
         }
     }

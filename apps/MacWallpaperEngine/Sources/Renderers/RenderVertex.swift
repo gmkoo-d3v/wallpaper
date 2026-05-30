@@ -4,6 +4,19 @@ struct RenderVertex {
     let position: SIMD2<Float>
     let texCoord: SIMD2<Float>
     let color: SIMD4<Float>
+    let darkColor: SIMD4<Float>
+
+    init(
+        position: SIMD2<Float>,
+        texCoord: SIMD2<Float>,
+        color: SIMD4<Float>,
+        darkColor: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0)
+    ) {
+        self.position = position
+        self.texCoord = texCoord
+        self.color = color
+        self.darkColor = darkColor
+    }
 }
 
 struct RenderUniforms {
