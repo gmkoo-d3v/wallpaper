@@ -55,7 +55,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   physical-display render-plan context from a running app before exit. It
   enriches the manual evidence file without marking live click or hot-plug rows
   as passed until the operator records the checklist.
-- `--accessibility-status` prints no-prompt input diagnostics. The app does not
+- `--input-status` prints no-prompt input diagnostics. The app does not
   request Accessibility permission or use AX APIs.
 - Bundle validation also checks simulated Display Hz mode, proving 120Hz
   primary and 60Hz secondary display FPS planning without depending on the
@@ -446,10 +446,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Interaction manifests can gate look-direction movement by mouse button; the
   bundled Imported profile keeps hover idle, uses left-drag for look direction,
   maps a short head touch to `boll`, and promotes head rub/hold to `act`.
-- When desktop-item hit-testing needs Accessibility trust, wallpaper startup
-  uses a no-prompt trust check; click/touch actions stay blocked until
-  trust is granted, pointer/drag tracking can remain active, and the control panel
-  requests permission only after the user presses the Accessibility action.
+- Desktop-item hit-testing never requests Accessibility permission. Click/touch
+  actions use no-permission best-effort desktop-item filtering; pointer/drag
+  tracking remains active when no application window covers the cursor.
 - Renderer warmup, video-loop gaps, and first-frame pause/resource paths submit
   one preview/last-frame/neutral fallback drawable before pausing, instead of
   leaving a newly created wallpaper window black.
@@ -485,8 +484,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Visual hit-zone editor for authoring new bundles.
 - Profiler-backed native Spine optimization beyond bounded pose-frame cache and
   manifest-owned idle physics sleep.
-- Exact Finder desktop icon hit-testing without disabling interaction when
-  Accessibility trust is unavailable.
+- Exact Finder desktop icon hit-testing without Accessibility. The current
+  player intentionally uses no-permission best-effort filtering instead.
 
 ## Renderer Parity Priority
 
@@ -586,19 +585,16 @@ Packaged app:
 ~/project/wall-paper/dist/MacWallpaperEngine.app
 ```
 
-Input and signing note:
+Input and package note:
 
-- The package script ad-hoc signs by default (`CODESIGN_IDENTITY=-`). This is
-  convenient for local builds. Mac Wallpaper Engine does not request
-  Accessibility permission or use AX APIs.
-- Packaged builds include a `package-signing` doctor section so `--doctor`
-  shows the bundle identifier, signing mode, and no-prompt input policy.
+- The package script does not sign the app, search the keychain, create
+  identities, or require certificates. Mac Wallpaper Engine is a manually
+  launched local app.
+- Packaged builds include a `package-runtime` doctor section so `--doctor`
+  shows the bundle identifier, unsigned local package mode, and no-prompt input
+  policy.
 - Run `dist/MacWallpaperEngine.app/Contents/MacOS/MacWallpaperEngine
-  --accessibility-status` to confirm the exact packaged binary state and
+  --input-status` to confirm the exact packaged binary state and
   no-prompt input policy before live interaction smoke.
-- Packaging defaults to ad-hoc signing and never creates keychain identities or
-  trusted certificates. To use signing, pass an existing identity explicitly:
-
-```bash
-CODESIGN_IDENTITY="Developer ID Application: Example Name" apps/MacWallpaperEngine/package-app.sh
-```
+- Packaging does not request microphone, camera, audio capture, Accessibility,
+  login item, or certificate access.

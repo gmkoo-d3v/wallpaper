@@ -17,7 +17,7 @@ enum RuntimeDoctorReport {
             "doctor: OK / native=\(nativeStatus)",
             "quality: \(quality) / fps=\(runtime.renderTargetFps) max=\(runtime.manifest.runtime.maxFps)",
             "display: \(runtime.config.displayMode.cliName) / foreground=\(runtime.config.foregroundMode.rawValue)",
-            packageSigningSummaryLine(),
+            packageRuntimeSummaryLine(),
             "interaction: \(shorten(interactionStatus.replacingOccurrences(of: "\n", with: " / "), limit: 96))"
         ].joined(separator: "\n")
     }
@@ -50,7 +50,7 @@ enum RuntimeDoctorReport {
             section("simulated-render-plan", DisplayPlanner.simulatedMultiDisplayRenderSummary(runtime: runtime)),
             section("simulated-render-plan-matrix", simulatedRenderPlanMatrix(runtime: runtime)),
             section("performance-plan", runtime.performanceSummary()),
-            section("package-signing", packageSigningReport()),
+            section("package-runtime", packageRuntimeReport()),
             section("interaction-plan", interaction),
             section("renderer-recovery", RendererRecoveryStore.report(recoveryURL: recoveryURL))
         ].joined(separator: "\n\n")
@@ -73,14 +73,15 @@ enum RuntimeDoctorReport {
         ].joined(separator: "\n\n---\n\n")
     }
 
-    private static func packageSigningReport() -> String {
+    private static func packageRuntimeReport() -> String {
         var lines = [
             "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unavailable")",
             "bundlePath: \(Bundle.main.bundleURL.path)",
-            "accessibilityAPIUsed: false"
+            "accessibilityAPIUsed: false",
+            "signaturePolicy: unsigned-no-certificate"
         ]
 
-        if let metadata = packageSigningMetadataText() {
+        if let metadata = packageRuntimeMetadataText() {
             lines.append("metadata: present")
             lines.append(metadata)
         } else {
@@ -91,21 +92,22 @@ enum RuntimeDoctorReport {
         return lines.joined(separator: "\n")
     }
 
-    private static func packageSigningSummaryLine() -> String {
-        guard let metadata = packageSigningMetadata() else {
-            return "signing: source-or-unpackaged / input=permissionless accessibilityAPI=false"
+    private static func packageRuntimeSummaryLine() -> String {
+        guard let metadata = packageRuntimeMetadata() else {
+            return "package: source-or-unpackaged / input=permissionless accessibilityAPI=false signature=unsigned"
         }
 
-        let mode = metadata["codesignMode"] ?? "unknown"
-        return "signing: \(mode) / input=permissionless accessibilityAPI=false"
+        let mode = metadata["packageMode"] ?? "unknown"
+        let signature = metadata["signaturePolicy"] ?? "unsigned-no-certificate"
+        return "package: \(mode) / input=permissionless accessibilityAPI=false signature=\(signature)"
     }
 
     private static func clickActionNote() -> String {
         "no Accessibility prompt or AX API is used; click/touch actions run with best-effort desktop-item filtering"
     }
 
-    private static func packageSigningMetadata() -> [String: String]? {
-        guard let metadata = packageSigningMetadataText() else { return nil }
+    private static func packageRuntimeMetadata() -> [String: String]? {
+        guard let metadata = packageRuntimeMetadataText() else { return nil }
         var result: [String: String] = [:]
         for line in metadata.split(separator: "\n", omittingEmptySubsequences: true) {
             let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
@@ -116,8 +118,8 @@ enum RuntimeDoctorReport {
         return result.isEmpty ? nil : result
     }
 
-    private static func packageSigningMetadataText() -> String? {
-        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
+    private static func packageRuntimeMetadataText() -> String? {
+        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-runtime.txt"),
               let metadata = try? String(contentsOf: metadataURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines),
               metadata.isEmpty == false else {

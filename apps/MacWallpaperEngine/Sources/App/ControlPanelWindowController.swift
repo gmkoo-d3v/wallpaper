@@ -246,6 +246,7 @@ final class ControlPanelWindowController: NSWindowController {
 
         root.addArrangedSubview(heroBand())
         root.addArrangedSubview(contentArea())
+        root.addArrangedSubview(actionBar())
 
         startButton.target = self
         startButton.action = #selector(startWallpaper)
@@ -358,8 +359,7 @@ final class ControlPanelWindowController: NSWindowController {
         let mainPage = pageStack([
             compactStatusRow(),
             interactionStatusRow(),
-            foregroundRow(),
-            buttonRow()
+            foregroundRow()
         ])
         let controlsPage = pageStack([
             modeRow(),
@@ -641,15 +641,39 @@ final class ControlPanelWindowController: NSWindowController {
         return row
     }
 
-    private func buttonRow() -> NSView {
+    private func actionBar() -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor(red: 0.965, green: 0.965, blue: 0.965, alpha: 1).cgColor
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.heightAnchor.constraint(equalToConstant: 58).isActive = true
+
         let row = NSStackView()
         row.orientation = .horizontal
+        row.alignment = .centerY
         row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(separator)
+        view.addSubview(row)
+
+        NSLayoutConstraint.activate([
+            separator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            separator.topAnchor.constraint(equalTo: view.topAnchor),
+            row.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            row.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
+
         row.addArrangedSubview(startButton)
         row.addArrangedSubview(stopButton)
         row.addArrangedSubview(applyButton)
         row.addArrangedSubview(quitButton)
-        return row
+        return view
     }
 
     private func stylePrimaryButton(_ button: NSButton) {

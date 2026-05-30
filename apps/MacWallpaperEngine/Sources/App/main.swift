@@ -13,8 +13,8 @@ do {
         exit(EXIT_SUCCESS)
     }
 
-    if arguments.contains("--accessibility-status") {
-        print(AccessibilityDiagnostics.statusText())
+    if arguments.contains("--input-status") || arguments.contains("--accessibility-status") {
+        print(InputDiagnostics.statusText())
         exit(EXIT_SUCCESS)
     }
 

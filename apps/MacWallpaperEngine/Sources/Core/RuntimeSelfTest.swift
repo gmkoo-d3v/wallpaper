@@ -231,7 +231,7 @@ enum RuntimeSelfTest {
             DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt",
             "startup Accessibility trust checks must use no-prompt probes"
         )
-        let accessibilityStatusText = AccessibilityDiagnostics.statusText()
+        let accessibilityStatusText = InputDiagnostics.statusText()
         check(
             accessibilityStatusText.contains("input permission diagnostics OK")
                 && accessibilityStatusText.contains("accessibilityStatus:")
@@ -815,11 +815,11 @@ enum RuntimeSelfTest {
                 && doctorReport.contains("displayMode: selectedPolicy")
                 && doctorReport.contains("displayMode: allFull")
                 && doctorReport.contains("== performance-plan ==")
-                && doctorReport.contains("== package-signing ==")
+                && doctorReport.contains("== package-runtime ==")
                 && doctorReport.contains("clickActionNote:")
                 && doctorReport.contains("== interaction-plan ==")
                 && doctorReport.contains("== renderer-recovery =="),
-            "runtime doctor report must combine bundle library, validation, capability, render-mode matrix, performance, package signing, interaction, and recovery diagnostics"
+            "runtime doctor report must combine bundle library, validation, capability, render-mode matrix, performance, package runtime, interaction, and recovery diagnostics"
         )
         let sourceProvenanceReport = RuntimeSourceProvenanceReport.make(runtime: runtime)
         let sourceProvenanceStatusOK = sourceProvenanceReport.contains("consistency: sourceProvenance: pass")
@@ -864,17 +864,18 @@ enum RuntimeSelfTest {
             doctorControlPanelSummary.contains("doctor: OK")
                 && doctorControlPanelSummary.contains("quality:")
                 && doctorControlPanelSummary.contains("display:")
-                && doctorControlPanelSummary.contains("signing:")
+                && doctorControlPanelSummary.contains("package:")
                 && doctorControlPanelSummary.contains("accessibilityAPI=false")
                 && doctorControlPanelSummary.contains("interaction:"),
-            "runtime doctor control-panel summary must expose compact preflight, signing, and interaction status"
+            "runtime doctor control-panel summary must expose compact preflight, package, and interaction status"
         )
-        if let packageSigningURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
-           FileManager.default.fileExists(atPath: packageSigningURL.path) {
+        if let packageRuntimeURL = Bundle.main.resourceURL?.appendingPathComponent("package-runtime.txt"),
+           FileManager.default.fileExists(atPath: packageRuntimeURL.path) {
             check(
-                doctorControlPanelSummary.contains("signing: adhoc")
+                doctorControlPanelSummary.contains("package: local-manual-start")
+                    && doctorControlPanelSummary.contains("signature=unsigned-no-certificate")
                     && doctorControlPanelSummary.contains("input=permissionless"),
-                "packaged ad-hoc builds must surface permissionless input mode in the control-panel doctor summary"
+                "packaged local builds must surface unsigned manual-start input mode in the control-panel doctor summary"
             )
         }
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset {
@@ -1728,7 +1729,7 @@ enum RuntimeSelfTest {
             "EngineConfig help must document physical CoreGraphics display diagnostics"
         )
         check(
-            EngineConfig.help.contains("--accessibility-status")
+            EngineConfig.help.contains("--input-status")
                 && EngineConfig.help.contains("--request-accessibility") == false,
             "EngineConfig help must document no-prompt input diagnostics and omit Accessibility request flow"
         )

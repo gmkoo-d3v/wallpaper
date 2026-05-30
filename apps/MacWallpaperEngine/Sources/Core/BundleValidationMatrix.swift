@@ -449,7 +449,7 @@ enum BundleValidationMatrix {
             "== render-plan ==",
             "== simulated-render-plan ==",
             "== performance-plan ==",
-            "== package-signing ==",
+            "== package-runtime ==",
             "== interaction-plan ==",
             "== renderer-recovery =="
         ]

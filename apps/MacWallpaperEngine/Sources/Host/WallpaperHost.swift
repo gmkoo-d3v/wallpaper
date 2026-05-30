@@ -625,10 +625,7 @@ enum DisplayPlanner {
             releaseFadeSeconds: nil
         )
         guard policy.mode != .disabled else { return "passive(policy-disabled)" }
-        let permissionNote = RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(policy)
-            ? "(accessibility-required)"
-            : ""
-        return "\(policy.mode.rawValue)\(permissionNote)"
+        return policy.mode.rawValue
     }
 
     private static func assetLabel(_ kind: String, _ url: URL) -> String {

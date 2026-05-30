@@ -110,7 +110,7 @@ enum RuntimeCompletionAudit {
             bundles: bundles
         )
         let sourceDerivation = sourceDerivationEvidence(bundles: bundles)
-        let packaged = packageSigningMetadataText() != nil
+        let packaged = packageRuntimeMetadataText() != nil
         let packagedEvidence = manualEvidence?.packagedAppLaunchSmoke
         let liveClickEvidence = manualEvidence?.liveDesktopClickActions
         let physicalDisplayEvidence = manualEvidence?.physicalDisplayHotplugSmoke
@@ -205,7 +205,7 @@ enum RuntimeCompletionAudit {
                 evidence: manualEvidenceText(
                     packagedEvidence,
                     fallback: packaged
-                        ? "package-signing metadata present for \(Bundle.main.bundlePath)"
+                        ? "package-runtime metadata present for \(Bundle.main.bundlePath)"
                         : "source/unpackaged run; package script smoke must be checked separately"
                 )
             ),
@@ -888,8 +888,8 @@ enum RuntimeCompletionAudit {
         )
     }
 
-    private static func packageSigningMetadataText() -> String? {
-        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
+    private static func packageRuntimeMetadataText() -> String? {
+        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-runtime.txt"),
               FileManager.default.fileExists(atPath: metadataURL.path) else {
             return nil
         }

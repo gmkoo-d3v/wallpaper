@@ -63,10 +63,10 @@ enum RuntimeSmokeEvidenceWriter {
     }
 
     private static func packagedLaunchEntry(runtime: NativeRuntimeCore, recordedAt: String) -> EvidenceEntry {
-        let metadata = packageSigningMetadataText()
+        let metadata = packageRuntimeMetadataText()
         let isPackaged = metadata != nil
         let durationText = runtime.config.duration.map { String(format: "%.2fs", $0) } ?? "manual-exit"
-        let packageText = metadata.map { "packageMetadata=\(oneLine($0))" } ?? "packageMetadata=missing"
+        let packageText = metadata.map { "packageRuntimeMetadata=\(oneLine($0))" } ?? "packageRuntimeMetadata=missing"
         let evidence = """
         \(isPackaged ? "packaged" : "source") runtime launch reached graceful termination without crash; appPath=\(Bundle.main.bundlePath); bundle=\(runtime.config.wallpaperRoot.path); duration=\(durationText); displayMode=\(runtime.config.displayMode.cliName); foregroundMode=\(runtime.config.foregroundMode.rawValue); \(packageText)
         """
@@ -198,7 +198,7 @@ enum RuntimeSmokeEvidenceWriter {
             }
         }
 
-        let packaged = packageSigningMetadataText() != nil
+        let packaged = packageRuntimeMetadataText() != nil
         let clickExpectationsPassed = clickExpectations.allSatisfy { satisfiedClickExpectations.contains($0.id) }
         let moveExpectationsPassed = expectedMoveCommands.isSubset(of: satisfiedMoveCommands)
         let passed = packaged
@@ -298,8 +298,8 @@ enum RuntimeSmokeEvidenceWriter {
         return CGPoint(x: x, y: y)
     }
 
-    private static func packageSigningMetadataText() -> String? {
-        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
+    private static func packageRuntimeMetadataText() -> String? {
+        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-runtime.txt"),
               FileManager.default.fileExists(atPath: metadataURL.path) else {
             return nil
         }

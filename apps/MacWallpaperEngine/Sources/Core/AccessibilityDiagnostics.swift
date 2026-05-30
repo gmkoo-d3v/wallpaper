@@ -1,8 +1,8 @@
 import Foundation
 
-enum AccessibilityDiagnostics {
+enum InputDiagnostics {
     static func statusText() -> String {
-        let packageMetadata = packageSigningMetadataText()
+        let packageRuntimeMetadata = packageRuntimeMetadataText()
 
         var lines = [
             "input permission diagnostics OK",
@@ -14,16 +14,16 @@ enum AccessibilityDiagnostics {
             "executablePath: \(CommandLine.arguments.first ?? "unknown")",
             "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unknown")"
         ]
-        if let packageMetadata {
-            lines.append("packageMetadata: \(oneLine(packageMetadata))")
+        if let packageRuntimeMetadata {
+            lines.append("packageRuntimeMetadata: \(oneLine(packageRuntimeMetadata))")
         } else {
-            lines.append("packageMetadata: missing")
+            lines.append("packageRuntimeMetadata: missing")
         }
         return lines.joined(separator: "\n")
     }
 
-    private static func packageSigningMetadataText() -> String? {
-        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-signing.txt"),
+    private static func packageRuntimeMetadataText() -> String? {
+        guard let metadataURL = Bundle.main.resourceURL?.appendingPathComponent("package-runtime.txt"),
               FileManager.default.fileExists(atPath: metadataURL.path) else {
             return nil
         }

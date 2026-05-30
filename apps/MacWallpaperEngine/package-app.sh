@@ -21,9 +21,6 @@ PACKAGE_SMOKE_TEST_DURATION="${PACKAGE_SMOKE_TEST_DURATION:-9}"
 PACKAGE_SMOKE_EVIDENCE="${PACKAGE_SMOKE_EVIDENCE:-}"
 PACKAGE_RUNTIME_INTERACTION_SMOKE="${PACKAGE_RUNTIME_INTERACTION_SMOKE:-auto}"
 PACKAGE_RUNTIME_DISPLAY_REBUILD_SMOKE="${PACKAGE_RUNTIME_DISPLAY_REBUILD_SMOKE:-auto}"
-CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
-CODESIGN_IDENTITY_NAME="${CODESIGN_IDENTITY_NAME:-}"
-CODESIGN_DEEP="${CODESIGN_DEEP:-1}"
 VALIDATOR_BIN="$SCRIPT_DIR/.build/release/$APP_NAME"
 PACKAGE_SMOKE_TEST_PASSED=0
 
@@ -52,21 +49,6 @@ case "$PACKAGE_VALIDATE_ONLY" in
     ;;
   *)
     echo "Invalid PACKAGE_VALIDATE_ONLY value: $PACKAGE_VALIDATE_ONLY" >&2
-    echo "Use 1/true/yes or 0/false/no." >&2
-    exit 1
-    ;;
-esac
-
-CODESIGN_DEEP_ENABLED=0
-case "$CODESIGN_DEEP" in
-  1|true|TRUE|yes|YES)
-    CODESIGN_DEEP_ENABLED=1
-    ;;
-  0|false|FALSE|no|NO|"")
-    CODESIGN_DEEP_ENABLED=0
-    ;;
-  *)
-    echo "Invalid CODESIGN_DEEP value: $CODESIGN_DEEP" >&2
     echo "Use 1/true/yes or 0/false/no." >&2
     exit 1
     ;;
@@ -134,41 +116,6 @@ case "$PACKAGE_RUNTIME_DISPLAY_REBUILD_SMOKE" in
     ;;
 esac
 
-resolve_codesign_identity() {
-  case "$CODESIGN_IDENTITY" in
-    auto-if-available|AUTO-IF-AVAILABLE)
-      if [ -n "$CODESIGN_IDENTITY_NAME" ] \
-        && command -v security >/dev/null 2>&1 \
-        && security find-identity -v -p codesigning | grep -F "\"$CODESIGN_IDENTITY_NAME\"" >/dev/null; then
-        CODESIGN_IDENTITY="$CODESIGN_IDENTITY_NAME"
-        return
-      fi
-
-      CODESIGN_IDENTITY="-"
-      return
-      ;;
-    auto|AUTO)
-      if ! command -v security >/dev/null 2>&1; then
-        echo "CODESIGN_IDENTITY=auto requires the macOS security tool." >&2
-        exit 1
-      fi
-      if [ -z "$CODESIGN_IDENTITY_NAME" ]; then
-        echo "CODESIGN_IDENTITY=auto requires CODESIGN_IDENTITY_NAME to name an existing signing identity." >&2
-        exit 1
-      fi
-
-      if security find-identity -v -p codesigning | grep -F "\"$CODESIGN_IDENTITY_NAME\"" >/dev/null; then
-        CODESIGN_IDENTITY="$CODESIGN_IDENTITY_NAME"
-        return
-      fi
-
-      echo "No codesign identity named '$CODESIGN_IDENTITY_NAME' was found." >&2
-      echo "Use an existing signing identity with CODESIGN_IDENTITY=\"<identity name>\", or use the default ad-hoc signing mode." >&2
-      exit 1
-      ;;
-  esac
-}
-
 print_composite_quality_notice() {
   local bundle_dir="$1"
   local bundle_name="$2"
@@ -219,40 +166,13 @@ validate_wallpaper_bundle() {
   fi
 }
 
-sign_app_bundle() {
-  if ! command -v codesign >/dev/null 2>&1; then
-    echo "codesign not found; packaged app will remain unsigned." >&2
-    return
-  fi
-
-  local sign_args=(--force)
-  if [ "$CODESIGN_DEEP_ENABLED" -eq 1 ]; then
-    sign_args+=(--deep)
-  fi
-  sign_args+=(--sign "$CODESIGN_IDENTITY" "$APP_DIR")
-  codesign "${sign_args[@]}" >/dev/null
-
-  if [ "$CODESIGN_IDENTITY" = "-" ]; then
-    echo "Packaged app was ad-hoc signed. Mac Wallpaper Engine does not request Accessibility permission." >&2
-    echo "Identity signing is opt-in: pass CODESIGN_IDENTITY=\"<existing identity name>\"." >&2
-  else
-    echo "Packaged app signed with identity: $CODESIGN_IDENTITY" >&2
-  fi
-}
-
-write_package_signing_metadata() {
-  local codesign_mode="identity"
-  if [ "$CODESIGN_IDENTITY" = "-" ]; then
-    codesign_mode="adhoc"
-  fi
-
-  cat > "$RESOURCES_DIR/package-signing.txt" <<EOF
+write_package_runtime_metadata() {
+  cat > "$RESOURCES_DIR/package-runtime.txt" <<EOF
 metadataVersion: 1
 bundleID: $BUNDLE_ID
-codesignIdentity: $CODESIGN_IDENTITY
-codesignMode: $codesign_mode
-codesignDeep: $CODESIGN_DEEP_ENABLED
-inputPermissionHint: no Accessibility prompt or AX API is used; click/touch actions run with best-effort desktop-item filtering; identity signing is explicit opt-in with CODESIGN_IDENTITY set to an existing identity name
+packageMode: local-manual-start
+signaturePolicy: unsigned-no-certificate
+inputPermissionHint: no Accessibility prompt, AX API, microphone, camera, audio capture, login item, or certificate workflow is used; click/touch actions run with best-effort desktop-item filtering
 EOF
 }
 
@@ -283,7 +203,7 @@ write_package_smoke_evidence() {
   interaction_status="$("$MACOS_DIR/$APP_NAME" --interaction-plan 2>/dev/null | sed -n 's/^desktopMonitor: //p' | head -n 1)"
   interaction_status="$(json_safe_text "${interaction_status:-unknown}")"
   local input_permission_status
-  input_permission_status="$("$MACOS_DIR/$APP_NAME" --accessibility-status 2>/dev/null | awk -F': ' '/^inputPolicy:/ {print $2; exit}')"
+  input_permission_status="$("$MACOS_DIR/$APP_NAME" --input-status 2>/dev/null | awk -F': ' '/^inputPolicy:/ {print $2; exit}')"
   input_permission_status="$(json_safe_text "${input_permission_status:-unknown}")"
   local physical_display_count
   physical_display_count="$("$MACOS_DIR/$APP_NAME" --physical-render-plan 2>/dev/null | awk '/^displayCount:/ {print $2; exit}')"
@@ -368,8 +288,6 @@ if [ ! -d "$WALLPAPER_SOURCE" ]; then
   echo "Wallpaper source directory is missing: $WALLPAPER_SOURCE" >&2
   exit 1
 fi
-
-resolve_codesign_identity
 
 swift build -c release --package-path "$SCRIPT_DIR"
 
@@ -487,8 +405,7 @@ PLIST
 
 printf "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
-write_package_signing_metadata
-sign_app_bundle
+write_package_runtime_metadata
 
 if ! "$MACOS_DIR/$APP_NAME" --self-test >/dev/null; then
   echo "Packaged app self-test failed: $APP_DIR" >&2
