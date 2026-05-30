@@ -65,6 +65,13 @@ enum ManifestLoader {
                 throw EngineError.manifest("runtime.nativeSpineIdlePoseFps must satisfy 1...maxFps")
             }
         }
+        if let nativeSpineTransitionSeconds = manifest.runtime.nativeSpineTransitionSeconds {
+            guard nativeSpineTransitionSeconds.isFinite,
+                  nativeSpineTransitionSeconds >= 0,
+                  nativeSpineTransitionSeconds <= 10 else {
+                throw EngineError.manifest("runtime.nativeSpineTransitionSeconds must satisfy 0 <= value <= 10")
+            }
+        }
         try validatePerformanceTiers(manifest.runtime.performanceTiers, maxFps: manifest.runtime.maxFps)
         guard (1...3).contains(manifest.runtime.scheduler.maxInFlightCommandBuffers) else {
             throw EngineError.manifest("maxInFlightCommandBuffers must satisfy 1...3")
@@ -318,6 +325,37 @@ enum ManifestLoader {
             guard (layer.renderingMode ?? "setup-mesh") == "setup-mesh" else {
                 throw EngineError.manifest("spine layer \(layer.id) renderingMode must be setup-mesh")
             }
+        }
+        if let foregroundOcclusion = layer.foregroundOcclusion {
+            guard layer.type == .video else {
+                throw EngineError.manifest("layer \(layer.id) foregroundOcclusion is only supported on video layers")
+            }
+            try validateNormalizedRect(
+                foregroundOcclusion.sourceRect,
+                label: "layer \(layer.id) foregroundOcclusion.sourceRect"
+            )
+            try validateNormalizedRect(
+                foregroundOcclusion.destinationRect,
+                label: "layer \(layer.id) foregroundOcclusion.destinationRect"
+            )
+        }
+    }
+
+    private static func validateNormalizedRect(_ rect: [Double], label: String) throws {
+        guard rect.count == 4, rect.allSatisfy(\.isFinite) else {
+            throw EngineError.manifest("\(label) must contain four finite numbers: x, y, width, height")
+        }
+        let x = rect[0]
+        let y = rect[1]
+        let width = rect[2]
+        let height = rect[3]
+        guard x >= 0,
+              y >= 0,
+              width > 0,
+              height > 0,
+              x + width <= 1,
+              y + height <= 1 else {
+            throw EngineError.manifest("\(label) must stay inside normalized 0...1 bounds")
         }
     }
 

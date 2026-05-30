@@ -26,6 +26,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private let interaction: InteractionController
     private let interactionHitZones: [InteractionHitZoneSummary]
     private let declarativePlan: DeclarativeBindingPlan
+    private let foregroundOcclusion: LayerForegroundOcclusionConfig?
     private let governor: ResourceGovernor
     private let semaphore: DispatchSemaphore
     private let targetRenderFps: Int
@@ -83,6 +84,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy
         ).hitZoneSummaries()
+        self.foregroundOcclusion = Self.foregroundOcclusionConfig(runtime: runtime)
         self.governor = ResourceGovernor(
             manifest: runtime.manifest,
             targetFps: displayTargetFps,
@@ -194,6 +196,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
                 oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
+                animationTransitionSeconds: runtime.manifest.runtime.nativeSpineTransitionSeconds ?? 0.30,
                 declarativePlan: declarativePlan
             )
             if let spineRenderer {
@@ -342,7 +345,11 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
 
         if shouldPause == false, isUsingResourceFallbackVideo == false {
-            drawDeskOcclusion(baseVideoTexture: usingCompositeVideo ? nil : baseVideoTexture, drawableSize: view.drawableSize, encoder: encoder)
+            drawForegroundOcclusion(
+                baseVideoTexture: usingCompositeVideo ? nil : baseVideoTexture,
+                drawableSize: view.drawableSize,
+                encoder: encoder
+            )
         }
         if shouldPause == false, isUsingResourceFallbackVideo == false, displayRole.rendersForeground, let spineRenderer {
             spineRenderer.draw(
@@ -555,12 +562,24 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         return rect
     }
 
-    private func drawDeskOcclusion(
+    private static func foregroundOcclusionConfig(runtime: NativeRuntimeCore) -> LayerForegroundOcclusionConfig? {
+        runtime.manifest.layers.first { layer in
+            layer.type == .video && layer.foregroundOcclusion?.enabled != false
+        }?.foregroundOcclusion
+    }
+
+    private func drawForegroundOcclusion(
         baseVideoTexture: MTLTexture?,
         drawableSize: CGSize,
         encoder: MTLRenderCommandEncoder
     ) {
-        guard displayRole.rendersForeground, usingCompositeVideo == false else { return }
+        guard let foregroundOcclusion,
+              displayRole.rendersForeground,
+              usingCompositeVideo == false,
+              let sourceRect = Self.normalizedRect(foregroundOcclusion.sourceRect),
+              let destinationRect = Self.normalizedRect(foregroundOcclusion.destinationRect) else {
+            return
+        }
         let freshOcclusionTexture = deskOcclusionSource?.copyTextureForCurrentTime()
         if let freshOcclusionTexture {
             lastDeskOcclusionTexture = freshOcclusionTexture
@@ -575,12 +594,28 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             fullRect = aspectFitRect(texture: texture, drawableSize: drawableSize)
         }
 
-        let topFromTexture: CGFloat = 0.805
-        let height = fullRect.height * (1.0 - topFromTexture)
-        guard height > 0 else { return }
-        let rect = CGRect(x: fullRect.minX, y: fullRect.minY, width: fullRect.width, height: height)
-        let texRect = CGRect(x: 0, y: topFromTexture, width: 1, height: 1.0 - topFromTexture)
+        let rect = Self.contentRect(fullRect: fullRect, normalizedRect: destinationRect)
+        let texRect = sourceRect
         draw(texture: texture, rect: rect, texRect: texRect, encoder: encoder)
+    }
+
+    private static func normalizedRect(_ values: [Double]) -> CGRect? {
+        guard values.count == 4 else { return nil }
+        return CGRect(
+            x: CGFloat(values[0]),
+            y: CGFloat(values[1]),
+            width: CGFloat(values[2]),
+            height: CGFloat(values[3])
+        )
+    }
+
+    private static func contentRect(fullRect: CGRect, normalizedRect: CGRect) -> CGRect {
+        CGRect(
+            x: fullRect.minX + fullRect.width * normalizedRect.minX,
+            y: fullRect.minY + fullRect.height * normalizedRect.minY,
+            width: fullRect.width * normalizedRect.width,
+            height: fullRect.height * normalizedRect.height
+        )
     }
 
     private func drawInteractionOverlay(

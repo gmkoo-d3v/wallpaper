@@ -70,6 +70,7 @@ final class NativeRuntimeCore {
         fallbackFps: \(manifest.runtime.fallbackFps)
         nativeSpinePoseFps: \(nativeSpinePoseSampleFps(displayRefreshFps: nil))
         nativeSpineIdlePoseFps: \(nativeSpineIdlePoseSampleFps(displayRefreshFps: nil))
+        nativeSpineTransitionSeconds: \(String(format: "%.2f", manifest.runtime.nativeSpineTransitionSeconds ?? 0.30))
         audioPolicy: \(manifest.runtime.effectiveAudioPolicy.rawValue) (output=\(audioOutputSummary), userOptIn=\(config.audioEnabled))
         cpuBudget: target \(manifest.layerBudgets.primaryCpuTargetPercent)% downgrade \(manifest.layerBudgets.cpuDowngradePercent)% / \(manifest.layerBudgets.cpuDowngradeWindowSeconds)s
         rssBudget: target \(manifest.layerBudgets.rssTargetMb)MB hard \(manifest.layerBudgets.rssHardMb)MB

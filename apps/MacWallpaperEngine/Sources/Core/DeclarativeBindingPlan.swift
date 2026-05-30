@@ -27,7 +27,8 @@ struct DeclarativeBindingPlan {
 
     var hasPointerInputBindings: Bool {
         bindingEntries.contains { entry in
-            entry.isEnabled && (entry.source == .pointerDown || entry.source == .pointerPosition)
+            entry.runtimeStatus == .runtimeExecutable
+                && (entry.source == .pointerDown || entry.source == .pointerPosition)
         }
     }
 

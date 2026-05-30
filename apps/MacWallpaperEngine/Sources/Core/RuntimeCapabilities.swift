@@ -146,7 +146,7 @@ enum RuntimeCapabilities {
                 category: "layer",
                 name: layer.type.rawValue,
                 status: layerStatus(layer),
-                detail: "\(layer.id) -> \(layer.asset)\(layer.renderingMode.map { " renderingMode=\($0)" } ?? "")"
+                detail: layerDetail(layer)
             ))
         }
 
@@ -454,6 +454,26 @@ enum RuntimeCapabilities {
         }
     }
 
+    private static func layerDetail(_ layer: LayerConfig) -> String {
+        var parts = ["\(layer.id) -> \(layer.asset)"]
+        if let renderingMode = layer.renderingMode {
+            parts.append("renderingMode=\(renderingMode)")
+        }
+        if let occlusion = layer.foregroundOcclusion, occlusion.enabled != false {
+            let source = occlusion.sourceRect.map(formatNormalizedRectNumber).joined(separator: ",")
+            let destination = occlusion.destinationRect.map(formatNormalizedRectNumber).joined(separator: ",")
+            parts.append("foregroundOcclusion=source[\(source)]->dest[\(destination)]")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private static func formatNormalizedRectNumber(_ value: Double) -> String {
+        let rounded = String(format: "%.3f", value)
+        return rounded
+            .replacingOccurrences(of: #"0+$"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\.$"#, with: "", options: .regularExpression)
+    }
+
     private static func displayRow(name: String, policy: DisplayRolePolicy) -> RuntimeCapabilityRow {
         let status: String
         let detail: String
@@ -710,7 +730,10 @@ enum RuntimeCapabilities {
         let nativeRendererDetail: String
         if compatibility.isSupported {
             nativeRendererStatus = "supported"
-            nativeRendererDetail = "Spine 4.2 setup/mesh renderer, placement=\(spine.placement.mode), pma=\(spine.premultipliedAlpha)"
+            let placementDetail = spine.placement.mode == "skeleton-bounds"
+                ? "skeleton-bounds(contain-fit)"
+                : spine.placement.mode
+            nativeRendererDetail = "Spine 4.2 setup/mesh renderer, placement=\(placementDetail), pma=\(spine.premultipliedAlpha)"
         } else {
             nativeRendererStatus = "unsupported"
             let fallback = runtime.assetCatalog.compositeVideoAsset == nil
@@ -1025,20 +1048,8 @@ private struct SpineFeatureScan {
             }
         }
 
-        if let constraints = root["transform"] as? [[String: Any]] {
+        if root["transform"] is [[String: Any]] {
             constraintKeys.insert("transform")
-            for constraint in constraints {
-                let name = namedConstraint(constraint)
-                let usesLocal = constraint["local"] as? Bool ?? false
-                let usesRelative = constraint["relative"] as? Bool ?? false
-                if usesLocal || usesRelative {
-                    let modes = [
-                        usesLocal ? "local" : nil,
-                        usesRelative ? "relative" : nil
-                    ].compactMap { $0 }.joined(separator: "+")
-                    unsupportedConstraintUsages.insert("transform/\(name):\(modes)")
-                }
-            }
         }
 
         if let constraints = root["path"] as? [[String: Any]] {

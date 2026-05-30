@@ -83,6 +83,7 @@ struct RuntimeConfig: Decodable {
     let idleRenderFps: Int?
     let nativeSpinePoseFps: Int?
     let nativeSpineIdlePoseFps: Int?
+    let nativeSpineTransitionSeconds: Double?
     let physicsIdlePolicy: PhysicsIdlePolicy?
     let audioPolicy: AudioPolicy?
     let performanceTiers: [PerformanceTier]?
@@ -198,12 +199,19 @@ struct LayerConfig: Decodable {
     let type: LayerType
     let asset: String
     let renderingMode: String?
+    let foregroundOcclusion: LayerForegroundOcclusionConfig?
 }
 
 enum LayerType: String, Decodable {
     case staticImage = "static_image"
     case video
     case spine
+}
+
+struct LayerForegroundOcclusionConfig: Decodable {
+    let enabled: Bool?
+    let sourceRect: [Double]
+    let destinationRect: [Double]
 }
 
 struct InteractionConfig: Decodable {

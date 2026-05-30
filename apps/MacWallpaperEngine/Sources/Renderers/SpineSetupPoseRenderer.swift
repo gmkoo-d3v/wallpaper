@@ -71,6 +71,8 @@ final class SpineSetupPoseRenderer {
         let offsetScaleX: Double
         let offsetScaleY: Double
         let offsetShearY: Double
+        let local: Bool
+        let relative: Bool
         let mixRotate: Double
         let mixX: Double
         let mixY: Double
@@ -439,7 +441,7 @@ final class SpineSetupPoseRenderer {
     private let declarativePlan: DeclarativeBindingPlan
     private let physicsConstraintsEnabled: Bool
     private let rendererStartedAt: CFTimeInterval
-    private let animationTransitionDuration: CFTimeInterval = 0.30
+    private let animationTransitionDuration: CFTimeInterval
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
     private var cachedBatches: [Batch]
     private var cachedPoseKey = ""
@@ -478,6 +480,7 @@ final class SpineSetupPoseRenderer {
         idleAnimationName: String = "idle",
         loopingAnimationNames: Set<String> = ["idle"],
         oneShotAnimationNames: Set<String> = [],
+        animationTransitionSeconds: Double = 0.30,
         declarativePlan: DeclarativeBindingPlan = DeclarativeBindingPlan(bindings: [], effects: [])
     ) throws {
         let textureLoader = MTKTextureLoader(device: device)
@@ -568,6 +571,7 @@ final class SpineSetupPoseRenderer {
         let resolvedLoopingAnimationNames = loopingAnimationNames.union([resolvedIdleAnimationName])
         self.loopingAnimationNames = resolvedLoopingAnimationNames
         self.oneShotAnimationNames = oneShotAnimationNames.subtracting(resolvedLoopingAnimationNames)
+        self.animationTransitionDuration = max(0, min(animationTransitionSeconds, 10))
         self.declarativePlan = declarativePlan
         self.referenceScale = referenceScale
         self.rendererStartedAt = CACurrentMediaTime()
@@ -2149,10 +2153,6 @@ final class SpineSetupPoseRenderer {
             for raw in rawTransformConstraints {
                 let usesLocal = raw["local"] as? Bool ?? false
                 let usesRelative = raw["relative"] as? Bool ?? false
-                guard usesLocal == false, usesRelative == false else {
-                    fputs("Spine transform constraint uses unsupported local/relative mode and was skipped\n", stderr)
-                    continue
-                }
                 guard let boneNames = raw["bones"] as? [String],
                       let targetName = raw["target"] as? String,
                       let targetIndex = boneIndexByName[targetName] else {
@@ -2175,6 +2175,8 @@ final class SpineSetupPoseRenderer {
                     offsetScaleX: number(raw["scaleX"], default: 0),
                     offsetScaleY: number(raw["scaleY"], default: 0),
                     offsetShearY: number(raw["shearY"], default: 0),
+                    local: usesLocal,
+                    relative: usesRelative,
                     mixRotate: number(raw["mixRotate"], default: 1),
                     mixX: mixX,
                     mixY: number(raw["mixY"], default: mixX),
@@ -2542,6 +2544,27 @@ final class SpineSetupPoseRenderer {
             return
         }
 
+        if constraint.local {
+            if constraint.relative {
+                applyRelativeLocalTransformConstraint(constraint, to: &states)
+            } else {
+                applyAbsoluteLocalTransformConstraint(constraint, to: &states)
+            }
+            return
+        }
+
+        if constraint.relative {
+            applyRelativeWorldTransformConstraint(constraint, to: &states)
+            return
+        }
+
+        applyAbsoluteWorldTransformConstraint(constraint, to: &states)
+    }
+
+    private static func applyAbsoluteWorldTransformConstraint(
+        _ constraint: TransformPoseConstraint,
+        to states: inout [BonePoseState]
+    ) {
         let target = states[constraint.targetIndex]
         let targetDeterminant = target.a * target.d - target.c * target.b
         let reflectRadians = targetDeterminant > 0 ? (.pi / 180.0) : (-.pi / 180.0)
@@ -2602,6 +2625,129 @@ final class SpineSetupPoseRenderer {
             }
 
             updateAppliedTransform(index: boneIndex, states: &states)
+            updateAllBoneWorlds(&states)
+        }
+    }
+
+    private static func applyRelativeWorldTransformConstraint(
+        _ constraint: TransformPoseConstraint,
+        to states: inout [BonePoseState]
+    ) {
+        let target = states[constraint.targetIndex]
+        let targetDeterminant = target.a * target.d - target.c * target.b
+        let reflectRadians = targetDeterminant > 0 ? (.pi / 180.0) : (-.pi / 180.0)
+        let offsetRotation = constraint.offsetRotation * reflectRadians
+        let offsetShearY = constraint.offsetShearY * reflectRadians
+
+        for boneIndex in constraint.boneIndices where boneIndex < states.count {
+            if constraint.mixRotate != 0 {
+                let angle = (atan2(target.b, target.a) + offsetRotation) * constraint.mixRotate
+                rotateWorld(index: boneIndex, radians: angle, states: &states)
+            }
+
+            if constraint.mixX != 0 || constraint.mixY != 0 {
+                let targetPoint = localToWorld(
+                    x: constraint.offsetX,
+                    y: constraint.offsetY,
+                    state: target
+                )
+                states[boneIndex].tx += targetPoint.x * constraint.mixX
+                states[boneIndex].ty += targetPoint.y * constraint.mixY
+            }
+
+            if constraint.mixScaleX != 0 {
+                let currentScale = sqrt(states[boneIndex].a * states[boneIndex].a + states[boneIndex].b * states[boneIndex].b)
+                if currentScale != 0 {
+                    let targetScale = sqrt(target.a * target.a + target.b * target.b)
+                    let factor = ((targetScale - 1 + constraint.offsetScaleX) * constraint.mixScaleX + 1) / currentScale
+                    states[boneIndex].a *= factor
+                    states[boneIndex].b *= factor
+                }
+            }
+
+            if constraint.mixScaleY != 0 {
+                let currentScale = sqrt(states[boneIndex].c * states[boneIndex].c + states[boneIndex].d * states[boneIndex].d)
+                if currentScale != 0 {
+                    let targetScale = sqrt(target.c * target.c + target.d * target.d)
+                    let factor = ((targetScale - 1 + constraint.offsetScaleY) * constraint.mixScaleY + 1) / currentScale
+                    states[boneIndex].c *= factor
+                    states[boneIndex].d *= factor
+                }
+            }
+
+            if constraint.mixShearY > 0 {
+                let yAxisAngle = atan2(states[boneIndex].d, states[boneIndex].c)
+                let targetShearDelta = normalizeRadians(atan2(target.d, target.c) - atan2(target.b, target.a))
+                let mixedAngle = yAxisAngle + (targetShearDelta + offsetShearY) * constraint.mixShearY
+                let scale = sqrt(states[boneIndex].c * states[boneIndex].c + states[boneIndex].d * states[boneIndex].d)
+                states[boneIndex].c = cos(mixedAngle) * scale
+                states[boneIndex].d = sin(mixedAngle) * scale
+            }
+
+            updateAppliedTransform(index: boneIndex, states: &states)
+            updateAllBoneWorlds(&states)
+        }
+    }
+
+    private static func applyAbsoluteLocalTransformConstraint(
+        _ constraint: TransformPoseConstraint,
+        to states: inout [BonePoseState]
+    ) {
+        let target = states[constraint.targetIndex]
+        for boneIndex in constraint.boneIndices where boneIndex < states.count {
+            var bone = states[boneIndex]
+            if constraint.mixRotate != 0 {
+                bone.rotation += normalizeDegrees(
+                    target.rotation - bone.rotation + constraint.offsetRotation
+                ) * constraint.mixRotate
+            }
+            if constraint.mixX != 0 {
+                bone.x += (target.x - bone.x + constraint.offsetX) * constraint.mixX
+            }
+            if constraint.mixY != 0 {
+                bone.y += (target.y - bone.y + constraint.offsetY) * constraint.mixY
+            }
+            if constraint.mixScaleX != 0 {
+                bone.scaleX += (target.scaleX - bone.scaleX + constraint.offsetScaleX) * constraint.mixScaleX
+            }
+            if constraint.mixScaleY != 0 {
+                bone.scaleY += (target.scaleY - bone.scaleY + constraint.offsetScaleY) * constraint.mixScaleY
+            }
+            if constraint.mixShearY != 0 {
+                bone.shearY += (target.shearY - bone.shearY + constraint.offsetShearY) * constraint.mixShearY
+            }
+            states[boneIndex] = bone
+            updateAllBoneWorlds(&states)
+        }
+    }
+
+    private static func applyRelativeLocalTransformConstraint(
+        _ constraint: TransformPoseConstraint,
+        to states: inout [BonePoseState]
+    ) {
+        let target = states[constraint.targetIndex]
+        for boneIndex in constraint.boneIndices where boneIndex < states.count {
+            var bone = states[boneIndex]
+            if constraint.mixRotate != 0 {
+                bone.rotation += (target.rotation + constraint.offsetRotation) * constraint.mixRotate
+            }
+            if constraint.mixX != 0 {
+                bone.x += (target.x + constraint.offsetX) * constraint.mixX
+            }
+            if constraint.mixY != 0 {
+                bone.y += (target.y + constraint.offsetY) * constraint.mixY
+            }
+            if constraint.mixScaleX != 0 {
+                bone.scaleX += (target.scaleX - 1 + constraint.offsetScaleX) * constraint.mixScaleX
+            }
+            if constraint.mixScaleY != 0 {
+                bone.scaleY += (target.scaleY - 1 + constraint.offsetScaleY) * constraint.mixScaleY
+            }
+            if constraint.mixShearY != 0 {
+                bone.shearY += (target.shearY + constraint.offsetShearY) * constraint.mixShearY
+            }
+            states[boneIndex] = bone
+            updateAllBoneWorlds(&states)
         }
     }
 
@@ -4536,16 +4682,24 @@ final class SpineSetupPoseRenderer {
             projectedX = (worldX - placement.cameraX) / halfWidth
             projectedY = (worldY - placement.cameraY) / placement.orthographicSize
         } else {
-            let centerX = skeletonBounds.midX
-            let centerY = skeletonBounds.midY
-            let scale = 1.78 / max(skeletonBounds.width, skeletonBounds.height)
-            projectedX = (point.x - centerX) * scale
-            projectedY = (point.y - centerY) * scale
+            let projected = projectSkeletonBoundsPoint(point, skeletonBounds: skeletonBounds)
+            projectedX = projected.x
+            projectedY = projected.y
         }
 
         return SIMD2<Float>(
             Float((projectedX * placement.clipScale) + placement.clipOffsetX),
             Float((projectedY * placement.clipScale) + placement.clipOffsetY)
+        )
+    }
+
+    private static func projectSkeletonBoundsPoint(_ point: CGPoint, skeletonBounds: CGRect) -> CGPoint {
+        let width = max(skeletonBounds.width, 0.0001)
+        let height = max(skeletonBounds.height, 0.0001)
+        let scale = 2.0 / max(width, height)
+        return CGPoint(
+            x: (point.x - skeletonBounds.midX) * scale,
+            y: (point.y - skeletonBounds.midY) * scale
         )
     }
 

@@ -782,8 +782,12 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=11 calibrated=5 platformPolicy=3 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=11 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
+        )
+        check(
+            capabilitySummary.contains("layer\tvideo\tsupported\tbackground -> backgroundVideo foregroundOcclusion=source[0,0.805,1,0.195]->dest[0,0,1,0.195]"),
+            "runtime capabilities summary must expose bundle-owned foreground occlusion crop instead of hiding it in renderer code"
         )
         if runtime.manifest.interactions.isEmpty == false,
            runtime.manifest.interactionPolicy?.blockDesktopItems ?? true {
@@ -848,7 +852,7 @@ enum RuntimeSelfTest {
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=11 calibrated=5 platformPolicy=3 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=11 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceManagedScriptStatusOK
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceArchiveDescriptorStatusOK
@@ -1324,9 +1328,10 @@ enum RuntimeSelfTest {
         )
         check(
             declaredSpringPlan.bindingEntries.first?.runtimeStatus == .declaredOnly
+                && declaredSpringPlan.hasPointerInputBindings == false
                 && declaredSpringSnapshot.spineBoneRotationOffsets.isEmpty
                 && declaredSpringSnapshot.effectProperties.isEmpty,
-            "spring declarative bindings must remain declared-only until a stateful runtime implementation exists"
+            "spring declarative bindings must remain declared-only and must not enable pointer monitoring until a stateful runtime implementation exists"
         )
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"
@@ -2007,6 +2012,7 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"unity-managed-script-index\"")
                 && manifestSchemaText.contains("\"platformPolicyFields\"")
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
+                && manifestSchemaText.contains("\"nativeSpineTransitionSeconds\"")
                 && manifestSchemaText.contains("\"physicsIdlePolicy\"")
                 && manifestSchemaText.contains("\"tapAction\""),
             "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
@@ -2355,9 +2361,9 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=11 calibrated=5 platformPolicy=3 unsupported=1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=11 calibrated=5 platformPolicy=4 unsupported=1")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=11 calibrated=5 platformPolicy=3 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=11 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 platformPolicy=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
@@ -2392,7 +2398,7 @@ enum RuntimeSelfTest {
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("sample_imported=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=11 calibrated=5 platformPolicy=3 unsupported=1); derivation(partial imported=11 calibrated=5 platformPolicy=3 unsupported=1")
+                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=11 calibrated=5 platformPolicy=4 unsupported=1); derivation(partial imported=11 calibrated=5 platformPolicy=4 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
                 && completionAudit.contains("autoNative:true compositeDefault:false")
@@ -5991,6 +5997,113 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let localRelativeTransformSpineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -20,
+            "y": -20,
+            "width": 180,
+            "height": 140
+          },
+          "bones": [
+            { "name": "root" },
+            { "name": "target", "parent": "root", "x": 64, "y": 32, "rotation": 15, "scaleX": 1.2, "scaleY": 0.9 },
+            { "name": "localBone", "parent": "root", "x": 8, "y": 8 },
+            { "name": "relativeBone", "parent": "root", "x": 24, "y": 12 }
+          ],
+          "slots": [
+            { "name": "local-arm", "bone": "localBone", "attachment": "ik-quad" },
+            { "name": "relative-arm", "bone": "relativeBone", "attachment": "ik-quad" }
+          ],
+          "transform": [
+            {
+              "name": "supported-local-transform",
+              "bones": ["localBone"],
+              "target": "target",
+              "local": true,
+              "x": 8,
+              "y": 4,
+              "rotation": 10,
+              "scaleX": 0.1,
+              "scaleY": 0.1,
+              "mixRotate": 0.75,
+              "mixX": 0.5,
+              "mixY": 0.5,
+              "mixScaleX": 0.5,
+              "mixScaleY": 0.5
+            },
+            {
+              "name": "supported-relative-transform",
+              "bones": ["relativeBone"],
+              "target": "target",
+              "relative": true,
+              "x": 2,
+              "y": 1,
+              "rotation": 5,
+              "mixRotate": 0.5,
+              "mixX": 0.25,
+              "mixY": 0.25
+            }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "local-arm": {
+                  "ik-quad": {
+                    "type": "region",
+                    "path": "ik-quad",
+                    "x": 24,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16
+                  }
+                },
+                "relative-arm": {
+                  "ik-quad": {
+                    "type": "region",
+                    "path": "ik-quad",
+                    "x": 32,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "idle": {}
+          }
+        }
+        """
+        try Data(localRelativeTransformSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let localRelativeTransformCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
+        check(
+            localRelativeTransformCompatibility.isSupported,
+            "local and relative Spine transform constraints must be native-supported by the compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        let localRelativeTransformRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        try localRelativeTransformRuntime.requireNativeSpineGeometryIfSupported()
+        check(
+            localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
+                && localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("used=transform")
+                && localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("transform/supported-local-transform:local") == false
+                && localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("transform/supported-relative-transform:relative") == false,
+            "capability diagnostics must report local/relative Spine transform constraints as supported once renderer support exists",
+            failures: &failures,
+            checks: &checks
+        )
 
         let spineJSON = """
         {
@@ -6186,7 +6299,6 @@ enum RuntimeSelfTest {
         )
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tunsupported")
-                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("transform/unsupported-local-transform:local")
                 && unsupportedRuntime.runtimeCapabilitiesSummary().contains("ik/unsupported-multi-bone-ik:multi-bone"),
             "capability diagnostics must expose unsupported native Spine constraint usages",
             failures: &failures,
