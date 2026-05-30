@@ -5342,7 +5342,7 @@ enum RuntimeSelfTest {
                     },
                     {
                       "time": 0.05,
-                      "color": "ff8080bf"
+                      "color": "ffffffff"
                     }
                   ],
                   "rgb": [
@@ -5352,7 +5352,7 @@ enum RuntimeSelfTest {
                     },
                     {
                       "time": 0.05,
-                      "color": "ff8080"
+                      "color": "ffffff"
                     }
                   ],
                   "alpha": [
@@ -5362,7 +5362,19 @@ enum RuntimeSelfTest {
                     },
                     {
                       "time": 0.05,
-                      "value": 0.75
+                      "value": 1
+                    }
+                  ],
+                  "rgba2": [
+                    {
+                      "time": 0.02,
+                      "light": "ff8080bf",
+                      "dark": "111111ff"
+                    },
+                    {
+                      "time": 0.05,
+                      "light": "80ffe0bf",
+                      "dark": "333333ff"
                     }
                   ]
                 }
@@ -5381,6 +5393,42 @@ enum RuntimeSelfTest {
                       ]
                     }
                   }
+                }
+              }
+            },
+            "rgb2only": {
+              "slots": {
+                "slot": {
+                  "rgb2": [
+                    {
+                      "time": 0,
+                      "light": "ffffff",
+                      "dark": "222222ff"
+                    },
+                    {
+                      "time": 0.05,
+                      "light": "80ffe0",
+                      "dark": "333333ff"
+                    }
+                  ]
+                }
+              }
+            },
+            "legacyTwoColor": {
+              "slots": {
+                "slot": {
+                  "twoColor": [
+                    {
+                      "time": 0,
+                      "light": "ffffffff",
+                      "dark": "222222ff"
+                    },
+                    {
+                      "time": 0.05,
+                      "light": "ffe0e0bf",
+                      "dark": "111111ff"
+                    }
+                  ]
                 }
               }
             }
@@ -5504,8 +5552,8 @@ enum RuntimeSelfTest {
         )
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.color,slots.rgb"),
-            "runtime capabilities must report legacy slot color plus rgb/alpha component timelines as supported",
+                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.color,slots.rgb,slots.rgb2,slots.rgba2,slots.twoColor"),
+            "runtime capabilities must report legacy slot color plus rgb/alpha, Spine 4.2 rgb2/rgba2, and legacy twoColor timelines as supported",
             failures: &failures,
             checks: &checks
         )
@@ -5530,13 +5578,27 @@ enum RuntimeSelfTest {
                 && linkedMeshAnimationPlan.contains("slot.alpha=1")
                 && linkedMeshAnimationPlan.contains("slot.color=1")
                 && linkedMeshAnimationPlan.contains("slot.rgb=1")
+                && linkedMeshAnimationPlan.contains("slot.rgba2=1")
+                && linkedMeshAnimationPlan.contains("slot.rgb2=1")
+                && linkedMeshAnimationPlan.contains("slot.twoColor=1")
                 && linkedMeshAnimationPlan.contains("attachment.sequence=1"),
-            "Spine animation diagnostics must align with native runtime support for slot color/rgb/alpha and sequence timelines",
+            "Spine animation diagnostics must align with native runtime support for slot color/rgb/alpha/rgb2/rgba2/twoColor and sequence timelines",
             failures: &failures,
             checks: &checks
         )
         if SpineGeometryDiagnostics.validationStatus(runtime: linkedMeshRuntime) == "required" {
             try linkedMeshRuntime.requireNativeSpineGeometryIfSupported()
+            let linkedMeshGeometryPlan = try SpineGeometryDiagnostics.make(runtime: linkedMeshRuntime)
+            let setupFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "idle", time: "0.000s")
+            let firstTwoColorFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "idle", time: "0.020s")
+            check(
+                setupFingerprint != nil
+                    && firstTwoColorFingerprint != nil
+                    && setupFingerprint != firstTwoColorFingerprint,
+                "Spine rgba2 timelines must preserve setup tint before the first keyframe and change geometry at the first keyframe",
+                failures: &failures,
+                checks: &checks
+            )
         }
 
         let legacySkinSpineJSON = """
@@ -6447,6 +6509,20 @@ enum RuntimeSelfTest {
     private static func occurrenceCount(_ needle: String, in haystack: String) -> Int {
         guard needle.isEmpty == false else { return 0 }
         return haystack.components(separatedBy: needle).count - 1
+    }
+
+    private static func geometryFingerprint(in plan: String, action: String, time: String) -> String? {
+        for line in plan.split(separator: "\n", omittingEmptySubsequences: false) {
+            let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
+            guard columns.count >= 10,
+                  columns[0] == "geometry",
+                  columns[1] == action,
+                  columns[2] == time else {
+                continue
+            }
+            return String(columns[9])
+        }
+        return nil
     }
 
     private static func assertGenericRuntimeSourceBoundary(

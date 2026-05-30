@@ -164,7 +164,7 @@ final class SpineSetupPoseRenderer {
         let boneName: String?
         var attachment: String?
         var color: SIMD4<Float>
-        let darkColor: SIMD4<Float>
+        var darkColor: SIMD4<Float>
         let blendMode: RenderBlendMode
     }
 
@@ -175,6 +175,15 @@ final class SpineSetupPoseRenderer {
         let value: Double
         let color: SIMD4<Float>?
         let attachment: String?
+        let stepped: Bool
+        let curve: [Double]?
+    }
+
+    private struct TwoColorFrame {
+        let time: Double
+        let lightColor: SIMD4<Float>
+        let darkColor: SIMD4<Float>
+        let lightIncludesAlpha: Bool
         let stepped: Bool
         let curve: [Double]?
     }
@@ -245,12 +254,14 @@ final class SpineSetupPoseRenderer {
         var rgba: [TimelineFrame] = []
         var rgb: [TimelineFrame] = []
         var alpha: [TimelineFrame] = []
+        var twoColor: [TwoColorFrame] = []
         var attachment: [TimelineFrame] = []
 
         var frameTimes: [Double] {
             [rgba, rgb, alpha, attachment]
                 .flatMap { $0 }
                 .map(\.time)
+                + twoColor.map(\.time)
         }
 
         var discreteTransitionTimes: [Double] {
@@ -1197,6 +1208,21 @@ final class SpineSetupPoseRenderer {
                 let color = replacingAlpha(of: posedSlots[slotIndex].color, with: alpha)
                 posedSlots[slotIndex].color = blend(posedSlots[slotIndex].color, color, Float(mix))
             }
+            if let twoColor = sampleTwoColor(
+                timelines.twoColor,
+                time: time,
+                defaultLightColor: setupSlot.color,
+                defaultDarkColor: setupSlot.darkColor
+            ) {
+                let lightColor = twoColor.lightIncludesAlpha
+                    ? twoColor.lightColor
+                    : replacingRGB(
+                        of: posedSlots[slotIndex].color,
+                        with: SIMD3<Float>(twoColor.lightColor.x, twoColor.lightColor.y, twoColor.lightColor.z)
+                    )
+                posedSlots[slotIndex].color = blend(posedSlots[slotIndex].color, lightColor, Float(mix))
+                posedSlots[slotIndex].darkColor = blend(posedSlots[slotIndex].darkColor, twoColor.darkColor, Float(mix))
+            }
             if timelines.attachment.isEmpty == false, mix >= 0.5 {
                 posedSlots[slotIndex].attachment = sampleAttachment(timelines.attachment, time: time, defaultAttachment: setupSlot.attachment)
             }
@@ -1409,6 +1435,15 @@ final class SpineSetupPoseRenderer {
                     if let raw = timelineSet["alpha"] {
                         timelines.alpha = parseAlphaFrames(raw)
                     }
+                    if let raw = timelineSet["rgba2"] {
+                        timelines.twoColor = parseTwoColorFrames(raw, lightIncludesAlpha: true)
+                    }
+                    if let raw = timelineSet["rgb2"], timelines.twoColor.isEmpty {
+                        timelines.twoColor = parseTwoColorFrames(raw, lightIncludesAlpha: false)
+                    }
+                    if let raw = timelineSet["twoColor"], timelines.twoColor.isEmpty {
+                        timelines.twoColor = parseTwoColorFrames(raw, lightIncludesAlpha: true)
+                    }
                     if let raw = timelineSet["attachment"] {
                         timelines.attachment = parseAttachmentFrames(raw)
                     }
@@ -1568,6 +1603,22 @@ final class SpineSetupPoseRenderer {
         .sorted { $0.time < $1.time }
     }
 
+    private static func parseTwoColorFrames(_ raw: Any, lightIncludesAlpha: Bool) -> [TwoColorFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.map { frame in
+            let rawLight = frame["light"] as? String
+            return TwoColorFrame(
+                time: number(frame["time"], default: 0),
+                lightColor: lightIncludesAlpha ? parseColor(rawLight) : parseRGBColor(rawLight),
+                darkColor: parseDarkColor(frame["dark"] as? String),
+                lightIncludesAlpha: lightIncludesAlpha,
+                stepped: isStepped(frame["curve"]),
+                curve: parseCurve(frame["curve"])
+            )
+        }
+        .sorted { $0.time < $1.time }
+    }
+
     private static func parseAttachmentFrames(_ raw: Any) -> [TimelineFrame] {
         guard let frames = raw as? [[String: Any]] else { return [] }
         return frames.map { frame in
@@ -1683,6 +1734,67 @@ final class SpineSetupPoseRenderer {
             curve: nil
         ))
         return Float(min(max(sampled.value, 0), 1))
+    }
+
+    private func sampleTwoColor(
+        _ frames: [TwoColorFrame],
+        time: Double,
+        defaultLightColor: SIMD4<Float>,
+        defaultDarkColor: SIMD4<Float>
+    ) -> (lightColor: SIMD4<Float>, darkColor: SIMD4<Float>, lightIncludesAlpha: Bool)? {
+        guard frames.isEmpty == false else { return nil }
+        guard time >= frames[0].time else { return nil }
+        let sampled = sampleTwoColor(
+            frames,
+            time: time,
+            defaultFrame: TwoColorFrame(
+                time: 0,
+                lightColor: defaultLightColor,
+                darkColor: defaultDarkColor,
+                lightIncludesAlpha: true,
+                stepped: true,
+                curve: nil
+            )
+        )
+        return (sampled.lightColor, sampled.darkColor, sampled.lightIncludesAlpha)
+    }
+
+    private func sampleTwoColor(_ frames: [TwoColorFrame], time: Double, defaultFrame: TwoColorFrame) -> TwoColorFrame {
+        guard frames.isEmpty == false else { return defaultFrame }
+        guard time > frames[0].time else { return frames[0] }
+
+        for index in 0..<(frames.count - 1) {
+            let current = frames[index]
+            let next = frames[index + 1]
+            if time <= next.time {
+                if current.stepped || next.time <= current.time {
+                    return current
+                }
+                let linearRatio = min(max((time - current.time) / (next.time - current.time), 0), 1)
+                // Matches existing slot color sampling: one curve ratio is shared across color channels.
+                let ratio = interpolateCurveValue(
+                    time: time,
+                    fromTime: current.time,
+                    toTime: next.time,
+                    fromValue: 0,
+                    toValue: 1,
+                    curve: current.curve,
+                    valueIndex: 0,
+                    fallbackRatio: linearRatio
+                )
+                let t = Float(ratio)
+                return TwoColorFrame(
+                    time: time,
+                    lightColor: current.lightColor + ((next.lightColor - current.lightColor) * t),
+                    darkColor: current.darkColor + ((next.darkColor - current.darkColor) * t),
+                    lightIncludesAlpha: current.lightIncludesAlpha,
+                    stepped: current.stepped,
+                    curve: nil
+                )
+            }
+        }
+
+        return frames.last ?? defaultFrame
     }
 
     private func sampleAttachment(_ frames: [TimelineFrame], time: Double, defaultAttachment: String?) -> String? {
