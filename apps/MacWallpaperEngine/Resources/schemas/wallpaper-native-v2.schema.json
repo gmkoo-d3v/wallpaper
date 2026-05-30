@@ -103,6 +103,14 @@
       "type": "array",
       "items": { "$ref": "#/$defs/interaction" }
     },
+    "bindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/declarativeBinding" }
+    },
+    "effects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/effect" }
+    },
     "validation": {
       "type": "object",
       "additionalProperties": false,
@@ -385,6 +393,83 @@
           "type": "array",
           "items": { "$ref": "#/$defs/pointerButton" }
         }
+      }
+    },
+    "declarativeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "target", "adapter"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "source": {
+          "enum": [
+            "pointer.position",
+            "pointer.down",
+            "system.time",
+            "thermal.state"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(spine\\.bone\\.|spine\\.animation\\.|effect\\.)[A-Za-z0-9_.:-]+$"
+        },
+        "adapter": { "$ref": "#/$defs/bindingAdapter" },
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "bindingAdapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "smooth-lookat",
+            "trigger-play",
+            "map-range",
+            "spring"
+          ]
+        },
+        "neutralPoint": { "$ref": "#/$defs/point" },
+        "deadZone": { "$ref": "#/$defs/point" },
+        "interpolation": { "enum": ["linear", "smooth-step", "spring"] },
+        "factor": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "inputRange": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 8
+        },
+        "outputRange": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 8
+        },
+        "loop": { "type": "boolean" }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": [
+            "blur",
+            "colorMatrix",
+            "scroll",
+            "chromaticAberration"
+          ]
+        },
+        "properties": { "type": "object" }
       }
     },
     "point": {

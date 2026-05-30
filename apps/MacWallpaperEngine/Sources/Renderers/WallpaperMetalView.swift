@@ -56,7 +56,9 @@ final class WallpaperMetalView: MTKView {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
+        let declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
         let hasDeclaredInteractions = runtime.manifest.interactions.isEmpty == false
+            || declarativePlan.hasPointerInputBindings
         let shouldEnableInteraction = runtime.config.interactive
             && displayRole.allowsInteraction
             && hasDeclaredInteractions
@@ -75,12 +77,14 @@ final class WallpaperMetalView: MTKView {
         self.pointerMoveInputMask = InteractionPlan(
             interactions: runtime.manifest.interactions,
             policy: manifestInteractionPolicy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         ).pointerMoveInputMask()
         self.interaction = InteractionController(
             interactions: runtime.manifest.interactions,
             policy: manifestInteractionPolicy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         )
         self.compositor = try MetalCompositor(
             device: device,

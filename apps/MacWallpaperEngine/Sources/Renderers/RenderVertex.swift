@@ -9,11 +9,21 @@ struct RenderVertex {
 struct RenderUniforms {
     let transform: SIMD4<Float>
     let aspectScale: SIMD4<Float>
+    let textureTransform: SIMD4<Float>
+    let effectParams: SIMD4<Float>
 
-    static func make(scale: Float, offset: SIMD2<Float>, aspectScale: SIMD2<Float>) -> RenderUniforms {
+    static func make(
+        scale: Float,
+        offset: SIMD2<Float>,
+        aspectScale: SIMD2<Float>,
+        textureOffset: SIMD2<Float> = SIMD2<Float>(0, 0),
+        effectParams: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0)
+    ) -> RenderUniforms {
         RenderUniforms(
             transform: SIMD4<Float>(scale, offset.x, offset.y, 0),
-            aspectScale: SIMD4<Float>(aspectScale.x, aspectScale.y, 0, 0)
+            aspectScale: SIMD4<Float>(aspectScale.x, aspectScale.y, 0, 0),
+            textureTransform: SIMD4<Float>(textureOffset.x, textureOffset.y, 0, 0),
+            effectParams: effectParams
         )
     }
 }

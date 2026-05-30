@@ -766,6 +766,14 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("interaction\tpointerMove/lookDirection"),
             "runtime capabilities summary must report pointer movement support"
         )
+        check(
+            capabilitySummary.contains("binding\tdeclarative\tnot-used\tno manifest-declared bindings"),
+            "runtime capabilities summary must expose declarative binding namespace even when the active bundle declares none"
+        )
+        check(
+            capabilitySummary.contains("effect\twhitelist\tnot-used\tno manifest-declared effects"),
+            "runtime capabilities summary must expose whitelist effect namespace even when the active bundle declares none"
+        )
         let expectedDesktopItemGate = (runtime.manifest.interactionPolicy?.blockDesktopItems ?? true)
             ? "desktopItemGate=best-effort"
             : "desktopItemGate=not-required"
@@ -1012,6 +1020,313 @@ enum RuntimeSelfTest {
         check(
             customLookController.snapshot().command == "lookCenter",
             "interaction controller reset must return to the manifest-declared idle action"
+        )
+        let triggerPlayBindingPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "tapWave",
+                    source: .pointerDown,
+                    target: "spine.animation.wave",
+                    adapter: BindingAdapter(
+                        type: .triggerPlay,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: nil,
+                        factor: nil,
+                        inputRange: nil,
+                        outputRange: nil,
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: []
+        )
+        let bindingPlanHit = InteractionPlan(
+            interactions: [],
+            policy: nil,
+            actionTailDurations: ["wave": 0.42],
+            declarativePlan: triggerPlayBindingPlan
+        ).hitTest(point: CGPoint(x: 0.40, y: 0.40), button: .left)
+        check(
+            triggerPlayBindingPlan.bindingEntries.first?.runtimeStatus == .runtimeExecutable
+                && triggerPlayBindingPlan.hasPointerInputBindings
+                && bindingPlanHit?.zoneID == "binding:tapWave"
+                && bindingPlanHit?.action == "wave"
+                && abs((bindingPlanHit?.tailSeconds ?? 0) - 0.42) < 0.001,
+            "pointer.down trigger-play bindings must objectize into executable pointerDown actions without hard-coded hit zones"
+        )
+        var triggerPlayClock: CFTimeInterval = 0
+        let triggerPlayController = InteractionController(
+            interactions: [],
+            policy: InteractionPolicy(
+                mode: .desktopEmptyOnly,
+                blockApplicationWindows: true,
+                blockDesktopItems: true,
+                pointerSmoothing: 0,
+                pointerSampleFps: 60,
+                idleDeadZone: 0.12,
+                directionSwitchMargin: 0.04,
+                defaultClickTailSeconds: 1.15,
+                releaseFadeSeconds: 0.20
+            ),
+            actionTailDurations: ["wave": 0.42],
+            declarativePlan: triggerPlayBindingPlan,
+            clock: { triggerPlayClock }
+        )
+        triggerPlayController.pointerDown(at: CGPoint(x: 0.25, y: 0.25), button: .left)
+        let triggerPlayDown = triggerPlayController.snapshot()
+        triggerPlayController.pointerUp(at: CGPoint(x: 0.25, y: 0.25), button: .left)
+        let triggerPlayUp = triggerPlayController.snapshot()
+        triggerPlayClock += 0.53
+        let triggerPlayExpired = triggerPlayController.snapshot()
+        check(
+            triggerPlayDown.command == "wave"
+                && triggerPlayUp.command == "wave"
+                && triggerPlayExpired.command == "idle",
+            "interaction controller must execute trigger-play declarative bindings through the same click command path as manifest hit zones"
+        )
+        let colorMatrixEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "pressBrightness",
+                    source: .pointerDown,
+                    target: "effect.tone.brightness",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 1],
+                        outputRange: [0, 0.25],
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "tone",
+                    type: .colorMatrix,
+                    properties: [
+                        "opacity": .number(0.5)
+                    ]
+                )
+            ]
+        )
+        let colorMatrixSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: colorMatrixEffectPlan,
+            input: DeclarativeBindingEvaluationInput(pointerDown: true)
+        )
+        let colorMatrixState = DeclarativeEffectState.make(
+            plan: colorMatrixEffectPlan,
+            snapshot: colorMatrixSnapshot
+        )
+        check(
+            abs(Double(colorMatrixState.colorMultiplier.x) - 1.25) < 0.001
+                && abs(Double(colorMatrixState.colorMultiplier.y) - 1.25) < 0.001
+                && abs(Double(colorMatrixState.colorMultiplier.z) - 1.25) < 0.001
+                && abs(Double(colorMatrixState.colorMultiplier.w) - 0.5) < 0.001,
+            "colorMatrix whitelist effects must convert evaluated bindings into renderer-owned color multipliers"
+        )
+        check(
+            colorMatrixEffectPlan.effectEntries.first?.runtimeStatus == .runtimeRendered,
+            "whitelist effect plan entries must report runtime-rendered status when the renderer owns the implementation"
+        )
+        let scrollEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "pressPan",
+                    source: .pointerDown,
+                    target: "effect.pan.offsetX",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 1],
+                        outputRange: [0, 0.75],
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "pan",
+                    type: .scroll,
+                    properties: [
+                        "offsetY": .number(-0.10)
+                    ]
+                )
+            ]
+        )
+        let scrollSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: scrollEffectPlan,
+            input: DeclarativeBindingEvaluationInput(pointerDown: true)
+        )
+        let scrollState = DeclarativeEffectState.make(
+            plan: scrollEffectPlan,
+            snapshot: scrollSnapshot
+        )
+        check(
+            abs(Double(scrollState.textureOffset.x) - 0.75) < 0.001
+                && abs(Double(scrollState.textureOffset.y) - 0.90) < 0.001,
+            "scroll whitelist effects must convert evaluated bindings into wrapped renderer texture offsets"
+        )
+        let timeLoopEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "timePanLoop",
+                    source: .systemTime,
+                    target: "effect.loopPan.offsetX",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 2],
+                        outputRange: [0, 1],
+                        loop: true
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "loopPan",
+                    type: .scroll,
+                    properties: [:]
+                )
+            ]
+        )
+        let timeLoopSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: timeLoopEffectPlan,
+            input: DeclarativeBindingEvaluationInput(systemTimeSeconds: 2.5)
+        )
+        let timeLoopState = DeclarativeEffectState.make(
+            plan: timeLoopEffectPlan,
+            snapshot: timeLoopSnapshot
+        )
+        check(
+            abs(Double(timeLoopState.textureOffset.x) - 0.25) < 0.001,
+            "map-range loop adapters must wrap system.time into the declared input range for safe time-based effects"
+        )
+        let fragmentEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "thermalBlur",
+                    source: .thermalState,
+                    target: "effect.soft.radius",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 1],
+                        outputRange: [0, 6],
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "soft",
+                    type: .blur,
+                    properties: [:]
+                ),
+                EffectConfig(
+                    id: "split",
+                    type: .chromaticAberration,
+                    properties: [
+                        "amount": .number(2.5)
+                    ]
+                )
+            ]
+        )
+        let fragmentEffectSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: fragmentEffectPlan,
+            input: DeclarativeBindingEvaluationInput(thermalStateLevel: 0.5)
+        )
+        let fragmentEffectState = DeclarativeEffectState.make(
+            plan: fragmentEffectPlan,
+            snapshot: fragmentEffectSnapshot
+        )
+        check(
+            abs(Double(fragmentEffectState.fragmentEffectParams.x) - 3.0) < 0.001
+                && abs(Double(fragmentEffectState.fragmentEffectParams.y) - 2.5) < 0.001,
+            "blur and chromaticAberration whitelist effects must convert bindings into renderer-owned fragment parameters"
+        )
+        let smoothLookAtPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "lookHead",
+                    source: .pointerPosition,
+                    target: "spine.bone.head",
+                    adapter: BindingAdapter(
+                        type: .smoothLookAt,
+                        neutralPoint: InteractionPoint(x: 0.40, y: 0.60),
+                        deadZone: InteractionPoint(x: 0.03, y: 0.03),
+                        interpolation: .linear,
+                        factor: [30, -12],
+                        inputRange: nil,
+                        outputRange: nil,
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: []
+        )
+        let smoothLookAtCenter = DeclarativeBindingEvaluator.evaluate(
+            plan: smoothLookAtPlan,
+            input: DeclarativeBindingEvaluationInput(pointerPosition: CGPoint(x: 0.40, y: 0.60))
+        )
+        let smoothLookAtEdge = DeclarativeBindingEvaluator.evaluate(
+            plan: smoothLookAtPlan,
+            input: DeclarativeBindingEvaluationInput(pointerPosition: CGPoint(x: 1.0, y: 0.0))
+        )
+        check(
+            smoothLookAtPlan.bindingEntries.first?.runtimeStatus == .runtimeExecutable
+                && (smoothLookAtCenter.spineBoneRotationOffsets["head"] ?? -1) == 0
+                && abs((smoothLookAtEdge.spineBoneRotationOffsets["head"] ?? 0) - 25.2) < 0.001,
+            "smooth-lookat bindings must evaluate pointer.position into manifest-targeted Spine bone rotation offsets using adapter-declared neutralPoint"
+        )
+        let declaredSpringPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "springHead",
+                    source: .pointerPosition,
+                    target: "spine.bone.head",
+                    adapter: BindingAdapter(
+                        type: .spring,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: nil,
+                        factor: [12],
+                        inputRange: nil,
+                        outputRange: nil,
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: []
+        )
+        let declaredSpringSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: declaredSpringPlan,
+            input: DeclarativeBindingEvaluationInput(pointerPosition: CGPoint(x: 1.0, y: 0.0))
+        )
+        check(
+            declaredSpringPlan.bindingEntries.first?.runtimeStatus == .declaredOnly
+                && declaredSpringSnapshot.spineBoneRotationOffsets.isEmpty
+                && declaredSpringSnapshot.effectProperties.isEmpty,
+            "spring declarative bindings must remain declared-only until a stateful runtime implementation exists"
         )
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"
@@ -2067,6 +2382,12 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
+                && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
+                && completionAudit.contains("sources=pointer.position+pointer.down+system.time+thermal.state")
+                && completionAudit.contains("spring(declared-only)")
+                && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
+                && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)")
+                && completionAudit.contains("dynamicShaderLoading=forbidden")
                 && completionAudit.contains("automated\tpass\tgeneric-runtime-source-boundary")
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("sample_imported=manifest-owned")
@@ -3736,6 +4057,276 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let declarativeContractRoot = fixtureParent.appendingPathComponent("declarative_contract_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: declarativeContractRoot,
+            imageSource: sourceImage,
+            id: "declarative_contract_bundle",
+            title: "Declarative Contract Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "softBlur",
+              "type": "blur",
+              "properties": {
+                "radius": 0
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "id": "thermalBlur",
+              "source": "thermal.state",
+              "target": "effect.softBlur.radius",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [0, 1],
+                "outputRange": [0, 6],
+                "interpolation": "linear"
+              }
+            }
+          ],
+"""
+        )
+        let declarativeContractDiagnostic = WallpaperBundleCatalog.diagnoseBundle(declarativeContractRoot)
+        check(
+            declarativeContractDiagnostic.status == .valid,
+            "bundle diagnostics must accept safe declarative bindings to whitelisted effects",
+            failures: &failures,
+            checks: &checks
+        )
+        let declarativeContractManifest = try ManifestLoader.load(
+            url: declarativeContractRoot.appendingPathComponent("wallpaper.native.json"),
+            bundleRoot: declarativeContractRoot
+        )
+        let declarativePlan = DeclarativeBindingPlan(manifest: declarativeContractManifest)
+        let declarativeSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: declarativePlan,
+            input: DeclarativeBindingEvaluationInput(thermalStateLevel: 0.5)
+        )
+        check(
+            declarativePlan.bindingEntries.map(\.summary) == [
+                "thermalBlur:thermal.state->effect.softBlur.radius via map-range runtime-executable"
+            ]
+                && declarativePlan.effectEntries.map(\.summary) == [
+                    "softBlur:blur properties=1 runtime-rendered"
+                ],
+            "declarative bindings and whitelist effects must be objectized into a runtime plan before renderer-specific execution",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            abs((declarativeSnapshot.number(effectID: "softBlur", property: "radius") ?? -1) - 3.0) < 0.001,
+            "map-range declarative bindings must evaluate safe numeric sources into whitelist effect property snapshots",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let timeLoopBindingRoot = fixtureParent.appendingPathComponent("time_loop_binding_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: timeLoopBindingRoot,
+            imageSource: sourceImage,
+            id: "time_loop_binding_bundle",
+            title: "Time Loop Binding Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "loopPan",
+              "type": "scroll"
+            }
+          ],
+          "bindings": [
+            {
+              "id": "timePanLoop",
+              "source": "system.time",
+              "target": "effect.loopPan.offsetX",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [0, 2],
+                "outputRange": [0, 1],
+                "interpolation": "linear",
+                "loop": true
+              }
+            }
+          ],
+"""
+        )
+        let timeLoopBindingDiagnostic = WallpaperBundleCatalog.diagnoseBundle(timeLoopBindingRoot)
+        let timeLoopManifest = try ManifestLoader.load(
+            url: timeLoopBindingRoot.appendingPathComponent("wallpaper.native.json"),
+            bundleRoot: timeLoopBindingRoot
+        )
+        let timeLoopPlan = DeclarativeBindingPlan(manifest: timeLoopManifest)
+        let timeLoopSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: timeLoopPlan,
+            input: DeclarativeBindingEvaluationInput(systemTimeSeconds: 2.5)
+        )
+        check(
+            timeLoopBindingDiagnostic.status == .valid
+                && abs((timeLoopSnapshot.number(effectID: "loopPan", property: "offsetX") ?? -1) - 0.25) < 0.001,
+            "bundle diagnostics must accept looped system.time map-range bindings and evaluate them through the manifest-declared adapter",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let unsafeBindingRoot = fixtureParent.appendingPathComponent("unsafe_binding_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: unsafeBindingRoot,
+            imageSource: sourceImage,
+            id: "unsafe_binding_bundle",
+            title: "Unsafe Binding Bundle",
+            manifestExtraJSON: """
+          "bindings": [
+            {
+              "id": "unsafeExec",
+              "source": "pointer.down",
+              "target": "exec.command.open",
+              "adapter": {
+                "type": "trigger-play"
+              }
+            }
+          ],
+"""
+        )
+        let unsafeBindingDiagnostic = WallpaperBundleCatalog.diagnoseBundle(unsafeBindingRoot)
+        check(
+            unsafeBindingDiagnostic.status == .invalid
+                && (unsafeBindingDiagnostic.errorMessage?.contains("Schema pattern mismatch") == true),
+            "bundle diagnostics must reject unsafe declarative binding target prefixes before runtime execution",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let missingEffectBindingRoot = fixtureParent.appendingPathComponent("missing_effect_binding_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: missingEffectBindingRoot,
+            imageSource: sourceImage,
+            id: "missing_effect_binding_bundle",
+            title: "Missing Effect Binding Bundle",
+            manifestExtraJSON: """
+          "bindings": [
+            {
+              "id": "missingEffect",
+              "source": "system.time",
+              "target": "effect.missing.opacity",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [0, 1],
+                "outputRange": [0, 1]
+              }
+            }
+          ],
+"""
+        )
+        let missingEffectBindingDiagnostic = WallpaperBundleCatalog.diagnoseBundle(missingEffectBindingRoot)
+        check(
+            missingEffectBindingDiagnostic.status == .invalid
+                && (missingEffectBindingDiagnostic.errorMessage?.contains("targets missing effect id") == true),
+            "bundle diagnostics must reject declarative bindings that target undeclared effects",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let unsupportedEffectPropertyRoot = fixtureParent.appendingPathComponent("unsupported_effect_property_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: unsupportedEffectPropertyRoot,
+            imageSource: sourceImage,
+            id: "unsupported_effect_property_bundle",
+            title: "Unsupported Effect Property Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "softBlur",
+              "type": "blur"
+            }
+          ],
+          "bindings": [
+            {
+              "id": "badBlurProperty",
+              "source": "thermal.state",
+              "target": "effect.softBlur.opacity",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [0, 1],
+                "outputRange": [0, 1]
+              }
+            }
+          ],
+"""
+        )
+        let unsupportedEffectPropertyDiagnostic = WallpaperBundleCatalog.diagnoseBundle(unsupportedEffectPropertyRoot)
+        check(
+            unsupportedEffectPropertyDiagnostic.status == .invalid
+                && (unsupportedEffectPropertyDiagnostic.errorMessage?.contains("targets unsupported blur effect property: opacity") == true),
+            "bundle diagnostics must reject bindings to unsupported properties for a declared whitelist effect type",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let unsupportedStaticEffectPropertyRoot = fixtureParent.appendingPathComponent("unsupported_static_effect_property_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: unsupportedStaticEffectPropertyRoot,
+            imageSource: sourceImage,
+            id: "unsupported_static_effect_property_bundle",
+            title: "Unsupported Static Effect Property Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "tone",
+              "type": "colorMatrix",
+              "properties": {
+                "radius": 1
+              }
+            }
+          ],
+"""
+        )
+        let unsupportedStaticEffectPropertyDiagnostic = WallpaperBundleCatalog.diagnoseBundle(unsupportedStaticEffectPropertyRoot)
+        check(
+            unsupportedStaticEffectPropertyDiagnostic.status == .invalid
+                && (unsupportedStaticEffectPropertyDiagnostic.errorMessage?.contains("effect tone property radius is not supported by colorMatrix") == true),
+            "bundle diagnostics must reject static properties outside each whitelist effect type contract",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let invalidLoopRangeRoot = fixtureParent.appendingPathComponent("invalid_loop_range_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: invalidLoopRangeRoot,
+            imageSource: sourceImage,
+            id: "invalid_loop_range_bundle",
+            title: "Invalid Loop Range Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "loopPan",
+              "type": "scroll"
+            }
+          ],
+          "bindings": [
+            {
+              "id": "badLoop",
+              "source": "system.time",
+              "target": "effect.loopPan.offsetX",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [2, 0],
+                "outputRange": [0, 1],
+                "loop": true
+              }
+            }
+          ],
+"""
+        )
+        let invalidLoopRangeDiagnostic = WallpaperBundleCatalog.diagnoseBundle(invalidLoopRangeRoot)
+        check(
+            invalidLoopRangeDiagnostic.status == .invalid
+                && (invalidLoopRangeDiagnostic.errorMessage?.contains("map-range loop requires an ascending inputRange") == true),
+            "bundle diagnostics must reject looped map-range bindings whose input range cannot define a forward cycle",
+            failures: &failures,
+            checks: &checks
+        )
+
         let unknownManifestPropertyRoot = fixtureParent.appendingPathComponent("unknown_manifest_property_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: unknownManifestPropertyRoot,
@@ -5026,7 +5617,7 @@ enum RuntimeSelfTest {
         let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
         try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
         let fixtureVideo = assetsRoot.appendingPathComponent("background.mp4")
-        let fixtureTexture = assetsRoot.appendingPathComponent("texture.jpg")
+        let fixtureTexture = assetsRoot.appendingPathComponent("texture.png")
         do {
             try fileManager.linkItem(at: sourceVideo, to: fixtureVideo)
         } catch {
@@ -5039,7 +5630,15 @@ enum RuntimeSelfTest {
         }
 
         let fixtureAtlas = assetsRoot.appendingPathComponent("character.atlas")
-        try Data("texture.jpg\nsize: 64,64\n".utf8).write(to: fixtureAtlas, options: .atomic)
+        let fixtureAtlasText = """
+        texture.png
+        size: 64,64
+
+        ik-quad
+        bounds: 0,0,64,64
+        offsets: 0,0,64,64
+        """
+        try Data(fixtureAtlasText.utf8).write(to: fixtureAtlas, options: .atomic)
 
         let fixtureSpineJSON = assetsRoot.appendingPathComponent("character.json")
         let eventOnlySpineJSON = """
@@ -5115,7 +5714,7 @@ enum RuntimeSelfTest {
               "json": "assets/character.json",
               "atlas": "assets/character.atlas",
               "textures": [
-                "assets/texture.jpg"
+                "assets/texture.png"
               ],
               "premultipliedAlpha": true
             }
@@ -5320,6 +5919,78 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let twoBoneIkSpineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -10,
+            "y": -10,
+            "width": 160,
+            "height": 120
+          },
+          "bones": [
+            { "name": "root" },
+            { "name": "target", "parent": "root", "x": 120, "y": 70 },
+            { "name": "upper", "parent": "root", "length": 100 },
+            { "name": "lower", "parent": "upper", "x": 100, "length": 80 }
+          ],
+          "slots": [
+            { "name": "arm", "bone": "lower", "attachment": "ik-quad" }
+          ],
+          "ik": [
+            {
+              "name": "supported-two-bone-ik",
+              "bones": ["upper", "lower"],
+              "target": "target"
+            }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "arm": {
+                  "ik-quad": {
+                    "type": "region",
+                    "path": "ik-quad",
+                    "x": 40,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "idle": {}
+          }
+        }
+        """
+        try Data(twoBoneIkSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let twoBoneIkCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
+        check(
+            twoBoneIkCompatibility.isSupported,
+            "2-bone Spine IK constraints must be native-supported by the compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        let twoBoneIkRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        try twoBoneIkRuntime.requireNativeSpineGeometryIfSupported()
+        check(
+            twoBoneIkRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
+                && twoBoneIkRuntime.runtimeCapabilitiesSummary().contains("used=ik")
+                && twoBoneIkRuntime.runtimeCapabilitiesSummary().contains("supported-two-bone-ik:multi-bone") == false,
+            "capability diagnostics must report 2-bone Spine IK as supported instead of unsupported multi-bone IK",
+            failures: &failures,
+            checks: &checks
+        )
 
         let spineJSON = """
         {
@@ -5329,7 +6000,8 @@ enum RuntimeSelfTest {
           "bones": [
             { "name": "root" },
             { "name": "target", "parent": "root" },
-            { "name": "child", "parent": "root" }
+            { "name": "mid", "parent": "root" },
+            { "name": "child", "parent": "mid" }
           ],
           "slots": [
             {
@@ -5343,7 +6015,7 @@ enum RuntimeSelfTest {
           "ik": [
             {
               "name": "unsupported-multi-bone-ik",
-              "bones": ["root", "child"],
+              "bones": ["root", "mid", "child"],
               "target": "target"
             }
           ],
@@ -5442,7 +6114,7 @@ enum RuntimeSelfTest {
               "json": "assets/character.json",
               "atlas": "assets/character.atlas",
               "textures": [
-                "assets/texture.jpg"
+                "assets/texture.png"
               ],
               "premultipliedAlpha": true
             }

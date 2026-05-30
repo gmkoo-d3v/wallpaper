@@ -40,6 +40,7 @@ final class InteractionController {
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
         actionTailDurations: [String: CFTimeInterval] = [:],
+        declarativePlan: DeclarativeBindingPlan? = nil,
         clock: @escaping () -> CFTimeInterval = CACurrentMediaTime
     ) {
         self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
@@ -48,7 +49,8 @@ final class InteractionController {
         let resolvedPlan = InteractionPlan(
             interactions: interactions,
             policy: policy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         )
         self.plan = resolvedPlan
         self.idleCommand = resolvedPlan.idleCommand()

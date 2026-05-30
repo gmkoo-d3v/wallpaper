@@ -44,6 +44,8 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     let layerKinds: [String]
     let interactionKinds: [String]
     let interactionRequirement: String
+    let bindingKinds: [String]
+    let effectKinds: [String]
     let nativeSpineStatus: String
     let nativeSpineReasons: [String]
     let nativeSpineDegradations: [String]
@@ -59,6 +61,8 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             "assets: \(assetKinds.joined(separator: "+"))",
             "layers: \(layerKinds.joined(separator: "+"))",
             "interactions: \(interactionKinds.joined(separator: "+"))",
+            "bindings: \(bindingKinds.joined(separator: "+"))",
+            "effects: \(effectKinds.joined(separator: "+"))",
             "input: \(interactionRequirement)",
             "native: \(nativeSpineSummary)",
             "fallback: \(fallbackStatus)",
@@ -115,6 +119,7 @@ enum RuntimeCapabilities {
 
     static func makeRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {
         let manifest = runtime.manifest
+        let declarativePlan = DeclarativeBindingPlan(manifest: manifest)
         var rows: [RuntimeCapabilityRow] = []
 
         rows.append(assetRow(name: "staticImage", isPresent: manifest.assets.staticImage != nil, detail: manifest.assets.staticImage?.path))
@@ -177,6 +182,8 @@ enum RuntimeCapabilities {
             policy: manifest.interactionPolicy,
             actionTailDurations: actionTailDurations
         ))
+        rows.append(contentsOf: declarativeBindingRows(declarativePlan))
+        rows.append(contentsOf: effectRows(declarativePlan))
         rows.append(contentsOf: spineRows(runtime: runtime))
 
         return rows
@@ -295,6 +302,9 @@ enum RuntimeCapabilities {
 
         let layerKinds = manifest.layers.map(\.type.rawValue).uniquePreservingOrder
         let interactionKinds = interactionKinds(for: manifest.interactions)
+        let declarativePlan = DeclarativeBindingPlan(manifest: manifest)
+        let bindingKinds = declarativePlan.bindingKinds
+        let effectKinds = declarativePlan.effectKinds
         let compatibility = nativeSpineCompatibility(manifest: manifest, bundleRoot: bundleRoot)
         let nativeSpineStatus: String
         if manifest.assets.spine == nil {
@@ -323,6 +333,8 @@ enum RuntimeCapabilities {
             layerKinds: layerKinds.isEmpty ? ["none"] : layerKinds,
             interactionKinds: interactionKinds,
             interactionRequirement: interactionRequirement(for: manifest.interactions, policy: manifest.interactionPolicy),
+            bindingKinds: bindingKinds,
+            effectKinds: effectKinds,
             nativeSpineStatus: nativeSpineStatus,
             nativeSpineReasons: compatibility.reasons,
             nativeSpineDegradations: compatibility.degradations,
@@ -555,6 +567,54 @@ enum RuntimeCapabilities {
         ))
 
         return rows
+    }
+
+    private static func declarativeBindingRows(_ plan: DeclarativeBindingPlan) -> [RuntimeCapabilityRow] {
+        guard plan.bindingEntries.isEmpty == false else {
+            return [
+                RuntimeCapabilityRow(
+                    category: "binding",
+                    name: "declarative",
+                    status: "not-used",
+                    detail: "no manifest-declared bindings"
+                )
+            ]
+        }
+
+        let enabledCount = plan.bindingEntries.filter(\.isEnabled).count
+        let ids = plan.bindingEntries.map(\.id).joined(separator: ",")
+        let adapters = plan.bindingEntries.map(\.adapterKind).uniquePreservingOrder.joined(separator: ",")
+        let targets = plan.bindingEntries.map { $0.target.kind.rawValue }.uniquePreservingOrder.joined(separator: ",")
+        return [
+            RuntimeCapabilityRow(
+                category: "binding",
+                name: "declarative",
+                status: "declared",
+                detail: "\(plan.bindingEntries.count) binding(s) enabled=\(enabledCount) status=\(plan.bindingStatusSummary) adapters=\(adapters) targets=\(targets) ids=\(ids)"
+            )
+        ]
+    }
+
+    private static func effectRows(_ plan: DeclarativeBindingPlan) -> [RuntimeCapabilityRow] {
+        guard plan.effectEntries.isEmpty == false else {
+            return [
+                RuntimeCapabilityRow(
+                    category: "effect",
+                    name: "whitelist",
+                    status: "not-used",
+                    detail: "no manifest-declared effects"
+                )
+            ]
+        }
+
+        return plan.effectEntries.map { effect in
+            RuntimeCapabilityRow(
+                category: "effect",
+                name: effect.id,
+                status: effect.runtimeStatus.rawValue,
+                detail: "type=\(effect.effectKind) properties=\(effect.propertyCount) status=\(effect.runtimeStatus.rawValue)"
+            )
+        }
     }
 
     private static func interactionKinds(for interactions: [InteractionConfig]) -> [String] {
@@ -957,7 +1017,9 @@ private struct SpineFeatureScan {
             for constraint in constraints {
                 let name = namedConstraint(constraint)
                 let boneCount = (constraint["bones"] as? [String])?.count ?? 0
-                if boneCount > 1 {
+                if boneCount < 1 {
+                    unsupportedConstraintUsages.insert("ik/\(name):missing-bones")
+                } else if boneCount > 2 {
                     unsupportedConstraintUsages.insert("ik/\(name):multi-bone")
                 }
             }

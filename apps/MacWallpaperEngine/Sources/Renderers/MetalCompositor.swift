@@ -25,6 +25,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private let displayName: String
     private let interaction: InteractionController
     private let interactionHitZones: [InteractionHitZoneSummary]
+    private let declarativePlan: DeclarativeBindingPlan
     private let governor: ResourceGovernor
     private let semaphore: DispatchSemaphore
     private let targetRenderFps: Int
@@ -77,6 +78,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         self.displayRole = displayRole
         self.displayName = displayName
         self.interaction = interaction
+        self.declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
         self.interactionHitZones = InteractionPlan(
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy
@@ -191,7 +193,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 physicsIdlePolicy: runtime.manifest.runtime.effectivePhysicsIdlePolicy,
                 idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
-                oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
+                oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
+                declarativePlan: declarativePlan
             )
             if let spineRenderer {
                 print("spine setup mesh OK: batches=\(spineRenderer.batchCount) vertices=\(spineRenderer.triangleVertexCount)")
@@ -283,6 +286,16 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         encoder.setRenderPipelineState(normalPipelineState)
         let interactionSnapshot = interaction.snapshot()
+        let effectSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: declarativePlan,
+            input: DeclarativeBindingEvaluationInput(
+                pointerPosition: interactionSnapshot.pointer,
+                pointerDown: interactionSnapshot.clickPulse > 0,
+                systemTimeSeconds: now,
+                thermalStateLevel: Self.thermalStateLevel(ProcessInfo.processInfo.thermalState)
+            )
+        )
+        let effectState = DeclarativeEffectState.make(plan: declarativePlan, snapshot: effectSnapshot)
         let pacedFps = framePacingFps(resourceFps: currentFps, interaction: interactionSnapshot)
         if shouldPause == false, view.preferredFramesPerSecond != pacedFps {
             view.preferredFramesPerSecond = pacedFps
@@ -306,11 +319,24 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         }
         let foregroundContentRect: CGRect
         if let videoTexture = baseVideoTexture {
-            drawVideo(texture: videoTexture, drawableSize: view.drawableSize, interaction: interactionSnapshot, encoder: encoder)
+            drawVideo(
+                texture: videoTexture,
+                drawableSize: view.drawableSize,
+                interaction: interactionSnapshot,
+                effectState: effectState,
+                encoder: encoder
+            )
             foregroundContentRect = videoContentRect(texture: videoTexture, drawableSize: view.drawableSize)
         } else if let fallbackBackground {
             foregroundContentRect = videoContentRect(texture: fallbackBackground, drawableSize: view.drawableSize)
-            draw(texture: fallbackBackground, rect: foregroundContentRect, encoder: encoder)
+            draw(
+                texture: fallbackBackground,
+                rect: foregroundContentRect,
+                color: effectState.colorMultiplier,
+                textureOffset: effectState.textureOffset,
+                effectParams: effectState.fragmentEffectParams,
+                encoder: encoder
+            )
         } else {
             foregroundContentRect = CGRect(x: -1, y: -1, width: 2, height: 2)
         }
@@ -390,6 +416,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         texture: MTLTexture,
         rect: CGRect,
         color: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
+        textureOffset: SIMD2<Float> = SIMD2<Float>(0, 0),
+        effectParams: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0),
         encoder: MTLRenderCommandEncoder
     ) {
         draw(
@@ -397,6 +425,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             rect: rect,
             texRect: CGRect(x: 0, y: 0, width: 1, height: 1),
             color: color,
+            textureOffset: textureOffset,
+            effectParams: effectParams,
             encoder: encoder
         )
     }
@@ -406,6 +436,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         rect: CGRect,
         texRect: CGRect,
         color: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
+        textureOffset: SIMD2<Float> = SIMD2<Float>(0, 0),
+        effectParams: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0),
         encoder: MTLRenderCommandEncoder
     ) {
         let x0 = Float(rect.minX)
@@ -425,7 +457,9 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         var uniforms = RenderUniforms.make(
             scale: 1,
             offset: SIMD2<Float>(0, 0),
-            aspectScale: SIMD2<Float>(1, 1)
+            aspectScale: SIMD2<Float>(1, 1),
+            textureOffset: textureOffset,
+            effectParams: effectParams
         )
         encoder.setVertexBytes(vertices, length: MemoryLayout<RenderVertex>.stride * vertices.count, index: 0)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)
@@ -437,17 +471,47 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         texture: MTLTexture,
         drawableSize: CGSize,
         interaction: InteractionSnapshot,
+        effectState: DeclarativeEffectState,
         encoder: MTLRenderCommandEncoder
     ) {
         switch runtime.config.fitMode {
         case .fill:
             let rect = videoContentRect(texture: texture, drawableSize: drawableSize)
-            draw(texture: texture, rect: interactiveVideoRect(rect, interaction: interaction), encoder: encoder)
+            draw(
+                texture: texture,
+                rect: interactiveVideoRect(rect, interaction: interaction),
+                color: effectState.colorMultiplier,
+                textureOffset: effectState.textureOffset,
+                effectParams: effectState.fragmentEffectParams,
+                encoder: encoder
+            )
         case .contain:
             let fillRect = aspectFillRect(texture: texture, drawableSize: drawableSize)
             draw(texture: texture, rect: fillRect, color: SIMD4<Float>(0.72, 0.72, 0.72, 1.0), encoder: encoder)
             let fitRect = videoContentRect(texture: texture, drawableSize: drawableSize)
-            draw(texture: texture, rect: interactiveVideoRect(fitRect, interaction: interaction), encoder: encoder)
+            draw(
+                texture: texture,
+                rect: interactiveVideoRect(fitRect, interaction: interaction),
+                color: effectState.colorMultiplier,
+                textureOffset: effectState.textureOffset,
+                effectParams: effectState.fragmentEffectParams,
+                encoder: encoder
+            )
+        }
+    }
+
+    private static func thermalStateLevel(_ state: ProcessInfo.ThermalState) -> Double {
+        switch state {
+        case .nominal:
+            return 0
+        case .fair:
+            return 0.33
+        case .serious:
+            return 0.66
+        case .critical:
+            return 1
+        @unknown default:
+            return 0
         }
     }
 
@@ -739,11 +803,14 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         float4 position [[position]];
         float2 texCoord;
         float4 color;
+        float4 effects;
     };
 
     struct Uniforms {
         float4 transform;
         float4 aspectScale;
+        float4 textureTransform;
+        float4 effectParams;
     };
 
     vertex RasterData wallpaper_vertex(
@@ -756,8 +823,13 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         position *= uniforms.aspectScale.xy;
         position += uniforms.transform.yz;
         out.position = float4(position, 0.0, 1.0);
-        out.texCoord = vertices[vertexID].texCoord;
+        float2 textureOffset = uniforms.textureTransform.xy;
+        out.texCoord = vertices[vertexID].texCoord + textureOffset;
+        if (any(abs(textureOffset) > float2(0.000001))) {
+            out.texCoord = fract(out.texCoord);
+        }
         out.color = vertices[vertexID].color;
+        out.effects = uniforms.effectParams;
         return out;
     }
 
@@ -771,7 +843,30 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             mip_filter::linear,
             address::clamp_to_edge
         );
+        float2 texel = float2(
+            1.0 / max(float(colorTexture.get_width()), 1.0),
+            1.0 / max(float(colorTexture.get_height()), 1.0)
+        );
+        float blurRadius = max(in.effects.x, 0.0);
+        float chromaticOffset = max(in.effects.y, 0.0);
+
         float4 sample = colorTexture.sample(textureSampler, in.texCoord);
+        if (blurRadius > 0.000001) {
+            float2 blurStep = texel * blurRadius;
+            sample = (
+                sample * 0.36
+                + colorTexture.sample(textureSampler, in.texCoord + float2(blurStep.x, 0.0)) * 0.16
+                + colorTexture.sample(textureSampler, in.texCoord - float2(blurStep.x, 0.0)) * 0.16
+                + colorTexture.sample(textureSampler, in.texCoord + float2(0.0, blurStep.y)) * 0.16
+                + colorTexture.sample(textureSampler, in.texCoord - float2(0.0, blurStep.y)) * 0.16
+            );
+        }
+        if (chromaticOffset > 0.000001) {
+            float2 chromaticStep = texel * chromaticOffset;
+            float red = colorTexture.sample(textureSampler, in.texCoord + chromaticStep).r;
+            float blue = colorTexture.sample(textureSampler, in.texCoord - chromaticStep).b;
+            sample = float4(red, sample.g, blue, sample.a);
+        }
         return sample * in.color;
     }
     """

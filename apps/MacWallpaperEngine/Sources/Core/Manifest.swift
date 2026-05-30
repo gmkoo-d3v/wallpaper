@@ -12,6 +12,8 @@ struct WallpaperNativeManifest: Decodable {
     let assets: AssetManifest
     let layers: [LayerConfig]
     let interactions: [InteractionConfig]
+    let bindings: [DeclarativeBinding]?
+    let effects: [EffectConfig]?
     let validation: ValidationConfig
 }
 
@@ -260,6 +262,97 @@ struct PointerDownDefaultAction: Decodable {
     let trigger: HitZoneTrigger?
     let tailSeconds: Double?
     let buttons: [PointerButton]?
+}
+
+struct DeclarativeBinding: Decodable {
+    let id: String
+    let source: BindingSource
+    let target: String
+    let adapter: BindingAdapter
+    let enabled: Bool?
+}
+
+enum BindingSource: String, Decodable {
+    case pointerPosition = "pointer.position"
+    case pointerDown = "pointer.down"
+    case systemTime = "system.time"
+    case thermalState = "thermal.state"
+}
+
+struct BindingAdapter: Decodable {
+    let type: BindingAdapterType
+    let neutralPoint: InteractionPoint?
+    let deadZone: InteractionPoint?
+    let interpolation: BindingInterpolation?
+    let factor: [Double]?
+    let inputRange: [Double]?
+    let outputRange: [Double]?
+    let loop: Bool?
+}
+
+enum BindingAdapterType: String, Decodable {
+    case smoothLookAt = "smooth-lookat"
+    case triggerPlay = "trigger-play"
+    case mapRange = "map-range"
+    case spring
+}
+
+enum BindingInterpolation: String, Decodable {
+    case linear
+    case smoothStep = "smooth-step"
+    case spring
+}
+
+struct EffectConfig: Decodable {
+    let id: String
+    let type: EffectType
+    let properties: [String: EffectPropertyValue]?
+}
+
+enum EffectType: String, Decodable {
+    case blur
+    case colorMatrix
+    case scroll
+    case chromaticAberration
+}
+
+enum EffectPropertyValue: Decodable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case stringArray([String])
+    case numberArray([Double])
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let bool = try? container.decode(Bool.self) {
+            self = .bool(bool)
+            return
+        }
+        if let number = try? container.decode(Double.self) {
+            self = .number(number)
+            return
+        }
+        if let string = try? container.decode(String.self) {
+            self = .string(string)
+            return
+        }
+        if let numbers = try? container.decode([Double].self) {
+            self = .numberArray(numbers)
+            return
+        }
+        if let strings = try? container.decode([String].self) {
+            self = .stringArray(strings)
+            return
+        }
+        throw DecodingError.typeMismatch(
+            EffectPropertyValue.self,
+            DecodingError.Context(
+                codingPath: decoder.codingPath,
+                debugDescription: "Effect property values must be string, number, bool, string array, or number array"
+            )
+        )
+    }
 }
 
 struct ValidationConfig: Decodable {

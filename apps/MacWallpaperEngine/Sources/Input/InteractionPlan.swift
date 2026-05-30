@@ -86,11 +86,13 @@ struct InteractionPlan {
     private let directionSwitchMargin: CGFloat
     private let defaultClickTailDuration: CFTimeInterval
     private let actionTailDurations: [String: CFTimeInterval]
+    private let triggerPlayBindings: [DeclarativeBindingPlanEntry]
 
     init(
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
-        actionTailDurations: [String: CFTimeInterval] = [:]
+        actionTailDurations: [String: CFTimeInterval] = [:],
+        declarativePlan: DeclarativeBindingPlan? = nil
     ) {
         self.interactions = interactions
         self.pointerSmoothing = CGFloat(policy?.pointerSmoothing ?? 0.18)
@@ -98,6 +100,7 @@ struct InteractionPlan {
         self.directionSwitchMargin = CGFloat(policy?.directionSwitchMargin ?? 0.10)
         self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
         self.actionTailDurations = actionTailDurations
+        self.triggerPlayBindings = declarativePlan?.triggerPlayBindings ?? []
     }
 
     func smooth(
@@ -176,11 +179,60 @@ struct InteractionPlan {
     }
 
     func hitTest(point: CGPoint, button: PointerButton) -> InteractionHitResult? {
-        let pointer = clamp(point)
-        guard let config = interactions.first(where: { $0.event == .pointerDown }) else {
+        if let legacyHit = legacyHitTest(point: point, button: button) {
+            return legacyHit
+        }
+        return bindingTriggerHit(button: button)
+    }
+
+    private func bindingTriggerHit(button: PointerButton) -> InteractionHitResult? {
+        guard button == .left,
+              let binding = triggerPlayBindings.first else {
             return nil
         }
-        let interactionButtons = config.buttons ?? [.left]
+        let action = binding.target.id
+        return InteractionHitResult(
+            zoneID: "binding:\(binding.id)",
+            action: action,
+            tapAction: nil,
+            trigger: .tap,
+            tailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
+            tapTailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
+            holdStartSeconds: 0
+        )
+    }
+
+    func hasPointerDownBindingTriggers() -> Bool {
+        triggerPlayBindings.isEmpty == false
+    }
+
+    func pointerDownBindingSummaries() -> [String] {
+        triggerPlayBindings.map { binding in
+            "\(binding.id):\(binding.source.rawValue)->\(binding.target.summary)"
+        }
+    }
+
+    private func pointerDownConfig() -> InteractionConfig? {
+        interactions.first(where: { $0.event == .pointerDown })
+    }
+
+    private func pointerDownButtons(from config: InteractionConfig?) -> [PointerButton] {
+        config?.buttons ?? [.left]
+    }
+
+    func acceptsPointerDown(button: PointerButton) -> Bool {
+        if let config = pointerDownConfig() {
+            return pointerDownButtons(from: config).contains(button)
+        }
+        return button == .left && hasPointerDownBindingTriggers()
+    }
+
+    private func legacyHitTest(point: CGPoint, button: PointerButton) -> InteractionHitResult? {
+        let pointer = clamp(point)
+        guard let config = pointerDownConfig() else {
+            return nil
+        }
+        let interactionButtons = pointerDownButtons(from: config)
         guard interactionButtons.contains(button) else { return nil }
         let matches = (config.hitZones ?? []).enumerated().compactMap { index, hitZone -> (index: Int, hitZone: HitZone)? in
             let zoneButtons = hitZone.buttons ?? interactionButtons

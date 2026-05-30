@@ -132,6 +132,12 @@ enum ManifestLoader {
         }
         try validateInteractions(manifest.interactions)
         try validateInteractionPolicy(manifest.interactionPolicy)
+        try validateEffects(manifest.effects ?? [])
+        try validateBindings(
+            manifest.bindings ?? [],
+            effects: manifest.effects ?? [],
+            hasSpine: manifest.assets.spine != nil
+        )
 
         if let staticImage = manifest.assets.staticImage {
             let imageURL = try validateRelativePath(staticImage.path, bundleRoot: bundleRoot)
@@ -163,7 +169,10 @@ enum ManifestLoader {
             try validateSpineJSON(
                 spineJSON,
                 requiredVersion: manifest.validation.requireSpineVersion,
-                referencedActions: referencedAnimationActions(in: manifest.interactions)
+                referencedActions: referencedAnimationActions(
+                    in: manifest.interactions,
+                    bindings: manifest.bindings ?? []
+                )
             )
             try validateNativeSpineFallbackReadiness(manifest, bundleRoot: bundleRoot)
         } else if manifest.interactions.isEmpty == false {
@@ -434,6 +443,241 @@ enum ManifestLoader {
         }
     }
 
+    private static func validateEffects(_ effects: [EffectConfig]) throws {
+        guard effects.count <= 64 else {
+            throw EngineError.manifest("effects must contain at most 64 entries")
+        }
+        var seen = Set<String>()
+        for effect in effects {
+            try validateDeclarativeIdentifier(effect.id, label: "effect id")
+            guard seen.insert(effect.id).inserted else {
+                throw EngineError.manifest("effect ids must be unique: \(effect.id)")
+            }
+            let properties = effect.properties ?? [:]
+            guard properties.count <= 64 else {
+                throw EngineError.manifest("effect \(effect.id) properties must contain at most 64 entries")
+            }
+            for (key, value) in properties {
+                try validateDeclarativeIdentifier(key, label: "effect \(effect.id) property")
+                guard supportedEffectProperties(effect.type).contains(key) else {
+                    throw EngineError.manifest("effect \(effect.id) property \(key) is not supported by \(effect.type.rawValue)")
+                }
+                try validateEffectPropertyValue(value, label: "effect \(effect.id).\(key)")
+                guard case .number = value else {
+                    throw EngineError.manifest("effect \(effect.id).\(key) must be a number")
+                }
+            }
+        }
+    }
+
+    private static func validateBindings(
+        _ bindings: [DeclarativeBinding],
+        effects: [EffectConfig],
+        hasSpine: Bool
+    ) throws {
+        guard bindings.count <= 128 else {
+            throw EngineError.manifest("bindings must contain at most 128 entries")
+        }
+
+        let effectByID = Dictionary(uniqueKeysWithValues: effects.map { ($0.id, $0) })
+        var seen = Set<String>()
+        for binding in bindings {
+            try validateDeclarativeIdentifier(binding.id, label: "binding id")
+            guard seen.insert(binding.id).inserted else {
+                throw EngineError.manifest("binding ids must be unique: \(binding.id)")
+            }
+
+            let target = try parseBindingTarget(binding.target, bindingID: binding.id)
+            switch target {
+            case .spineBone, .spineAnimation:
+                guard hasSpine else {
+                    throw EngineError.manifest("binding \(binding.id) targets Spine but the manifest has no Spine asset")
+                }
+            case .effect(let effectID, let propertyPath):
+                guard let effect = effectByID[effectID] else {
+                    throw EngineError.manifest("binding \(binding.id) targets missing effect id: \(effectID)")
+                }
+                guard supportedEffectProperties(effect.type).contains(propertyPath) else {
+                    throw EngineError.manifest("binding \(binding.id) targets unsupported \(effect.type.rawValue) effect property: \(propertyPath)")
+                }
+            }
+
+            try validateBindingAdapter(binding.adapter, source: binding.source, target: target, bindingID: binding.id)
+        }
+    }
+
+    private enum ParsedBindingTarget {
+        case spineBone(String)
+        case spineAnimation(String)
+        case effect(effectID: String, propertyPath: String)
+    }
+
+    private static func supportedEffectProperties(_ type: EffectType) -> Set<String> {
+        switch type {
+        case .blur:
+            return ["amount", "radius"]
+        case .colorMatrix:
+            return ["alpha", "brightness", "opacity"]
+        case .scroll:
+            return ["offsetX", "offsetY", "x", "y"]
+        case .chromaticAberration:
+            return ["amount", "offset"]
+        }
+    }
+
+    private static func parseBindingTarget(_ target: String, bindingID: String) throws -> ParsedBindingTarget {
+        if let suffix = target.removingPrefix("spine.bone.") {
+            try validateDeclarativeIdentifier(suffix, label: "binding \(bindingID) spine bone target")
+            return .spineBone(suffix)
+        }
+        if let suffix = target.removingPrefix("spine.animation.") {
+            try validateDeclarativeIdentifier(suffix, label: "binding \(bindingID) spine animation target")
+            return .spineAnimation(suffix)
+        }
+        if let suffix = target.removingPrefix("effect.") {
+            let parts = suffix.split(separator: ".", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else {
+                throw EngineError.manifest("binding \(bindingID) effect target must be effect.<id>.<property>")
+            }
+            try validateDeclarativeIdentifier(parts[0], label: "binding \(bindingID) effect target id")
+            try validateDeclarativeIdentifier(parts[1], label: "binding \(bindingID) effect target property")
+            return .effect(effectID: parts[0], propertyPath: parts[1])
+        }
+        throw EngineError.manifest("binding \(bindingID) target must start with spine.bone., spine.animation., or effect.")
+    }
+
+    private static func validateBindingAdapter(
+        _ adapter: BindingAdapter,
+        source: BindingSource,
+        target: ParsedBindingTarget,
+        bindingID: String
+    ) throws {
+        if let neutralPoint = adapter.neutralPoint {
+            try validateInteractionPoint(
+                neutralPoint,
+                label: "binding \(bindingID) adapter.neutralPoint",
+                min: 0,
+                max: 1,
+                allowZero: true,
+                allowMax: true
+            )
+        }
+        if let deadZone = adapter.deadZone {
+            try validateInteractionPoint(
+                deadZone,
+                label: "binding \(bindingID) adapter.deadZone",
+                min: 0,
+                max: 0.5,
+                allowZero: true,
+                allowMax: false
+            )
+        }
+        if let factor = adapter.factor {
+            try validateFiniteNumberList(factor, label: "binding \(bindingID) adapter.factor", minCount: 1, maxCount: 4)
+        }
+        if let inputRange = adapter.inputRange {
+            try validateFiniteNumberList(inputRange, label: "binding \(bindingID) adapter.inputRange", minCount: 2, maxCount: 8)
+        }
+        if let outputRange = adapter.outputRange {
+            try validateFiniteNumberList(outputRange, label: "binding \(bindingID) adapter.outputRange", minCount: 2, maxCount: 8)
+        }
+
+        switch adapter.type {
+        case .smoothLookAt:
+            guard source == .pointerPosition else {
+                throw EngineError.manifest("binding \(bindingID) smooth-lookat adapter requires source pointer.position")
+            }
+            guard case .spineBone = target else {
+                throw EngineError.manifest("binding \(bindingID) smooth-lookat adapter requires a spine.bone target")
+            }
+        case .triggerPlay:
+            guard source == .pointerDown else {
+                throw EngineError.manifest("binding \(bindingID) trigger-play adapter requires source pointer.down")
+            }
+            guard case .spineAnimation = target else {
+                throw EngineError.manifest("binding \(bindingID) trigger-play adapter requires a spine.animation target")
+            }
+        case .mapRange:
+            guard case .effect = target else {
+                throw EngineError.manifest("binding \(bindingID) map-range adapter requires an effect target")
+            }
+            guard let inputRange = adapter.inputRange,
+                  let outputRange = adapter.outputRange,
+                  inputRange.count == outputRange.count else {
+                throw EngineError.manifest("binding \(bindingID) map-range adapter requires equal-length inputRange and outputRange")
+            }
+            guard isStrictlyMonotonic(inputRange) else {
+                throw EngineError.manifest("binding \(bindingID) map-range adapter.inputRange must be strictly monotonic")
+            }
+            if adapter.loop == true {
+                guard let first = inputRange.first,
+                      let last = inputRange.last,
+                      last > first else {
+                    throw EngineError.manifest("binding \(bindingID) map-range loop requires an ascending inputRange")
+                }
+            }
+        case .spring:
+            switch target {
+            case .spineBone, .effect:
+                break
+            case .spineAnimation:
+                throw EngineError.manifest("binding \(bindingID) spring adapter cannot target spine.animation")
+            }
+        }
+    }
+
+    private static func validateDeclarativeIdentifier(_ value: String, label: String) throws {
+        guard value.trimmingCharacters(in: .whitespacesAndNewlines) == value,
+              value.isEmpty == false,
+              value.range(of: #"^[A-Za-z0-9_.:-]+$"#, options: .regularExpression) != nil else {
+            throw EngineError.manifest("\(label) must use only A-Z, a-z, 0-9, underscore, dash, colon, or dot")
+        }
+    }
+
+    private static func isStrictlyMonotonic(_ values: [Double]) -> Bool {
+        guard values.count >= 2 else { return false }
+        let increasing = zip(values, values.dropFirst()).allSatisfy { $0 < $1 }
+        let decreasing = zip(values, values.dropFirst()).allSatisfy { $0 > $1 }
+        return increasing || decreasing
+    }
+
+    private static func validateEffectPropertyValue(_ value: EffectPropertyValue, label: String) throws {
+        switch value {
+        case .string(let text):
+            guard text.count <= 256 else {
+                throw EngineError.manifest("\(label) string value is too long")
+            }
+        case .number(let number):
+            guard number.isFinite else {
+                throw EngineError.manifest("\(label) number value must be finite")
+            }
+        case .bool:
+            break
+        case .stringArray(let values):
+            guard values.count <= 32 else {
+                throw EngineError.manifest("\(label) string array must contain at most 32 entries")
+            }
+            for text in values {
+                guard text.count <= 256 else {
+                    throw EngineError.manifest("\(label) string array entry is too long")
+                }
+            }
+        case .numberArray(let values):
+            try validateFiniteNumberList(values, label: label, minCount: 0, maxCount: 32)
+        }
+    }
+
+    private static func validateFiniteNumberList(
+        _ values: [Double],
+        label: String,
+        minCount: Int,
+        maxCount: Int
+    ) throws {
+        guard values.count >= minCount, values.count <= maxCount, values.allSatisfy(\.isFinite) else {
+            throw EngineError.manifest("\(label) must contain \(minCount)...\(maxCount) finite number(s)")
+        }
+    }
+
     private static func validateHitZone(_ hitZone: HitZone) throws {
         guard hitZone.id.isEmpty == false else {
             throw EngineError.manifest("hitZone id must not be empty")
@@ -670,7 +914,10 @@ enum ManifestLoader {
         }
     }
 
-    private static func referencedAnimationActions(in interactions: [InteractionConfig]) -> Set<String> {
+    private static func referencedAnimationActions(
+        in interactions: [InteractionConfig],
+        bindings: [DeclarativeBinding]
+    ) -> Set<String> {
         var actions = Set<String>()
         for interaction in interactions {
             interaction.actions?.values.forEach { actions.insert($0) }
@@ -684,6 +931,18 @@ enum ManifestLoader {
                 actions.insert(defaultAction.action)
             }
         }
+        for binding in bindings {
+            if let animation = binding.target.removingPrefix("spine.animation.") {
+                actions.insert(animation)
+            }
+        }
         return actions
+    }
+}
+
+private extension String {
+    func removingPrefix(_ prefix: String) -> String? {
+        guard hasPrefix(prefix) else { return nil }
+        return String(dropFirst(prefix.count))
     }
 }

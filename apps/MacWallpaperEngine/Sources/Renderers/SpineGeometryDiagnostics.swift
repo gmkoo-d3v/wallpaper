@@ -249,7 +249,8 @@ struct SpineGeometryDiagnostics {
             physicsIdlePolicy: runtime.manifest.runtime.effectivePhysicsIdlePolicy,
             idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
             loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
-            oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest)
+            oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
+            declarativePlan: DeclarativeBindingPlan(manifest: runtime.manifest)
         )
     }
 

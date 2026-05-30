@@ -73,7 +73,7 @@ enum RuntimeCompletionAudit {
             throw EngineError.invalidArgument("No valid wallpaper bundles found for completion audit.")
         }
 
-        _ = try ManifestSchemaResource.loadJSON(projectRoot: projectRoot)
+        let manifestSchema = try ManifestSchemaResource.loadJSON(projectRoot: projectRoot)
         let validationMatrix = try BundleValidationMatrix.make(
             projectRoot: projectRoot,
             strictCompositeQuality: strictCompositeQuality,
@@ -105,6 +105,14 @@ enum RuntimeCompletionAudit {
             validationMatrix: validationMatrix
         )
         let genericPlayerContract = genericPlayerContractEvidence(bundles: bundles)
+        let declarativeContract = declarativeBindingContractEvidence(
+            bundles: bundles,
+            manifestSchema: manifestSchema
+        )
+        let whitelistEffectContract = whitelistEffectContractEvidence(
+            bundles: bundles,
+            manifestSchema: manifestSchema
+        )
         let genericSourceBoundary = try genericRuntimeSourceBoundaryEvidence(
             projectRoot: projectRoot,
             bundles: bundles
@@ -141,6 +149,18 @@ enum RuntimeCompletionAudit {
                 passed: genericPlayerContract.passed,
                 evidence: genericPlayerContract.evidence,
                 risk: "the runtime must interpret bundle-declared assets, layers, interactions, hit zones, timings, and action names instead of owning wallpaper-specific behavior"
+            ),
+            item(
+                id: "declarative-binding-contract",
+                passed: declarativeContract.passed,
+                evidence: declarativeContract.evidence,
+                risk: "script-like behavior must remain manifest-declared data with safe sources, engine-owned targets, and whitelisted adapters"
+            ),
+            item(
+                id: "whitelist-effect-contract",
+                passed: whitelistEffectContract.passed,
+                evidence: whitelistEffectContract.evidence,
+                risk: "effects must remain engine-owned descriptors without dynamic shader loading or arbitrary code execution"
             ),
             item(
                 id: "generic-runtime-source-boundary",
@@ -494,6 +514,55 @@ enum RuntimeCompletionAudit {
             }
         }
         return (passed, bundleSummaries.joined(separator: "; "))
+    }
+
+    private static func declarativeBindingContractEvidence(
+        bundles: [WallpaperBundleSummary],
+        manifestSchema: [String: Any]
+    ) -> (passed: Bool, evidence: String) {
+        let schemaOK = schemaHasDefinitions(
+            manifestSchema,
+            propertyNames: ["bindings"],
+            definitionNames: ["declarativeBinding", "bindingAdapter"]
+        )
+        let bindingKinds = Set(bundles.flatMap(\.capabilities.bindingKinds))
+        let bundleEvidence = bundles.map {
+            "\($0.id)=bindings(\($0.capabilities.bindingKinds.joined(separator: "+")))"
+        }.joined(separator: "; ")
+        return (
+            schemaOK,
+            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(declared-only); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
+        )
+    }
+
+    private static func whitelistEffectContractEvidence(
+        bundles: [WallpaperBundleSummary],
+        manifestSchema: [String: Any]
+    ) -> (passed: Bool, evidence: String) {
+        let schemaOK = schemaHasDefinitions(
+            manifestSchema,
+            propertyNames: ["effects"],
+            definitionNames: ["effect"]
+        )
+        let effectKinds = Set(bundles.flatMap(\.capabilities.effectKinds))
+        let bundleEvidence = bundles.map {
+            "\($0.id)=effects(\($0.capabilities.effectKinds.joined(separator: "+")))"
+        }.joined(separator: "; ")
+        return (
+            schemaOK,
+            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidence); discovered=\(effectKinds.sorted().joined(separator: "+"))"
+        )
+    }
+
+    private static func schemaHasDefinitions(
+        _ schema: [String: Any],
+        propertyNames: [String],
+        definitionNames: [String]
+    ) -> Bool {
+        let properties = schema["properties"] as? [String: Any] ?? [:]
+        let defs = schema["$defs"] as? [String: Any] ?? [:]
+        return propertyNames.allSatisfy { properties[$0] != nil }
+            && definitionNames.allSatisfy { defs[$0] != nil }
     }
 
     private static func genericRuntimeSourceBoundaryEvidence(

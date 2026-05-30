@@ -436,6 +436,7 @@ final class SpineSetupPoseRenderer {
     private let physicsIdlePolicy: PhysicsIdlePolicy
     private let loopingAnimationNames: Set<String>
     private let oneShotAnimationNames: Set<String>
+    private let declarativePlan: DeclarativeBindingPlan
     private let physicsConstraintsEnabled: Bool
     private let rendererStartedAt: CFTimeInterval
     private let animationTransitionDuration: CFTimeInterval = 0.30
@@ -476,7 +477,8 @@ final class SpineSetupPoseRenderer {
         physicsIdlePolicy: PhysicsIdlePolicy = .dynamic,
         idleAnimationName: String = "idle",
         loopingAnimationNames: Set<String> = ["idle"],
-        oneShotAnimationNames: Set<String> = []
+        oneShotAnimationNames: Set<String> = [],
+        declarativePlan: DeclarativeBindingPlan = DeclarativeBindingPlan(bindings: [], effects: [])
     ) throws {
         let textureLoader = MTKTextureLoader(device: device)
         let atlas = try Self.parseAtlas(url: spineAsset.atlas, textureLoader: textureLoader)
@@ -566,6 +568,7 @@ final class SpineSetupPoseRenderer {
         let resolvedLoopingAnimationNames = loopingAnimationNames.union([resolvedIdleAnimationName])
         self.loopingAnimationNames = resolvedLoopingAnimationNames
         self.oneShotAnimationNames = oneShotAnimationNames.subtracting(resolvedLoopingAnimationNames)
+        self.declarativePlan = declarativePlan
         self.referenceScale = referenceScale
         self.rendererStartedAt = CACurrentMediaTime()
         self.batchCount = builtBatches.count
@@ -732,6 +735,10 @@ final class SpineSetupPoseRenderer {
             physicsIdleSleeping = sleepPhysicsForIdle
         }
         let posePhysicsTime = physicsConstraintsEnabled && sleepPhysicsForIdle == false ? physicsTime : 0
+        let bindingSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: declarativePlan,
+            input: DeclarativeBindingEvaluationInput(pointerPosition: pointer)
+        )
         let canUsePoseFrameCache = physicsConstraintsEnabled == false || sleepPhysicsForIdle
         let sampleFps = previousOverlayAnimation == nil ? sampleFps(for: animationName) : poseSampleFps
         let lookMix = lookAnimationNames.contains(activeAnimation.name) ? pointerLookMix(pointer) : 1.0
@@ -741,7 +748,8 @@ final class SpineSetupPoseRenderer {
         let quantizedPhysicsFrame = Int((posePhysicsTime * sampleFps).rounded())
         let quantizedTransition = Int((transitionMix * sampleFps).rounded())
         let quantizedLookMix = Int((lookMix * sampleFps).rounded())
-        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(idleAnimationName):\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame)"
+        let bindingKey = Self.bindingPoseCacheKey(bindingSnapshot.spineBoneRotationOffsets, sampleFps: sampleFps)
+        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(idleAnimationName):\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame):bindings:\(bindingKey)"
         if cacheKey == cachedPoseKey {
             poseCacheExactHits += 1
             return cachedBatches
@@ -769,7 +777,8 @@ final class SpineSetupPoseRenderer {
                 overlayAnimation: activeOverlayAnimation,
                 overlayTime: activeAnimationTime,
                 overlayMix: activeOverlayMix * lookMix,
-                physicsTime: posePhysicsTime
+                physicsTime: posePhysicsTime,
+                boneRotationOffsets: bindingSnapshot.spineBoneRotationOffsets
             )
             let vertexBatches = try Self.buildVertexBatches(
                 slots: pose.slots,
@@ -833,6 +842,15 @@ final class SpineSetupPoseRenderer {
         let xMix = (dx - Double(lookDeadZone.x)) / max(0.001, xEdgeDistance - Double(lookDeadZone.x))
         let yMix = (dy - Double(lookDeadZone.y)) / max(0.001, yEdgeDistance - Double(lookDeadZone.y))
         return min(max(max(xMix, yMix), 0), 1)
+    }
+
+    private static func bindingPoseCacheKey(_ offsets: [String: Double], sampleFps: Double) -> String {
+        guard offsets.isEmpty == false else { return "none" }
+        let quantizer = max(sampleFps, 1)
+        return offsets.keys.sorted().map { key in
+            let value = offsets[key] ?? 0
+            return "\(key)=\(Int((value * quantizer).rounded()))"
+        }.joined(separator: ",")
     }
 
     private static func clampPoint(_ point: CGPoint, minValue: CGFloat, maxValue: CGFloat) -> CGPoint {
@@ -1048,7 +1066,8 @@ final class SpineSetupPoseRenderer {
         overlayAnimation: SpineAnimation?,
         overlayTime: Double,
         overlayMix: Double,
-        physicsTime: Double
+        physicsTime: Double,
+        boneRotationOffsets: [String: Double] = [:]
     ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
         var posedBones = bones
         var posedSlots = slots
@@ -1083,6 +1102,7 @@ final class SpineSetupPoseRenderer {
             overlayMix: overlayMix,
             slots: &posedSlots
         )
+        applyDeclarativeBoneRotationOffsets(boneRotationOffsets, to: &posedBones)
 
         return (Self.computeBoneWorld(
             posedBones,
@@ -1096,6 +1116,20 @@ final class SpineSetupPoseRenderer {
             enablePhysicsConstraints: physicsConstraintsEnabled,
             referenceScale: referenceScale
         ), posedSlots, deforms, sequenceIndices)
+    }
+
+    private func applyDeclarativeBoneRotationOffsets(
+        _ offsets: [String: Double],
+        to posedBones: inout [Bone]
+    ) {
+        guard offsets.isEmpty == false else { return }
+        for (boneName, offset) in offsets {
+            guard let index = boneIndexByName[boneName],
+                  offset.isFinite else {
+                continue
+            }
+            posedBones[index].rotation += offset
+        }
     }
 
     private func apply(
@@ -2369,6 +2403,10 @@ final class SpineSetupPoseRenderer {
     }
 
     private static func applyIkConstraint(_ constraint: IkPoseConstraint, to states: inout [BonePoseState]) {
+        if constraint.boneIndices.count == 2 {
+            applyTwoBoneIkConstraint(constraint, to: &states)
+            return
+        }
         guard constraint.mix != 0,
               constraint.boneIndices.count == 1,
               let boneIndex = constraint.boneIndices.first,
@@ -2430,6 +2468,71 @@ final class SpineSetupPoseRenderer {
         bone.scaleX = scaleX
         bone.scaleY = scaleY
         states[boneIndex] = bone
+    }
+
+    private static func applyTwoBoneIkConstraint(_ constraint: IkPoseConstraint, to states: inout [BonePoseState]) {
+        guard constraint.mix != 0,
+              constraint.boneIndices.count == 2,
+              let parentIndex = constraint.boneIndices.first,
+              let childIndex = constraint.boneIndices.last,
+              parentIndex < states.count,
+              childIndex < states.count,
+              constraint.targetIndex < states.count,
+              states[childIndex].parentIndex == parentIndex else {
+            return
+        }
+
+        let target = states[constraint.targetIndex]
+        let targetLocal: CGPoint
+        if let grandParentIndex = states[parentIndex].parentIndex, grandParentIndex < states.count {
+            let grandParent = states[grandParentIndex]
+            let determinant = grandParent.a * grandParent.d - grandParent.c * grandParent.b
+            guard abs(determinant) > 0.0001 else { return }
+            let dx = target.tx - grandParent.tx
+            let dy = target.ty - grandParent.ty
+            targetLocal = CGPoint(
+                x: (dx * grandParent.d - dy * grandParent.c) / determinant,
+                y: (dy * grandParent.a - dx * grandParent.b) / determinant
+            )
+        } else {
+            targetLocal = CGPoint(x: target.tx, y: target.ty)
+        }
+
+        var parent = states[parentIndex]
+        let child = states[childIndex]
+        let toTargetX = targetLocal.x - parent.x
+        let toTargetY = targetLocal.y - parent.y
+        let targetDistance = sqrt(toTargetX * toTargetX + toTargetY * toTargetY)
+        guard targetDistance > 0.0001 else { return }
+
+        let childOffsetLength = sqrt(child.x * child.x + child.y * child.y)
+        let firstLength = max(childOffsetLength, abs(parent.length * parent.scaleX), 0.0001)
+        let secondLength = max(abs(child.length * child.scaleX), 0.0001)
+        let cosSecond = min(max(
+            (targetDistance * targetDistance - firstLength * firstLength - secondLength * secondLength) /
+                (2 * firstLength * secondLength),
+            -1
+        ), 1)
+        let secondAngle = acos(cosSecond) * (constraint.bendDirection >= 0 ? 1 : -1)
+        let firstAngle = atan2(toTargetY, toTargetX) -
+            atan2(secondLength * sin(secondAngle), firstLength + secondLength * cos(secondAngle))
+        let childSetupAngle = atan2(child.y, child.x) * 180.0 / .pi
+        let desiredParentRotation = firstAngle * 180.0 / .pi - childSetupAngle - parent.shearX
+        parent.rotation += normalizeDegrees(desiredParentRotation - parent.rotation) * constraint.mix
+        states[parentIndex] = parent
+        updateBoneWorld(index: parentIndex, states: &states)
+        updateBoneWorld(index: childIndex, states: &states)
+
+        let updatedParent = states[parentIndex]
+        var updatedChild = states[childIndex]
+        let childTargetX = target.tx - updatedChild.tx
+        let childTargetY = target.ty - updatedChild.ty
+        guard abs(childTargetX) > 0.0001 || abs(childTargetY) > 0.0001 else { return }
+        let desiredChildWorldRotation = atan2(childTargetY, childTargetX) * 180.0 / .pi
+        let parentWorldRotation = atan2(updatedParent.b, updatedParent.a) * 180.0 / .pi
+        let desiredChildRotation = desiredChildWorldRotation - parentWorldRotation - updatedChild.shearX
+        updatedChild.rotation += normalizeDegrees(desiredChildRotation - updatedChild.rotation) * constraint.mix
+        states[childIndex] = updatedChild
     }
 
     private static func applyTransformConstraint(_ constraint: TransformPoseConstraint, to states: inout [BonePoseState]) {
