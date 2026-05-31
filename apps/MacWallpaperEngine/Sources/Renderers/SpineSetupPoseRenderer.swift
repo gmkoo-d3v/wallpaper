@@ -245,10 +245,14 @@ final class SpineSetupPoseRenderer {
         var translateX: [TimelineFrame] = []
         var translateY: [TimelineFrame] = []
         var scale: [TimelineFrame] = []
+        var scaleX: [TimelineFrame] = []
+        var scaleY: [TimelineFrame] = []
         var shear: [TimelineFrame] = []
+        var shearX: [TimelineFrame] = []
+        var shearY: [TimelineFrame] = []
 
         var frameTimes: [Double] {
-            [rotate, translate, translateX, translateY, scale, shear]
+            [rotate, translate, translateX, translateY, scale, scaleX, scaleY, shear, shearX, shearY]
                 .flatMap { $0 }
                 .map(\.time)
         }
@@ -1274,10 +1278,26 @@ final class SpineSetupPoseRenderer {
                 posedBones[index].scaleX = blend(posedBones[index].scaleX, setup.scaleX * sampled.x, mix)
                 posedBones[index].scaleY = blend(posedBones[index].scaleY, setup.scaleY * sampled.y, mix)
             }
+            if timelines.scaleX.isEmpty == false {
+                let target = setup.scaleX * sampleValue(timelines.scaleX, time: time, defaultValue: 1)
+                posedBones[index].scaleX = blend(posedBones[index].scaleX, target, mix)
+            }
+            if timelines.scaleY.isEmpty == false {
+                let target = setup.scaleY * sampleValue(timelines.scaleY, time: time, defaultValue: 1)
+                posedBones[index].scaleY = blend(posedBones[index].scaleY, target, mix)
+            }
             if timelines.shear.isEmpty == false {
                 let sampled = sampleXY(timelines.shear, time: time, defaultX: 0, defaultY: 0)
                 posedBones[index].shearX = blend(posedBones[index].shearX, setup.shearX + sampled.x, mix)
                 posedBones[index].shearY = blend(posedBones[index].shearY, setup.shearY + sampled.y, mix)
+            }
+            if timelines.shearX.isEmpty == false {
+                let target = setup.shearX + sampleValue(timelines.shearX, time: time, defaultValue: 0)
+                posedBones[index].shearX = blend(posedBones[index].shearX, target, mix)
+            }
+            if timelines.shearY.isEmpty == false {
+                let target = setup.shearY + sampleValue(timelines.shearY, time: time, defaultValue: 0)
+                posedBones[index].shearY = blend(posedBones[index].shearY, target, mix)
             }
         }
 
@@ -1656,8 +1676,20 @@ final class SpineSetupPoseRenderer {
                     if let raw = timelineSet["scale"] {
                         timelines.scale = parseFrames(raw, defaultX: 1, defaultY: 1, defaultValue: 1)
                     }
+                    if let raw = timelineSet["scalex"] ?? timelineSet["scaleX"] {
+                        timelines.scaleX = parseFrames(raw, defaultX: 1, defaultY: 1, defaultValue: 1)
+                    }
+                    if let raw = timelineSet["scaley"] ?? timelineSet["scaleY"] {
+                        timelines.scaleY = parseFrames(raw, defaultX: 1, defaultY: 1, defaultValue: 1)
+                    }
                     if let raw = timelineSet["shear"] {
                         timelines.shear = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
+                    }
+                    if let raw = timelineSet["shearx"] ?? timelineSet["shearX"] {
+                        timelines.shearX = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
+                    }
+                    if let raw = timelineSet["sheary"] ?? timelineSet["shearY"] {
+                        timelines.shearY = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
                     }
                     duration = max(duration, timelines.maxTime)
                     boneTimelines[boneName] = timelines

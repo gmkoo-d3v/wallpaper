@@ -7610,16 +7610,28 @@ enum RuntimeSelfTest {
           },
           "bones": [
             { "name": "root" },
-            { "name": "axisBone", "parent": "root", "x": 8, "y": 8 }
+            { "name": "axisBone", "parent": "root", "x": 8, "y": 8 },
+            { "name": "shapeBone", "parent": "root", "x": 48, "y": 8 }
           ],
           "slots": [
-            { "name": "axis-slot", "bone": "axisBone", "attachment": "ik-quad" }
+            { "name": "axis-slot", "bone": "axisBone", "attachment": "ik-quad" },
+            { "name": "shape-slot", "bone": "shapeBone", "attachment": "ik-quad" }
           ],
           "skins": [
             {
               "name": "default",
               "attachments": {
                 "axis-slot": {
+                  "ik-quad": {
+                    "type": "region",
+                    "path": "ik-quad",
+                    "x": 24,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16
+                  }
+                },
+                "shape-slot": {
                   "ik-quad": {
                     "type": "region",
                     "path": "ik-quad",
@@ -7760,6 +7772,148 @@ enum RuntimeSelfTest {
                     && camelCaseBoneTranslateAxisFingerprint != nil
                     && lowercaseBoneTranslateAxisFingerprint == camelCaseBoneTranslateAxisFingerprint,
                 "Spine bone translateX/translateY aliases must render the same geometry as lowercase translatex/translatey timelines",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+
+        let baseBoneScaleShearAxisSpineJSON = boneTranslateAxisTemplate.replacingOccurrences(
+            of: "__ANIMATION_BLOCK__",
+            with: "{}"
+        )
+        try Data(baseBoneScaleShearAxisSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let baseBoneScaleShearAxisRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let boneScaleShearAxisGeometryRequired = SpineGeometryDiagnostics.validationStatus(runtime: baseBoneScaleShearAxisRuntime) == "required"
+        var baseBoneScaleShearAxisFingerprint: String?
+        if boneScaleShearAxisGeometryRequired {
+            try baseBoneScaleShearAxisRuntime.requireNativeSpineGeometryIfSupported()
+            let baseBoneScaleShearAxisGeometryPlan = try SpineGeometryDiagnostics.make(runtime: baseBoneScaleShearAxisRuntime)
+            baseBoneScaleShearAxisFingerprint = geometryFingerprint(
+                in: baseBoneScaleShearAxisGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+        }
+
+        let lowercaseBoneScaleShearAxisBlock = """
+        {
+              "bones": {
+                "shapeBone": {
+                  "scalex": [
+                    { "time": 0, "value": 1.25 }
+                  ],
+                  "scaley": [
+                    { "time": 0, "value": 0.75 }
+                  ],
+                  "shearx": [
+                    { "time": 0, "value": 9 }
+                  ],
+                  "sheary": [
+                    { "time": 0, "value": -6 }
+                  ]
+                }
+              }
+            }
+        """
+        let lowercaseBoneScaleShearAxisSpineJSON = boneTranslateAxisTemplate.replacingOccurrences(
+            of: "__ANIMATION_BLOCK__",
+            with: lowercaseBoneScaleShearAxisBlock
+        )
+        try Data(lowercaseBoneScaleShearAxisSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let lowercaseBoneScaleShearAxisRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        var lowercaseBoneScaleShearAxisFingerprint: String?
+        if boneScaleShearAxisGeometryRequired {
+            try lowercaseBoneScaleShearAxisRuntime.requireNativeSpineGeometryIfSupported()
+            let lowercaseBoneScaleShearAxisGeometryPlan = try SpineGeometryDiagnostics.make(runtime: lowercaseBoneScaleShearAxisRuntime)
+            lowercaseBoneScaleShearAxisFingerprint = geometryFingerprint(
+                in: lowercaseBoneScaleShearAxisGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+        }
+
+        let camelCaseBoneScaleShearAxisBlock = """
+        {
+              "bones": {
+                "shapeBone": {
+                  "scaleX": [
+                    { "time": 0, "value": 1.25 }
+                  ],
+                  "scaleY": [
+                    { "time": 0, "value": 0.75 }
+                  ],
+                  "shearX": [
+                    { "time": 0, "value": 9 }
+                  ],
+                  "shearY": [
+                    { "time": 0, "value": -6 }
+                  ]
+                }
+              }
+            }
+        """
+        let camelCaseBoneScaleShearAxisSpineJSON = boneTranslateAxisTemplate.replacingOccurrences(
+            of: "__ANIMATION_BLOCK__",
+            with: camelCaseBoneScaleShearAxisBlock
+        )
+        try Data(camelCaseBoneScaleShearAxisSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let camelCaseBoneScaleShearAxisCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
+        check(
+            camelCaseBoneScaleShearAxisCompatibility.isSupported,
+            "Spine bone scaleX/scaleY/shearX/shearY timeline aliases must pass native compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        let camelCaseBoneScaleShearAxisRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let camelCaseBoneScaleShearAxisAnimationPlan = try SpineAnimationDiagnostics.make(
+            runtime: camelCaseBoneScaleShearAxisRuntime
+        )
+        check(
+            camelCaseBoneScaleShearAxisAnimationPlan.contains("unsupportedActionTimelines: none")
+                && camelCaseBoneScaleShearAxisAnimationPlan.contains("bone.scaleX=1")
+                && camelCaseBoneScaleShearAxisAnimationPlan.contains("bone.scaleY=1")
+                && camelCaseBoneScaleShearAxisAnimationPlan.contains("bone.shearX=1")
+                && camelCaseBoneScaleShearAxisAnimationPlan.contains("bone.shearY=1"),
+            "Spine animation diagnostics must summarize bone scale/shear axis timeline aliases as compatible",
+            failures: &failures,
+            checks: &checks
+        )
+        if boneScaleShearAxisGeometryRequired {
+            try camelCaseBoneScaleShearAxisRuntime.requireNativeSpineGeometryIfSupported()
+            let camelCaseBoneScaleShearAxisGeometryPlan = try SpineGeometryDiagnostics.make(runtime: camelCaseBoneScaleShearAxisRuntime)
+            let camelCaseBoneScaleShearAxisFingerprint = geometryFingerprint(
+                in: camelCaseBoneScaleShearAxisGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            check(
+                baseBoneScaleShearAxisFingerprint != nil
+                    && camelCaseBoneScaleShearAxisFingerprint != nil
+                    && baseBoneScaleShearAxisFingerprint != camelCaseBoneScaleShearAxisFingerprint,
+                "Spine bone scale/shear axis aliases must change native geometry instead of only changing diagnostics",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                lowercaseBoneScaleShearAxisFingerprint != nil
+                    && camelCaseBoneScaleShearAxisFingerprint != nil
+                    && lowercaseBoneScaleShearAxisFingerprint == camelCaseBoneScaleShearAxisFingerprint,
+                "Spine bone scale/shear axis aliases must render the same geometry as lowercase scalex/scaley/shearx/sheary timelines",
                 failures: &failures,
                 checks: &checks
             )
