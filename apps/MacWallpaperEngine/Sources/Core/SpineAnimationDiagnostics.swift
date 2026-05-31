@@ -59,6 +59,7 @@ struct SpineAnimationDiagnostics {
         "slot.attachment",
         "attachment.deform",
         "attachment.sequence",
+        "ik.bendPositive",
         "ik.mix",
         "transform.mixRotate",
         "transform.mixX",

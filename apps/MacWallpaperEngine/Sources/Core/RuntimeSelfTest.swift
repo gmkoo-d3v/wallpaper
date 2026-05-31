@@ -7194,7 +7194,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        let twoBoneIkSpineJSON = """
+        let twoBoneIkSpineTemplate = """
         {
           "skeleton": {
             "spine": "4.2.43",
@@ -7216,7 +7216,7 @@ enum RuntimeSelfTest {
             {
               "name": "supported-two-bone-ik",
               "bones": ["upper", "lower"],
-              "target": "target"
+              "target": "target"__BEND_POSITIVE__
             }
           ],
           "skins": [
@@ -7241,6 +7241,10 @@ enum RuntimeSelfTest {
           }
         }
         """
+        let twoBoneIkSpineJSON = twoBoneIkSpineTemplate.replacingOccurrences(
+            of: "__BEND_POSITIVE__",
+            with: ""
+        )
         try Data(twoBoneIkSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
         let twoBoneIkCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
             manifest: eventOnlyManifest,
@@ -7266,6 +7270,120 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let twoBoneIkGeometryRequired = SpineGeometryDiagnostics.validationStatus(runtime: twoBoneIkRuntime) == "required"
+        var twoBoneIkPositiveFingerprint: String?
+        if twoBoneIkGeometryRequired {
+            let twoBoneIkGeometryPlan = try SpineGeometryDiagnostics.make(runtime: twoBoneIkRuntime)
+            twoBoneIkPositiveFingerprint = geometryFingerprint(
+                in: twoBoneIkGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+        }
+        let twoBoneIkNegativeSpineJSON = twoBoneIkSpineTemplate.replacingOccurrences(
+            of: "__BEND_POSITIVE__",
+            with: ",\n              \"bendPositive\": false"
+        )
+        try Data(twoBoneIkNegativeSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let twoBoneIkNegativeRuntime = try NativeRuntimeCore(config: twoBoneIkRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        var twoBoneIkNegativeFingerprint: String?
+        if twoBoneIkGeometryRequired {
+            try twoBoneIkNegativeRuntime.requireNativeSpineGeometryIfSupported()
+            let twoBoneIkNegativeGeometryPlan = try SpineGeometryDiagnostics.make(runtime: twoBoneIkNegativeRuntime)
+            twoBoneIkNegativeFingerprint = geometryFingerprint(
+                in: twoBoneIkNegativeGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            check(
+                twoBoneIkPositiveFingerprint != nil
+                    && twoBoneIkNegativeFingerprint != nil
+                    && twoBoneIkPositiveFingerprint != twoBoneIkNegativeFingerprint,
+                "2-bone Spine IK bendPositive setup values must produce distinct native geometry",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+        let animatedTwoBoneIkSpineJSON = twoBoneIkSpineJSON.replacingOccurrences(
+            of: """
+          "animations": {
+            "idle": {}
+          }
+        }
+        """,
+            with: """
+          "animations": {
+            "idle": {
+              "ik": {
+                "supported-two-bone-ik": {
+                  "bendPositive": [
+                    { "time": 0, "bendPositive": true },
+                    { "time": 0.05, "bendPositive": false }
+                  ]
+                }
+              }
+            }
+          }
+        }
+        """
+        )
+        try Data(animatedTwoBoneIkSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let animatedTwoBoneIkRuntime = try NativeRuntimeCore(config: twoBoneIkRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let animatedTwoBoneIkCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            runtime: animatedTwoBoneIkRuntime
+        )
+        check(
+            animatedTwoBoneIkCompatibility.isSupported,
+            "Spine IK bendPositive timelines must pass native compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        let animatedTwoBoneIkAnimationPlan = try SpineAnimationDiagnostics.make(
+            runtime: animatedTwoBoneIkRuntime
+        )
+        check(
+            animatedTwoBoneIkAnimationPlan.contains("unsupportedActionTimelines: none")
+                && animatedTwoBoneIkAnimationPlan.contains("ik.bendPositive=1"),
+            "Spine animation diagnostics must mark IK bendPositive timelines compatible and summarize them",
+            failures: &failures,
+            checks: &checks
+        )
+        if twoBoneIkGeometryRequired {
+            try animatedTwoBoneIkRuntime.requireNativeSpineGeometryIfSupported()
+            let animatedTwoBoneIkGeometryPlan = try SpineGeometryDiagnostics.make(runtime: animatedTwoBoneIkRuntime)
+            let animatedTwoBoneIkStartFingerprint = geometryFingerprint(
+                in: animatedTwoBoneIkGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            let animatedTwoBoneIkFlippedFingerprint = geometryFingerprint(
+                in: animatedTwoBoneIkGeometryPlan,
+                action: "idle",
+                time: "0.050s"
+            )
+            check(
+                animatedTwoBoneIkStartFingerprint != nil
+                    && animatedTwoBoneIkStartFingerprint == twoBoneIkPositiveFingerprint,
+                "Spine IK bendPositive timelines must preserve setup geometry before the keyed flip",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                animatedTwoBoneIkFlippedFingerprint != nil
+                    && animatedTwoBoneIkFlippedFingerprint == twoBoneIkNegativeFingerprint,
+                "Spine IK bendPositive timelines must render the same geometry as equivalent false setup value",
+                failures: &failures,
+                checks: &checks
+            )
+        }
         let localRelativeTransformTemplate = """
         {
           "skeleton": {

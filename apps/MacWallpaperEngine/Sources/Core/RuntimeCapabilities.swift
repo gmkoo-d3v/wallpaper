@@ -863,6 +863,7 @@ private struct SpineFeatureScan {
             "slots.attachment",
             "attachments.deform",
             "attachments.sequence",
+            "ik.bendPositive",
             "ik.mix",
             "transform.mixRotate",
             "transform.mixX",

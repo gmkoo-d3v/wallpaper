@@ -182,6 +182,11 @@ final class SpineSetupPoseRenderer {
         let curve: [Double]?
     }
 
+    private struct BoolTimelineFrame {
+        let time: Double
+        let value: Bool
+    }
+
     private struct TwoColorFrame {
         let time: Double
         let lightColor: SIMD4<Float>
@@ -255,9 +260,10 @@ final class SpineSetupPoseRenderer {
 
     private struct IkConstraintTimelines {
         var mix: [TimelineFrame] = []
+        var bendPositive: [BoolTimelineFrame] = []
 
         var frameTimes: [Double] {
-            mix.map(\.time)
+            mix.map(\.time) + bendPositive.map(\.time)
         }
 
         var maxTime: Double {
@@ -1354,14 +1360,21 @@ final class SpineSetupPoseRenderer {
             switch constraints[index] {
             case .ik(var constraint):
                 guard let timelines = animation.ikConstraintTimelines[constraint.name] else { continue }
-                if timelines.mix.isEmpty == false {
+                if timelines.mix.isEmpty == false || timelines.bendPositive.isEmpty == false {
                     let sampled = sampleValue(timelines.mix, time: time, defaultValue: constraint.mix)
+                    let bendDirection = timelines.bendPositive.isEmpty || mix < 0.5
+                        ? constraint.bendDirection
+                        : (sampleBool(
+                            timelines.bendPositive,
+                            time: time,
+                            defaultValue: constraint.bendDirection >= 0
+                        ) ? 1 : -1)
                     constraint = IkPoseConstraint(
                         name: constraint.name,
                         order: constraint.order,
                         boneIndices: constraint.boneIndices,
                         targetIndex: constraint.targetIndex,
-                        bendDirection: constraint.bendDirection,
+                        bendDirection: bendDirection,
                         compress: constraint.compress,
                         stretch: constraint.stretch,
                         uniform: constraint.uniform,
@@ -1658,6 +1671,9 @@ final class SpineSetupPoseRenderer {
                     if let raw = timelineSet["mix"] {
                         timelines.mix = parseMixFrames(raw)
                     }
+                    if let raw = timelineSet["bendPositive"] {
+                        timelines.bendPositive = parseBoolFrames(raw, key: "bendPositive", defaultValue: true)
+                    }
                     duration = max(duration, timelines.maxTime)
                     ikConstraintTimelines[constraintName] = timelines
                 }
@@ -1877,6 +1893,17 @@ final class SpineSetupPoseRenderer {
         .sorted { $0.time < $1.time }
     }
 
+    private static func parseBoolFrames(_ raw: Any, key: String, defaultValue: Bool) -> [BoolTimelineFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.map { frame in
+            BoolTimelineFrame(
+                time: number(frame["time"], default: 0),
+                value: bool(frame[key], default: defaultValue)
+            )
+        }
+        .sorted { $0.time < $1.time }
+    }
+
     private static func parseColorFrames(_ raw: Any) -> [TimelineFrame] {
         guard let frames = raw as? [[String: Any]] else { return [] }
         return frames.map { frame in
@@ -1999,6 +2026,16 @@ final class SpineSetupPoseRenderer {
             stepped: true,
             curve: nil
         )).value
+    }
+
+    private func sampleBool(_ frames: [BoolTimelineFrame], time: Double, defaultValue: Bool) -> Bool {
+        guard frames.isEmpty == false else { return defaultValue }
+        var value = defaultValue
+        for frame in frames {
+            guard time >= frame.time else { break }
+            value = frame.value
+        }
+        return value
     }
 
     private func sampleXY(_ frames: [TimelineFrame], time: Double, defaultX: Double, defaultY: Double) -> (x: Double, y: Double) {
@@ -2489,6 +2526,22 @@ final class SpineSetupPoseRenderer {
         return defaultValue
     }
 
+    private static func bool(_ raw: Any?, default defaultValue: Bool) -> Bool {
+        if let value = raw as? Bool { return value }
+        if let value = raw as? NSNumber { return value.boolValue }
+        if let value = raw as? String {
+            switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "true", "yes", "1":
+                return true
+            case "false", "no", "0":
+                return false
+            default:
+                return defaultValue
+            }
+        }
+        return defaultValue
+    }
+
     private static func number(_ raw: [String: Any], keys: [String], default defaultValue: Double) -> Double {
         for key in keys where raw[key] != nil {
             return number(raw[key], default: defaultValue)
@@ -2680,10 +2733,10 @@ final class SpineSetupPoseRenderer {
                     order: Int(number(raw["order"], default: 0)),
                     boneIndices: boneIndices,
                     targetIndex: targetIndex,
-                    bendDirection: (raw["bendPositive"] as? Bool ?? true) ? 1 : -1,
-                    compress: raw["compress"] as? Bool ?? false,
-                    stretch: raw["stretch"] as? Bool ?? false,
-                    uniform: raw["uniform"] as? Bool ?? false,
+                    bendDirection: bool(raw["bendPositive"], default: true) ? 1 : -1,
+                    compress: bool(raw["compress"], default: false),
+                    stretch: bool(raw["stretch"], default: false),
+                    uniform: bool(raw["uniform"], default: false),
                     mix: number(raw["mix"], default: 1),
                     softness: number(raw["softness"], default: 0)
                 )))
