@@ -5369,11 +5369,20 @@ enum RuntimeSelfTest {
                     {
                       "time": 0.02,
                       "light": "ff8080bf",
-                      "dark": "111111ff"
+                      "dark": "111111ff",
+                      "curve": [
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.50, 0.0425, 0.95,
+                        0.0275, 0.50, 0.0425, 0.65,
+                        0.0275, 1.00, 0.0425, 1.00,
+                        0.0275, 0.07, 0.0425, 0.19,
+                        0.0275, 0.18, 0.0425, 0.08,
+                        0.0275, 0.07, 0.0425, 0.18
+                      ]
                     },
                     {
                       "time": 0.05,
-                      "light": "80ffe0bf",
+                      "light": "80ffe07f",
                       "dark": "333333ff"
                     }
                   ]
@@ -5393,6 +5402,75 @@ enum RuntimeSelfTest {
                       ]
                     }
                   }
+                }
+              }
+            },
+            "rgba2SharedCurve": {
+              "slots": {
+                "slot": {
+                  "rgba2": [
+                    {
+                      "time": 0.02,
+                      "light": "ff8080bf",
+                      "dark": "111111ff",
+                      "curve": [
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55
+                      ]
+                    },
+                    {
+                      "time": 0.05,
+                      "light": "80ffe07f",
+                      "dark": "333333ff"
+                    }
+                  ]
+                }
+              }
+            },
+            "rgbCurve": {
+              "slots": {
+                "slot": {
+                  "rgb": [
+                    {
+                      "time": 0.02,
+                      "color": "ff8080",
+                      "curve": [
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.50, 0.0425, 0.95,
+                        0.0275, 0.50, 0.0425, 0.65
+                      ]
+                    },
+                    {
+                      "time": 0.05,
+                      "color": "80ffe0"
+                    }
+                  ]
+                }
+              }
+            },
+            "rgbSharedCurve": {
+              "slots": {
+                "slot": {
+                  "rgb": [
+                    {
+                      "time": 0.02,
+                      "color": "ff8080",
+                      "curve": [
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55,
+                        0.0275, 0.95, 0.0425, 0.55
+                      ]
+                    },
+                    {
+                      "time": 0.05,
+                      "color": "80ffe0"
+                    }
+                  ]
                 }
               }
             },
@@ -5511,7 +5589,31 @@ enum RuntimeSelfTest {
               "renderingMode": "setup-mesh"
             }
           ],
-          "interactions": [],
+          "interactions": [
+            {
+              "event": "pointerMove",
+              "mapping": "lookDirection",
+              "actions": {
+                "idle": "idle",
+                "left": "rgba2SharedCurve",
+                "right": "rgbCurve",
+                "up": "rgbSharedCurve",
+                "down": "idle"
+              }
+            },
+            {
+              "event": "pointerDown",
+              "hitZones": [
+                {
+                  "id": "legacy-two-color",
+                  "rect": [0.0, 0.0, 1.0, 1.0],
+                  "action": "legacyTwoColor",
+                  "trigger": "tap",
+                  "buttons": ["left"]
+                }
+              ]
+            }
+          ],
           "validation": {
             "bundleRootOnly": true,
             "requirePremultipliedAlpha": false,
@@ -5591,11 +5693,31 @@ enum RuntimeSelfTest {
             let linkedMeshGeometryPlan = try SpineGeometryDiagnostics.make(runtime: linkedMeshRuntime)
             let setupFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "idle", time: "0.000s")
             let firstTwoColorFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "idle", time: "0.020s")
+            let curveTwoColorFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "idle", time: "0.025s")
+            let sharedTwoColorFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgba2SharedCurve", time: "0.025s")
+            let rgbPerChannelFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgbCurve", time: "0.025s")
+            let rgbSharedFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgbSharedCurve", time: "0.025s")
             check(
                 setupFingerprint != nil
                     && firstTwoColorFingerprint != nil
+                    && curveTwoColorFingerprint != nil
                     && setupFingerprint != firstTwoColorFingerprint,
                 "Spine rgba2 timelines must preserve setup tint before the first keyframe and change geometry at the first keyframe",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                sharedTwoColorFingerprint != nil
+                    && curveTwoColorFingerprint != sharedTwoColorFingerprint,
+                "Spine rgba2 per-channel Bezier curves must not collapse to the first channel curve for light and dark tint channels",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                rgbPerChannelFingerprint != nil
+                    && rgbSharedFingerprint != nil
+                    && rgbPerChannelFingerprint != rgbSharedFingerprint,
+                "Spine rgb per-channel Bezier curves must use three-channel curve entries instead of falling back to a shared channel curve",
                 failures: &failures,
                 checks: &checks
             )
@@ -5642,6 +5764,36 @@ enum RuntimeSelfTest {
         }
         """
         try Data(legacySkinSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let legacySkinManifestJSON = manifestJSON.replacingOccurrences(of: """
+          "interactions": [
+            {
+              "event": "pointerMove",
+              "mapping": "lookDirection",
+              "actions": {
+                "idle": "idle",
+                "left": "rgba2SharedCurve",
+                "right": "rgbCurve",
+                "up": "rgbSharedCurve",
+                "down": "idle"
+              }
+            },
+            {
+              "event": "pointerDown",
+              "hitZones": [
+                {
+                  "id": "legacy-two-color",
+                  "rect": [0.0, 0.0, 1.0, 1.0],
+                  "action": "legacyTwoColor",
+                  "trigger": "tap",
+                  "buttons": ["left"]
+                }
+              ]
+            }
+          ],
+        """, with: """
+          "interactions": [],
+        """)
+        try Data(legacySkinManifestJSON.utf8).write(to: manifestURL, options: .atomic)
         let legacySkinRuntime = try NativeRuntimeCore(config: linkedMeshRuntime.config.replacing(
             clearDuration: true,
             launchControlPanel: false,

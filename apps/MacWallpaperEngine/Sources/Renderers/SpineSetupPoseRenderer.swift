@@ -1692,7 +1692,7 @@ final class SpineSetupPoseRenderer {
 
     private func sampleColor(_ frames: [TimelineFrame], time: Double, defaultColor: SIMD4<Float>) -> SIMD4<Float>? {
         guard frames.isEmpty == false else { return nil }
-        let sampled = sample(frames, time: time, defaultFrame: TimelineFrame(
+        return sampleTimelineColor(frames, time: time, defaultFrame: TimelineFrame(
             time: 0,
             x: 0,
             y: 0,
@@ -1701,13 +1701,12 @@ final class SpineSetupPoseRenderer {
             attachment: nil,
             stepped: true,
             curve: nil
-        ))
-        return sampled.color
+        ), channelCount: 4)
     }
 
     private func sampleRGBColor(_ frames: [TimelineFrame], time: Double, defaultColor: SIMD4<Float>) -> SIMD3<Float>? {
         guard frames.isEmpty == false else { return nil }
-        let sampled = sample(frames, time: time, defaultFrame: TimelineFrame(
+        let color = sampleTimelineColor(frames, time: time, defaultFrame: TimelineFrame(
             time: 0,
             x: 0,
             y: 0,
@@ -1716,8 +1715,8 @@ final class SpineSetupPoseRenderer {
             attachment: nil,
             stepped: true,
             curve: nil
-        ))
-        guard let color = sampled.color else { return nil }
+        ), channelCount: 3)
+        guard let color else { return nil }
         return SIMD3<Float>(color.x, color.y, color.z)
     }
 
@@ -1771,22 +1770,30 @@ final class SpineSetupPoseRenderer {
                     return current
                 }
                 let linearRatio = min(max((time - current.time) / (next.time - current.time), 0), 1)
-                // Matches existing slot color sampling: one curve ratio is shared across color channels.
-                let ratio = interpolateCurveValue(
-                    time: time,
-                    fromTime: current.time,
-                    toTime: next.time,
-                    fromValue: 0,
-                    toValue: 1,
-                    curve: current.curve,
-                    valueIndex: 0,
-                    fallbackRatio: linearRatio
-                )
-                let t = Float(ratio)
                 return TwoColorFrame(
                     time: time,
-                    lightColor: current.lightColor + ((next.lightColor - current.lightColor) * t),
-                    darkColor: current.darkColor + ((next.darkColor - current.darkColor) * t),
+                    lightColor: interpolateColor(
+                        current.lightColor,
+                        next.lightColor,
+                        time: time,
+                        fromTime: current.time,
+                        toTime: next.time,
+                        curve: current.curve,
+                        fallbackRatio: linearRatio,
+                        channelOffset: 0,
+                        channelCount: current.lightIncludesAlpha ? 4 : 3
+                    ) ?? current.lightColor,
+                    darkColor: interpolateColor(
+                        current.darkColor,
+                        next.darkColor,
+                        time: time,
+                        fromTime: current.time,
+                        toTime: next.time,
+                        curve: current.curve,
+                        fallbackRatio: linearRatio,
+                        channelOffset: current.lightIncludesAlpha ? 4 : 3,
+                        channelCount: 3
+                    ) ?? current.darkColor,
                     lightIncludesAlpha: current.lightIncludesAlpha,
                     stepped: current.stepped,
                     curve: nil
@@ -1947,7 +1954,17 @@ final class SpineSetupPoseRenderer {
                         valueIndex: 0,
                         fallbackRatio: ratio
                     ),
-                    color: interpolateColor(current.color, next.color, ratio: ratio),
+                    color: interpolateColor(
+                        current.color,
+                        next.color,
+                        time: time,
+                        fromTime: current.time,
+                        toTime: next.time,
+                        curve: current.curve,
+                        fallbackRatio: ratio,
+                        channelOffset: 0,
+                        channelCount: 4
+                    ),
                     attachment: current.attachment,
                     stepped: current.stepped,
                     curve: nil
@@ -1958,11 +1975,85 @@ final class SpineSetupPoseRenderer {
         return frames.last ?? defaultFrame
     }
 
-    private func interpolateColor(_ start: SIMD4<Float>?, _ end: SIMD4<Float>?, ratio: Double) -> SIMD4<Float>? {
+    private func sampleTimelineColor(
+        _ frames: [TimelineFrame],
+        time: Double,
+        defaultFrame: TimelineFrame,
+        channelCount: Int
+    ) -> SIMD4<Float>? {
+        guard frames.isEmpty == false else { return defaultFrame.color }
+        guard time > frames[0].time else { return frames[0].color }
+
+        for index in 0..<(frames.count - 1) {
+            let current = frames[index]
+            let next = frames[index + 1]
+            if time <= next.time {
+                if current.stepped || next.time <= current.time {
+                    return current.color
+                }
+                let ratio = min(max((time - current.time) / (next.time - current.time), 0), 1)
+                return interpolateColor(
+                    current.color,
+                    next.color,
+                    time: time,
+                    fromTime: current.time,
+                    toTime: next.time,
+                    curve: current.curve,
+                    fallbackRatio: ratio,
+                    channelOffset: 0,
+                    channelCount: channelCount
+                )
+            }
+        }
+
+        return frames.last?.color ?? defaultFrame.color
+    }
+
+    private func interpolateColor(
+        _ start: SIMD4<Float>?,
+        _ end: SIMD4<Float>?,
+        time: Double,
+        fromTime: Double,
+        toTime: Double,
+        curve: [Double]?,
+        fallbackRatio: Double,
+        channelOffset: Int,
+        channelCount: Int
+    ) -> SIMD4<Float>? {
         guard let start else { return end }
         guard let end else { return start }
-        let t = Float(ratio)
-        return start + ((end - start) * t)
+        let count = min(max(channelCount, 0), 4)
+        let hasPerChannelCurves = (curve?.count ?? 0) >= (channelOffset + count) * 4
+        let sharedRatio = hasPerChannelCurves
+            ? fallbackRatio
+            : interpolateCurveValue(
+                time: time,
+                fromTime: fromTime,
+                toTime: toTime,
+                fromValue: 0,
+                toValue: 1,
+                curve: curve,
+                valueIndex: 0,
+                fallbackRatio: fallbackRatio
+            )
+        var result = start + ((end - start) * Float(fallbackRatio))
+        for channel in 0..<count {
+            let valueIndex = channelOffset + channel
+            let sampled = hasPerChannelCurves
+                ? interpolateCurveValue(
+                    time: time,
+                    fromTime: fromTime,
+                    toTime: toTime,
+                    fromValue: Double(start[channel]),
+                    toValue: Double(end[channel]),
+                    curve: curve,
+                    valueIndex: valueIndex,
+                    fallbackRatio: fallbackRatio
+                )
+                : Double(start[channel]) + ((Double(end[channel]) - Double(start[channel])) * sharedRatio)
+            result[channel] = Float(sampled)
+        }
+        return result
     }
 
     private static func isStepped(_ raw: Any?) -> Bool {
@@ -1970,10 +2061,14 @@ final class SpineSetupPoseRenderer {
     }
 
     private static func parseCurve(_ raw: Any?) -> [Double]? {
-        guard let values = raw as? [Double], values.count >= 4 else {
-            return nil
+        if let values = raw as? [Double], values.count >= 4 {
+            return values
         }
-        return values
+        if let values = raw as? [Any] {
+            let parsed = values.map { number($0, default: 0) }
+            return parsed.count >= 4 ? parsed : nil
+        }
+        return nil
     }
 
     private func interpolateCurveValue(
