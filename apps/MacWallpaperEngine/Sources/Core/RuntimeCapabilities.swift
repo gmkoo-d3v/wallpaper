@@ -849,6 +849,8 @@ private struct SpineFeatureScan {
         timelineKeys.subtracting([
             "bones.rotate",
             "bones.translate",
+            "bones.translateX",
+            "bones.translateY",
             "bones.translatex",
             "bones.translatey",
             "bones.scale",

@@ -45,6 +45,8 @@ struct SpineAnimationDiagnostics {
     private static let supportedNativeTimelineTypes: Set<String> = [
         "bone.rotate",
         "bone.translate",
+        "bone.translateX",
+        "bone.translateY",
         "bone.translatex",
         "bone.translatey",
         "bone.scale",

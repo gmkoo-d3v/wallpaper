@@ -7599,6 +7599,172 @@ enum RuntimeSelfTest {
             )
         }
 
+        let boneTranslateAxisTemplate = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -20,
+            "y": -20,
+            "width": 120,
+            "height": 80
+          },
+          "bones": [
+            { "name": "root" },
+            { "name": "axisBone", "parent": "root", "x": 8, "y": 8 }
+          ],
+          "slots": [
+            { "name": "axis-slot", "bone": "axisBone", "attachment": "ik-quad" }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "axis-slot": {
+                  "ik-quad": {
+                    "type": "region",
+                    "path": "ik-quad",
+                    "x": 24,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "idle": __ANIMATION_BLOCK__
+          }
+        }
+        """
+        let baseBoneTranslateAxisSpineJSON = boneTranslateAxisTemplate.replacingOccurrences(
+            of: "__ANIMATION_BLOCK__",
+            with: "{}"
+        )
+        try Data(baseBoneTranslateAxisSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let baseBoneTranslateAxisRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let boneTranslateAxisGeometryRequired = SpineGeometryDiagnostics.validationStatus(runtime: baseBoneTranslateAxisRuntime) == "required"
+        var baseBoneTranslateAxisFingerprint: String?
+        if boneTranslateAxisGeometryRequired {
+            try baseBoneTranslateAxisRuntime.requireNativeSpineGeometryIfSupported()
+            let baseBoneTranslateAxisGeometryPlan = try SpineGeometryDiagnostics.make(runtime: baseBoneTranslateAxisRuntime)
+            baseBoneTranslateAxisFingerprint = geometryFingerprint(
+                in: baseBoneTranslateAxisGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+        }
+
+        let lowercaseBoneTranslateAxisBlock = """
+        {
+              "bones": {
+                "axisBone": {
+                  "translatex": [
+                    { "time": 0, "value": 18 }
+                  ],
+                  "translatey": [
+                    { "time": 0, "value": 12 }
+                  ]
+                }
+              }
+            }
+        """
+        let lowercaseBoneTranslateAxisSpineJSON = boneTranslateAxisTemplate.replacingOccurrences(
+            of: "__ANIMATION_BLOCK__",
+            with: lowercaseBoneTranslateAxisBlock
+        )
+        try Data(lowercaseBoneTranslateAxisSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let lowercaseBoneTranslateAxisRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        var lowercaseBoneTranslateAxisFingerprint: String?
+        if boneTranslateAxisGeometryRequired {
+            try lowercaseBoneTranslateAxisRuntime.requireNativeSpineGeometryIfSupported()
+            let lowercaseBoneTranslateAxisGeometryPlan = try SpineGeometryDiagnostics.make(runtime: lowercaseBoneTranslateAxisRuntime)
+            lowercaseBoneTranslateAxisFingerprint = geometryFingerprint(
+                in: lowercaseBoneTranslateAxisGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+        }
+
+        let camelCaseBoneTranslateAxisBlock = """
+        {
+              "bones": {
+                "axisBone": {
+                  "translateX": [
+                    { "time": 0, "value": 18 }
+                  ],
+                  "translateY": [
+                    { "time": 0, "value": 12 }
+                  ]
+                }
+              }
+            }
+        """
+        let camelCaseBoneTranslateAxisSpineJSON = boneTranslateAxisTemplate.replacingOccurrences(
+            of: "__ANIMATION_BLOCK__",
+            with: camelCaseBoneTranslateAxisBlock
+        )
+        try Data(camelCaseBoneTranslateAxisSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let camelCaseBoneTranslateAxisCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
+        check(
+            camelCaseBoneTranslateAxisCompatibility.isSupported,
+            "Spine bone translateX/translateY timeline aliases must pass native compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        let camelCaseBoneTranslateAxisRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let camelCaseBoneTranslateAxisAnimationPlan = try SpineAnimationDiagnostics.make(
+            runtime: camelCaseBoneTranslateAxisRuntime
+        )
+        check(
+            camelCaseBoneTranslateAxisAnimationPlan.contains("unsupportedActionTimelines: none")
+                && camelCaseBoneTranslateAxisAnimationPlan.contains("bone.translateX=1")
+                && camelCaseBoneTranslateAxisAnimationPlan.contains("bone.translateY=1"),
+            "Spine animation diagnostics must summarize bone translateX/translateY timeline aliases as compatible",
+            failures: &failures,
+            checks: &checks
+        )
+        if boneTranslateAxisGeometryRequired {
+            try camelCaseBoneTranslateAxisRuntime.requireNativeSpineGeometryIfSupported()
+            let camelCaseBoneTranslateAxisGeometryPlan = try SpineGeometryDiagnostics.make(runtime: camelCaseBoneTranslateAxisRuntime)
+            let camelCaseBoneTranslateAxisFingerprint = geometryFingerprint(
+                in: camelCaseBoneTranslateAxisGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            check(
+                baseBoneTranslateAxisFingerprint != nil
+                    && camelCaseBoneTranslateAxisFingerprint != nil
+                    && baseBoneTranslateAxisFingerprint != camelCaseBoneTranslateAxisFingerprint,
+                "Spine bone translateX/translateY aliases must change native geometry instead of only changing diagnostics",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                lowercaseBoneTranslateAxisFingerprint != nil
+                    && camelCaseBoneTranslateAxisFingerprint != nil
+                    && lowercaseBoneTranslateAxisFingerprint == camelCaseBoneTranslateAxisFingerprint,
+                "Spine bone translateX/translateY aliases must render the same geometry as lowercase translatex/translatey timelines",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+
         let spineJSON = """
         {
           "skeleton": {

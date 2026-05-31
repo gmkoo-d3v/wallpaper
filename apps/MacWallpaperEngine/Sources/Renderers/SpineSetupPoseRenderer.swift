@@ -1647,10 +1647,10 @@ final class SpineSetupPoseRenderer {
                     if let raw = timelineSet["translate"] {
                         timelines.translate = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
                     }
-                    if let raw = timelineSet["translatex"] {
+                    if let raw = timelineSet["translatex"] ?? timelineSet["translateX"] {
                         timelines.translateX = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
                     }
-                    if let raw = timelineSet["translatey"] {
+                    if let raw = timelineSet["translatey"] ?? timelineSet["translateY"] {
                         timelines.translateY = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
                     }
                     if let raw = timelineSet["scale"] {
