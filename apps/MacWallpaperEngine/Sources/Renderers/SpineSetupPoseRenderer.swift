@@ -50,6 +50,7 @@ final class SpineSetupPoseRenderer {
     }
 
     private struct IkPoseConstraint {
+        let name: String
         let order: Int
         let boneIndices: [Int]
         let targetIndex: Int
@@ -62,6 +63,7 @@ final class SpineSetupPoseRenderer {
     }
 
     private struct TransformPoseConstraint {
+        let name: String
         let order: Int
         let boneIndices: [Int]
         let targetIndex: Int
@@ -82,6 +84,7 @@ final class SpineSetupPoseRenderer {
     }
 
     private struct PathPoseConstraint {
+        let name: String
         let order: Int
         let boneIndices: [Int]
         let targetSlotName: String
@@ -250,6 +253,56 @@ final class SpineSetupPoseRenderer {
         }
     }
 
+    private struct IkConstraintTimelines {
+        var mix: [TimelineFrame] = []
+
+        var frameTimes: [Double] {
+            mix.map(\.time)
+        }
+
+        var maxTime: Double {
+            frameTimes.max() ?? 0
+        }
+    }
+
+    private struct TransformConstraintTimelines {
+        var rotateMix: [TimelineFrame] = []
+        var translateMix: [TimelineFrame] = []
+        var mixX: [TimelineFrame] = []
+        var mixY: [TimelineFrame] = []
+        var scaleMix: [TimelineFrame] = []
+        var mixScaleX: [TimelineFrame] = []
+        var mixScaleY: [TimelineFrame] = []
+        var shearMix: [TimelineFrame] = []
+
+        var frameTimes: [Double] {
+            [rotateMix, translateMix, mixX, mixY, scaleMix, mixScaleX, mixScaleY, shearMix]
+                .flatMap { $0 }
+                .map(\.time)
+        }
+
+        var maxTime: Double {
+            frameTimes.max() ?? 0
+        }
+    }
+
+    private struct PathConstraintTimelines {
+        var rotateMix: [TimelineFrame] = []
+        var translateMix: [TimelineFrame] = []
+        var mixX: [TimelineFrame] = []
+        var mixY: [TimelineFrame] = []
+
+        var frameTimes: [Double] {
+            [rotateMix, translateMix, mixX, mixY]
+                .flatMap { $0 }
+                .map(\.time)
+        }
+
+        var maxTime: Double {
+            frameTimes.max() ?? 0
+        }
+    }
+
     private struct SlotTimelines {
         var rgba: [TimelineFrame] = []
         var rgb: [TimelineFrame] = []
@@ -289,6 +342,9 @@ final class SpineSetupPoseRenderer {
         let name: String
         let duration: Double
         let boneTimelines: [String: BoneTimelines]
+        let ikConstraintTimelines: [String: IkConstraintTimelines]
+        let transformConstraintTimelines: [String: TransformConstraintTimelines]
+        let pathConstraintTimelines: [String: PathConstraintTimelines]
         let slotTimelines: [String: SlotTimelines]
         let attachmentTimelines: [String: [String: AttachmentTimelines]]
         let drawOrder: [DrawOrderFrame]
@@ -296,6 +352,9 @@ final class SpineSetupPoseRenderer {
 
         func timelineFrameTimes() -> [Double] {
             var times = boneTimelines.values.flatMap(\.frameTimes)
+            times.append(contentsOf: ikConstraintTimelines.values.flatMap(\.frameTimes))
+            times.append(contentsOf: transformConstraintTimelines.values.flatMap(\.frameTimes))
+            times.append(contentsOf: pathConstraintTimelines.values.flatMap(\.frameTimes))
             times.append(contentsOf: slotTimelines.values.flatMap(\.frameTimes))
             times.append(contentsOf: attachmentTimelines.values.flatMap { slotTimelines in
                 slotTimelines.values.flatMap { timelines in
@@ -1087,11 +1146,21 @@ final class SpineSetupPoseRenderer {
     ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
         var posedBones = bones
         var posedSlots = slots
+        var posedConstraints = poseConstraints
         var deforms: [String: [String: [Double]]] = [:]
         var sequenceIndices: [String: [String: Int]] = [:]
 
         if let baseAnimation {
-            apply(animation: baseAnimation, time: baseTime, alpha: 1, to: &posedBones, slots: &posedSlots, deforms: &deforms, sequenceIndices: &sequenceIndices)
+            apply(
+                animation: baseAnimation,
+                time: baseTime,
+                alpha: 1,
+                to: &posedBones,
+                constraints: &posedConstraints,
+                slots: &posedSlots,
+                deforms: &deforms,
+                sequenceIndices: &sequenceIndices
+            )
         }
         if let previousOverlayAnimation, previousOverlayMix > 0 {
             apply(
@@ -1099,13 +1168,23 @@ final class SpineSetupPoseRenderer {
                 time: previousOverlayTime,
                 alpha: previousOverlayMix,
                 to: &posedBones,
+                constraints: &posedConstraints,
                 slots: &posedSlots,
                 deforms: &deforms,
                 sequenceIndices: &sequenceIndices
             )
         }
         if let overlayAnimation, overlayMix > 0 {
-            apply(animation: overlayAnimation, time: overlayTime, alpha: overlayMix, to: &posedBones, slots: &posedSlots, deforms: &deforms, sequenceIndices: &sequenceIndices)
+            apply(
+                animation: overlayAnimation,
+                time: overlayTime,
+                alpha: overlayMix,
+                to: &posedBones,
+                constraints: &posedConstraints,
+                slots: &posedSlots,
+                deforms: &deforms,
+                sequenceIndices: &sequenceIndices
+            )
         }
         applyDrawOrder(
             baseAnimation: baseAnimation,
@@ -1122,7 +1201,7 @@ final class SpineSetupPoseRenderer {
 
         return (Self.computeBoneWorld(
             posedBones,
-            constraints: poseConstraints,
+            constraints: posedConstraints,
             slots: posedSlots,
             pathAttachments: pathAttachments,
             deforms: deforms,
@@ -1153,6 +1232,7 @@ final class SpineSetupPoseRenderer {
         time: Double,
         alpha: Double,
         to posedBones: inout [Bone],
+        constraints posedConstraints: inout [PoseConstraint],
         slots posedSlots: inout [Slot],
         deforms: inout [String: [String: [Double]]],
         sequenceIndices: inout [String: [String: Int]]
@@ -1192,6 +1272,8 @@ final class SpineSetupPoseRenderer {
                 posedBones[index].shearY = blend(posedBones[index].shearY, setup.shearY + sampled.y, mix)
             }
         }
+
+        applyConstraintTimelines(animation, time: time, mix: mix, to: &posedConstraints)
 
         for slotIndex in posedSlots.indices {
             let slotName = posedSlots[slotIndex].name
@@ -1250,6 +1332,143 @@ final class SpineSetupPoseRenderer {
                         sequence: sequence
                     )
                 }
+            }
+        }
+    }
+
+    private func applyConstraintTimelines(
+        _ animation: SpineAnimation,
+        time: Double,
+        mix: Double,
+        to constraints: inout [PoseConstraint]
+    ) {
+        guard animation.ikConstraintTimelines.isEmpty == false ||
+              animation.transformConstraintTimelines.isEmpty == false ||
+              animation.pathConstraintTimelines.isEmpty == false else {
+            return
+        }
+
+        for index in constraints.indices {
+            switch constraints[index] {
+            case .ik(var constraint):
+                guard let timelines = animation.ikConstraintTimelines[constraint.name] else { continue }
+                if timelines.mix.isEmpty == false {
+                    let sampled = sampleValue(timelines.mix, time: time, defaultValue: constraint.mix)
+                    constraint = IkPoseConstraint(
+                        name: constraint.name,
+                        order: constraint.order,
+                        boneIndices: constraint.boneIndices,
+                        targetIndex: constraint.targetIndex,
+                        bendDirection: constraint.bendDirection,
+                        compress: constraint.compress,
+                        stretch: constraint.stretch,
+                        uniform: constraint.uniform,
+                        mix: blend(constraint.mix, sampled, mix),
+                        softness: constraint.softness
+                    )
+                    constraints[index] = .ik(constraint)
+                }
+
+            case .transform(var constraint):
+                guard let timelines = animation.transformConstraintTimelines[constraint.name] else { continue }
+                var mixRotate = constraint.mixRotate
+                var mixX = constraint.mixX
+                var mixY = constraint.mixY
+                var mixScaleX = constraint.mixScaleX
+                var mixScaleY = constraint.mixScaleY
+                var mixShearY = constraint.mixShearY
+
+                if timelines.rotateMix.isEmpty == false {
+                    mixRotate = blend(mixRotate, sampleValue(timelines.rotateMix, time: time, defaultValue: mixRotate), mix)
+                }
+                if timelines.translateMix.isEmpty == false {
+                    let sampled = sampleValue(timelines.translateMix, time: time, defaultValue: mixX)
+                    mixX = blend(mixX, sampled, mix)
+                    mixY = blend(mixY, sampled, mix)
+                }
+                if timelines.mixX.isEmpty == false {
+                    mixX = blend(mixX, sampleValue(timelines.mixX, time: time, defaultValue: mixX), mix)
+                }
+                if timelines.mixY.isEmpty == false {
+                    mixY = blend(mixY, sampleValue(timelines.mixY, time: time, defaultValue: mixY), mix)
+                }
+                if timelines.scaleMix.isEmpty == false {
+                    let sampled = sampleValue(timelines.scaleMix, time: time, defaultValue: mixScaleX)
+                    mixScaleX = blend(mixScaleX, sampled, mix)
+                    mixScaleY = blend(mixScaleY, sampled, mix)
+                }
+                if timelines.mixScaleX.isEmpty == false {
+                    mixScaleX = blend(mixScaleX, sampleValue(timelines.mixScaleX, time: time, defaultValue: mixScaleX), mix)
+                }
+                if timelines.mixScaleY.isEmpty == false {
+                    mixScaleY = blend(mixScaleY, sampleValue(timelines.mixScaleY, time: time, defaultValue: mixScaleY), mix)
+                }
+                if timelines.shearMix.isEmpty == false {
+                    mixShearY = blend(mixShearY, sampleValue(timelines.shearMix, time: time, defaultValue: mixShearY), mix)
+                }
+
+                constraint = TransformPoseConstraint(
+                    name: constraint.name,
+                    order: constraint.order,
+                    boneIndices: constraint.boneIndices,
+                    targetIndex: constraint.targetIndex,
+                    offsetRotation: constraint.offsetRotation,
+                    offsetX: constraint.offsetX,
+                    offsetY: constraint.offsetY,
+                    offsetScaleX: constraint.offsetScaleX,
+                    offsetScaleY: constraint.offsetScaleY,
+                    offsetShearY: constraint.offsetShearY,
+                    local: constraint.local,
+                    relative: constraint.relative,
+                    mixRotate: mixRotate,
+                    mixX: mixX,
+                    mixY: mixY,
+                    mixScaleX: mixScaleX,
+                    mixScaleY: mixScaleY,
+                    mixShearY: mixShearY
+                )
+                constraints[index] = .transform(constraint)
+
+            case .path(var constraint):
+                guard let timelines = animation.pathConstraintTimelines[constraint.name] else { continue }
+                var mixRotate = constraint.mixRotate
+                var mixX = constraint.mixX
+                var mixY = constraint.mixY
+
+                if timelines.rotateMix.isEmpty == false {
+                    mixRotate = blend(mixRotate, sampleValue(timelines.rotateMix, time: time, defaultValue: mixRotate), mix)
+                }
+                if timelines.translateMix.isEmpty == false {
+                    let sampled = sampleValue(timelines.translateMix, time: time, defaultValue: mixX)
+                    mixX = blend(mixX, sampled, mix)
+                    mixY = blend(mixY, sampled, mix)
+                }
+                if timelines.mixX.isEmpty == false {
+                    mixX = blend(mixX, sampleValue(timelines.mixX, time: time, defaultValue: mixX), mix)
+                }
+                if timelines.mixY.isEmpty == false {
+                    mixY = blend(mixY, sampleValue(timelines.mixY, time: time, defaultValue: mixY), mix)
+                }
+
+                constraint = PathPoseConstraint(
+                    name: constraint.name,
+                    order: constraint.order,
+                    boneIndices: constraint.boneIndices,
+                    targetSlotName: constraint.targetSlotName,
+                    positionMode: constraint.positionMode,
+                    spacingMode: constraint.spacingMode,
+                    rotateMode: constraint.rotateMode,
+                    offsetRotation: constraint.offsetRotation,
+                    position: constraint.position,
+                    spacing: constraint.spacing,
+                    mixRotate: mixRotate,
+                    mixX: mixX,
+                    mixY: mixY
+                )
+                constraints[index] = .path(constraint)
+
+            case .physics:
+                continue
             }
         }
     }
@@ -1388,6 +1607,9 @@ final class SpineSetupPoseRenderer {
             guard let animationMap = rawAnimation as? [String: Any] else { continue }
             var duration = 0.0
             var boneTimelines: [String: BoneTimelines] = [:]
+            var ikConstraintTimelines: [String: IkConstraintTimelines] = [:]
+            var transformConstraintTimelines: [String: TransformConstraintTimelines] = [:]
+            var pathConstraintTimelines: [String: PathConstraintTimelines] = [:]
             var slotTimelines: [String: SlotTimelines] = [:]
             var attachmentTimelines: [String: [String: AttachmentTimelines]] = [:]
             var drawOrder: [DrawOrderFrame] = []
@@ -1416,6 +1638,72 @@ final class SpineSetupPoseRenderer {
                     }
                     duration = max(duration, timelines.maxTime)
                     boneTimelines[boneName] = timelines
+                }
+            }
+
+            if let rawIk = animationMap["ik"] as? [String: Any] {
+                for (constraintName, rawTimelineSet) in rawIk {
+                    guard let timelineSet = rawTimelineSet as? [String: Any] else { continue }
+                    var timelines = IkConstraintTimelines()
+                    if let raw = timelineSet["mix"] {
+                        timelines.mix = parseMixFrames(raw)
+                    }
+                    duration = max(duration, timelines.maxTime)
+                    ikConstraintTimelines[constraintName] = timelines
+                }
+            }
+
+            if let rawTransform = animationMap["transform"] as? [String: Any] {
+                for (constraintName, rawTimelineSet) in rawTransform {
+                    guard let timelineSet = rawTimelineSet as? [String: Any] else { continue }
+                    var timelines = TransformConstraintTimelines()
+                    if let raw = timelineSet["rotateMix"] ?? timelineSet["mixRotate"] {
+                        timelines.rotateMix = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["translateMix"] {
+                        timelines.translateMix = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["mixX"] {
+                        timelines.mixX = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["mixY"] {
+                        timelines.mixY = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["scaleMix"] {
+                        timelines.scaleMix = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["mixScaleX"] {
+                        timelines.mixScaleX = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["mixScaleY"] {
+                        timelines.mixScaleY = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["shearMix"] ?? timelineSet["mixShearY"] {
+                        timelines.shearMix = parseMixFrames(raw)
+                    }
+                    duration = max(duration, timelines.maxTime)
+                    transformConstraintTimelines[constraintName] = timelines
+                }
+            }
+
+            if let rawPath = animationMap["path"] as? [String: Any] {
+                for (constraintName, rawTimelineSet) in rawPath {
+                    guard let timelineSet = rawTimelineSet as? [String: Any] else { continue }
+                    var timelines = PathConstraintTimelines()
+                    if let raw = timelineSet["rotateMix"] ?? timelineSet["mixRotate"] {
+                        timelines.rotateMix = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["translateMix"] {
+                        timelines.translateMix = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["mixX"] {
+                        timelines.mixX = parseMixFrames(raw)
+                    }
+                    if let raw = timelineSet["mixY"] {
+                        timelines.mixY = parseMixFrames(raw)
+                    }
+                    duration = max(duration, timelines.maxTime)
+                    pathConstraintTimelines[constraintName] = timelines
                 }
             }
 
@@ -1484,6 +1772,9 @@ final class SpineSetupPoseRenderer {
                 name: animationName,
                 duration: duration,
                 boneTimelines: boneTimelines,
+                ikConstraintTimelines: ikConstraintTimelines,
+                transformConstraintTimelines: transformConstraintTimelines,
+                pathConstraintTimelines: pathConstraintTimelines,
                 slotTimelines: slotTimelines,
                 attachmentTimelines: attachmentTimelines,
                 drawOrder: drawOrder,
@@ -1543,6 +1834,24 @@ final class SpineSetupPoseRenderer {
                 x: number(frame["x"], default: defaultX),
                 y: number(frame["y"], default: defaultY),
                 value: number(frame["value"], default: defaultValue),
+                color: nil,
+                attachment: nil,
+                stepped: isStepped(frame["curve"]),
+                curve: parseCurve(frame["curve"])
+            )
+        }
+        .sorted { $0.time < $1.time }
+    }
+
+    private static func parseMixFrames(_ raw: Any) -> [TimelineFrame] {
+        guard let frames = raw as? [[String: Any]] else { return [] }
+        return frames.map { frame in
+            let value = number(frame, keys: ["value", "mix", "x", "y"], default: 1)
+            return TimelineFrame(
+                time: number(frame["time"], default: 0),
+                x: value,
+                y: value,
+                value: value,
                 color: nil,
                 attachment: nil,
                 stepped: isStepped(frame["curve"]),
@@ -2351,6 +2660,7 @@ final class SpineSetupPoseRenderer {
                     throw EngineError.asset("Spine IK constraint references an unknown bone")
                 }
                 result.append(.ik(IkPoseConstraint(
+                    name: raw["name"] as? String ?? "unnamed",
                     order: Int(number(raw["order"], default: 0)),
                     boneIndices: boneIndices,
                     targetIndex: targetIndex,
@@ -2381,6 +2691,7 @@ final class SpineSetupPoseRenderer {
                 let mixX = number(raw, keys: ["mixX", "translateMix"], default: 1)
                 let mixScaleX = number(raw, keys: ["mixScaleX", "scaleMix"], default: 1)
                 result.append(.transform(TransformPoseConstraint(
+                    name: raw["name"] as? String ?? "unnamed",
                     order: Int(number(raw["order"], default: 0)),
                     boneIndices: boneIndices,
                     targetIndex: targetIndex,
@@ -2414,6 +2725,7 @@ final class SpineSetupPoseRenderer {
                 }
                 let mixX = number(raw, keys: ["mixX", "translateMix"], default: 1)
                 result.append(.path(PathPoseConstraint(
+                    name: raw["name"] as? String ?? "unnamed",
                     order: Int(number(raw["order"], default: 0)),
                     boneIndices: boneIndices,
                     targetSlotName: targetSlotName,

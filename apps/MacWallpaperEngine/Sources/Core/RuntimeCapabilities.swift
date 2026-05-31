@@ -863,6 +863,22 @@ private struct SpineFeatureScan {
             "slots.attachment",
             "attachments.deform",
             "attachments.sequence",
+            "ik.mix",
+            "transform.mixRotate",
+            "transform.mixX",
+            "transform.mixY",
+            "transform.mixScaleX",
+            "transform.mixScaleY",
+            "transform.mixShearY",
+            "transform.rotateMix",
+            "transform.translateMix",
+            "transform.scaleMix",
+            "transform.shearMix",
+            "path.mixRotate",
+            "path.mixX",
+            "path.mixY",
+            "path.rotateMix",
+            "path.translateMix",
             "drawOrder",
             "draworder",
             "events",
@@ -988,6 +1004,9 @@ private struct SpineFeatureScan {
         for rawAnimation in animations.values {
             guard let animation = rawAnimation as? [String: Any] else { continue }
             collectBoneTimelineKeys(animation["bones"])
+            collectConstraintTimelineKeys(animation["ik"], prefix: "ik")
+            collectConstraintTimelineKeys(animation["transform"], prefix: "transform")
+            collectConstraintTimelineKeys(animation["path"], prefix: "path")
             collectSlotTimelineKeys(animation["slots"])
             collectAttachmentTimelineKeys(animation["attachments"])
             if animation["drawOrder"] != nil {
@@ -996,8 +1015,25 @@ private struct SpineFeatureScan {
             if animation["draworder"] != nil {
                 timelineKeys.insert("draworder")
             }
-            for key in animation.keys where !["bones", "slots", "attachments", "drawOrder", "draworder"].contains(key) {
+            for key in animation.keys where !["bones", "ik", "transform", "path", "slots", "attachments", "drawOrder", "draworder"].contains(key) {
                 timelineKeys.insert(key)
+            }
+        }
+    }
+
+    private mutating func collectConstraintTimelineKeys(_ raw: Any?, prefix: String) {
+        guard let raw else { return }
+        guard let constraints = raw as? [String: Any] else {
+            timelineKeys.insert(prefix)
+            return
+        }
+        for rawTimelineSet in constraints.values {
+            guard let timelineSet = rawTimelineSet as? [String: Any] else {
+                timelineKeys.insert(prefix)
+                continue
+            }
+            for key in timelineSet.keys {
+                timelineKeys.insert("\(prefix).\(key)")
             }
         }
     }

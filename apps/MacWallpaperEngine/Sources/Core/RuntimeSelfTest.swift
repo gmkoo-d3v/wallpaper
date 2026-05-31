@@ -6389,6 +6389,22 @@ enum RuntimeSelfTest {
             }
           ],
         """
+        let animatedPathConstraintBlock = """
+          "path": [
+            {
+              "name": "supported-proportional-path",
+              "bones": ["follower"],
+              "target": "path-slot",
+              "positionMode": "percent",
+              "spacingMode": "proportional",
+              "rotateMode": "chainscale",
+              "position": 0.15,
+              "spacing": 0.60,
+              "rotateMix": 0,
+              "translateMix": 0
+            }
+          ],
+        """
         let spineTemplate = """
         {
           "skeleton": {
@@ -6645,6 +6661,74 @@ enum RuntimeSelfTest {
                     && pathConstraintBounds != nil
                     && noConstraintBounds != pathConstraintBounds,
                 "official Spine proportional path constraint mix aliases must move visible geometry bounds",
+                failures: &failures,
+                checks: &checks
+            )
+
+            let animatedPathConstraintSpineJSON = spineTemplate
+                .replacingOccurrences(
+                    of: "__PATH_CONSTRAINT_BLOCK__",
+                    with: animatedPathConstraintBlock
+                )
+                .replacingOccurrences(
+                    of: "\"idle\": {}",
+                    with: """
+                    "idle": {
+                      "path": {
+                        "supported-proportional-path": {
+                          "rotateMix": [
+                            { "time": 0, "value": 0 },
+                            { "time": 0.05, "value": 0.7 }
+                          ],
+                          "translateMix": [
+                            { "time": 0, "value": 0 },
+                            { "time": 0.05, "value": 0.6 }
+                          ]
+                        }
+                      }
+                    }
+                    """
+                )
+            try Data(animatedPathConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+            let animatedPathConstraintRuntime = try NativeRuntimeCore(config: noConstraintRuntime.config.replacing(
+                clearDuration: true,
+                launchControlPanel: false,
+                launchWallpaper: false
+            ))
+            let animatedPathConstraintCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+                runtime: animatedPathConstraintRuntime
+            )
+            check(
+                animatedPathConstraintCompatibility.isSupported,
+                "Spine path constraint mix timelines must pass native compatibility gate",
+                failures: &failures,
+                checks: &checks
+            )
+            try animatedPathConstraintRuntime.requireNativeSpineGeometryIfSupported()
+            let animatedPathConstraintGeometryPlan = try SpineGeometryDiagnostics.make(runtime: animatedPathConstraintRuntime)
+            let animatedPathStartFingerprint = geometryFingerprint(
+                in: animatedPathConstraintGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            let animatedPathMixedFingerprint = geometryFingerprint(
+                in: animatedPathConstraintGeometryPlan,
+                action: "idle",
+                time: "0.050s"
+            )
+            check(
+                animatedPathStartFingerprint != nil
+                    && noConstraintFingerprint != nil
+                    && animatedPathStartFingerprint == noConstraintFingerprint,
+                "Spine path constraint mix timelines must preserve setup geometry before the animated mix turns on",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                animatedPathMixedFingerprint != nil
+                    && pathConstraintFingerprint != nil
+                    && animatedPathMixedFingerprint == pathConstraintFingerprint,
+                "Spine path constraint mix timelines must render the same geometry as equivalent setup mix values",
                 failures: &failures,
                 checks: &checks
             )
