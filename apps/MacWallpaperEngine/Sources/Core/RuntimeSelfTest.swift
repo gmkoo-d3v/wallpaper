@@ -2655,6 +2655,7 @@ enum RuntimeSelfTest {
         try checkNonSpineInteractiveBundleRejected(from: runtime, failures: &failures, checks: &checks)
         try checkLinkedMeshSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
         try checkClippingSpineGeometryBundle(from: runtime, failures: &failures, checks: &checks)
+        try checkPathConstraintSpineGeometryBundle(from: runtime, failures: &failures, checks: &checks)
         try checkUnsupportedSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
@@ -6300,6 +6301,304 @@ enum RuntimeSelfTest {
                     && clippedBounds != nil
                     && unclippedBounds != clippedBounds,
                 "Spine clipping diagnostics must prove clipped geometry differs from the same mesh rendered without clipping",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+    }
+
+    private static func checkPathConstraintSpineGeometryBundle(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        checks += 1
+        guard let sourceVideo = runtime.assetCatalog.compositeVideoAssetURL ?? runtime.assetCatalog.videoAssetURL else {
+            failures.append("path-constraint Spine fixture requires an active video asset")
+            return
+        }
+
+        checks += 1
+        guard let sourceTexture = runtime.assetCatalog.spineAsset?.textures.first else {
+            failures.append("path-constraint Spine fixture requires an active Spine texture")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let fixtureRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEnginePathConstraintSpineSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureRoot)
+        }
+
+        let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+        try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
+        let fixtureVideo = assetsRoot.appendingPathComponent("background.mp4")
+        let fixtureTexture = assetsRoot.appendingPathComponent("texture.png")
+        do {
+            try fileManager.linkItem(at: sourceVideo, to: fixtureVideo)
+        } catch {
+            try fileManager.copyItem(at: sourceVideo, to: fixtureVideo)
+        }
+        do {
+            try fileManager.linkItem(at: sourceTexture, to: fixtureTexture)
+        } catch {
+            try fileManager.copyItem(at: sourceTexture, to: fixtureTexture)
+        }
+
+        let fixtureAtlas = assetsRoot.appendingPathComponent("character.atlas")
+        let atlasText = """
+        texture.png
+        size: 64,64
+
+        quad
+        bounds: 0,0,64,64
+        offsets: 0,0,64,64
+        """
+        try Data(atlasText.utf8).write(to: fixtureAtlas, options: .atomic)
+
+        let pathConstraintBlock = """
+          "path": [
+            {
+              "name": "supported-proportional-path",
+              "bones": ["follower"],
+              "target": "path-slot",
+              "positionMode": "percent",
+              "spacingMode": "proportional",
+              "rotateMode": "chainscale",
+              "position": 0.15,
+              "spacing": 0.60,
+              "mixRotate": 1,
+              "mixX": 1,
+              "mixY": 1
+            }
+          ],
+        """
+        let spineTemplate = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -100,
+            "y": -100,
+            "width": 200,
+            "height": 200
+          },
+          "bones": [
+            {
+              "name": "root"
+            },
+            {
+              "name": "follower",
+              "parent": "root",
+              "x": -70,
+              "y": -70,
+              "length": 44
+            }
+          ],
+          "slots": [
+            {
+              "name": "path-slot",
+              "bone": "root",
+              "attachment": "motion-path"
+            },
+            {
+              "name": "follower-slot",
+              "bone": "follower",
+              "attachment": "quad"
+            }
+          ],
+        __PATH_CONSTRAINT_BLOCK__
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "path-slot": {
+                  "motion-path": {
+                    "type": "path",
+                    "closed": true,
+                    "constantSpeed": true,
+                    "vertexCount": 4,
+                    "vertices": [-60, 0, -20, 80, 20, 80, 60, 0],
+                    "lengths": [140]
+                  }
+                },
+                "follower-slot": {
+                  "quad": {
+                    "type": "region",
+                    "path": "quad",
+                    "x": 22,
+                    "y": 0,
+                    "width": 24,
+                    "height": 24
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "idle": {}
+          }
+        }
+        """
+        let fixtureSpineJSON = assetsRoot.appendingPathComponent("character.json")
+        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let manifestJSON = """
+        {
+          "schemaVersion": "macos-wallpaper-native.v2",
+          "metadata": {
+            "id": "selftest_path_constraint_spine",
+            "title": "Self Test Path Constraint Spine"
+          },
+          "runtime": {
+            "kind": "native-metal",
+            "targetFps": 30,
+            "maxFps": 60,
+            "fallbackFps": 15,
+            "scheduler": {
+              "maxInFlightCommandBuffers": 1,
+              "lateFramePolicy": "drop",
+              "catchUp": false
+            }
+          },
+          "displayPolicy": {
+            "primary": "full",
+            "secondary": "video-only",
+            "fullscreenObscured": "pause",
+            "occluded": "pause"
+          },
+          "thermalPolicy": {
+            "nominal": "30fps",
+            "serious": "15fps-or-video-only",
+            "critical": "pause"
+          },
+          "layerBudgets": {
+            "maxTexturePages": 1,
+            "maxTextureDimension": 8192,
+            "rssTargetMb": 250,
+            "rssHardMb": 500,
+            "primaryCpuTargetPercent": 10,
+            "cpuDowngradePercent": 20,
+            "cpuDowngradeWindowSeconds": 10
+          },
+          "assets": {
+            "video": {
+              "id": "backgroundVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+            "compositeVideo": {
+              "id": "compositeVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+            "spine": {
+              "id": "pathConstraintCharacter",
+              "version": "4.2.43",
+              "json": "assets/character.json",
+              "atlas": "assets/character.atlas",
+              "textures": [
+                "assets/texture.png"
+              ],
+              "premultipliedAlpha": false
+            }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "video",
+              "asset": "backgroundVideo"
+            },
+            {
+              "id": "character",
+              "type": "spine",
+              "asset": "pathConstraintCharacter",
+              "renderingMode": "setup-mesh"
+            }
+          ],
+          "interactions": [],
+          "validation": {
+            "bundleRootOnly": true,
+            "requirePremultipliedAlpha": false,
+            "requireSpineVersion": "4.2.x",
+            "rejectUnknownLayerTypes": true
+          }
+        }
+        """
+        try Data(manifestJSON.utf8).write(to: manifestURL, options: .atomic)
+
+        let noConstraintSpineJSON = spineTemplate.replacingOccurrences(
+            of: "__PATH_CONSTRAINT_BLOCK__",
+            with: ""
+        )
+        try Data(noConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let noConstraintRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            displayMode: .primaryAnimated,
+            renderFps: 30,
+            foregroundMode: .nativeSpine,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let noConstraintGeometryRequired = SpineGeometryDiagnostics.validationStatus(runtime: noConstraintRuntime) == "required"
+        let noConstraintFingerprint: String?
+        let noConstraintBounds: String?
+        if noConstraintGeometryRequired {
+            try noConstraintRuntime.requireNativeSpineGeometryIfSupported()
+            let noConstraintGeometryPlan = try SpineGeometryDiagnostics.make(runtime: noConstraintRuntime)
+            noConstraintFingerprint = geometryFingerprint(in: noConstraintGeometryPlan, action: "idle", time: "0.000s")
+            noConstraintBounds = geometryColumn(in: noConstraintGeometryPlan, action: "idle", time: "0.000s", column: 8)
+        } else {
+            noConstraintFingerprint = nil
+            noConstraintBounds = nil
+        }
+
+        let pathConstraintSpineJSON = spineTemplate.replacingOccurrences(
+            of: "__PATH_CONSTRAINT_BLOCK__",
+            with: pathConstraintBlock
+        )
+        try Data(pathConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let pathConstraintRuntime = try NativeRuntimeCore(config: noConstraintRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: pathConstraintRuntime)
+        check(
+            compatibility.isSupported,
+            "proportional Spine path constraints must pass native compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            pathConstraintRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
+                && pathConstraintRuntime.runtimeCapabilitiesSummary().contains("used=path")
+                && pathConstraintRuntime.runtimeCapabilitiesSummary().contains("spacingMode=proportional") == false,
+            "capability diagnostics must report proportional Spine path constraints as renderer-supported",
+            failures: &failures,
+            checks: &checks
+        )
+
+        if noConstraintGeometryRequired && SpineGeometryDiagnostics.validationStatus(runtime: pathConstraintRuntime) == "required" {
+            try pathConstraintRuntime.requireNativeSpineGeometryIfSupported()
+            let pathConstraintGeometryPlan = try SpineGeometryDiagnostics.make(runtime: pathConstraintRuntime)
+            let pathConstraintFingerprint = geometryFingerprint(in: pathConstraintGeometryPlan, action: "idle", time: "0.000s")
+            let pathConstraintBounds = geometryColumn(in: pathConstraintGeometryPlan, action: "idle", time: "0.000s", column: 8)
+            check(
+                noConstraintFingerprint != nil
+                    && pathConstraintFingerprint != nil
+                    && noConstraintFingerprint != pathConstraintFingerprint,
+                "proportional Spine path constraints must change native geometry instead of being scanner-only support",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                noConstraintBounds != nil
+                    && pathConstraintBounds != nil
+                    && noConstraintBounds != pathConstraintBounds,
+                "proportional Spine path constraints must move visible geometry bounds",
                 failures: &failures,
                 checks: &checks
             )

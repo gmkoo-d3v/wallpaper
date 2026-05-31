@@ -1059,7 +1059,7 @@ private struct SpineFeatureScan {
         if let constraints = root["path"] as? [[String: Any]] {
             constraintKeys.insert("path")
             let supportedPositionModes: Set<String> = ["fixed", "percent"]
-            let supportedSpacingModes: Set<String> = ["fixed", "length", "percent"]
+            let supportedSpacingModes: Set<String> = ["fixed", "length", "percent", "proportional"]
             let supportedRotateModes: Set<String> = ["tangent", "chain", "chainscale"]
             for constraint in constraints {
                 let name = namedConstraint(constraint)
