@@ -5470,7 +5470,6 @@ enum RuntimeSelfTest {
               "attachments": {
                 "slot": {
                   "base": {
-                    "type": "mesh",
                     "path": "base",
                     "sequence": {
                       "count": 2,

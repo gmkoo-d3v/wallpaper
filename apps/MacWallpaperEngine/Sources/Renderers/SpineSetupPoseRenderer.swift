@@ -3868,7 +3868,14 @@ final class SpineSetupPoseRenderer {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
-                let type = (raw["type"] as? String ?? "region").lowercased()
+                let type: String
+                if let rawType = raw["type"] as? String {
+                    type = rawType.lowercased()
+                } else if raw["triangles"] != nil || raw["uvs"] != nil {
+                    type = "mesh"
+                } else {
+                    type = "region"
+                }
                 if type == "linkedmesh" {
                     pendingLinkedMeshes.append((slotName: slotName, attachmentName: attachmentName, raw: raw))
                 }
