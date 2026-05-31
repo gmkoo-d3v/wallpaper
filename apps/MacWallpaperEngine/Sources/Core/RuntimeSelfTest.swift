@@ -1331,7 +1331,75 @@ enum RuntimeSelfTest {
                 && declaredSpringPlan.hasPointerInputBindings == false
                 && declaredSpringSnapshot.spineBoneRotationOffsets.isEmpty
                 && declaredSpringSnapshot.effectProperties.isEmpty,
-            "spring declarative bindings must remain declared-only and must not enable pointer monitoring until a stateful runtime implementation exists"
+            "pointer-to-Spine spring declarative bindings must remain declared-only and must not enable pointer monitoring until a targeted runtime implementation exists"
+        )
+        let effectSpringPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "timeSpringBlur",
+                    source: .systemTime,
+                    target: "effect.softSpring.radius",
+                    adapter: BindingAdapter(
+                        type: .spring,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 0.1],
+                        outputRange: [0, 6],
+                        loop: nil,
+                        integrator: .semiImplicitEuler,
+                        stiffness: 120,
+                        damping: 10,
+                        mass: 1,
+                        settleEpsilon: 0.001,
+                        maxVelocity: 2,
+                        fixedStepSeconds: 0.05
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "softSpring",
+                    type: .blur,
+                    properties: [:]
+                )
+            ]
+        )
+        var effectSpringState = DeclarativeBindingEvaluationState()
+        let effectSpringStart = DeclarativeBindingEvaluator.evaluate(
+            plan: effectSpringPlan,
+            input: DeclarativeBindingEvaluationInput(systemTimeSeconds: 0),
+            state: &effectSpringState
+        )
+        let effectSpringFirst = DeclarativeBindingEvaluator.evaluate(
+            plan: effectSpringPlan,
+            input: DeclarativeBindingEvaluationInput(systemTimeSeconds: 1.0),
+            state: &effectSpringState
+        )
+        let effectSpringSecond = DeclarativeBindingEvaluator.evaluate(
+            plan: effectSpringPlan,
+            input: DeclarativeBindingEvaluationInput(systemTimeSeconds: 1.25),
+            state: &effectSpringState
+        )
+        let effectSpringRendered = DeclarativeEffectState.make(
+            plan: effectSpringPlan,
+            snapshot: effectSpringSecond
+        )
+        let springStartRadius = effectSpringStart.number(effectID: "softSpring", property: "radius") ?? -1
+        let springFirstRadius = effectSpringFirst.number(effectID: "softSpring", property: "radius") ?? -1
+        let springSecondRadius = effectSpringSecond.number(effectID: "softSpring", property: "radius") ?? -1
+        check(
+            effectSpringPlan.bindingEntries.first?.runtimeStatus == .runtimeExecutable
+                && effectSpringPlan.hasPointerInputBindings == false
+                && abs(springStartRadius) < 0.001
+                && springFirstRadius > springStartRadius
+                && springSecondRadius > springFirstRadius
+                && springFirstRadius <= 0.501
+                && springSecondRadius <= 1.001
+                && abs(Double(effectSpringRendered.fragmentEffectParams.x) - springSecondRadius) < 0.001,
+            "system.time effect spring bindings must run through a deterministic bounded spring evaluator without enabling pointer monitoring"
         )
         let hasLookDirection = manifest.interactions.contains {
             $0.event == .pointerMove && $0.mapping == "lookDirection"
@@ -2392,7 +2460,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.down+system.time+thermal.state")
-                && completionAudit.contains("spring(declared-only,explicit-dynamics-contract)")
+                && completionAudit.contains("spring(system-time-effect-runtime+declared-pointer-spine,explicit-dynamics-contract)")
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
                 && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)")
                 && completionAudit.contains("dynamicShaderLoading=forbidden")

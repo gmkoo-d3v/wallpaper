@@ -49,6 +49,15 @@ struct DeclarativeBindingPlan {
         }
     }
 
+    var springEffectBindings: [DeclarativeBindingPlanEntry] {
+        bindingEntries.filter { entry in
+            entry.isEnabled
+                && entry.source == .systemTime
+                && entry.target.kind == .effect
+                && entry.adapterKind == BindingAdapterType.spring.rawValue
+        }
+    }
+
     var smoothLookAtBoneBindings: [DeclarativeBindingPlanEntry] {
         bindingEntries.filter { entry in
             entry.isEnabled
@@ -94,6 +103,10 @@ struct DeclarativeBindingPlanEntry {
             self.runtimeStatus = .runtimeExecutable
         } else if self.target.kind == .effect,
                   binding.adapter.type == .mapRange {
+            self.runtimeStatus = .runtimeExecutable
+        } else if binding.source == .systemTime,
+                  self.target.kind == .effect,
+                  binding.adapter.type == .spring {
             self.runtimeStatus = .runtimeExecutable
         } else if binding.source == .pointerPosition,
                   self.target.kind == .spineBone,

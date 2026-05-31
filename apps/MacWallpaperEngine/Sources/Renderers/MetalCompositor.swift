@@ -50,6 +50,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var idleRenderFps = 1
     private var activeRenderFps = 1
     private var lastTelemetryPublishAt: CFTimeInterval = 0
+    private var declarativeBindingState = DeclarativeBindingEvaluationState()
 
     init(
         device: MTLDevice,
@@ -296,7 +297,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 pointerDown: interactionSnapshot.clickPulse > 0,
                 systemTimeSeconds: now,
                 thermalStateLevel: Self.thermalStateLevel(ProcessInfo.processInfo.thermalState)
-            )
+            ),
+            state: &declarativeBindingState
         )
         let effectState = DeclarativeEffectState.make(plan: declarativePlan, snapshot: effectSnapshot)
         let pacedFps = framePacingFps(resourceFps: currentFps, interaction: interactionSnapshot)

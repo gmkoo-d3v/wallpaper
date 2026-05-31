@@ -29,7 +29,19 @@ struct DeclarativeBindingEvaluationSnapshot {
     }
 }
 
+struct DeclarativeBindingEvaluationState {
+    fileprivate var springStates: [String: DeclarativeBindingSpringState] = [:]
+}
+
+private struct DeclarativeBindingSpringState {
+    var value: Double
+    var velocity: Double
+    var lastTimeSeconds: Double
+}
+
 enum DeclarativeBindingEvaluator {
+    private static let maxSpringCatchUpSeconds = 0.25
+
     static func evaluate(
         plan: DeclarativeBindingPlan,
         input: DeclarativeBindingEvaluationInput
@@ -51,6 +63,36 @@ enum DeclarativeBindingEvaluator {
         return DeclarativeBindingEvaluationSnapshot(
             effectProperties: effectProperties,
             spineBoneRotationOffsets: spineBoneRotationOffsets
+        )
+    }
+
+    static func evaluate(
+        plan: DeclarativeBindingPlan,
+        input: DeclarativeBindingEvaluationInput,
+        state: inout DeclarativeBindingEvaluationState
+    ) -> DeclarativeBindingEvaluationSnapshot {
+        let baseSnapshot = evaluate(plan: plan, input: input)
+        var effectProperties = baseSnapshot.effectProperties
+
+        for binding in plan.springEffectBindings {
+            guard let property = binding.target.propertyPath,
+                  let sourceValue = numericSourceValue(for: binding.source, input: input),
+                  let target = springTargetValue(sourceValue, adapter: binding.adapter) else {
+                continue
+            }
+            let value = advanceSpring(
+                bindingID: binding.id,
+                target: target,
+                timeSeconds: input.systemTimeSeconds,
+                adapter: binding.adapter,
+                state: &state
+            )
+            effectProperties[binding.target.id, default: [:]][property] = value
+        }
+
+        return DeclarativeBindingEvaluationSnapshot(
+            effectProperties: effectProperties,
+            spineBoneRotationOffsets: baseSnapshot.spineBoneRotationOffsets
         )
     }
 
@@ -114,6 +156,67 @@ enum DeclarativeBindingEvaluator {
             abs(inputRange[$0] - rangedValue) < abs(inputRange[$1] - rangedValue)
         } ?? 0
         return outputRange[nearestIndex]
+    }
+
+    private static func springTargetValue(_ sourceValue: Double, adapter: BindingAdapter) -> Double? {
+        if adapter.inputRange != nil || adapter.outputRange != nil {
+            return mapRange(sourceValue, adapter: adapter)
+        }
+        return sourceValue * (adapter.factor?.first ?? 1.0)
+    }
+
+    private static func advanceSpring(
+        bindingID: String,
+        target: Double,
+        timeSeconds: Double,
+        adapter: BindingAdapter,
+        state: inout DeclarativeBindingEvaluationState
+    ) -> Double {
+        guard target.isFinite, timeSeconds.isFinite else {
+            return state.springStates[bindingID]?.value ?? 0
+        }
+        guard var spring = state.springStates[bindingID] else {
+            state.springStates[bindingID] = DeclarativeBindingSpringState(
+                value: target,
+                velocity: 0,
+                lastTimeSeconds: timeSeconds
+            )
+            return target
+        }
+
+        let step = min(max(adapter.fixedStepSeconds ?? (1.0 / 60.0), 0.004), 0.067)
+        let elapsed = min(max(timeSeconds - spring.lastTimeSeconds, 0), maxSpringCatchUpSeconds)
+        var remaining = elapsed
+        while remaining > 0.000001 {
+            let dt = min(step, remaining)
+            integrateSpring(&spring, target: target, dt: dt, adapter: adapter)
+            remaining -= dt
+        }
+        spring.lastTimeSeconds = timeSeconds
+        state.springStates[bindingID] = spring
+        return spring.value
+    }
+
+    private static func integrateSpring(
+        _ state: inout DeclarativeBindingSpringState,
+        target: Double,
+        dt: Double,
+        adapter: BindingAdapter
+    ) {
+        let stiffness = max(adapter.stiffness ?? 100, 0.0001)
+        let damping = max(adapter.damping ?? 10, 0)
+        let mass = max(adapter.mass ?? 1, 0.0001)
+        let maxVelocity = max(adapter.maxVelocity ?? 10_000, 0.0001)
+        let displacement = target - state.value
+        let acceleration = (stiffness * displacement - damping * state.velocity) / mass
+        state.velocity = min(max(state.velocity + acceleration * dt, -maxVelocity), maxVelocity)
+        state.value += state.velocity * dt
+
+        let epsilon = max(adapter.settleEpsilon ?? 0.0001, 0.000001)
+        if abs(target - state.value) <= epsilon, abs(state.velocity) <= epsilon {
+            state.value = target
+            state.velocity = 0
+        }
     }
 
     private static func loopedValue(_ value: Double, inputRange: [Double]) -> Double {
