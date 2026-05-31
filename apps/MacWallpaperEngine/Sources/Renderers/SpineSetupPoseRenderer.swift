@@ -287,13 +287,15 @@ final class SpineSetupPoseRenderer {
     }
 
     private struct PathConstraintTimelines {
+        var position: [TimelineFrame] = []
+        var spacing: [TimelineFrame] = []
         var rotateMix: [TimelineFrame] = []
         var translateMix: [TimelineFrame] = []
         var mixX: [TimelineFrame] = []
         var mixY: [TimelineFrame] = []
 
         var frameTimes: [Double] {
-            [rotateMix, translateMix, mixX, mixY]
+            [position, spacing, rotateMix, translateMix, mixX, mixY]
                 .flatMap { $0 }
                 .map(\.time)
         }
@@ -1431,10 +1433,18 @@ final class SpineSetupPoseRenderer {
 
             case .path(var constraint):
                 guard let timelines = animation.pathConstraintTimelines[constraint.name] else { continue }
+                var position = constraint.position
+                var spacing = constraint.spacing
                 var mixRotate = constraint.mixRotate
                 var mixX = constraint.mixX
                 var mixY = constraint.mixY
 
+                if timelines.position.isEmpty == false {
+                    position = blend(position, sampleValue(timelines.position, time: time, defaultValue: position), mix)
+                }
+                if timelines.spacing.isEmpty == false {
+                    spacing = blend(spacing, sampleValue(timelines.spacing, time: time, defaultValue: spacing), mix)
+                }
                 if timelines.rotateMix.isEmpty == false {
                     mixRotate = blend(mixRotate, sampleValue(timelines.rotateMix, time: time, defaultValue: mixRotate), mix)
                 }
@@ -1459,8 +1469,8 @@ final class SpineSetupPoseRenderer {
                     spacingMode: constraint.spacingMode,
                     rotateMode: constraint.rotateMode,
                     offsetRotation: constraint.offsetRotation,
-                    position: constraint.position,
-                    spacing: constraint.spacing,
+                    position: position,
+                    spacing: spacing,
                     mixRotate: mixRotate,
                     mixX: mixX,
                     mixY: mixY
@@ -1690,6 +1700,12 @@ final class SpineSetupPoseRenderer {
                 for (constraintName, rawTimelineSet) in rawPath {
                     guard let timelineSet = rawTimelineSet as? [String: Any] else { continue }
                     var timelines = PathConstraintTimelines()
+                    if let raw = timelineSet["position"] {
+                        timelines.position = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
+                    }
+                    if let raw = timelineSet["spacing"] {
+                        timelines.spacing = parseFrames(raw, defaultX: 0, defaultY: 0, defaultValue: 0)
+                    }
                     if let raw = timelineSet["rotateMix"] ?? timelineSet["mixRotate"] {
                         timelines.rotateMix = parseMixFrames(raw)
                     }

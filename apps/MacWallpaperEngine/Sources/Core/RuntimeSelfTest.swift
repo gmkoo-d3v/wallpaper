@@ -6405,6 +6405,22 @@ enum RuntimeSelfTest {
             }
           ],
         """
+        let animatedPathPositionSpacingConstraintBlock = """
+          "path": [
+            {
+              "name": "supported-proportional-path",
+              "bones": ["follower"],
+              "target": "path-slot",
+              "positionMode": "percent",
+              "spacingMode": "proportional",
+              "rotateMode": "chainscale",
+              "position": 0.05,
+              "spacing": 0.25,
+              "rotateMix": 0.7,
+              "translateMix": 0.6
+            }
+          ],
+        """
         let spineTemplate = """
         {
           "skeleton": {
@@ -6757,6 +6773,91 @@ enum RuntimeSelfTest {
                     && pathConstraintFingerprint != nil
                     && animatedPathMixedFingerprint == pathConstraintFingerprint,
                 "Spine path constraint mix timelines must render the same geometry as equivalent setup mix values",
+                failures: &failures,
+                checks: &checks
+            )
+
+            let animatedPathPositionSpacingSpineJSON = spineTemplate
+                .replacingOccurrences(
+                    of: "__PATH_CONSTRAINT_BLOCK__",
+                    with: animatedPathPositionSpacingConstraintBlock
+                )
+                .replacingOccurrences(
+                    of: "\"idle\": {}",
+                    with: """
+                    "idle": {
+                      "path": {
+                        "supported-proportional-path": {
+                          "position": [
+                            { "time": 0, "value": 0.05 },
+                            { "time": 0.05, "value": 0.15 }
+                          ],
+                          "spacing": [
+                            { "time": 0, "value": 0.25 },
+                            { "time": 0.05, "value": 0.60 }
+                          ]
+                        }
+                      }
+                    }
+                    """
+                )
+            try Data(animatedPathPositionSpacingSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+            let animatedPathPositionSpacingRuntime = try NativeRuntimeCore(config: noConstraintRuntime.config.replacing(
+                clearDuration: true,
+                launchControlPanel: false,
+                launchWallpaper: false
+            ))
+            let animatedPathPositionSpacingCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+                runtime: animatedPathPositionSpacingRuntime
+            )
+            check(
+                animatedPathPositionSpacingCompatibility.isSupported,
+                "Spine path position and spacing timelines must pass native compatibility gate",
+                failures: &failures,
+                checks: &checks
+            )
+            let animatedPathPositionSpacingAnimationPlan = try SpineAnimationDiagnostics.make(
+                runtime: animatedPathPositionSpacingRuntime
+            )
+            check(
+                animatedPathPositionSpacingAnimationPlan.contains("unsupportedActionTimelines: none")
+                    && animatedPathPositionSpacingAnimationPlan.contains("coverage\tidle\tcompatible"),
+                "Spine animation diagnostics must mark path position and spacing timelines compatible for manifest actions",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                animatedPathPositionSpacingAnimationPlan.contains("path.position=1")
+                    && animatedPathPositionSpacingAnimationPlan.contains("path.spacing=1"),
+                "Spine animation diagnostics must summarize path position and spacing timeline types",
+                failures: &failures,
+                checks: &checks
+            )
+            try animatedPathPositionSpacingRuntime.requireNativeSpineGeometryIfSupported()
+            let animatedPathPositionSpacingGeometryPlan = try SpineGeometryDiagnostics.make(runtime: animatedPathPositionSpacingRuntime)
+            let animatedPathPositionSpacingStartFingerprint = geometryFingerprint(
+                in: animatedPathPositionSpacingGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            let animatedPathPositionSpacingMixedFingerprint = geometryFingerprint(
+                in: animatedPathPositionSpacingGeometryPlan,
+                action: "idle",
+                time: "0.050s"
+            )
+            check(
+                animatedPathPositionSpacingStartFingerprint != nil
+                    && animatedPathPositionSpacingMixedFingerprint != nil
+                    && animatedPathPositionSpacingStartFingerprint != animatedPathPositionSpacingMixedFingerprint,
+                "Spine path position and spacing timelines must change native geometry at the keyed time",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                animatedPathPositionSpacingMixedFingerprint != nil
+                    && pathConstraintFingerprint != nil
+                    && animatedPathPositionSpacingMixedFingerprint == pathConstraintFingerprint,
+                "Spine path position and spacing timelines must render the same geometry as equivalent setup position and spacing",
                 failures: &failures,
                 checks: &checks
             )
