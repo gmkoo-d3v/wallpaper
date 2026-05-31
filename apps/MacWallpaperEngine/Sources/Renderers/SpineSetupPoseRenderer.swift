@@ -4306,14 +4306,7 @@ final class SpineSetupPoseRenderer {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
-                let type: String
-                if let rawType = raw["type"] as? String {
-                    type = rawType.lowercased()
-                } else if raw["triangles"] != nil || raw["uvs"] != nil {
-                    type = "mesh"
-                } else {
-                    type = "region"
-                }
+                let type = inferredAttachmentType(raw)
                 if type == "linkedmesh" {
                     pendingLinkedMeshes.append((slotName: slotName, attachmentName: attachmentName, raw: raw))
                 }
@@ -4367,7 +4360,7 @@ final class SpineSetupPoseRenderer {
             guard let slotAttachments = slotValue as? [String: Any] else { continue }
             for (attachmentName, attachmentValue) in slotAttachments {
                 guard let raw = attachmentValue as? [String: Any] else { continue }
-                let type = (raw["type"] as? String ?? "region").lowercased()
+                let type = inferredAttachmentType(raw)
                 let atlasRegionName = raw["path"] as? String ?? attachmentName
                 if type == "region" {
                     bySlot[slotName, default: [:]][attachmentName] = makeRegionAttachment(
@@ -4396,6 +4389,16 @@ final class SpineSetupPoseRenderer {
             }
         }
         return bySlot
+    }
+
+    private static func inferredAttachmentType(_ raw: [String: Any]) -> String {
+        if let rawType = raw["type"] as? String {
+            return rawType.lowercased()
+        }
+        if raw["triangles"] != nil || raw["uvs"] != nil {
+            return "mesh"
+        }
+        return "region"
     }
 
     private static func makeRegionAttachment(name: String, slotName: String, raw: [String: Any]) -> Attachment {

@@ -6109,6 +6109,78 @@ enum RuntimeSelfTest {
         if SpineGeometryDiagnostics.validationStatus(runtime: legacySkinRuntime) == "required" {
             try legacySkinRuntime.requireNativeSpineGeometryIfSupported()
         }
+
+        let implicitMeshSpineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -50,
+            "y": -50,
+            "width": 100,
+            "height": 100
+          },
+          "bones": [
+            {
+              "name": "root"
+            }
+          ],
+          "slots": [
+            {
+              "name": "slot",
+              "bone": "root",
+              "attachment": "implicit-mesh"
+            }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "slot": {
+                  "implicit-mesh": {
+                    "path": "base",
+                    "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+                    "triangles": [0, 1, 2, 2, 3, 0],
+                    "vertices": [-50, -50, 50, -50, 50, 50, -50, 50],
+                    "hull": 4
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "idle": {}
+          }
+        }
+        """
+        try Data(implicitMeshSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let implicitMeshRuntime = try NativeRuntimeCore(config: legacySkinRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let implicitMeshCompatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: implicitMeshRuntime)
+        check(
+            implicitMeshCompatibility.isSupported,
+            "untyped Spine mesh attachments with triangles/uvs must pass native compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            implicitMeshRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\tused=mesh"),
+            "runtime capabilities must infer untyped Spine attachments with triangles/uvs as mesh",
+            failures: &failures,
+            checks: &checks
+        )
+        if SpineGeometryDiagnostics.validationStatus(runtime: implicitMeshRuntime) == "required" {
+            try implicitMeshRuntime.requireNativeSpineGeometryIfSupported()
+            let implicitMeshGeometryPlan = try SpineGeometryDiagnostics.make(runtime: implicitMeshRuntime)
+            check(
+                geometryColumn(in: implicitMeshGeometryPlan, action: "idle", time: "0.000s", column: 5) == "6",
+                "Spine renderer must draw direct untyped mesh attachments instead of treating them as regions",
+                failures: &failures,
+                checks: &checks
+            )
+        }
     }
 
     private static func checkClippingSpineGeometryBundle(
