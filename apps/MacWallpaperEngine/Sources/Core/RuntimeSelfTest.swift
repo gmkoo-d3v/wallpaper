@@ -5422,6 +5422,10 @@ enum RuntimeSelfTest {
         linked1
         bounds: 0,0,64,64
         offsets: 0,0,64,64
+
+        front
+        bounds: 0,0,64,64
+        offsets: 0,0,64,64
         """
         try Data(atlasText.utf8).write(to: fixtureAtlas, options: .atomic)
 
@@ -5447,6 +5451,11 @@ enum RuntimeSelfTest {
               "attachment": "linked",
               "blend": "additive",
               "dark": "222222ff"
+            },
+            {
+              "name": "overlay",
+              "bone": "root",
+              "attachment": "front"
             },
             {
               "name": "markers",
@@ -5485,6 +5494,16 @@ enum RuntimeSelfTest {
                     "path": "linked",
                     "skin": "alternate",
                     "parent": "base"
+                  }
+                },
+                "overlay": {
+                  "front": {
+                    "type": "mesh",
+                    "path": "front",
+                    "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+                    "triangles": [0, 1, 2, 2, 3, 0],
+                    "vertices": [-20, -20, 40, -20, 40, 40, -20, 40],
+                    "hull": 4
                   }
                 },
                 "markers": {
@@ -5681,6 +5700,19 @@ enum RuntimeSelfTest {
                   ]
                 }
               }
+            },
+            "drawOrderSwap": {
+              "drawOrder": [
+                {
+                  "time": 0,
+                  "offsets": [
+                    {
+                      "slot": "slot",
+                      "offset": 1
+                    }
+                  ]
+                }
+              ]
             }
           }
         }
@@ -5770,7 +5802,7 @@ enum RuntimeSelfTest {
                 "left": "rgba2SharedCurve",
                 "right": "rgbCurve",
                 "up": "rgbSharedCurve",
-                "down": "idle"
+                "down": "drawOrderSwap"
               }
             },
             {
@@ -5826,15 +5858,19 @@ enum RuntimeSelfTest {
         )
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,slots.alpha,slots.color,slots.rgb,slots.rgb2,slots.rgba2,slots.twoColor"),
-            "runtime capabilities must report legacy slot color plus rgb/alpha, Spine 4.2 rgb2/rgba2, and legacy twoColor timelines as supported",
+                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,drawOrder,slots.alpha,slots.color,slots.rgb,slots.rgb2,slots.rgba2,slots.twoColor"),
+            "runtime capabilities must report drawOrder, legacy slot color plus rgb/alpha, Spine 4.2 rgb2/rgba2, and legacy twoColor timelines as supported",
             failures: &failures,
             checks: &checks
         )
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\tblendModes\tsupported\tused=additive,screen unsupported=none"),
-            "runtime capabilities must report additive and screen Spine blend modes as native-supported",
+                .contains("spine\tblendModes\tsupported")
+                && linkedMeshRuntime.runtimeCapabilitiesSummary().contains("additive")
+                && linkedMeshRuntime.runtimeCapabilitiesSummary().contains("normal")
+                && linkedMeshRuntime.runtimeCapabilitiesSummary().contains("screen")
+                && linkedMeshRuntime.runtimeCapabilitiesSummary().contains("unsupported=none"),
+            "runtime capabilities must report normal, additive, and screen Spine blend modes as native-supported",
             failures: &failures,
             checks: &checks
         )
@@ -5855,8 +5891,9 @@ enum RuntimeSelfTest {
                 && linkedMeshAnimationPlan.contains("slot.rgba2=1")
                 && linkedMeshAnimationPlan.contains("slot.rgb2=1")
                 && linkedMeshAnimationPlan.contains("slot.twoColor=1")
-                && linkedMeshAnimationPlan.contains("attachment.sequence=1"),
-            "Spine animation diagnostics must align with native runtime support for slot color/rgb/alpha/rgb2/rgba2/twoColor and sequence timelines",
+                && linkedMeshAnimationPlan.contains("attachment.sequence=1")
+                && linkedMeshAnimationPlan.contains("drawOrder=1"),
+            "Spine animation diagnostics must align with native runtime support for drawOrder, slot color/rgb/alpha/rgb2/rgba2/twoColor, and sequence timelines",
             failures: &failures,
             checks: &checks
         )
@@ -5869,6 +5906,9 @@ enum RuntimeSelfTest {
             let sharedTwoColorFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgba2SharedCurve", time: "0.025s")
             let rgbPerChannelFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgbCurve", time: "0.025s")
             let rgbSharedFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgbSharedCurve", time: "0.025s")
+            let drawOrderFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "drawOrderSwap", time: "0.000s")
+            let setupVertexCount = geometryColumn(in: linkedMeshGeometryPlan, action: "idle", time: "0.000s", column: 5)
+            let drawOrderVertexCount = geometryColumn(in: linkedMeshGeometryPlan, action: "drawOrderSwap", time: "0.000s", column: 5)
             check(
                 setupFingerprint != nil
                     && firstTwoColorFingerprint != nil
@@ -5890,6 +5930,20 @@ enum RuntimeSelfTest {
                     && rgbSharedFingerprint != nil
                     && rgbPerChannelFingerprint != rgbSharedFingerprint,
                 "Spine rgb per-channel Bezier curves must use three-channel curve entries instead of falling back to a shared channel curve",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                drawOrderFingerprint != nil
+                    && setupFingerprint != drawOrderFingerprint,
+                "Spine drawOrder timelines must change the native geometry fingerprint instead of being scanner-only support",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                setupVertexCount != nil
+                    && setupVertexCount == drawOrderVertexCount,
+                "Spine drawOrder timelines must reorder existing geometry without adding or dropping vertices",
                 failures: &failures,
                 checks: &checks
             )
@@ -5946,7 +6000,7 @@ enum RuntimeSelfTest {
                 "left": "rgba2SharedCurve",
                 "right": "rgbCurve",
                 "up": "rgbSharedCurve",
-                "down": "idle"
+                "down": "drawOrderSwap"
               }
             },
             {
