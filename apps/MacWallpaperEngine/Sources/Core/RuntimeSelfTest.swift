@@ -7452,6 +7452,156 @@ enum RuntimeSelfTest {
                 checks: &checks
             )
         }
+        let animatedSingleBoneIkStretchSpineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -10,
+            "y": -10,
+            "width": 160,
+            "height": 80
+          },
+          "bones": [
+            { "name": "root" },
+            { "name": "target", "parent": "root", "x": 130, "y": 0 },
+            { "name": "arm", "parent": "root", "length": 50 }
+          ],
+          "slots": [
+            { "name": "arm", "bone": "arm", "attachment": "ik-quad" }
+          ],
+          "ik": [
+            {
+              "name": "supported-single-bone-ik",
+              "bones": ["arm"],
+              "target": "target",
+              "mix": 1,
+              "stretch": false
+            }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "arm": {
+                  "ik-quad": {
+                    "type": "region",
+                    "path": "ik-quad",
+                    "x": 50,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "idle": {
+              "ik": {
+                "supported-single-bone-ik": {
+                  "stretch": [
+                    { "time": 0, "stretch": false },
+                    { "time": 0.05, "stretch": true }
+                  ]
+                }
+              }
+            }
+          }
+        }
+        """
+        try Data(animatedSingleBoneIkStretchSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let animatedSingleBoneIkRuntime = try NativeRuntimeCore(config: twoBoneIkRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let animatedSingleBoneIkCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            runtime: animatedSingleBoneIkRuntime
+        )
+        check(
+            animatedSingleBoneIkCompatibility.isSupported
+                && animatedSingleBoneIkRuntime.runtimeCapabilitiesSummary().contains("ik.stretch"),
+            "Spine IK stretch timelines must pass scanner compatibility instead of forcing composite fallback",
+            failures: &failures,
+            checks: &checks
+        )
+        let animatedSingleBoneIkAnimationPlan = try SpineAnimationDiagnostics.make(
+            runtime: animatedSingleBoneIkRuntime
+        )
+        check(
+            animatedSingleBoneIkAnimationPlan.contains("unsupportedActionTimelines: none")
+                && animatedSingleBoneIkAnimationPlan.contains("ik.stretch=1"),
+            "Spine animation diagnostics must mark IK stretch timelines compatible and summarize them",
+            failures: &failures,
+            checks: &checks
+        )
+        if twoBoneIkGeometryRequired {
+            try animatedSingleBoneIkRuntime.requireNativeSpineGeometryIfSupported()
+            let animatedSingleBoneIkGeometryPlan = try SpineGeometryDiagnostics.make(runtime: animatedSingleBoneIkRuntime)
+            let stretchOffFingerprint = geometryFingerprint(
+                in: animatedSingleBoneIkGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            let stretchOnFingerprint = geometryFingerprint(
+                in: animatedSingleBoneIkGeometryPlan,
+                action: "idle",
+                time: "0.050s"
+            )
+            check(
+                stretchOffFingerprint != nil
+                    && stretchOnFingerprint != nil
+                    && stretchOffFingerprint != stretchOnFingerprint,
+                "Spine IK stretch timelines must change native geometry when keyed on",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+        let animatedSingleBoneIkCompressSpineJSON = animatedSingleBoneIkStretchSpineJSON
+            .replacingOccurrences(of: "\"x\": 130", with: "\"x\": 20")
+            .replacingOccurrences(of: "\"stretch\": false", with: "\"compress\": false")
+            .replacingOccurrences(of: "\"stretch\": [", with: "\"compress\": [")
+            .replacingOccurrences(of: "\"stretch\": true", with: "\"compress\": true")
+        try Data(animatedSingleBoneIkCompressSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let animatedSingleBoneCompressRuntime = try NativeRuntimeCore(config: twoBoneIkRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let animatedSingleBoneCompressAnimationPlan = try SpineAnimationDiagnostics.make(
+            runtime: animatedSingleBoneCompressRuntime
+        )
+        check(
+            RuntimeCapabilities.nativeSpineCompatibility(runtime: animatedSingleBoneCompressRuntime).isSupported
+                && animatedSingleBoneCompressRuntime.runtimeCapabilitiesSummary().contains("ik.compress")
+                && animatedSingleBoneCompressAnimationPlan.contains("unsupportedActionTimelines: none")
+                && animatedSingleBoneCompressAnimationPlan.contains("ik.compress=1"),
+            "Spine IK compress timelines must pass scanner and animation diagnostics",
+            failures: &failures,
+            checks: &checks
+        )
+        if twoBoneIkGeometryRequired {
+            try animatedSingleBoneCompressRuntime.requireNativeSpineGeometryIfSupported()
+            let animatedSingleBoneCompressGeometryPlan = try SpineGeometryDiagnostics.make(runtime: animatedSingleBoneCompressRuntime)
+            let compressOffFingerprint = geometryFingerprint(
+                in: animatedSingleBoneCompressGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            let compressOnFingerprint = geometryFingerprint(
+                in: animatedSingleBoneCompressGeometryPlan,
+                action: "idle",
+                time: "0.050s"
+            )
+            check(
+                compressOffFingerprint != nil
+                    && compressOnFingerprint != nil
+                    && compressOffFingerprint != compressOnFingerprint,
+                "Spine IK compress timelines must change native geometry when keyed on",
+                failures: &failures,
+                checks: &checks
+            )
+        }
         let localRelativeTransformTemplate = """
         {
           "skeleton": {

@@ -265,9 +265,11 @@ final class SpineSetupPoseRenderer {
     private struct IkConstraintTimelines {
         var mix: [TimelineFrame] = []
         var bendPositive: [BoolTimelineFrame] = []
+        var compress: [BoolTimelineFrame] = []
+        var stretch: [BoolTimelineFrame] = []
 
         var frameTimes: [Double] {
-            mix.map(\.time) + bendPositive.map(\.time)
+            mix.map(\.time) + bendPositive.map(\.time) + compress.map(\.time) + stretch.map(\.time)
         }
 
         var maxTime: Double {
@@ -1380,7 +1382,10 @@ final class SpineSetupPoseRenderer {
             switch constraints[index] {
             case .ik(var constraint):
                 guard let timelines = animation.ikConstraintTimelines[constraint.name] else { continue }
-                if timelines.mix.isEmpty == false || timelines.bendPositive.isEmpty == false {
+                if timelines.mix.isEmpty == false ||
+                    timelines.bendPositive.isEmpty == false ||
+                    timelines.compress.isEmpty == false ||
+                    timelines.stretch.isEmpty == false {
                     let sampled = sampleValue(timelines.mix, time: time, defaultValue: constraint.mix)
                     let bendDirection = timelines.bendPositive.isEmpty || mix < 0.5
                         ? constraint.bendDirection
@@ -1389,14 +1394,20 @@ final class SpineSetupPoseRenderer {
                             time: time,
                             defaultValue: constraint.bendDirection >= 0
                         ) ? 1 : -1)
+                    let compress = timelines.compress.isEmpty || mix < 0.5
+                        ? constraint.compress
+                        : sampleBool(timelines.compress, time: time, defaultValue: constraint.compress)
+                    let stretch = timelines.stretch.isEmpty || mix < 0.5
+                        ? constraint.stretch
+                        : sampleBool(timelines.stretch, time: time, defaultValue: constraint.stretch)
                     constraint = IkPoseConstraint(
                         name: constraint.name,
                         order: constraint.order,
                         boneIndices: constraint.boneIndices,
                         targetIndex: constraint.targetIndex,
                         bendDirection: bendDirection,
-                        compress: constraint.compress,
-                        stretch: constraint.stretch,
+                        compress: compress,
+                        stretch: stretch,
                         uniform: constraint.uniform,
                         mix: blend(constraint.mix, sampled, mix),
                         softness: constraint.softness
@@ -1705,6 +1716,12 @@ final class SpineSetupPoseRenderer {
                     }
                     if let raw = timelineSet["bendPositive"] {
                         timelines.bendPositive = parseBoolFrames(raw, key: "bendPositive", defaultValue: true)
+                    }
+                    if let raw = timelineSet["compress"] {
+                        timelines.compress = parseBoolFrames(raw, key: "compress", defaultValue: false)
+                    }
+                    if let raw = timelineSet["stretch"] {
+                        timelines.stretch = parseBoolFrames(raw, key: "stretch", defaultValue: false)
                     }
                     duration = max(duration, timelines.maxTime)
                     ikConstraintTimelines[constraintName] = timelines
