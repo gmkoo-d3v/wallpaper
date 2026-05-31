@@ -59,6 +59,22 @@ struct SpineAnimationDiagnostics {
         "slot.attachment",
         "attachment.deform",
         "attachment.sequence",
+        "ik.mix",
+        "transform.mixRotate",
+        "transform.mixX",
+        "transform.mixY",
+        "transform.mixScaleX",
+        "transform.mixScaleY",
+        "transform.mixShearY",
+        "transform.rotateMix",
+        "transform.translateMix",
+        "transform.scaleMix",
+        "transform.shearMix",
+        "path.mixRotate",
+        "path.mixX",
+        "path.mixY",
+        "path.rotateMix",
+        "path.translateMix",
         "drawOrder",
         "draworder",
         "events",
@@ -263,6 +279,10 @@ struct SpineAnimationDiagnostics {
             }
         }
 
+        collectConstraintTimelines(animationMap["ik"], prefix: "ik", to: &summary)
+        collectConstraintTimelines(animationMap["transform"], prefix: "transform", to: &summary)
+        collectConstraintTimelines(animationMap["path"], prefix: "path", to: &summary)
+
         if let slots = animationMap["slots"] as? [String: Any] {
             for (_, rawTimelineSet) in slots {
                 guard let timelineSet = rawTimelineSet as? [String: Any] else { continue }
@@ -288,12 +308,29 @@ struct SpineAnimationDiagnostics {
         }
 
         for (key, rawValue) in animationMap {
-            guard ["bones", "slots", "attachments"].contains(key) == false else { continue }
+            guard ["bones", "ik", "transform", "path", "slots", "attachments"].contains(key) == false else { continue }
             let normalizedKey = key == "draworder" ? "drawOrder" : key
             addTimeline(normalizedKey, rawValue, to: &summary)
         }
 
         return summary
+    }
+
+    private static func collectConstraintTimelines(_ raw: Any?, prefix: String, to summary: inout AnimationSummary) {
+        guard let raw else { return }
+        guard let constraints = raw as? [String: Any] else {
+            addTimeline(prefix, raw, to: &summary)
+            return
+        }
+        for rawTimelineSet in constraints.values {
+            guard let timelineSet = rawTimelineSet as? [String: Any] else {
+                addTimeline(prefix, rawTimelineSet, to: &summary)
+                continue
+            }
+            for (timelineName, rawTimeline) in timelineSet {
+                addTimeline("\(prefix).\(timelineName)", rawTimeline, to: &summary)
+            }
+        }
     }
 
     private static func addTimeline(_ type: String, _ rawTimeline: Any, to summary: inout AnimationSummary) {

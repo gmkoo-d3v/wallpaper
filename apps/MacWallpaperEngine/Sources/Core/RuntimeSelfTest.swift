@@ -6546,7 +6546,18 @@ enum RuntimeSelfTest {
               "renderingMode": "setup-mesh"
             }
           ],
-          "interactions": [],
+          "interactions": [
+            {
+              "event": "pointerDown",
+              "hitZones": [
+                {
+                  "id": "path-action",
+                  "rect": [0.25, 0.25, 0.75, 0.75],
+                  "action": "idle"
+                }
+              ]
+            }
+          ],
           "validation": {
             "bundleRootOnly": true,
             "requirePremultipliedAlpha": false,
@@ -6701,6 +6712,23 @@ enum RuntimeSelfTest {
             check(
                 animatedPathConstraintCompatibility.isSupported,
                 "Spine path constraint mix timelines must pass native compatibility gate",
+                failures: &failures,
+                checks: &checks
+            )
+            let animatedPathConstraintAnimationPlan = try SpineAnimationDiagnostics.make(
+                runtime: animatedPathConstraintRuntime
+            )
+            check(
+                animatedPathConstraintAnimationPlan.contains("unsupportedActionTimelines: none")
+                    && animatedPathConstraintAnimationPlan.contains("coverage\tidle\tcompatible"),
+                "Spine animation diagnostics must mark path constraint mix timelines compatible for manifest actions",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                animatedPathConstraintAnimationPlan.contains("path.rotateMix=1")
+                    && animatedPathConstraintAnimationPlan.contains("path.translateMix=1"),
+                "Spine animation diagnostics must summarize path constraint mix timeline types instead of top-level path as unsupported",
                 failures: &failures,
                 checks: &checks
             )
