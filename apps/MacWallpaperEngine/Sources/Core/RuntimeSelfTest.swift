@@ -6254,6 +6254,10 @@ enum RuntimeSelfTest {
               "bone": "root"
             },
             {
+              "name": "weightedClipper",
+              "bone": "root"
+            },
+            {
               "name": "target",
               "bone": "root",
               "attachment": "full-quad"
@@ -6269,6 +6273,14 @@ enum RuntimeSelfTest {
                     "end": "target",
                     "vertexCount": 4,
                     "vertices": [-25, -25, 25, -25, 25, 25, -25, 25]
+                  }
+                },
+                "weightedClipper": {
+                  "weighted-mask": {
+                    "type": "clipping",
+                    "end": "target",
+                    "vertexCount": 4,
+                    "vertices": [1, 0, -25, -25, 1, 1, 0, 25, -25, 1, 1, 0, 25, 25, 1, 1, 0, -25, 25, 1]
                   }
                 },
                 "target": {
@@ -6313,6 +6325,32 @@ enum RuntimeSelfTest {
                 "default": {
                   "clipper": {
                     "mask": {
+                      "deform": [
+                        {
+                          "time": 0,
+                          "vertices": [10, 10, -10, 10, -10, -10, 10, -10]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "weightedDeformedClipped": {
+              "slots": {
+                "weightedClipper": {
+                  "attachment": [
+                    {
+                      "time": 0,
+                      "name": "weighted-mask"
+                    }
+                  ]
+                }
+              },
+              "attachments": {
+                "default": {
+                  "weightedClipper": {
+                    "weighted-mask": {
                       "deform": [
                         {
                           "time": 0,
@@ -6412,7 +6450,7 @@ enum RuntimeSelfTest {
                 "left": "clipped",
                 "right": "unclipped",
                 "up": "deformedClipped",
-                "down": "unclipped"
+                "down": "weightedDeformedClipped"
               }
             }
           ],
@@ -6457,9 +6495,11 @@ enum RuntimeSelfTest {
             let unclippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "unclipped", time: "0.000s")
             let clippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "clipped", time: "0.000s")
             let deformedClippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "deformedClipped", time: "0.000s")
+            let weightedDeformedClippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "weightedDeformedClipped", time: "0.000s")
             let unclippedBounds = geometryColumn(in: clippingGeometryPlan, action: "unclipped", time: "0.000s", column: 8)
             let clippedBounds = geometryColumn(in: clippingGeometryPlan, action: "clipped", time: "0.000s", column: 8)
             let deformedClippedBounds = geometryColumn(in: clippingGeometryPlan, action: "deformedClipped", time: "0.000s", column: 8)
+            let weightedDeformedClippedBounds = geometryColumn(in: clippingGeometryPlan, action: "weightedDeformedClipped", time: "0.000s", column: 8)
             check(
                 unclippedFingerprint != nil
                     && clippedFingerprint != nil
@@ -6479,6 +6519,17 @@ enum RuntimeSelfTest {
                     && deformedClippedBounds != nil
                     && clippedBounds != deformedClippedBounds,
                 "Spine clipping deform timelines must change clipping polygon geometry instead of being scanner-only support (clipped=\(clippedFingerprint ?? "nil") \(clippedBounds ?? "nil") deformed=\(deformedClippedFingerprint ?? "nil") \(deformedClippedBounds ?? "nil"))",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                clippedFingerprint != nil
+                    && weightedDeformedClippedFingerprint != nil
+                    && clippedFingerprint != weightedDeformedClippedFingerprint
+                    && clippedBounds != nil
+                    && weightedDeformedClippedBounds != nil
+                    && clippedBounds != weightedDeformedClippedBounds,
+                "Spine weighted clipping deform timelines must change clipping polygon geometry instead of relying on unweighted-only coverage (clipped=\(clippedFingerprint ?? "nil") \(clippedBounds ?? "nil") weighted=\(weightedDeformedClippedFingerprint ?? "nil") \(weightedDeformedClippedBounds ?? "nil"))",
                 failures: &failures,
                 checks: &checks
             )
