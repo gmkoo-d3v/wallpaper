@@ -2654,6 +2654,7 @@ enum RuntimeSelfTest {
         try checkStaticImageBundle(from: runtime, failures: &failures, checks: &checks)
         try checkNonSpineInteractiveBundleRejected(from: runtime, failures: &failures, checks: &checks)
         try checkLinkedMeshSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
+        try checkClippingSpineGeometryBundle(from: runtime, failures: &failures, checks: &checks)
         try checkUnsupportedSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
@@ -5988,6 +5989,269 @@ enum RuntimeSelfTest {
         }
     }
 
+    private static func checkClippingSpineGeometryBundle(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        checks += 1
+        guard let sourceVideo = runtime.assetCatalog.compositeVideoAssetURL ?? runtime.assetCatalog.videoAssetURL else {
+            failures.append("clipping Spine fixture requires an active video asset")
+            return
+        }
+
+        checks += 1
+        guard let sourceTexture = runtime.assetCatalog.spineAsset?.textures.first else {
+            failures.append("clipping Spine fixture requires an active Spine texture")
+            return
+        }
+
+        let fileManager = FileManager.default
+        let fixtureRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineClippingSpineSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? fileManager.removeItem(at: fixtureRoot)
+        }
+
+        let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+        try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
+        let fixtureVideo = assetsRoot.appendingPathComponent("background.mp4")
+        let fixtureTexture = assetsRoot.appendingPathComponent("texture.png")
+        do {
+            try fileManager.linkItem(at: sourceVideo, to: fixtureVideo)
+        } catch {
+            try fileManager.copyItem(at: sourceVideo, to: fixtureVideo)
+        }
+        do {
+            try fileManager.linkItem(at: sourceTexture, to: fixtureTexture)
+        } catch {
+            try fileManager.copyItem(at: sourceTexture, to: fixtureTexture)
+        }
+
+        let fixtureAtlas = assetsRoot.appendingPathComponent("character.atlas")
+        let atlasText = """
+        texture.png
+        size: 64,64
+
+        full-quad
+        bounds: 0,0,64,64
+        offsets: 0,0,64,64
+        """
+        try Data(atlasText.utf8).write(to: fixtureAtlas, options: .atomic)
+
+        let fixtureSpineJSON = assetsRoot.appendingPathComponent("character.json")
+        let spineJSON = """
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -50,
+            "y": -50,
+            "width": 100,
+            "height": 100
+          },
+          "bones": [
+            {
+              "name": "root"
+            }
+          ],
+          "slots": [
+            {
+              "name": "clipper",
+              "bone": "root"
+            },
+            {
+              "name": "target",
+              "bone": "root",
+              "attachment": "full-quad"
+            }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "clipper": {
+                  "mask": {
+                    "type": "clipping",
+                    "end": "target",
+                    "vertexCount": 4,
+                    "vertices": [-25, -25, 25, -25, 25, 25, -25, 25]
+                  }
+                },
+                "target": {
+                  "full-quad": {
+                    "type": "mesh",
+                    "path": "full-quad",
+                    "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+                    "triangles": [0, 1, 2, 2, 3, 0],
+                    "vertices": [-50, -50, 50, -50, 50, 50, -50, 50],
+                    "hull": 4
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "unclipped": {},
+            "clipped": {
+              "slots": {
+                "clipper": {
+                  "attachment": [
+                    {
+                      "time": 0,
+                      "name": "mask"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+        """
+        try Data(spineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+
+        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let manifestJSON = """
+        {
+          "schemaVersion": "macos-wallpaper-native.v2",
+          "metadata": {
+            "id": "selftest_clipping_spine",
+            "title": "Self Test Clipping Spine"
+          },
+          "runtime": {
+            "kind": "native-metal",
+            "targetFps": 30,
+            "maxFps": 60,
+            "fallbackFps": 15,
+            "scheduler": {
+              "maxInFlightCommandBuffers": 1,
+              "lateFramePolicy": "drop",
+              "catchUp": false
+            }
+          },
+          "displayPolicy": {
+            "primary": "full",
+            "secondary": "video-only",
+            "fullscreenObscured": "pause",
+            "occluded": "pause"
+          },
+          "thermalPolicy": {
+            "nominal": "30fps",
+            "serious": "15fps-or-video-only",
+            "critical": "pause"
+          },
+          "layerBudgets": {
+            "maxTexturePages": 1,
+            "maxTextureDimension": 4096,
+            "rssTargetMb": 250,
+            "rssHardMb": 500,
+            "primaryCpuTargetPercent": 10,
+            "cpuDowngradePercent": 20,
+            "cpuDowngradeWindowSeconds": 10
+          },
+          "assets": {
+            "video": {
+              "id": "backgroundVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+            "compositeVideo": {
+              "id": "compositeVideo",
+              "path": "assets/background.mp4",
+              "playbackRate": 1.0
+            },
+            "spine": {
+              "id": "clippingCharacter",
+              "version": "4.2.43",
+              "json": "assets/character.json",
+              "atlas": "assets/character.atlas",
+              "textures": [
+                "assets/texture.png"
+              ],
+              "premultipliedAlpha": false
+            }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "video",
+              "asset": "backgroundVideo"
+            },
+            {
+              "id": "character",
+              "type": "spine",
+              "asset": "clippingCharacter",
+              "renderingMode": "setup-mesh"
+            }
+          ],
+          "interactions": [
+            {
+              "event": "pointerMove",
+              "mapping": "lookDirection",
+              "actions": {
+                "idle": "unclipped",
+                "left": "clipped",
+                "right": "unclipped",
+                "up": "unclipped",
+                "down": "unclipped"
+              }
+            }
+          ],
+          "validation": {
+            "bundleRootOnly": true,
+            "requirePremultipliedAlpha": false,
+            "requireSpineVersion": "4.2.x",
+            "rejectUnknownLayerTypes": true
+          }
+        }
+        """
+        try Data(manifestJSON.utf8).write(to: manifestURL, options: .atomic)
+
+        let clippingRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            displayMode: .primaryAnimated,
+            renderFps: 30,
+            foregroundMode: .nativeSpine,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+
+        let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: clippingRuntime)
+        check(
+            compatibility.isSupported,
+            "Spine clipping fixture must pass native compatibility gate",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            clippingRuntime.runtimeCapabilitiesSummary()
+                .contains("spine\tattachments\tsupported\tused=clipping,mesh"),
+            "runtime capabilities must report Spine clipping attachments as native-supported",
+            failures: &failures,
+            checks: &checks
+        )
+        if SpineGeometryDiagnostics.validationStatus(runtime: clippingRuntime) == "required" {
+            try clippingRuntime.requireNativeSpineGeometryIfSupported()
+            let clippingGeometryPlan = try SpineGeometryDiagnostics.make(runtime: clippingRuntime)
+            let unclippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "unclipped", time: "0.000s")
+            let clippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "clipped", time: "0.000s")
+            let unclippedBounds = geometryColumn(in: clippingGeometryPlan, action: "unclipped", time: "0.000s", column: 8)
+            let clippedBounds = geometryColumn(in: clippingGeometryPlan, action: "clipped", time: "0.000s", column: 8)
+            check(
+                unclippedFingerprint != nil
+                    && clippedFingerprint != nil
+                    && unclippedFingerprint != clippedFingerprint
+                    && unclippedBounds != nil
+                    && clippedBounds != nil
+                    && unclippedBounds != clippedBounds,
+                "Spine clipping diagnostics must prove clipped geometry differs from the same mesh rendered without clipping",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+    }
+
     private static func checkUnsupportedSpineCompatibilityBundle(
         from runtime: NativeRuntimeCore,
         failures: inout [String],
@@ -6835,15 +7099,20 @@ enum RuntimeSelfTest {
     }
 
     private static func geometryFingerprint(in plan: String, action: String, time: String) -> String? {
+        geometryColumn(in: plan, action: action, time: time, column: 9)
+    }
+
+    private static func geometryColumn(in plan: String, action: String, time: String, column: Int) -> String? {
         for line in plan.split(separator: "\n", omittingEmptySubsequences: false) {
             let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
-            guard columns.count >= 10,
+            guard column >= 0,
+                  columns.count > column,
                   columns[0] == "geometry",
                   columns[1] == action,
                   columns[2] == time else {
                 continue
             }
-            return String(columns[9])
+            return String(columns[column])
         }
         return nil
     }
