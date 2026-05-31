@@ -434,6 +434,38 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["type"],
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "spring" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": [
+              "integrator",
+              "stiffness",
+              "damping",
+              "mass",
+              "settleEpsilon",
+              "maxVelocity",
+              "fixedStepSeconds"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["integrator"] },
+                { "required": ["stiffness"] },
+                { "required": ["damping"] },
+                { "required": ["mass"] },
+                { "required": ["settleEpsilon"] },
+                { "required": ["maxVelocity"] },
+                { "required": ["fixedStepSeconds"] }
+              ]
+            }
+          }
+        }
+      ],
       "properties": {
         "type": {
           "enum": [
@@ -464,7 +496,14 @@
           "minItems": 2,
           "maxItems": 8
         },
-        "loop": { "type": "boolean" }
+        "loop": { "type": "boolean" },
+        "integrator": { "enum": ["semi-implicit-euler"] },
+        "stiffness": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000 },
+        "damping": { "type": "number", "minimum": 0, "maximum": 10000 },
+        "mass": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+        "settleEpsilon": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "maxVelocity": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000 },
+        "fixedStepSeconds": { "type": "number", "minimum": 0.004, "maximum": 0.067 }
       }
     },
     "effect": {

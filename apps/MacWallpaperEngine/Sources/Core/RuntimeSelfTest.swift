@@ -2014,7 +2014,9 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
                 && manifestSchemaText.contains("\"nativeSpineTransitionSeconds\"")
                 && manifestSchemaText.contains("\"physicsIdlePolicy\"")
-                && manifestSchemaText.contains("\"tapAction\""),
+                && manifestSchemaText.contains("\"tapAction\"")
+                && manifestSchemaText.contains("\"semi-implicit-euler\"")
+                && manifestSchemaText.contains("\"stiffness\""),
             "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
         )
         let schemaCheckedBundles = WallpaperBundleCatalog.discover(
@@ -2390,7 +2392,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.down+system.time+thermal.state")
-                && completionAudit.contains("spring(declared-only)")
+                && completionAudit.contains("spring(declared-only,explicit-dynamics-contract)")
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
                 && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)")
                 && completionAudit.contains("dynamicShaderLoading=forbidden")
@@ -4171,6 +4173,175 @@ enum RuntimeSelfTest {
             timeLoopBindingDiagnostic.status == .valid
                 && abs((timeLoopSnapshot.number(effectID: "loopPan", property: "offsetX") ?? -1) - 0.25) < 0.001,
             "bundle diagnostics must accept looped system.time map-range bindings and evaluate them through the manifest-declared adapter",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let springContractRoot = fixtureParent.appendingPathComponent("spring_contract_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: springContractRoot,
+            imageSource: sourceImage,
+            id: "spring_contract_bundle",
+            title: "Spring Contract Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "softBlur",
+              "type": "blur"
+            }
+          ],
+          "bindings": [
+            {
+              "id": "springPointerBlur",
+              "source": "pointer.position",
+              "target": "effect.softBlur.radius",
+              "adapter": {
+                "type": "spring",
+                "integrator": "semi-implicit-euler",
+                "stiffness": 80,
+                "damping": 16,
+                "mass": 1,
+                "settleEpsilon": 0.001,
+                "maxVelocity": 120,
+                "fixedStepSeconds": 0.0166666667,
+                "factor": [1]
+              }
+            }
+          ],
+"""
+        )
+        let springContractDiagnostic = WallpaperBundleCatalog.diagnoseBundle(springContractRoot)
+        let springContractManifest = try ManifestLoader.load(
+            url: springContractRoot.appendingPathComponent("wallpaper.native.json"),
+            bundleRoot: springContractRoot
+        )
+        let springContractPlan = DeclarativeBindingPlan(manifest: springContractManifest)
+        check(
+            springContractDiagnostic.status == .valid
+                && springContractPlan.bindingEntries.first?.runtimeStatus == .declaredOnly
+                && springContractPlan.hasPointerInputBindings == false,
+            "spring bindings must accept an explicit deterministic spring contract while remaining declared-only and not enabling pointer monitoring",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let invalidSpringContractRoot = fixtureParent.appendingPathComponent("invalid_spring_contract_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: invalidSpringContractRoot,
+            imageSource: sourceImage,
+            id: "invalid_spring_contract_bundle",
+            title: "Invalid Spring Contract Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "softBlur",
+              "type": "blur"
+            }
+          ],
+          "bindings": [
+            {
+              "id": "missingIntegrator",
+              "source": "thermal.state",
+              "target": "effect.softBlur.radius",
+              "adapter": {
+                "type": "spring",
+                "stiffness": 80,
+                "damping": 16,
+                "mass": 1,
+                "settleEpsilon": 0.001,
+                "maxVelocity": 120,
+                "fixedStepSeconds": 0.0166666667
+              }
+            }
+          ],
+"""
+        )
+        let invalidSpringContractDiagnostic = WallpaperBundleCatalog.diagnoseBundle(invalidSpringContractRoot)
+        check(
+            invalidSpringContractDiagnostic.status == .invalid
+                && (invalidSpringContractDiagnostic.errorMessage?.contains("Schema required property integrator missing") == true),
+            "bundle diagnostics must reject spring bindings that omit explicit spring dynamics during schema preflight before runtime support exists",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let invalidSpringLoopSourceRoot = fixtureParent.appendingPathComponent("invalid_spring_loop_source_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: invalidSpringLoopSourceRoot,
+            imageSource: sourceImage,
+            id: "invalid_spring_loop_source_bundle",
+            title: "Invalid Spring Loop Source Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "loopBlur",
+              "type": "blur"
+            }
+          ],
+          "bindings": [
+            {
+              "id": "badSpringLoopSource",
+              "source": "pointer.down",
+              "target": "effect.loopBlur.radius",
+              "adapter": {
+                "type": "spring",
+                "integrator": "semi-implicit-euler",
+                "stiffness": 80,
+                "damping": 16,
+                "mass": 1,
+                "settleEpsilon": 0.001,
+                "maxVelocity": 120,
+                "fixedStepSeconds": 0.0166666667,
+                "inputRange": [0, 1],
+                "outputRange": [0, 6],
+                "loop": true
+              }
+            }
+          ],
+"""
+        )
+        let invalidSpringLoopSourceDiagnostic = WallpaperBundleCatalog.diagnoseBundle(invalidSpringLoopSourceRoot)
+        check(
+            invalidSpringLoopSourceDiagnostic.status == .invalid
+                && (invalidSpringLoopSourceDiagnostic.errorMessage?.contains("spring adapter loop requires source system.time") == true),
+            "bundle diagnostics must reject looped spring bindings unless the source is system.time",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let nonSpringContractFieldRoot = fixtureParent.appendingPathComponent("non_spring_contract_field_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: nonSpringContractFieldRoot,
+            imageSource: sourceImage,
+            id: "non_spring_contract_field_bundle",
+            title: "Non Spring Contract Field Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "softBlur",
+              "type": "blur"
+            }
+          ],
+          "bindings": [
+            {
+              "id": "mapRangeWithSpringField",
+              "source": "thermal.state",
+              "target": "effect.softBlur.radius",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [0, 1],
+                "outputRange": [0, 6],
+                "stiffness": 80
+              }
+            }
+          ],
+"""
+        )
+        let nonSpringContractFieldDiagnostic = WallpaperBundleCatalog.diagnoseBundle(nonSpringContractFieldRoot)
+        check(
+            nonSpringContractFieldDiagnostic.status == .invalid
+                && (nonSpringContractFieldDiagnostic.errorMessage?.contains("Schema not failed") == true),
+            "bundle diagnostics must keep spring dynamics fields schema-scoped to spring adapters",
             failures: &failures,
             checks: &checks
         )

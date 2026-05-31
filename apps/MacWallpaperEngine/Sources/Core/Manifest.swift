@@ -296,6 +296,47 @@ struct BindingAdapter: Decodable {
     let inputRange: [Double]?
     let outputRange: [Double]?
     let loop: Bool?
+    let integrator: BindingSpringIntegrator?
+    let stiffness: Double?
+    let damping: Double?
+    let mass: Double?
+    let settleEpsilon: Double?
+    let maxVelocity: Double?
+    let fixedStepSeconds: Double?
+
+    init(
+        type: BindingAdapterType,
+        neutralPoint: InteractionPoint?,
+        deadZone: InteractionPoint?,
+        interpolation: BindingInterpolation?,
+        factor: [Double]?,
+        inputRange: [Double]?,
+        outputRange: [Double]?,
+        loop: Bool?,
+        integrator: BindingSpringIntegrator? = nil,
+        stiffness: Double? = nil,
+        damping: Double? = nil,
+        mass: Double? = nil,
+        settleEpsilon: Double? = nil,
+        maxVelocity: Double? = nil,
+        fixedStepSeconds: Double? = nil
+    ) {
+        self.type = type
+        self.neutralPoint = neutralPoint
+        self.deadZone = deadZone
+        self.interpolation = interpolation
+        self.factor = factor
+        self.inputRange = inputRange
+        self.outputRange = outputRange
+        self.loop = loop
+        self.integrator = integrator
+        self.stiffness = stiffness
+        self.damping = damping
+        self.mass = mass
+        self.settleEpsilon = settleEpsilon
+        self.maxVelocity = maxVelocity
+        self.fixedStepSeconds = fixedStepSeconds
+    }
 }
 
 enum BindingAdapterType: String, Decodable {
@@ -309,6 +350,10 @@ enum BindingInterpolation: String, Decodable {
     case linear
     case smoothStep = "smooth-step"
     case spring
+}
+
+enum BindingSpringIntegrator: String, Decodable {
+    case semiImplicitEuler = "semi-implicit-euler"
 }
 
 struct EffectConfig: Decodable {

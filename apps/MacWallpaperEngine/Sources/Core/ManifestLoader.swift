@@ -619,6 +619,7 @@ enum ManifestLoader {
         if let outputRange = adapter.outputRange {
             try validateFiniteNumberList(outputRange, label: "binding \(bindingID) adapter.outputRange", minCount: 2, maxCount: 8)
         }
+        try validateSpringOnlyFields(adapter, bindingID: bindingID)
 
         switch adapter.type {
         case .smoothLookAt:
@@ -660,6 +661,100 @@ enum ManifestLoader {
                 break
             case .spineAnimation:
                 throw EngineError.manifest("binding \(bindingID) spring adapter cannot target spine.animation")
+            }
+            try validateSpringContract(adapter, source: source, bindingID: bindingID)
+        }
+    }
+
+    private static func validateSpringOnlyFields(_ adapter: BindingAdapter, bindingID: String) throws {
+        guard adapter.type != .spring else { return }
+        let springOnlyFields: [(String, Bool)] = [
+            ("integrator", adapter.integrator != nil),
+            ("stiffness", adapter.stiffness != nil),
+            ("damping", adapter.damping != nil),
+            ("mass", adapter.mass != nil),
+            ("settleEpsilon", adapter.settleEpsilon != nil),
+            ("maxVelocity", adapter.maxVelocity != nil),
+            ("fixedStepSeconds", adapter.fixedStepSeconds != nil)
+        ]
+        if let field = springOnlyFields.first(where: { $0.1 })?.0 {
+            throw EngineError.manifest("binding \(bindingID) adapter.\(field) is only supported by spring adapters")
+        }
+    }
+
+    private static func validateSpringContract(
+        _ adapter: BindingAdapter,
+        source: BindingSource,
+        bindingID: String
+    ) throws {
+        guard adapter.integrator != nil else {
+            throw EngineError.manifest("binding \(bindingID) spring adapter requires adapter.integrator")
+        }
+        try validateFiniteNumber(
+            adapter.stiffness,
+            label: "binding \(bindingID) adapter.stiffness",
+            min: 0,
+            max: 10_000,
+            allowMin: false
+        )
+        try validateFiniteNumber(
+            adapter.damping,
+            label: "binding \(bindingID) adapter.damping",
+            min: 0,
+            max: 10_000,
+            allowMin: true
+        )
+        try validateFiniteNumber(
+            adapter.mass,
+            label: "binding \(bindingID) adapter.mass",
+            min: 0,
+            max: 100,
+            allowMin: false
+        )
+        try validateFiniteNumber(
+            adapter.settleEpsilon,
+            label: "binding \(bindingID) adapter.settleEpsilon",
+            min: 0,
+            max: 1,
+            allowMin: false
+        )
+        try validateFiniteNumber(
+            adapter.maxVelocity,
+            label: "binding \(bindingID) adapter.maxVelocity",
+            min: 0,
+            max: 10_000,
+            allowMin: false
+        )
+        try validateFiniteNumber(
+            adapter.fixedStepSeconds,
+            label: "binding \(bindingID) adapter.fixedStepSeconds",
+            min: 0.004,
+            max: 0.067,
+            allowMin: true
+        )
+        if adapter.loop == true {
+            guard source == .systemTime else {
+                throw EngineError.manifest("binding \(bindingID) spring adapter loop requires source system.time")
+            }
+            guard let inputRange = adapter.inputRange,
+                  let outputRange = adapter.outputRange,
+                  inputRange.count == outputRange.count else {
+                throw EngineError.manifest("binding \(bindingID) spring adapter loop requires equal-length inputRange and outputRange")
+            }
+            guard isStrictlyMonotonic(inputRange),
+                  let first = inputRange.first,
+                  let last = inputRange.last,
+                  last > first else {
+                throw EngineError.manifest("binding \(bindingID) spring adapter loop requires an ascending inputRange")
+            }
+        } else if adapter.inputRange != nil || adapter.outputRange != nil {
+            guard let inputRange = adapter.inputRange,
+                  let outputRange = adapter.outputRange,
+                  inputRange.count == outputRange.count else {
+                throw EngineError.manifest("binding \(bindingID) spring adapter range mapping requires equal-length inputRange and outputRange")
+            }
+            guard isStrictlyMonotonic(inputRange) else {
+                throw EngineError.manifest("binding \(bindingID) spring adapter.inputRange must be strictly monotonic")
             }
         }
     }
@@ -713,6 +808,23 @@ enum ManifestLoader {
     ) throws {
         guard values.count >= minCount, values.count <= maxCount, values.allSatisfy(\.isFinite) else {
             throw EngineError.manifest("\(label) must contain \(minCount)...\(maxCount) finite number(s)")
+        }
+    }
+
+    private static func validateFiniteNumber(
+        _ value: Double?,
+        label: String,
+        min: Double,
+        max: Double,
+        allowMin: Bool
+    ) throws {
+        guard let value, value.isFinite else {
+            throw EngineError.manifest("\(label) must be a finite number")
+        }
+        let lowerBoundOK = allowMin ? value >= min : value > min
+        guard lowerBoundOK, value <= max else {
+            let comparator = allowMin ? "<=" : "<"
+            throw EngineError.manifest("\(label) must satisfy \(min) \(comparator) value <= \(max)")
         }
     }
 

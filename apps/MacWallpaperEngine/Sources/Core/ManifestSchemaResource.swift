@@ -92,10 +92,13 @@ private struct JSONSchemaSubsetValidator {
             }
         }
 
-        if let ifSchema = schema["if"] as? [String: Any],
-           (try? validate(value, schema: ifSchema, path: path, depth: depth + 1)) != nil,
-           let thenSchema = schema["then"] as? [String: Any] {
-            try validate(value, schema: thenSchema, path: path, depth: depth + 1)
+        if let ifSchema = schema["if"] as? [String: Any] {
+            let ifMatches = (try? validate(value, schema: ifSchema, path: path, depth: depth + 1)) != nil
+            if ifMatches, let thenSchema = schema["then"] as? [String: Any] {
+                try validate(value, schema: thenSchema, path: path, depth: depth + 1)
+            } else if ifMatches == false, let elseSchema = schema["else"] as? [String: Any] {
+                try validate(value, schema: elseSchema, path: path, depth: depth + 1)
+            }
         }
 
         if let notSchema = schema["not"] as? [String: Any],
