@@ -6356,7 +6356,7 @@ enum RuntimeSelfTest {
         """
         try Data(atlasText.utf8).write(to: fixtureAtlas, options: .atomic)
 
-        let pathConstraintBlock = """
+        let legacyPathConstraintBlock = """
           "path": [
             {
               "name": "supported-proportional-path",
@@ -6367,9 +6367,25 @@ enum RuntimeSelfTest {
               "rotateMode": "chainscale",
               "position": 0.15,
               "spacing": 0.60,
-              "mixRotate": 1,
-              "mixX": 1,
-              "mixY": 1
+              "mixRotate": 0.7,
+              "mixX": 0.6,
+              "mixY": 0.6
+            }
+          ],
+        """
+        let officialPathConstraintBlock = """
+          "path": [
+            {
+              "name": "supported-proportional-path",
+              "bones": ["follower"],
+              "target": "path-slot",
+              "positionMode": "percent",
+              "spacingMode": "proportional",
+              "rotateMode": "chainscale",
+              "position": 0.15,
+              "spacing": 0.60,
+              "rotateMix": 0.7,
+              "translateMix": 0.6
             }
           ],
         """
@@ -6553,11 +6569,34 @@ enum RuntimeSelfTest {
             noConstraintBounds = nil
         }
 
-        let pathConstraintSpineJSON = spineTemplate.replacingOccurrences(
+        let legacyPathConstraintSpineJSON = spineTemplate.replacingOccurrences(
             of: "__PATH_CONSTRAINT_BLOCK__",
-            with: pathConstraintBlock
+            with: legacyPathConstraintBlock
         )
-        try Data(pathConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        try Data(legacyPathConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let legacyPathConstraintRuntime = try NativeRuntimeCore(config: noConstraintRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let legacyPathConstraintFingerprint: String?
+        if noConstraintGeometryRequired {
+            try legacyPathConstraintRuntime.requireNativeSpineGeometryIfSupported()
+            let legacyPathConstraintGeometryPlan = try SpineGeometryDiagnostics.make(runtime: legacyPathConstraintRuntime)
+            legacyPathConstraintFingerprint = geometryFingerprint(
+                in: legacyPathConstraintGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+        } else {
+            legacyPathConstraintFingerprint = nil
+        }
+
+        let officialPathConstraintSpineJSON = spineTemplate.replacingOccurrences(
+            of: "__PATH_CONSTRAINT_BLOCK__",
+            with: officialPathConstraintBlock
+        )
+        try Data(officialPathConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
         let pathConstraintRuntime = try NativeRuntimeCore(config: noConstraintRuntime.config.replacing(
             clearDuration: true,
             launchControlPanel: false,
@@ -6567,7 +6606,7 @@ enum RuntimeSelfTest {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: pathConstraintRuntime)
         check(
             compatibility.isSupported,
-            "proportional Spine path constraints must pass native compatibility gate",
+            "official Spine proportional path constraint mix aliases must pass native compatibility gate",
             failures: &failures,
             checks: &checks
         )
@@ -6575,7 +6614,7 @@ enum RuntimeSelfTest {
             pathConstraintRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
                 && pathConstraintRuntime.runtimeCapabilitiesSummary().contains("used=path")
                 && pathConstraintRuntime.runtimeCapabilitiesSummary().contains("spacingMode=proportional") == false,
-            "capability diagnostics must report proportional Spine path constraints as renderer-supported",
+            "capability diagnostics must report official Spine proportional path constraint mix aliases as renderer-supported",
             failures: &failures,
             checks: &checks
         )
@@ -6589,7 +6628,15 @@ enum RuntimeSelfTest {
                 noConstraintFingerprint != nil
                     && pathConstraintFingerprint != nil
                     && noConstraintFingerprint != pathConstraintFingerprint,
-                "proportional Spine path constraints must change native geometry instead of being scanner-only support",
+                "official Spine proportional path constraint mix aliases must change native geometry instead of being scanner-only support",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                legacyPathConstraintFingerprint != nil
+                    && pathConstraintFingerprint != nil
+                    && legacyPathConstraintFingerprint == pathConstraintFingerprint,
+                "official Spine path constraint mix aliases must render the same geometry as legacy runtime mix fields",
                 failures: &failures,
                 checks: &checks
             )
@@ -6597,7 +6644,7 @@ enum RuntimeSelfTest {
                 noConstraintBounds != nil
                     && pathConstraintBounds != nil
                     && noConstraintBounds != pathConstraintBounds,
-                "proportional Spine path constraints must move visible geometry bounds",
+                "official Spine proportional path constraint mix aliases must move visible geometry bounds",
                 failures: &failures,
                 checks: &checks
             )
@@ -7006,7 +7053,7 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        let localRelativeTransformSpineJSON = """
+        let localRelativeTransformTemplate = """
         {
           "skeleton": {
             "spine": "4.2.43",
@@ -7025,36 +7072,7 @@ enum RuntimeSelfTest {
             { "name": "local-arm", "bone": "localBone", "attachment": "ik-quad" },
             { "name": "relative-arm", "bone": "relativeBone", "attachment": "ik-quad" }
           ],
-          "transform": [
-            {
-              "name": "supported-local-transform",
-              "bones": ["localBone"],
-              "target": "target",
-              "local": true,
-              "x": 8,
-              "y": 4,
-              "rotation": 10,
-              "scaleX": 0.1,
-              "scaleY": 0.1,
-              "mixRotate": 0.75,
-              "mixX": 0.5,
-              "mixY": 0.5,
-              "mixScaleX": 0.5,
-              "mixScaleY": 0.5
-            },
-            {
-              "name": "supported-relative-transform",
-              "bones": ["relativeBone"],
-              "target": "target",
-              "relative": true,
-              "x": 2,
-              "y": 1,
-              "rotation": 5,
-              "mixRotate": 0.5,
-              "mixX": 0.25,
-              "mixY": 0.25
-            }
-          ],
+        __TRANSFORM_CONSTRAINT_BLOCK__
           "skins": [
             {
               "name": "default",
@@ -7087,32 +7105,168 @@ enum RuntimeSelfTest {
           }
         }
         """
-        try Data(localRelativeTransformSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
-        let localRelativeTransformCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
-            manifest: eventOnlyManifest,
-            bundleRoot: fixtureRoot
+        let legacyLocalRelativeTransformBlock = """
+          "transform": [
+            {
+              "name": "supported-local-transform",
+              "bones": ["localBone"],
+              "target": "target",
+              "local": true,
+              "x": 8,
+              "y": 4,
+              "rotation": 10,
+              "scaleX": 0.1,
+              "scaleY": 0.1,
+              "shearY": 4,
+              "mixRotate": 0.75,
+              "mixX": 0.5,
+              "mixY": 0.5,
+              "mixScaleX": 0.5,
+              "mixScaleY": 0.5,
+              "mixShearY": 0.5
+            },
+            {
+              "name": "supported-relative-transform",
+              "bones": ["relativeBone"],
+              "target": "target",
+              "relative": true,
+              "x": 2,
+              "y": 1,
+              "rotation": 5,
+              "shearY": 2,
+              "mixRotate": 0.5,
+              "mixX": 0.25,
+              "mixY": 0.25,
+              "mixShearY": 0.25
+            }
+          ],
+        """
+        let officialLocalRelativeTransformBlock = """
+          "transform": [
+            {
+              "name": "supported-local-transform",
+              "bones": ["localBone"],
+              "target": "target",
+              "local": true,
+              "x": 8,
+              "y": 4,
+              "rotation": 10,
+              "scaleX": 0.1,
+              "scaleY": 0.1,
+              "shearY": 4,
+              "rotateMix": 0.75,
+              "translateMix": 0.5,
+              "scaleMix": 0.5,
+              "shearMix": 0.5
+            },
+            {
+              "name": "supported-relative-transform",
+              "bones": ["relativeBone"],
+              "target": "target",
+              "relative": true,
+              "x": 2,
+              "y": 1,
+              "rotation": 5,
+              "shearY": 2,
+              "rotateMix": 0.5,
+              "translateMix": 0.25,
+              "shearMix": 0.25
+            }
+          ],
+        """
+        let noTransformSpineJSON = localRelativeTransformTemplate.replacingOccurrences(
+            of: "__TRANSFORM_CONSTRAINT_BLOCK__",
+            with: ""
         )
-        check(
-            localRelativeTransformCompatibility.isSupported,
-            "local and relative Spine transform constraints must be native-supported by the compatibility gate",
-            failures: &failures,
-            checks: &checks
-        )
-        let localRelativeTransformRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+        try Data(noTransformSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let noTransformRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
             clearDuration: true,
             launchControlPanel: false,
             launchWallpaper: false
         ))
-        try localRelativeTransformRuntime.requireNativeSpineGeometryIfSupported()
+        let transformGeometryRequired = SpineGeometryDiagnostics.validationStatus(runtime: noTransformRuntime) == "required"
+        let noTransformFingerprint: String?
+        if transformGeometryRequired {
+            try noTransformRuntime.requireNativeSpineGeometryIfSupported()
+            let noTransformGeometryPlan = try SpineGeometryDiagnostics.make(runtime: noTransformRuntime)
+            noTransformFingerprint = geometryFingerprint(in: noTransformGeometryPlan, action: "idle", time: "0.000s")
+        } else {
+            noTransformFingerprint = nil
+        }
+
+        let legacyLocalRelativeTransformSpineJSON = localRelativeTransformTemplate.replacingOccurrences(
+            of: "__TRANSFORM_CONSTRAINT_BLOCK__",
+            with: legacyLocalRelativeTransformBlock
+        )
+        try Data(legacyLocalRelativeTransformSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let legacyLocalRelativeTransformRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let legacyLocalRelativeTransformFingerprint: String?
+        if transformGeometryRequired {
+            try legacyLocalRelativeTransformRuntime.requireNativeSpineGeometryIfSupported()
+            let legacyGeometryPlan = try SpineGeometryDiagnostics.make(runtime: legacyLocalRelativeTransformRuntime)
+            legacyLocalRelativeTransformFingerprint = geometryFingerprint(in: legacyGeometryPlan, action: "idle", time: "0.000s")
+        } else {
+            legacyLocalRelativeTransformFingerprint = nil
+        }
+
+        let officialLocalRelativeTransformSpineJSON = localRelativeTransformTemplate.replacingOccurrences(
+            of: "__TRANSFORM_CONSTRAINT_BLOCK__",
+            with: officialLocalRelativeTransformBlock
+        )
+        try Data(officialLocalRelativeTransformSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let officialLocalRelativeTransformCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: eventOnlyManifest,
+            bundleRoot: fixtureRoot
+        )
         check(
-            localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
-                && localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("used=transform")
-                && localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("transform/supported-local-transform:local") == false
-                && localRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("transform/supported-relative-transform:relative") == false,
-            "capability diagnostics must report local/relative Spine transform constraints as supported once renderer support exists",
+            officialLocalRelativeTransformCompatibility.isSupported,
+            "official Spine transform constraint mix aliases must be native-supported by the compatibility gate",
             failures: &failures,
             checks: &checks
         )
+        let officialLocalRelativeTransformRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        try officialLocalRelativeTransformRuntime.requireNativeSpineGeometryIfSupported()
+        check(
+            officialLocalRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
+                && officialLocalRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("used=transform")
+                && officialLocalRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("transform/supported-local-transform:local") == false
+                && officialLocalRelativeTransformRuntime.runtimeCapabilitiesSummary().contains("transform/supported-relative-transform:relative") == false,
+            "capability diagnostics must report official Spine transform constraint mix aliases as renderer-supported",
+            failures: &failures,
+            checks: &checks
+        )
+        if transformGeometryRequired && SpineGeometryDiagnostics.validationStatus(runtime: officialLocalRelativeTransformRuntime) == "required" {
+            let officialGeometryPlan = try SpineGeometryDiagnostics.make(runtime: officialLocalRelativeTransformRuntime)
+            let officialLocalRelativeTransformFingerprint = geometryFingerprint(
+                in: officialGeometryPlan,
+                action: "idle",
+                time: "0.000s"
+            )
+            check(
+                noTransformFingerprint != nil
+                    && officialLocalRelativeTransformFingerprint != nil
+                    && noTransformFingerprint != officialLocalRelativeTransformFingerprint,
+                "official Spine transform constraint mix aliases must change native geometry instead of only changing diagnostics",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                legacyLocalRelativeTransformFingerprint != nil
+                    && officialLocalRelativeTransformFingerprint != nil
+                    && legacyLocalRelativeTransformFingerprint == officialLocalRelativeTransformFingerprint,
+                "official Spine transform constraint mix aliases must render the same geometry as legacy runtime mix fields",
+                failures: &failures,
+                checks: &checks
+            )
+        }
 
         let spineJSON = """
         {

@@ -2164,6 +2164,13 @@ final class SpineSetupPoseRenderer {
         return defaultValue
     }
 
+    private static func number(_ raw: [String: Any], keys: [String], default defaultValue: Double) -> Double {
+        for key in keys where raw[key] != nil {
+            return number(raw[key], default: defaultValue)
+        }
+        return defaultValue
+    }
+
     private static func optionalNumber(_ raw: Any?) -> Double? {
         guard raw != nil else { return nil }
         return number(raw, default: 0)
@@ -2371,8 +2378,8 @@ final class SpineSetupPoseRenderer {
                     throw EngineError.asset("Spine transform constraint references an unknown bone")
                 }
 
-                let mixX = number(raw["mixX"], default: 1)
-                let mixScaleX = number(raw["mixScaleX"], default: 1)
+                let mixX = number(raw, keys: ["mixX", "translateMix"], default: 1)
+                let mixScaleX = number(raw, keys: ["mixScaleX", "scaleMix"], default: 1)
                 result.append(.transform(TransformPoseConstraint(
                     order: Int(number(raw["order"], default: 0)),
                     boneIndices: boneIndices,
@@ -2385,12 +2392,12 @@ final class SpineSetupPoseRenderer {
                     offsetShearY: number(raw["shearY"], default: 0),
                     local: usesLocal,
                     relative: usesRelative,
-                    mixRotate: number(raw["mixRotate"], default: 1),
+                    mixRotate: number(raw, keys: ["mixRotate", "rotateMix"], default: 1),
                     mixX: mixX,
-                    mixY: number(raw["mixY"], default: mixX),
+                    mixY: number(raw, keys: ["mixY", "translateMix"], default: mixX),
                     mixScaleX: mixScaleX,
-                    mixScaleY: number(raw["mixScaleY"], default: mixScaleX),
-                    mixShearY: number(raw["mixShearY"], default: 1)
+                    mixScaleY: number(raw, keys: ["mixScaleY", "scaleMix"], default: mixScaleX),
+                    mixShearY: number(raw, keys: ["mixShearY", "shearMix"], default: 1)
                 )))
             }
         }
@@ -2405,6 +2412,7 @@ final class SpineSetupPoseRenderer {
                 guard boneIndices.count == boneNames.count else {
                     throw EngineError.asset("Spine path constraint references an unknown bone")
                 }
+                let mixX = number(raw, keys: ["mixX", "translateMix"], default: 1)
                 result.append(.path(PathPoseConstraint(
                     order: Int(number(raw["order"], default: 0)),
                     boneIndices: boneIndices,
@@ -2415,9 +2423,9 @@ final class SpineSetupPoseRenderer {
                     offsetRotation: number(raw["rotation"], default: 0),
                     position: number(raw["position"], default: 0),
                     spacing: number(raw["spacing"], default: 0),
-                    mixRotate: number(raw["mixRotate"], default: 1),
-                    mixX: number(raw["mixX"], default: 1),
-                    mixY: number(raw["mixY"], default: number(raw["mixX"], default: 1))
+                    mixRotate: number(raw, keys: ["mixRotate", "rotateMix"], default: 1),
+                    mixX: mixX,
+                    mixY: number(raw, keys: ["mixY", "translateMix"], default: mixX)
                 )))
             }
         }
