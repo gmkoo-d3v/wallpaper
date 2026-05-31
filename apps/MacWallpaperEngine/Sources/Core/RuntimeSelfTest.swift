@@ -6297,6 +6297,32 @@ enum RuntimeSelfTest {
                   ]
                 }
               }
+            },
+            "deformedClipped": {
+              "slots": {
+                "clipper": {
+                  "attachment": [
+                    {
+                      "time": 0,
+                      "name": "mask"
+                    }
+                  ]
+                }
+              },
+              "attachments": {
+                "default": {
+                  "clipper": {
+                    "mask": {
+                      "deform": [
+                        {
+                          "time": 0,
+                          "vertices": [10, 10, -10, 10, -10, -10, 10, -10]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -6385,7 +6411,7 @@ enum RuntimeSelfTest {
                 "idle": "unclipped",
                 "left": "clipped",
                 "right": "unclipped",
-                "up": "unclipped",
+                "up": "deformedClipped",
                 "down": "unclipped"
               }
             }
@@ -6430,8 +6456,10 @@ enum RuntimeSelfTest {
             let clippingGeometryPlan = try SpineGeometryDiagnostics.make(runtime: clippingRuntime)
             let unclippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "unclipped", time: "0.000s")
             let clippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "clipped", time: "0.000s")
+            let deformedClippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "deformedClipped", time: "0.000s")
             let unclippedBounds = geometryColumn(in: clippingGeometryPlan, action: "unclipped", time: "0.000s", column: 8)
             let clippedBounds = geometryColumn(in: clippingGeometryPlan, action: "clipped", time: "0.000s", column: 8)
+            let deformedClippedBounds = geometryColumn(in: clippingGeometryPlan, action: "deformedClipped", time: "0.000s", column: 8)
             check(
                 unclippedFingerprint != nil
                     && clippedFingerprint != nil
@@ -6440,6 +6468,17 @@ enum RuntimeSelfTest {
                     && clippedBounds != nil
                     && unclippedBounds != clippedBounds,
                 "Spine clipping diagnostics must prove clipped geometry differs from the same mesh rendered without clipping",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                clippedFingerprint != nil
+                    && deformedClippedFingerprint != nil
+                    && clippedFingerprint != deformedClippedFingerprint
+                    && clippedBounds != nil
+                    && deformedClippedBounds != nil
+                    && clippedBounds != deformedClippedBounds,
+                "Spine clipping deform timelines must change clipping polygon geometry instead of being scanner-only support (clipped=\(clippedFingerprint ?? "nil") \(clippedBounds ?? "nil") deformed=\(deformedClippedFingerprint ?? "nil") \(deformedClippedBounds ?? "nil"))",
                 failures: &failures,
                 checks: &checks
             )

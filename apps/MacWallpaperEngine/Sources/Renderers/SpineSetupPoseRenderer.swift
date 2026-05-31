@@ -1342,18 +1342,25 @@ final class SpineSetupPoseRenderer {
 
         for (slotName, attachmentMap) in animation.attachmentTimelines {
             for (attachmentName, timelines) in attachmentMap {
-                guard let attachment = attachments[slotName]?[attachmentName] else {
-                    continue
-                }
                 if timelines.deform.isEmpty == false {
-                    let length = Self.deformLength(attachment: attachment)
-                    let deform = sampleDeform(timelines.deform, time: time, length: length)
-                    if deform.isEmpty == false {
-                        let current = deforms[slotName]?[attachmentName] ?? [Double](repeating: 0, count: deform.count)
-                        deforms[slotName, default: [:]][attachmentName] = blend(current, deform, mix)
+                    let length: Int
+                    if let attachment = attachments[slotName]?[attachmentName] {
+                        length = Self.deformLength(attachment: attachment)
+                    } else if let clipping = clippingAttachments[slotName]?[attachmentName] {
+                        length = Self.deformLength(clipping: clipping)
+                    } else {
+                        length = 0
+                    }
+                    if length > 0 {
+                        let deform = sampleDeform(timelines.deform, time: time, length: length)
+                        if deform.isEmpty == false {
+                            let current = deforms[slotName]?[attachmentName] ?? [Double](repeating: 0, count: deform.count)
+                            deforms[slotName, default: [:]][attachmentName] = blend(current, deform, mix)
+                        }
                     }
                 }
-                if let sequence = attachment.sequence,
+                if let attachment = attachments[slotName]?[attachmentName],
+                   let sequence = attachment.sequence,
                    timelines.sequence.isEmpty == false,
                    mix >= 0.5 {
                     sequenceIndices[slotName, default: [:]][attachmentName] = sampleSequenceIndex(
@@ -4598,7 +4605,8 @@ final class SpineSetupPoseRenderer {
                 let worldVertices = clippingWorldVertices(
                     attachment: clipping,
                     bones: bones,
-                    slotBone: slotBone
+                    slotBone: slotBone,
+                    deform: deforms[slot.name]?[attachmentName] ?? []
                 )
                 guard worldVertices.count == clipping.vertexCount, worldVertices.count >= 3 else {
                     throw EngineError.asset("Spine clipping attachment \(clipping.slotName)/\(clipping.name) produced invalid polygon")
@@ -5271,14 +5279,15 @@ final class SpineSetupPoseRenderer {
     private static func clippingWorldVertices(
         attachment: ClippingAttachment,
         bones: [BoneWorld],
-        slotBone: BoneWorld?
+        slotBone: BoneWorld?,
+        deform: [Double] = []
     ) -> [CGPoint] {
         let vertexCount = attachment.vertexCount
         guard vertexCount > 0 else { return [] }
         if attachment.vertices.count == vertexCount * 2 {
             return stride(from: 0, to: attachment.vertices.count, by: 2).map {
-                let localX = attachment.vertices[$0]
-                let localY = attachment.vertices[$0 + 1]
+                let localX = attachment.vertices[$0] + deformValue(deform, at: $0)
+                let localY = attachment.vertices[$0 + 1] + deformValue(deform, at: $0 + 1)
                 if let slotBone {
                     return slotBone.transform(x: localX, y: localY)
                 }
@@ -5289,6 +5298,7 @@ final class SpineSetupPoseRenderer {
         var output: [CGPoint] = []
         output.reserveCapacity(vertexCount)
         var index = 0
+        var deformIndex = 0
         for _ in 0..<vertexCount {
             guard index < attachment.vertices.count else { break }
             let influenceCount = Int(attachment.vertices[index])
@@ -5299,10 +5309,11 @@ final class SpineSetupPoseRenderer {
             for _ in 0..<influenceCount {
                 guard index + 3 < attachment.vertices.count else { break }
                 let boneIndex = Int(attachment.vertices[index])
-                let localX = attachment.vertices[index + 1]
-                let localY = attachment.vertices[index + 2]
+                let localX = attachment.vertices[index + 1] + deformValue(deform, at: deformIndex)
+                let localY = attachment.vertices[index + 2] + deformValue(deform, at: deformIndex + 1)
                 let weight = attachment.vertices[index + 3]
                 index += 4
+                deformIndex += 2
 
                 guard boneIndex >= 0, boneIndex < bones.count else { continue }
                 let transformed = bones[boneIndex].transform(x: localX, y: localY)
@@ -5328,6 +5339,23 @@ final class SpineSetupPoseRenderer {
         for _ in 0..<vertexCount {
             guard index < attachment.vertices.count else { break }
             let influenceCount = Int(attachment.vertices[index])
+            index += 1 + (influenceCount * 4)
+            length += influenceCount * 2
+        }
+        return length
+    }
+
+    private static func deformLength(clipping: ClippingAttachment) -> Int {
+        let vertexCount = clipping.vertexCount
+        if clipping.vertices.count == vertexCount * 2 {
+            return clipping.vertices.count
+        }
+
+        var index = 0
+        var length = 0
+        for _ in 0..<vertexCount {
+            guard index < clipping.vertices.count else { break }
+            let influenceCount = Int(clipping.vertices[index])
             index += 1 + (influenceCount * 4)
             length += influenceCount * 2
         }
