@@ -7182,16 +7182,23 @@ enum RuntimeSelfTest {
           ],
           "animations": {
             "idle": {
+              "events": [
+                {
+                  "time": 0.629,
+                  "name": "marker2"
+                }
+              ],
               "event": [
                 {
-                  "time": 0.4,
+                  "time": 0.421,
                   "name": "marker"
                 }
               ]
             }
           },
           "events": {
-            "marker": {}
+            "marker": {},
+            "marker2": {}
           }
         }
         """
@@ -7314,9 +7321,10 @@ enum RuntimeSelfTest {
         let eventOnlyAnimationPlan = try SpineAnimationDiagnostics.make(runtime: eventOnlyRuntime)
         check(
             eventOnlyAnimationPlan.contains("unsupportedActionTimelines: none")
-                && eventOnlyAnimationPlan.contains("animation\tidle\tavailable\t0.400s")
-                && eventOnlyAnimationPlan.contains("event=1"),
-            "Spine animation diagnostics must report singular event timelines as compatible timelines",
+                && eventOnlyAnimationPlan.contains("animation\tidle\tavailable\t0.629s")
+                && eventOnlyAnimationPlan.contains("event=1")
+                && eventOnlyAnimationPlan.contains("events=1"),
+            "Spine animation diagnostics must report singular and plural event timelines as compatible timelines",
             failures: &failures,
             checks: &checks
         )
@@ -7324,8 +7332,9 @@ enum RuntimeSelfTest {
             try eventOnlyRuntime.requireNativeSpineGeometryIfSupported()
             let eventOnlyGeometryPlan = try SpineGeometryDiagnostics.make(runtime: eventOnlyRuntime)
             check(
-                geometryFingerprint(in: eventOnlyGeometryPlan, action: "idle", time: "0.400s") != nil,
-                "Spine renderer must include singular event timeline time in native geometry samples",
+                geometryFingerprint(in: eventOnlyGeometryPlan, action: "idle", time: "0.421s") != nil
+                    && geometryFingerprint(in: eventOnlyGeometryPlan, action: "idle", time: "0.629s") != nil,
+                "Spine renderer must include singular and plural event timeline times in native geometry samples",
                 failures: &failures,
                 checks: &checks
             )
