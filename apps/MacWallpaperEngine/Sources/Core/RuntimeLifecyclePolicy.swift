@@ -144,7 +144,7 @@ enum RuntimeLifecyclePolicy {
         }
         if interactionPolicy.mode == .desktopEmptyOnly, interactionPolicy.blockDesktopItems {
             _ = accessibilityTrusted
-            return DesktopInteractionPermissionStatus(text: "READY / \(interactionPolicy.mode.rawValue) / best-effort-desktop-items")
+            return DesktopInteractionPermissionStatus(text: "READY / \(interactionPolicy.mode.rawValue) / desktop-gated")
         }
         return DesktopInteractionPermissionStatus(text: "READY / \(interactionPolicy.mode.rawValue)")
     }

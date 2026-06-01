@@ -3197,9 +3197,9 @@ enum RuntimeSelfTest {
         )
         check(
             blockedPermissionStatus.text.contains("READY")
-                && blockedPermissionStatus.text.contains("best-effort-desktop-items")
+                && blockedPermissionStatus.text.contains("desktop-gated")
                 && blockedPermissionStatus.text.count < 90,
-            "control panel interaction status must expose no-permission click/touch mode without showing a long warning sentence",
+            "control panel interaction status must expose desktop-gated click/touch mode without showing internal permission wording",
             failures: &failures,
             checks: &checks
         )
