@@ -1190,6 +1190,8 @@ private struct SpineFeatureScan {
                     unsupportedConstraintUsages.insert("path/\(name):missing-target-slot")
                 } else if slotNames.contains(targetSlotName) == false {
                     unsupportedConstraintUsages.insert("path/\(name):unknown-target-slot=\(targetSlotName)")
+                } else if hasPathAttachment(slotName: targetSlotName, root: root) == false {
+                    unsupportedConstraintUsages.insert("path/\(name):target-slot-without-path-attachment=\(targetSlotName)")
                 }
                 let positionMode = normalizedMode(constraint["positionMode"], default: "percent")
                 let spacingMode = normalizedMode(constraint["spacingMode"], default: "length")
@@ -1238,6 +1240,16 @@ private struct SpineFeatureScan {
             let name = (slot["name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             return name.isEmpty ? nil : name
         })
+    }
+
+    private func hasPathAttachment(slotName: String, root: [String: Any]) -> Bool {
+        skinAttachmentSources(root: root).contains { skin in
+            guard let slotAttachments = skin.attachments[slotName] as? [String: Any] else { return false }
+            return slotAttachments.values.contains { rawAttachment in
+                guard let attachment = rawAttachment as? [String: Any] else { return false }
+                return (attachment["type"] as? String)?.lowercased() == "path"
+            }
+        }
     }
 
     private func namedConstraint(_ constraint: [String: Any]) -> String {
