@@ -8408,6 +8408,16 @@ enum RuntimeSelfTest {
               "bones": ["child"],
               "target": "target",
               "local": true
+            },
+            {
+              "name": "missing-transform-target",
+              "bones": ["child"]
+            }
+          ],
+          "path": [
+            {
+              "name": "missing-path-target",
+              "bones": ["child"]
             }
           ],
           "skins": [
@@ -8569,8 +8579,10 @@ enum RuntimeSelfTest {
         )
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tunsupported")
-                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("ik/unsupported-multi-bone-ik:multi-bone"),
-            "capability diagnostics must expose unsupported native Spine constraint usages",
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("ik/unsupported-multi-bone-ik:multi-bone")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("transform/missing-transform-target:missing-target")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("path/missing-path-target:missing-target-slot"),
+            "capability diagnostics must expose unsupported native Spine constraint usages and missing constraint targets",
             failures: &failures,
             checks: &checks
         )

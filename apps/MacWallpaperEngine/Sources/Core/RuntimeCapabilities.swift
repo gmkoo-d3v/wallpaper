@@ -1125,21 +1125,50 @@ private struct SpineFeatureScan {
     }
 
     private mutating func collectConstraintKeys(root: [String: Any]) {
+        let boneNames = boneNameSet(root: root)
+        let slotNames = slotNameSet(root: root)
+
         if let constraints = root["ik"] as? [[String: Any]] {
             constraintKeys.insert("ik")
             for constraint in constraints {
                 let name = namedConstraint(constraint)
-                let boneCount = (constraint["bones"] as? [String])?.count ?? 0
+                let constraintBoneNames = constraint["bones"] as? [String] ?? []
+                let boneCount = constraintBoneNames.count
                 if boneCount < 1 {
                     unsupportedConstraintUsages.insert("ik/\(name):missing-bones")
                 } else if boneCount > 2 {
                     unsupportedConstraintUsages.insert("ik/\(name):multi-bone")
                 }
+                for boneName in constraintBoneNames where boneNames.contains(boneName) == false {
+                    unsupportedConstraintUsages.insert("ik/\(name):unknown-bone=\(boneName)")
+                }
+                let targetName = (constraint["target"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if targetName.isEmpty {
+                    unsupportedConstraintUsages.insert("ik/\(name):missing-target")
+                } else if boneNames.contains(targetName) == false {
+                    unsupportedConstraintUsages.insert("ik/\(name):unknown-target=\(targetName)")
+                }
             }
         }
 
-        if root["transform"] is [[String: Any]] {
+        if let constraints = root["transform"] as? [[String: Any]] {
             constraintKeys.insert("transform")
+            for constraint in constraints {
+                let name = namedConstraint(constraint)
+                let constraintBoneNames = constraint["bones"] as? [String] ?? []
+                if constraintBoneNames.isEmpty {
+                    unsupportedConstraintUsages.insert("transform/\(name):missing-bones")
+                }
+                for boneName in constraintBoneNames where boneNames.contains(boneName) == false {
+                    unsupportedConstraintUsages.insert("transform/\(name):unknown-bone=\(boneName)")
+                }
+                let targetName = (constraint["target"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if targetName.isEmpty {
+                    unsupportedConstraintUsages.insert("transform/\(name):missing-target")
+                } else if boneNames.contains(targetName) == false {
+                    unsupportedConstraintUsages.insert("transform/\(name):unknown-target=\(targetName)")
+                }
+            }
         }
 
         if let constraints = root["path"] as? [[String: Any]] {
@@ -1149,6 +1178,19 @@ private struct SpineFeatureScan {
             let supportedRotateModes: Set<String> = ["tangent", "chain", "chainscale"]
             for constraint in constraints {
                 let name = namedConstraint(constraint)
+                let constraintBoneNames = constraint["bones"] as? [String] ?? []
+                if constraintBoneNames.isEmpty {
+                    unsupportedConstraintUsages.insert("path/\(name):missing-bones")
+                }
+                for boneName in constraintBoneNames where boneNames.contains(boneName) == false {
+                    unsupportedConstraintUsages.insert("path/\(name):unknown-bone=\(boneName)")
+                }
+                let targetSlotName = (constraint["target"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if targetSlotName.isEmpty {
+                    unsupportedConstraintUsages.insert("path/\(name):missing-target-slot")
+                } else if slotNames.contains(targetSlotName) == false {
+                    unsupportedConstraintUsages.insert("path/\(name):unknown-target-slot=\(targetSlotName)")
+                }
                 let positionMode = normalizedMode(constraint["positionMode"], default: "percent")
                 let spacingMode = normalizedMode(constraint["spacingMode"], default: "length")
                 let rotateMode = normalizedMode(constraint["rotateMode"], default: "tangent")
@@ -1172,12 +1214,30 @@ private struct SpineFeatureScan {
                 let boneName = (constraint["bone"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if rawName.isEmpty || boneName.isEmpty {
                     unsupportedConstraintUsages.insert("physics/\(name):missing-name-or-bone")
+                } else if boneNames.contains(boneName) == false {
+                    unsupportedConstraintUsages.insert("physics/\(name):unknown-bone=\(boneName)")
                 }
             }
         } else if root["physics"] != nil {
             constraintKeys.insert("physics")
             unsupportedConstraintUsages.insert("physics:invalid-shape")
         }
+    }
+
+    private func boneNameSet(root: [String: Any]) -> Set<String> {
+        guard let bones = root["bones"] as? [[String: Any]] else { return [] }
+        return Set(bones.compactMap { bone in
+            let name = (bone["name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : name
+        })
+    }
+
+    private func slotNameSet(root: [String: Any]) -> Set<String> {
+        guard let slots = root["slots"] as? [[String: Any]] else { return [] }
+        return Set(slots.compactMap { slot in
+            let name = (slot["name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : name
+        })
     }
 
     private func namedConstraint(_ constraint: [String: Any]) -> String {
