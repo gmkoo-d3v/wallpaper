@@ -723,7 +723,8 @@ enum RuntimeCapabilities {
         let eventFeatureDetail = [
             scan.hasEventData ? "events=ignored(non-visual)" : "events=none",
             scan.hasAudioData ? "audio=ignored(non-visual)" : "audio=none",
-            sequenceDetail
+            sequenceDetail,
+            "payloads=\(scan.eventPayloadKeys.listOrNone)"
         ].joined(separator: " ")
 
         let nativeRendererStatus: String
@@ -840,6 +841,7 @@ private struct SpineFeatureScan {
     var hasEventData = false
     var hasAudioData = false
     var hasSequenceData = false
+    var eventPayloadKeys: Set<String> = []
 
     var unsupportedAttachmentTypes: Set<String> {
         attachmentTypes.subtracting(["region", "mesh", "linkedmesh", "path", "clipping", "point", "boundingbox"])
@@ -921,6 +923,7 @@ private struct SpineFeatureScan {
         scan.hasAudioData = containsAnyKey(root, keys: ["audio"])
         scan.hasSequenceData = containsAnyKey(root, keys: ["sequence"])
             || scan.attachmentTypes.contains("sequence")
+        scan.collectEventPayloadKeys(root: root)
         return scan
     }
 
@@ -1033,6 +1036,33 @@ private struct SpineFeatureScan {
             for key in animation.keys where !["bones", "ik", "transform", "path", "slots", "attachments", "drawOrder", "draworder"].contains(key) {
                 timelineKeys.insert(key)
             }
+        }
+    }
+
+    private mutating func collectEventPayloadKeys(root: [String: Any]) {
+        if let eventDefinitions = root["events"] as? [String: Any] {
+            for rawEvent in eventDefinitions.values {
+                collectEventPayloadKeys(from: rawEvent)
+            }
+        }
+        guard let animations = root["animations"] as? [String: Any] else { return }
+        for rawAnimation in animations.values {
+            guard let animation = rawAnimation as? [String: Any] else { continue }
+            collectEventPayloadKeys(from: animation["events"])
+            collectEventPayloadKeys(from: animation["event"])
+        }
+    }
+
+    private mutating func collectEventPayloadKeys(from raw: Any?) {
+        if let frames = raw as? [[String: Any]] {
+            for frame in frames {
+                collectEventPayloadKeys(from: frame)
+            }
+            return
+        }
+        guard let event = raw as? [String: Any] else { return }
+        for key in ["int", "float", "string", "audio", "volume", "balance"] where event[key] != nil {
+            eventPayloadKeys.insert(key)
         }
     }
 

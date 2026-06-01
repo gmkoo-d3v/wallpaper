@@ -7197,8 +7197,8 @@ enum RuntimeSelfTest {
             }
           },
           "events": {
-            "marker": {},
-            "marker2": {}
+            "marker": { "int": 7, "float": 0.25, "string": "rub-start" },
+            "marker2": { "string": "rub-end" }
           }
         }
         """
@@ -7391,14 +7391,14 @@ enum RuntimeSelfTest {
         )
         check(
             eventOnlyRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored"),
-            "capability diagnostics must mark non-visual Spine events as ignored instead of unsupported",
+                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored(non-visual) audio=none sequence=none payloads=float,int,string"),
+            "capability diagnostics must mark non-visual Spine events and payload values as ignored instead of unsupported",
             failures: &failures,
             checks: &checks
         )
         let audioEventSpineJSON = eventOnlySpineJSON.replacingOccurrences(
-            of: "\"marker\": {}",
-            with: "\"marker\": { \"audio\": \"voice.wav\", \"volume\": 0.5, \"balance\": -0.25 }"
+            of: "\"marker\": { \"int\": 7, \"float\": 0.25, \"string\": \"rub-start\" }",
+            with: "\"marker\": { \"int\": 7, \"float\": 0.25, \"string\": \"rub-start\", \"audio\": \"voice.wav\", \"volume\": 0.5, \"balance\": -0.25 }"
         )
         try Data(audioEventSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
         let audioEventCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
@@ -7418,7 +7418,7 @@ enum RuntimeSelfTest {
         ))
         check(
             audioEventRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored(non-visual) audio=ignored(non-visual) sequence=none"),
+                .contains("spine\teventsAudioSequence\tsupported\tevents=ignored(non-visual) audio=ignored(non-visual) sequence=none payloads=audio,balance,float,int,string,volume"),
             "capability diagnostics must expose Spine audio events as ignored non-visual data",
             failures: &failures,
             checks: &checks
