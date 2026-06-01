@@ -765,7 +765,7 @@ enum RuntimeCapabilities {
                 category: "spine",
                 name: "attachments",
                 status: attachmentStatus,
-                detail: "used=\(scan.attachmentTypes.listOrNone) unsupported=\(scan.unsupportedAttachmentTypes.listOrNone) linkedmeshIssues=\(scan.unsupportedLinkedMeshReferences.listOrNone)"
+                detail: "renderable=\(scan.renderableAttachmentTypes.listOrNone) ignoredNonVisual=\(scan.ignoredNonVisualAttachmentTypes.listOrNone) unsupported=\(scan.unsupportedAttachmentTypes.listOrNone) linkedmeshIssues=\(scan.unsupportedLinkedMeshReferences.listOrNone)"
             ),
             RuntimeCapabilityRow(
                 category: "spine",
@@ -848,8 +848,19 @@ private struct SpineFeatureScan {
     var hasSequenceData = false
     var eventPayloadKeys: Set<String> = []
 
+    private static let renderableAttachmentTypes: Set<String> = ["region", "mesh", "linkedmesh", "path", "clipping"]
+    private static let nonVisualAttachmentTypes: Set<String> = ["point", "boundingbox"]
+
+    var renderableAttachmentTypes: Set<String> {
+        attachmentTypes.intersection(Self.renderableAttachmentTypes)
+    }
+
+    var ignoredNonVisualAttachmentTypes: Set<String> {
+        attachmentTypes.intersection(Self.nonVisualAttachmentTypes)
+    }
+
     var unsupportedAttachmentTypes: Set<String> {
-        attachmentTypes.subtracting(["region", "mesh", "linkedmesh", "path", "clipping", "point", "boundingbox"])
+        attachmentTypes.subtracting(Self.renderableAttachmentTypes.union(Self.nonVisualAttachmentTypes))
     }
 
     var unsupportedTimelineKeys: Set<String> {

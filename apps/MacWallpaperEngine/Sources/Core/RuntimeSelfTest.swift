@@ -5931,8 +5931,8 @@ enum RuntimeSelfTest {
         check(compatibility.reasonText == "supported", "external-skin linkedmesh compatibility must not report unsupported reasons", failures: &failures, checks: &checks)
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\tattachments\tsupported\tused=boundingbox,linkedmesh,mesh,point"),
-            "runtime capabilities must report external-skin linkedmesh and non-visual point/boundingbox attachments as supported",
+                .contains("spine\tattachments\tsupported\trenderable=linkedmesh,mesh ignoredNonVisual=boundingbox,point"),
+            "runtime capabilities must report renderable Spine attachments separately from ignored non-visual point/boundingbox attachments",
             failures: &failures,
             checks: &checks
         )
@@ -6120,7 +6120,7 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
-            legacySkinRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\tused=mesh"),
+            legacySkinRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\trenderable=mesh ignoredNonVisual=none"),
             "runtime capabilities must scan legacy object-form Spine skins",
             failures: &failures,
             checks: &checks
@@ -6185,7 +6185,7 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
-            implicitMeshRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\tused=mesh"),
+            implicitMeshRuntime.runtimeCapabilitiesSummary().contains("spine\tattachments\tsupported\trenderable=mesh ignoredNonVisual=none"),
             "runtime capabilities must infer untyped Spine attachments with triangles/uvs as mesh",
             failures: &failures,
             checks: &checks
@@ -6503,7 +6503,7 @@ enum RuntimeSelfTest {
         )
         check(
             clippingRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\tattachments\tsupported\tused=clipping,mesh"),
+                .contains("spine\tattachments\tsupported\trenderable=clipping,mesh ignoredNonVisual=none"),
             "runtime capabilities must report Spine clipping attachments as native-supported",
             failures: &failures,
             checks: &checks
