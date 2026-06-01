@@ -1853,7 +1853,10 @@ final class SpineSetupPoseRenderer {
                 drawOrder = parseDrawOrderFrames(raw)
                 duration = max(duration, drawOrder.map(\.time).max() ?? 0)
             }
-            let eventFrames = parseEventFrames(animationMap["events"])
+            let eventFrames = (
+                parseEventFrames(animationMap["events"]) + parseEventFrames(animationMap["event"])
+            )
+            .sorted { $0.time < $1.time }
             duration = max(duration, eventFrames.map(\.time).max() ?? 0)
 
             result[animationName] = SpineAnimation(

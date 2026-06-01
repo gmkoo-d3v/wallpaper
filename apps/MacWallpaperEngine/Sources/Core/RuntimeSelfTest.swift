@@ -7151,11 +7151,40 @@ enum RuntimeSelfTest {
           "skeleton": {
             "spine": "4.2.43"
           },
+          "bones": [
+            {
+              "name": "root"
+            }
+          ],
+          "slots": [
+            {
+              "name": "slot",
+              "bone": "root",
+              "attachment": "ik-quad"
+            }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "slot": {
+                  "ik-quad": {
+                    "type": "mesh",
+                    "path": "ik-quad",
+                    "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+                    "triangles": [0, 1, 2, 2, 3, 0],
+                    "vertices": [-8, -8, 8, -8, 8, 8, -8, 8],
+                    "hull": 4
+                  }
+                }
+              }
+            }
+          ],
           "animations": {
             "idle": {
-              "events": [
+              "event": [
                 {
-                  "time": 0,
+                  "time": 0.4,
                   "name": "marker"
                 }
               ]
@@ -7282,6 +7311,25 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let eventOnlyAnimationPlan = try SpineAnimationDiagnostics.make(runtime: eventOnlyRuntime)
+        check(
+            eventOnlyAnimationPlan.contains("unsupportedActionTimelines: none")
+                && eventOnlyAnimationPlan.contains("animation\tidle\tavailable\t0.400s")
+                && eventOnlyAnimationPlan.contains("event=1"),
+            "Spine animation diagnostics must report singular event timelines as compatible timelines",
+            failures: &failures,
+            checks: &checks
+        )
+        if SpineGeometryDiagnostics.validationStatus(runtime: eventOnlyRuntime) == "required" {
+            try eventOnlyRuntime.requireNativeSpineGeometryIfSupported()
+            let eventOnlyGeometryPlan = try SpineGeometryDiagnostics.make(runtime: eventOnlyRuntime)
+            check(
+                geometryFingerprint(in: eventOnlyGeometryPlan, action: "idle", time: "0.400s") != nil,
+                "Spine renderer must include singular event timeline time in native geometry samples",
+                failures: &failures,
+                checks: &checks
+            )
+        }
         let userControlledManifestURL = fixtureRoot.appendingPathComponent("user-controlled.native.json")
         let userControlledManifestJSON = eventOnlyManifestJSON.replacingOccurrences(
             of: "\"fallbackFps\": 15,",
