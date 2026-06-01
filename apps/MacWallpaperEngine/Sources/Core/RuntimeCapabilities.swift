@@ -1028,6 +1028,11 @@ private struct SpineFeatureScan {
                 let attachments = skin["attachments"] as? [String: Any] ?? skin
                 return SkinAttachmentSource(name: skinName, attachments: attachments)
             }
+            .sorted { lhs, rhs in
+                if lhs.name == "default" { return true }
+                if rhs.name == "default" { return false }
+                return lhs.name < rhs.name
+            }
         }
 
         return []
@@ -1273,12 +1278,14 @@ private struct SpineFeatureScan {
     }
 
     private func hasPathAttachment(slotName: String, root: [String: Any]) -> Bool {
-        skinAttachmentSources(root: root).contains { skin in
-            guard let slotAttachments = skin.attachments[slotName] as? [String: Any] else { return false }
-            return slotAttachments.values.contains { rawAttachment in
-                guard let attachment = rawAttachment as? [String: Any] else { return false }
-                return (attachment["type"] as? String)?.lowercased() == "path"
-            }
+        let sources = skinAttachmentSources(root: root)
+        guard let selectedSkin = sources.first(where: { $0.name == "default" }) ?? sources.first,
+              let slotAttachments = selectedSkin.attachments[slotName] as? [String: Any] else {
+            return false
+        }
+        return slotAttachments.values.contains { rawAttachment in
+            guard let attachment = rawAttachment as? [String: Any] else { return false }
+            return (attachment["type"] as? String)?.lowercased() == "path"
         }
     }
 

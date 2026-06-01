@@ -8430,6 +8430,11 @@ enum RuntimeSelfTest {
               "attachment": "animated-sequence",
               "blend": "hard-light",
               "dark": "222222ff"
+            },
+            {
+              "name": "alternate-path-slot",
+              "bone": "root",
+              "attachment": "motion-path"
             }
           ],
           "ik": [
@@ -8460,9 +8465,28 @@ enum RuntimeSelfTest {
               "name": "non-path-target",
               "bones": ["child"],
               "target": "face"
+            },
+            {
+              "name": "alternate-skin-path-target",
+              "bones": ["child"],
+              "target": "alternate-path-slot"
             }
           ],
           "skins": [
+            {
+              "name": "alternate",
+              "attachments": {
+                "alternate-path-slot": {
+                  "motion-path": {
+                    "type": "path",
+                    "vertexCount": 4,
+                    "vertices": [-25, 0, -10, 20, 10, 20, 25, 0],
+                    "lengths": [60],
+                    "closed": false
+                  }
+                }
+              }
+            },
             {
               "name": "default",
               "attachments": {
@@ -8624,8 +8648,9 @@ enum RuntimeSelfTest {
                 && unsupportedRuntime.runtimeCapabilitiesSummary().contains("ik/unsupported-multi-bone-ik:multi-bone")
                 && unsupportedRuntime.runtimeCapabilitiesSummary().contains("transform/missing-transform-target:missing-target")
                 && unsupportedRuntime.runtimeCapabilitiesSummary().contains("path/missing-path-target:missing-target-slot")
-                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("path/non-path-target:target-slot-without-path-attachment=face"),
-            "capability diagnostics must expose unsupported native Spine constraint usages, missing constraint targets, and non-path target slots",
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("path/non-path-target:target-slot-without-path-attachment=face")
+                && unsupportedRuntime.runtimeCapabilitiesSummary().contains("path/alternate-skin-path-target:target-slot-without-path-attachment=alternate-path-slot"),
+            "capability diagnostics must expose unsupported native Spine constraint usages, missing constraint targets, non-path target slots, and path targets that only exist outside the selected skin",
             failures: &failures,
             checks: &checks
         )
