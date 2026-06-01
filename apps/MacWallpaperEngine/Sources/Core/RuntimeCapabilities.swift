@@ -1043,13 +1043,14 @@ private struct SpineFeatureScan {
             collectConstraintTimelineKeys(animation["path"], prefix: "path")
             collectSlotTimelineKeys(animation["slots"])
             collectAttachmentTimelineKeys(animation["attachments"])
+            collectTopLevelDeformTimelineKeys(animation["deform"])
             if animation["drawOrder"] != nil {
                 timelineKeys.insert("drawOrder")
             }
             if animation["draworder"] != nil {
                 timelineKeys.insert("draworder")
             }
-            for key in animation.keys where !["bones", "ik", "transform", "path", "slots", "attachments", "drawOrder", "draworder"].contains(key) {
+            for key in animation.keys where !["bones", "ik", "transform", "path", "slots", "attachments", "deform", "drawOrder", "draworder"].contains(key) {
                 timelineKeys.insert(key)
             }
         }
@@ -1129,6 +1130,24 @@ private struct SpineFeatureScan {
                     guard let timelineSet = rawTimelineSet as? [String: Any] else { continue }
                     for key in timelineSet.keys {
                         timelineKeys.insert("attachments.\(key)")
+                    }
+                }
+            }
+        }
+    }
+
+    private mutating func collectTopLevelDeformTimelineKeys(_ raw: Any?) {
+        guard let skins = raw as? [String: Any] else { return }
+        for rawSlots in skins.values {
+            guard let slots = rawSlots as? [String: Any] else { continue }
+            for rawAttachments in slots.values {
+                guard let attachments = rawAttachments as? [String: Any] else { continue }
+                for rawTimeline in attachments.values {
+                    if rawTimeline is [[String: Any]] {
+                        timelineKeys.insert("attachments.deform")
+                    } else if let timelineSet = rawTimeline as? [String: Any],
+                              timelineSet["deform"] != nil {
+                        timelineKeys.insert("attachments.deform")
                     }
                 }
             }

@@ -1848,6 +1848,23 @@ final class SpineSetupPoseRenderer {
                     }
                 }
             }
+            if let rawDeformSkins = animationMap["deform"] as? [String: Any] {
+                for (_, rawSkin) in rawDeformSkins {
+                    guard let skinMap = rawSkin as? [String: Any] else { continue }
+                    for (slotName, rawAttachmentSet) in skinMap {
+                        guard let attachmentSet = rawAttachmentSet as? [String: Any] else { continue }
+                        for (attachmentName, rawTimelineSource) in attachmentSet {
+                            let rawDeform = (rawTimelineSource as? [String: Any])?["deform"] ?? rawTimelineSource
+                            let deformFrames = parseDeformFrames(rawDeform)
+                            guard deformFrames.isEmpty == false else { continue }
+                            var timelines = attachmentTimelines[slotName]?[attachmentName] ?? AttachmentTimelines()
+                            timelines.deform = deformFrames
+                            duration = max(duration, timelines.maxTime)
+                            attachmentTimelines[slotName, default: [:]][attachmentName] = timelines
+                        }
+                    }
+                }
+            }
 
             if let raw = animationMap["drawOrder"] ?? animationMap["draworder"] {
                 drawOrder = parseDrawOrderFrames(raw)

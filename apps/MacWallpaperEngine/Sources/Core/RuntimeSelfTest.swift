@@ -6355,6 +6355,30 @@ enum RuntimeSelfTest {
                 }
               }
             },
+            "topLevelDeformedClipped": {
+              "slots": {
+                "clipper": {
+                  "attachment": [
+                    {
+                      "time": 0,
+                      "name": "mask"
+                    }
+                  ]
+                }
+              },
+              "deform": {
+                "default": {
+                  "clipper": {
+                    "mask": [
+                      {
+                        "time": 0,
+                        "vertices": [12, 12, -12, 12, -12, -12, 12, -12]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
             "weightedDeformedClipped": {
               "slots": {
                 "weightedClipper": {
@@ -6467,7 +6491,7 @@ enum RuntimeSelfTest {
               "actions": {
                 "idle": "unclipped",
                 "left": "clipped",
-                "right": "unclipped",
+                "right": "topLevelDeformedClipped",
                 "up": "deformedClipped",
                 "down": "weightedDeformedClipped"
               }
@@ -6514,10 +6538,12 @@ enum RuntimeSelfTest {
             let unclippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "unclipped", time: "0.000s")
             let clippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "clipped", time: "0.000s")
             let deformedClippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "deformedClipped", time: "0.000s")
+            let topLevelDeformedClippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "topLevelDeformedClipped", time: "0.000s")
             let weightedDeformedClippedFingerprint = geometryFingerprint(in: clippingGeometryPlan, action: "weightedDeformedClipped", time: "0.000s")
             let unclippedBounds = geometryColumn(in: clippingGeometryPlan, action: "unclipped", time: "0.000s", column: 8)
             let clippedBounds = geometryColumn(in: clippingGeometryPlan, action: "clipped", time: "0.000s", column: 8)
             let deformedClippedBounds = geometryColumn(in: clippingGeometryPlan, action: "deformedClipped", time: "0.000s", column: 8)
+            let topLevelDeformedClippedBounds = geometryColumn(in: clippingGeometryPlan, action: "topLevelDeformedClipped", time: "0.000s", column: 8)
             let weightedDeformedClippedBounds = geometryColumn(in: clippingGeometryPlan, action: "weightedDeformedClipped", time: "0.000s", column: 8)
             check(
                 unclippedFingerprint != nil
@@ -6538,6 +6564,17 @@ enum RuntimeSelfTest {
                     && deformedClippedBounds != nil
                     && clippedBounds != deformedClippedBounds,
                 "Spine clipping deform timelines must change clipping polygon geometry instead of being scanner-only support (clipped=\(clippedFingerprint ?? "nil") \(clippedBounds ?? "nil") deformed=\(deformedClippedFingerprint ?? "nil") \(deformedClippedBounds ?? "nil"))",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                clippedFingerprint != nil
+                    && topLevelDeformedClippedFingerprint != nil
+                    && clippedFingerprint != topLevelDeformedClippedFingerprint
+                    && clippedBounds != nil
+                    && topLevelDeformedClippedBounds != nil
+                    && clippedBounds != topLevelDeformedClippedBounds,
+                "Spine top-level deform timelines must change clipping polygon geometry instead of only supporting attachments.deform wrapper syntax (clipped=\(clippedFingerprint ?? "nil") \(clippedBounds ?? "nil") topLevel=\(topLevelDeformedClippedFingerprint ?? "nil") \(topLevelDeformedClippedBounds ?? "nil"))",
                 failures: &failures,
                 checks: &checks
             )
