@@ -771,6 +771,10 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must expose manifest-declared declarative bindings as generic runtime objects"
         )
         check(
+            capabilitySummary.contains("entries=faceTrackerBone71:pointer.position->spine.bone.bone71 via smooth-lookat runtime-executable"),
+            "runtime capabilities summary must expose per-binding runtime status so generic bindings do not hide hard-coded behavior"
+        )
+        check(
             capabilitySummary.contains("effect\twhitelist\tnot-used\tno manifest-declared effects"),
             "runtime capabilities summary must expose whitelist effect namespace even when the active bundle declares none"
         )
@@ -4286,11 +4290,26 @@ enum RuntimeSelfTest {
             bundleRoot: springContractRoot
         )
         let springContractPlan = DeclarativeBindingPlan(manifest: springContractManifest)
+        let springContractRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: springContractRoot,
+            manifestURL: springContractRoot.appendingPathComponent("wallpaper.native.json"),
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
         check(
             springContractDiagnostic.status == .valid
                 && springContractPlan.bindingEntries.first?.runtimeStatus == .declaredOnly
                 && springContractPlan.hasPointerInputBindings == false,
             "spring bindings must accept an explicit deterministic spring contract while remaining declared-only and not enabling pointer monitoring",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            springContractRuntime.runtimeCapabilitiesSummary().contains(
+                "entries=springPointerBlur:pointer.position->effect.softBlur.radius via spring declared-only"
+            ),
+            "runtime capabilities must name declared-only spring bindings per entry so deferred script-like behavior is visible instead of silently implied",
             failures: &failures,
             checks: &checks
         )

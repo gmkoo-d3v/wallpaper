@@ -605,12 +605,17 @@ enum RuntimeCapabilities {
         let ids = plan.bindingEntries.map(\.id).joined(separator: ",")
         let adapters = plan.bindingEntries.map(\.adapterKind).uniquePreservingOrder.joined(separator: ",")
         let targets = plan.bindingEntries.map { $0.target.kind.rawValue }.uniquePreservingOrder.joined(separator: ",")
+        let entries = plan.bindingEntries
+            .map { entry in
+                "\(entry.id):\(entry.source.rawValue)->\(entry.target.summary) via \(entry.adapterKind) \(entry.runtimeStatus.rawValue)"
+            }
+            .joined(separator: ";")
         return [
             RuntimeCapabilityRow(
                 category: "binding",
                 name: "declarative",
                 status: "declared",
-                detail: "\(plan.bindingEntries.count) binding(s) enabled=\(enabledCount) status=\(plan.bindingStatusSummary) adapters=\(adapters) targets=\(targets) ids=\(ids)"
+                detail: "\(plan.bindingEntries.count) binding(s) enabled=\(enabledCount) status=\(plan.bindingStatusSummary) adapters=\(adapters) targets=\(targets) ids=\(ids) entries=\(entries)"
             )
         ]
     }
