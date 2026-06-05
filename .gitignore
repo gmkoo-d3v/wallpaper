@@ -39,6 +39,7 @@ temp/
 # Swift / Xcode build outputs
 .build/
 **/.build/
+.build-cache/
 DerivedData/
 *.xcuserstate
 *.xcworkspace/xcuserdata/

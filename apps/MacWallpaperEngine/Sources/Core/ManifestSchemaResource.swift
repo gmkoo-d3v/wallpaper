@@ -92,6 +92,17 @@ private struct JSONSchemaSubsetValidator {
             }
         }
 
+        if let oneOf = schema["oneOf"] as? [[String: Any]] {
+            let matchCount = oneOf.reduce(0) { count, child in
+                (try? validate(value, schema: child, path: path, depth: depth + 1)) != nil
+                    ? count + 1
+                    : count
+            }
+            guard matchCount == 1 else {
+                throw EngineError.manifest("Schema oneOf failed at \(path)")
+            }
+        }
+
         if let ifSchema = schema["if"] as? [String: Any] {
             let ifMatches = (try? validate(value, schema: ifSchema, path: path, depth: depth + 1)) != nil
             if ifMatches, let thenSchema = schema["then"] as? [String: Any] {

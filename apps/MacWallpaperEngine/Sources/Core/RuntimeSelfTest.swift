@@ -4751,6 +4751,43 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let ambiguousHitZoneShapeRoot = fixtureParent.appendingPathComponent("ambiguous_hit_zone_shape_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: ambiguousHitZoneShapeRoot,
+            imageSource: sourceImage,
+            id: "ambiguous_hit_zone_shape_bundle",
+            title: "Ambiguous Hit Zone Shape Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerDown",
+                "hitZones": [
+                  {
+                    "id": "target",
+                    "rect": [0.10, 0.10, 0.30, 0.30],
+                    "ellipse": {
+                      "center": [0.20, 0.20],
+                      "radii": [0.10, 0.10]
+                    },
+                    "action": "act",
+                    "trigger": "tap",
+                    "tailSeconds": 0.5,
+                    "buttons": ["left"]
+                  }
+                ]
+              }
+            ]
+            """
+        )
+        let ambiguousHitZoneShapeDiagnostic = WallpaperBundleCatalog.diagnoseBundle(ambiguousHitZoneShapeRoot)
+        check(
+            ambiguousHitZoneShapeDiagnostic.status == .invalid
+                && (ambiguousHitZoneShapeDiagnostic.errorMessage?.contains("Schema oneOf failed") == true),
+            "bundle diagnostics must reject hit zones that define both rect and ellipse shapes during schema preflight",
+            failures: &failures,
+            checks: &checks
+        )
+
         let invalidInteractiveRoot = fixtureParent.appendingPathComponent("interactive_static_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: invalidInteractiveRoot,
