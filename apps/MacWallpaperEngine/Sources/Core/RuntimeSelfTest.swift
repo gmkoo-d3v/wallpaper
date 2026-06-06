@@ -4676,6 +4676,37 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let emptyLookDirectionActionRoot = fixtureParent.appendingPathComponent("empty_look_direction_action_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: emptyLookDirectionActionRoot,
+            imageSource: sourceImage,
+            id: "empty_look_direction_action_bundle",
+            title: "Empty Look Direction Action Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerMove",
+                "mapping": "lookDirection",
+                "actions": {
+                  "left": "Left",
+                  "right": "",
+                  "up": "Up",
+                  "down": "Down",
+                  "idle": "idle"
+                }
+              }
+            ]
+            """
+        )
+        let emptyLookDirectionActionDiagnostic = WallpaperBundleCatalog.diagnoseBundle(emptyLookDirectionActionRoot)
+        check(
+            emptyLookDirectionActionDiagnostic.status == .invalid
+                && (emptyLookDirectionActionDiagnostic.errorMessage?.contains("Schema minLength failed at $.interactions[0].actions.right") == true),
+            "bundle diagnostics must apply schema-valued additionalProperties so empty pointerMove action values fail during schema preflight",
+            failures: &failures,
+            checks: &checks
+        )
+
         let missingPointerMoveMappingRoot = fixtureParent.appendingPathComponent("missing_pointer_move_mapping_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: missingPointerMoveMappingRoot,

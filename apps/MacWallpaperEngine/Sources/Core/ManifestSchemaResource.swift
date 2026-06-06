@@ -159,6 +159,17 @@ private struct JSONSchemaSubsetValidator {
                 throw EngineError.manifest("Schema unknown property \(unknown[0]) at \(path)")
             }
         }
+        if let additionalPropertySchema = schema["additionalProperties"] as? [String: Any] {
+            let known = Set(properties.keys)
+            for key in object.keys.filter({ known.contains($0) == false }).sorted() {
+                try validate(
+                    object[key] as Any,
+                    schema: additionalPropertySchema,
+                    path: "\(path).\(key)",
+                    depth: depth + 1
+                )
+            }
+        }
 
         for (key, propertySchema) in properties {
             guard let child = object[key] else { continue }
