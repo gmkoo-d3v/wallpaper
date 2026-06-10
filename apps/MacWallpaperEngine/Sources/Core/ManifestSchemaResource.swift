@@ -17,7 +17,12 @@ enum ManifestSchemaResource {
         guard let schema = try JSONSerialization.jsonObject(with: Data(schemaText.utf8)) as? [String: Any] else {
             throw EngineError.asset("Manifest schema resource is not a JSON object: \(fileName)")
         }
+        try validateSupportedSchemaSubset(schema)
         return schema
+    }
+
+    static func validateSupportedSchemaSubset(_ schema: [String: Any]) throws {
+        try validateSupportedSchemaSubsetNode(schema, path: "$")
     }
 
     static func validateManifest(at manifestURL: URL, projectRoot: URL? = ProjectPaths.findCatalogProjectRoot()) throws {
@@ -53,6 +58,65 @@ enum ManifestSchemaResource {
             )
         }
         return urls
+    }
+
+    private static let supportedSchemaKeywords: Set<String> = [
+        "$schema",
+        "$id",
+        "$defs",
+        "$ref",
+        "title",
+        "type",
+        "additionalProperties",
+        "required",
+        "properties",
+        "items",
+        "prefixItems",
+        "minItems",
+        "maxItems",
+        "minLength",
+        "pattern",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "const",
+        "enum",
+        "allOf",
+        "anyOf",
+        "oneOf",
+        "if",
+        "then",
+        "else",
+        "not"
+    ]
+
+    private static func validateSupportedSchemaSubsetNode(_ schema: [String: Any], path: String) throws {
+        if let unsupported = schema.keys.filter({ supportedSchemaKeywords.contains($0) == false }).sorted().first {
+            throw EngineError.manifest("Unsupported schema keyword \(unsupported) at \(path)")
+        }
+
+        for (key, child) in (schema["properties"] as? [String: Any] ?? [:]) {
+            try validateSupportedSchemaSubsetChild(child, path: "\(path).properties.\(key)")
+        }
+        for (key, child) in (schema["$defs"] as? [String: Any] ?? [:]) {
+            try validateSupportedSchemaSubsetChild(child, path: "\(path).$defs.\(key)")
+        }
+        for key in ["additionalProperties", "items", "if", "then", "else", "not"] {
+            if let child = schema[key] {
+                try validateSupportedSchemaSubsetChild(child, path: "\(path).\(key)")
+            }
+        }
+        for key in ["allOf", "anyOf", "oneOf", "prefixItems"] {
+            guard let children = schema[key] as? [Any] else { continue }
+            for (index, child) in children.enumerated() {
+                try validateSupportedSchemaSubsetChild(child, path: "\(path).\(key)[\(index)]")
+            }
+        }
+    }
+
+    private static func validateSupportedSchemaSubsetChild(_ child: Any, path: String) throws {
+        guard let schema = child as? [String: Any] else { return }
+        try validateSupportedSchemaSubsetNode(schema, path: path)
     }
 }
 

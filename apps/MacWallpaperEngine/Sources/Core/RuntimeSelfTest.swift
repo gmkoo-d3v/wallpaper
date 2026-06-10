@@ -2091,6 +2091,27 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"stiffness\""),
             "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
         )
+        check(
+            manifestSchemaJSON != nil,
+            "manifest schema resource must decode into a JSON object before supported-subset validation"
+        )
+        if let manifestSchemaJSON {
+            try ManifestSchemaResource.validateSupportedSchemaSubset(manifestSchemaJSON)
+        }
+        do {
+            try ManifestSchemaResource.validateSupportedSchemaSubset([
+                "type": "object",
+                "dependentRequired": [
+                    "bindings": ["effects"]
+                ]
+            ])
+            failures.append("manifest schema subset guard must reject unsupported JSON Schema keywords before they can be silently ignored")
+        } catch {
+            check(
+                error.localizedDescription.contains("Unsupported schema keyword dependentRequired"),
+                "manifest schema subset guard must reject unsupported JSON Schema keywords before they can be silently ignored"
+            )
+        }
         let schemaCheckedBundles = WallpaperBundleCatalog.discover(
             in: runtime.config.projectRoot.appendingPathComponent("wallpapers")
         )
