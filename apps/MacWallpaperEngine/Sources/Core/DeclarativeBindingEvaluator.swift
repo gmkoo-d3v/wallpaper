@@ -73,6 +73,7 @@ enum DeclarativeBindingEvaluator {
     ) -> DeclarativeBindingEvaluationSnapshot {
         let baseSnapshot = evaluate(plan: plan, input: input)
         var effectProperties = baseSnapshot.effectProperties
+        var spineBoneRotationOffsets = baseSnapshot.spineBoneRotationOffsets
 
         for binding in plan.springEffectBindings {
             guard let property = binding.target.propertyPath,
@@ -89,10 +90,23 @@ enum DeclarativeBindingEvaluator {
             )
             effectProperties[binding.target.id, default: [:]][property] = value
         }
+        for binding in plan.springBoneBindings {
+            guard let target = springPointerBoneTargetValue(binding: binding, pointer: input.pointerPosition) else {
+                continue
+            }
+            let value = advanceSpring(
+                bindingID: binding.id,
+                target: target,
+                timeSeconds: input.systemTimeSeconds,
+                adapter: binding.adapter,
+                state: &state
+            )
+            spineBoneRotationOffsets[binding.target.id, default: 0] += value
+        }
 
         return DeclarativeBindingEvaluationSnapshot(
             effectProperties: effectProperties,
-            spineBoneRotationOffsets: baseSnapshot.spineBoneRotationOffsets
+            spineBoneRotationOffsets: spineBoneRotationOffsets
         )
     }
 
@@ -131,14 +145,18 @@ enum DeclarativeBindingEvaluator {
         }
     }
 
-    private static func mapRange(_ sourceValue: Double, adapter: BindingAdapter) -> Double? {
+    private static func mapRange(
+        _ sourceValue: Double,
+        adapter: BindingAdapter,
+        applyFactor: Bool = true
+    ) -> Double? {
         guard let inputRange = adapter.inputRange,
               let outputRange = adapter.outputRange,
               inputRange.count == outputRange.count,
               inputRange.count >= 2 else {
             return nil
         }
-        let scaledValue = sourceValue * (adapter.factor?.first ?? 1.0)
+        let scaledValue = sourceValue * (applyFactor ? (adapter.factor?.first ?? 1.0) : 1.0)
         let rangedValue = adapter.loop == true ? loopedValue(scaledValue, inputRange: inputRange) : scaledValue
         for index in 0..<(inputRange.count - 1) {
             let start = inputRange[index]
@@ -158,11 +176,26 @@ enum DeclarativeBindingEvaluator {
         return outputRange[nearestIndex]
     }
 
-    private static func springTargetValue(_ sourceValue: Double, adapter: BindingAdapter) -> Double? {
+    private static func springTargetValue(
+        _ sourceValue: Double,
+        adapter: BindingAdapter,
+        applyFactor: Bool = true
+    ) -> Double? {
         if adapter.inputRange != nil || adapter.outputRange != nil {
-            return mapRange(sourceValue, adapter: adapter)
+            return mapRange(sourceValue, adapter: adapter, applyFactor: applyFactor)
         }
-        return sourceValue * (adapter.factor?.first ?? 1.0)
+        return sourceValue * (applyFactor ? (adapter.factor?.first ?? 1.0) : 1.0)
+    }
+
+    private static func springPointerBoneTargetValue(
+        binding: DeclarativeBindingPlanEntry,
+        pointer: CGPoint
+    ) -> Double? {
+        springTargetValue(
+            smoothLookAtRotationOffset(binding: binding, pointer: pointer),
+            adapter: binding.adapter,
+            applyFactor: false
+        )
     }
 
     private static func advanceSpring(

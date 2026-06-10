@@ -1319,23 +1319,45 @@ enum RuntimeSelfTest {
                         factor: [12],
                         inputRange: nil,
                         outputRange: nil,
-                        loop: nil
+                        loop: nil,
+                        integrator: .semiImplicitEuler,
+                        stiffness: 120,
+                        damping: 14,
+                        mass: 1,
+                        settleEpsilon: 0.001,
+                        maxVelocity: 90,
+                        fixedStepSeconds: 0.0166666667
                     ),
                     enabled: nil
                 )
             ],
             effects: []
         )
+        var pointerSpringState = DeclarativeBindingEvaluationState()
         let declaredSpringSnapshot = DeclarativeBindingEvaluator.evaluate(
             plan: declaredSpringPlan,
-            input: DeclarativeBindingEvaluationInput(pointerPosition: CGPoint(x: 1.0, y: 0.0))
+            input: DeclarativeBindingEvaluationInput(
+                pointerPosition: CGPoint(x: 0.5, y: 0.5),
+                systemTimeSeconds: 0
+            ),
+            state: &pointerSpringState
+        )
+        let settledSpringSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: declaredSpringPlan,
+            input: DeclarativeBindingEvaluationInput(
+                pointerPosition: CGPoint(x: 1.0, y: 0.0),
+                systemTimeSeconds: 0.1
+            ),
+            state: &pointerSpringState
         )
         check(
-            declaredSpringPlan.bindingEntries.first?.runtimeStatus == .declaredOnly
-                && declaredSpringPlan.hasPointerInputBindings == false
-                && declaredSpringSnapshot.spineBoneRotationOffsets.isEmpty
-                && declaredSpringSnapshot.effectProperties.isEmpty,
-            "pointer-to-Spine spring declarative bindings must remain declared-only and must not enable pointer monitoring until a targeted runtime implementation exists"
+            declaredSpringPlan.bindingEntries.first?.runtimeStatus == .runtimeExecutable
+                && declaredSpringPlan.hasPointerInputBindings
+                && abs(declaredSpringSnapshot.spineBoneRotationOffsets["head"] ?? -1) < 0.001
+                && (settledSpringSnapshot.spineBoneRotationOffsets["head"] ?? 0) > 0
+                && (settledSpringSnapshot.spineBoneRotationOffsets["head"] ?? 0) <= 6.0
+                && settledSpringSnapshot.effectProperties.isEmpty,
+            "pointer-to-Spine spring bindings must run only as manifest-declared Spine bone rotation offsets with deterministic spring state"
         )
         let effectSpringPlan = DeclarativeBindingPlan(
             bindings: [
@@ -2485,7 +2507,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.down+system.time+thermal.state")
-                && completionAudit.contains("spring(system-time-effect-runtime+declared-pointer-spine,explicit-dynamics-contract)")
+                && completionAudit.contains("spring(system-time-effect-runtime+pointer-spine-runtime,explicit-dynamics-contract)")
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
                 && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)")
                 && completionAudit.contains("dynamicShaderLoading=forbidden")

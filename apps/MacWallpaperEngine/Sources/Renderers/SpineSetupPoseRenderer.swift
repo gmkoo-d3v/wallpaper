@@ -527,6 +527,7 @@ final class SpineSetupPoseRenderer {
     private let physicsConstraintsEnabled: Bool
     private let rendererStartedAt: CFTimeInterval
     private let animationTransitionDuration: CFTimeInterval
+    private var declarativeBindingState = DeclarativeBindingEvaluationState()
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
     private var cachedBatches: [Batch]
     private var cachedPoseKey = ""
@@ -826,7 +827,11 @@ final class SpineSetupPoseRenderer {
         let posePhysicsTime = physicsConstraintsEnabled && sleepPhysicsForIdle == false ? physicsTime : 0
         let bindingSnapshot = DeclarativeBindingEvaluator.evaluate(
             plan: declarativePlan,
-            input: DeclarativeBindingEvaluationInput(pointerPosition: pointer)
+            input: DeclarativeBindingEvaluationInput(
+                pointerPosition: pointer,
+                systemTimeSeconds: now
+            ),
+            state: &declarativeBindingState
         )
         let canUsePoseFrameCache = physicsConstraintsEnabled == false || sleepPhysicsForIdle
         let sampleFps = previousOverlayAnimation == nil ? sampleFps(for: animationName) : poseSampleFps
