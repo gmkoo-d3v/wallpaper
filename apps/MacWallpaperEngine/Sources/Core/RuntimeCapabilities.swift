@@ -246,7 +246,7 @@ enum RuntimeCapabilities {
     }
 
     static func nativeSpineCompatibility(runtime: NativeRuntimeCore) -> NativeSpineCompatibility {
-        nativeSpineCompatibility(manifest: runtime.manifest, bundleRoot: runtime.config.wallpaperRoot)
+        runtime.nativeSpineCompatibility
     }
 
     static func nativeSpineCompatibility(
@@ -834,6 +834,12 @@ private struct SpineFeatureScan {
         let attachments: [String: Any]
     }
 
+    private struct ScanCacheKey: Hashable {
+        let path: String
+        let fileSize: Int
+        let modificationTime: TimeInterval
+    }
+
     var attachmentTypes: Set<String> = []
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
@@ -850,6 +856,11 @@ private struct SpineFeatureScan {
 
     private static let renderableAttachmentTypes: Set<String> = ["region", "mesh", "linkedmesh", "path", "clipping"]
     private static let nonVisualAttachmentTypes: Set<String> = ["point", "boundingbox"]
+    private static let structuralKeyTraversalLeafKeys: Set<String> = ["vertices", "triangles", "uvs", "edges", "hull"]
+    private static let scanCacheLimit = 64
+    private static let scanCacheLock = NSLock()
+    private static var scanCache: [ScanCacheKey: SpineFeatureScan] = [:]
+    private static var scanCacheOrder: [ScanCacheKey] = []
 
     var renderableAttachmentTypes: Set<String> {
         attachmentTypes.intersection(Self.renderableAttachmentTypes)
@@ -924,8 +935,53 @@ private struct SpineFeatureScan {
     }
 
     static func scan(url: URL) -> SpineFeatureScan {
+        let cacheKey = scanCacheKey(url: url)
+        if let cacheKey {
+            scanCacheLock.lock()
+            let cached = scanCache[cacheKey]
+            scanCacheLock.unlock()
+            if let cached {
+                return cached
+            }
+        }
+
+        let scan = scanUncached(url: url)
+        if let cacheKey {
+            scanCacheLock.lock()
+            if scanCache[cacheKey] == nil {
+                scanCacheOrder.append(cacheKey)
+            }
+            scanCache[cacheKey] = scan
+            while scanCache.count > scanCacheLimit, scanCacheOrder.isEmpty == false {
+                let overflowKey = scanCacheOrder.removeFirst()
+                scanCache.removeValue(forKey: overflowKey)
+            }
+            scanCacheLock.unlock()
+        }
+        return scan
+    }
+
+    private static func scanCacheKey(url: URL) -> ScanCacheKey? {
+        let standardizedURL = url.standardizedFileURL
+        guard let values = try? standardizedURL.resourceValues(forKeys: [
+            .contentModificationDateKey,
+            .fileSizeKey
+        ]),
+              let modificationDate = values.contentModificationDate,
+              let fileSize = values.fileSize else {
+            return nil
+        }
+        return ScanCacheKey(
+            path: standardizedURL.path,
+            fileSize: fileSize,
+            modificationTime: modificationDate.timeIntervalSince1970
+        )
+    }
+
+    private static func scanUncached(url: URL) -> SpineFeatureScan {
         guard let data = try? Data(contentsOf: url),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+              let rootObject = try? JSONSerialization.jsonObject(with: data),
+              let root = rootObject as? [String: Any] else {
             return SpineFeatureScan()
         }
 
@@ -935,9 +991,10 @@ private struct SpineFeatureScan {
         scan.collectSlotFeatures(root: root)
         scan.collectAnimationTimelines(root: root)
         scan.collectConstraintKeys(root: root)
-        scan.hasEventData = containsAnyKey(root, keys: ["events", "event"])
-        scan.hasAudioData = containsAnyKey(root, keys: ["audio"])
-        scan.hasSequenceData = containsAnyKey(root, keys: ["sequence"])
+        let structuralKeys = containedKeys(rootObject, keys: ["events", "event", "audio", "sequence"])
+        scan.hasEventData = structuralKeys.contains("events") || structuralKeys.contains("event")
+        scan.hasAudioData = structuralKeys.contains("audio")
+        scan.hasSequenceData = structuralKeys.contains("sequence")
             || scan.attachmentTypes.contains("sequence")
         scan.collectEventPayloadKeys(root: root)
         return scan
@@ -1301,22 +1358,58 @@ private struct SpineFeatureScan {
         return value.lowercased()
     }
 
-    private static func containsAnyKey(_ value: Any, keys: Set<String>) -> Bool {
-        if let dictionary = value as? [String: Any] {
+    private static func containedKeys(_ value: Any, keys: Set<String>) -> Set<String> {
+        guard keys.isEmpty == false else { return [] }
+        var found = Set<String>()
+        collectContainedKeys(value, keys: keys, found: &found)
+        return found
+    }
+
+    private static func collectContainedKeys(_ value: Any, keys: Set<String>, found: inout Set<String>) {
+        guard found.count < keys.count else { return }
+
+        if let dictionary = value as? NSDictionary {
+            for rawKey in dictionary.keyEnumerator() {
+                guard found.count < keys.count else { return }
+                if let key = rawKey as? String, keys.contains(key) {
+                    found.insert(key)
+                }
+                guard found.count < keys.count else { return }
+                if let key = rawKey as? String, structuralKeyTraversalLeafKeys.contains(key) {
+                    continue
+                }
+                if let child = dictionary.object(forKey: rawKey) {
+                    collectContainedKeys(child, keys: keys, found: &found)
+                }
+            }
+        } else if let array = value as? NSArray {
+            for child in array {
+                collectContainedKeys(child, keys: keys, found: &found)
+                if found.count == keys.count {
+                    return
+                }
+            }
+        } else if let dictionary = value as? [String: Any] {
             for (key, child) in dictionary {
                 if keys.contains(key) {
-                    return true
+                    found.insert(key)
                 }
-                if containsAnyKey(child, keys: keys) {
-                    return true
+                if structuralKeyTraversalLeafKeys.contains(key) {
+                    continue
+                }
+                collectContainedKeys(child, keys: keys, found: &found)
+                if found.count == keys.count {
+                    return
                 }
             }
         } else if let array = value as? [Any] {
-            for child in array where containsAnyKey(child, keys: keys) {
-                return true
+            for child in array {
+                collectContainedKeys(child, keys: keys, found: &found)
+                if found.count == keys.count {
+                    return
+                }
             }
         }
-        return false
     }
 }
 

@@ -4,6 +4,7 @@ final class NativeRuntimeCore {
     let config: EngineConfig
     let manifest: WallpaperNativeManifest
     let assetCatalog: AssetCatalog
+    let nativeSpineCompatibility: NativeSpineCompatibility
     let telemetry = RuntimeTelemetryStore()
     var performancePlan: PerformancePlan {
         performancePlan(displayRefreshFps: nil)
@@ -51,8 +52,13 @@ final class NativeRuntimeCore {
     }
 
     init(config: EngineConfig) throws {
+        let manifest = try ManifestLoader.load(url: config.manifestURL, bundleRoot: config.wallpaperRoot)
         self.config = config
-        self.manifest = try ManifestLoader.load(url: config.manifestURL, bundleRoot: config.wallpaperRoot)
+        self.manifest = manifest
+        self.nativeSpineCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+            manifest: manifest,
+            bundleRoot: config.wallpaperRoot
+        )
         self.assetCatalog = try AssetCatalog(manifest: manifest, bundleRoot: config.wallpaperRoot)
     }
 
