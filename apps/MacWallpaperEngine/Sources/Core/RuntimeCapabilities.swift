@@ -11,6 +11,11 @@ struct RuntimeCapabilityRow {
     }
 }
 
+private func nativeSpineDegradationText(_ degradations: [String]) -> String {
+    guard degradations.isEmpty == false else { return "none" }
+    return "degraded constraint usages: \(Set(degradations).compactListOrNone)"
+}
+
 struct NativeSpineCompatibility {
     let isSupported: Bool
     let reasons: [String]
@@ -21,7 +26,7 @@ struct NativeSpineCompatibility {
     }
 
     var degradationText: String {
-        degradations.compactListOrNone
+        nativeSpineDegradationText(degradations)
     }
 
     var statusText: String {
@@ -75,7 +80,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             return "\(nativeSpineStatus)(\(nativeSpineReasons.joined(separator: "; ")))"
         }
         if nativeSpineStatus == "degraded", nativeSpineDegradations.isEmpty == false {
-            return "\(nativeSpineStatus)(\(nativeSpineDegradations.compactListOrNone))"
+            return "\(nativeSpineStatus)(\(nativeSpineDegradationText(nativeSpineDegradations)))"
         }
         return nativeSpineStatus
     }
@@ -280,9 +285,7 @@ enum RuntimeCapabilities {
             reasons.append("unsupported blend modes: \(scan.unsupportedBlendModes.listOrNone)")
         }
         if scan.degradedConstraintUsages.isEmpty == false {
-            degradations.append(contentsOf: scan.degradedConstraintUsages.sorted().map {
-                "degraded constraint usages: \($0)"
-            })
+            degradations.append(contentsOf: scan.degradedConstraintUsages.sorted())
         }
         return NativeSpineCompatibility(
             isSupported: reasons.isEmpty,

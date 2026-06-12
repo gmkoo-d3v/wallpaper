@@ -67,9 +67,7 @@ enum RuntimeCompletionAudit {
     }
 
     private static func isPlayableNativeSpineDegradation(_ degradation: String) -> Bool {
-        guard degradation.hasPrefix("degraded constraint usages: ") else { return false }
-        let detail = degradation.dropFirst("degraded constraint usages: ".count)
-        return detail.hasPrefix("physics/") && detail.hasSuffix(":subset-runtime")
+        degradation.hasPrefix("physics/") && degradation.hasSuffix(":subset-runtime")
     }
 
     static func make(
