@@ -57,6 +57,21 @@ private struct ManualSmokeEvidenceEntry: Codable {
 enum RuntimeCompletionAudit {
     static let manualSmokeEvidenceSchemaVersion = "mac-wallpaper-manual-smoke.v1"
 
+    private static func isNativeSpinePlayable(_ capabilities: WallpaperBundleCapabilityInfo) -> Bool {
+        if capabilities.nativeSpineStatus == "supported" { return true }
+        guard capabilities.nativeSpineStatus == "degraded",
+              capabilities.nativeSpineDegradations.isEmpty == false else {
+            return false
+        }
+        return capabilities.nativeSpineDegradations.allSatisfy(isPlayableNativeSpineDegradation)
+    }
+
+    private static func isPlayableNativeSpineDegradation(_ degradation: String) -> Bool {
+        guard degradation.hasPrefix("degraded constraint usages: ") else { return false }
+        let detail = degradation.dropFirst("degraded constraint usages: ".count)
+        return detail.hasPrefix("physics/") && detail.hasSuffix(":subset-runtime")
+    }
+
     static func make(
         projectRoot: URL?,
         strictCompositeQuality: Bool,
@@ -85,7 +100,7 @@ enum RuntimeCompletionAudit {
         let layerFamilies = Set(bundles.flatMap { $0.capabilities.layerKinds })
         let interactionFamilies = Set(bundles.flatMap { $0.capabilities.interactionKinds })
         let interactiveSpineBundles = bundles.filter {
-            $0.capabilities.nativeSpineStatus == "supported"
+            isNativeSpinePlayable($0.capabilities)
                 && $0.capabilities.interactionKinds.contains("pointerMove")
                 && $0.capabilities.interactionKinds.contains("pointerDown")
         }
@@ -404,7 +419,7 @@ enum RuntimeCompletionAudit {
         bundles: [WallpaperBundleSummary]
     ) throws -> (passed: Bool, evidence: String) {
         let candidates = bundles.filter {
-            $0.capabilities.nativeSpineStatus == "supported"
+            isNativeSpinePlayable($0.capabilities)
                 && $0.capabilities.assetKinds.contains("spine")
                 && $0.capabilities.assetKinds.contains("composite")
         }

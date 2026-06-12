@@ -7597,20 +7597,52 @@ enum RuntimeSelfTest {
           },
           "bones": [
             { "name": "root" },
-            { "name": "hair", "parent": "root" }
+            { "name": "hair", "parent": "root", "length": 80 }
+          ],
+          "slots": [
+            { "name": "hair", "bone": "hair", "attachment": "ik-quad" }
           ],
           "physics": [
             {
               "name": "hair",
               "bone": "hair",
+              "x": 5.0,
+              "y": 5.0,
               "rotate": 0.8,
-              "limit": 3000,
+              "wind": 1000,
+              "gravity": 1000,
+              "limit": 100000,
               "inertia": 0.5,
-              "damping": 0.85
+              "strength": 100,
+              "damping": 1
             }
           ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "hair": {
+                  "ik-quad": {
+                    "type": "region",
+                    "path": "ik-quad",
+                    "x": 80,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16
+                  }
+                }
+              }
+            }
+          ],
+          "events": {
+            "tick": {}
+          },
           "animations": {
-            "idle": {}
+            "idle": {
+              "events": [
+                { "time": 0.5, "name": "tick" }
+              ]
+            }
           }
         }
         """
@@ -7631,23 +7663,188 @@ enum RuntimeSelfTest {
             launchWallpaper: false
         ))
         check(
-            physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tsupported")
-                && physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeCompatibilityGate\tsupported")
+            physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tconstraints\tdegraded")
+                && physicsRuntime.runtimeCapabilitiesSummary().contains("spine\tnativeCompatibilityGate\tdegraded")
                 && physicsRuntime.runtimeCapabilitiesSummary().contains("used=physics")
+                && physicsRuntime.runtimeCapabilitiesSummary().contains("physics/hair:subset-runtime")
                 && physicsRuntime.runtimeCapabilitiesSummary().contains("runtime-disabled") == false,
-            "capability diagnostics must report native Spine physics constraints as supported once the runtime solver is enabled",
+            "capability diagnostics must report native Spine physics constraints as a degraded subset runtime, not full parity",
             failures: &failures,
             checks: &checks
         )
         let physicsSummary = try WallpaperBundleCatalog.requireValidBundle(fixtureRoot)
         check(
-            physicsSummary.capabilities.nativeSpineStatus == "supported"
-                && physicsSummary.capabilities.nativeSpineSummary.contains("supported")
+            physicsSummary.capabilities.nativeSpineStatus == "degraded"
+                && physicsSummary.capabilities.nativeSpineSummary.contains("physics/hair:subset-runtime")
                 && physicsSummary.capabilities.fallbackStatus == "not-needed",
-            "bundle catalog must mark native Spine physics bundles supported without forcing composite fallback",
+            "bundle catalog must mark native Spine physics bundles degraded without forcing composite fallback",
             failures: &failures,
             checks: &checks
         )
+        try physicsRuntime.requireNativeSpineGeometryIfSupported()
+        let physicsGeometryPlan = try SpineGeometryDiagnostics.make(runtime: physicsRuntime)
+        let physicsStartFingerprint = geometryFingerprint(
+            in: physicsGeometryPlan,
+            action: "idle",
+            time: "0.000s"
+        )
+        let physicsMovingFingerprint = geometryFingerprint(
+            in: physicsGeometryPlan,
+            action: "idle",
+            time: "0.500s"
+        )
+        check(
+            physicsStartFingerprint != nil
+                && physicsMovingFingerprint != nil
+                && physicsStartFingerprint != physicsMovingFingerprint,
+            "degraded Spine physics subset runtime must still produce visible native geometry changes",
+            failures: &failures,
+            checks: &checks
+        )
+        let noPhysicsConstraintSpineJSON = physicsConstraintSpineJSON.replacingOccurrences(
+            of: """
+              "physics": [
+                {
+                  "name": "hair",
+                  "bone": "hair",
+                  "x": 5.0,
+                  "y": 5.0,
+                  "rotate": 0.8,
+                  "wind": 1000,
+                  "gravity": 1000,
+                  "limit": 100000,
+                  "inertia": 0.5,
+                  "strength": 100,
+                  "damping": 1
+                }
+              ],
+            """,
+            with: """
+              "physics": [],
+            """
+        )
+        try Data(noPhysicsConstraintSpineJSON.utf8).write(to: fixtureSpineJSON, options: .atomic)
+        let noPhysicsRuntime = try NativeRuntimeCore(config: eventOnlyRuntime.config.replacing(
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let noPhysicsGeometryPlan = try SpineGeometryDiagnostics.make(runtime: noPhysicsRuntime)
+        let noPhysicsStartFingerprint = geometryFingerprint(
+            in: noPhysicsGeometryPlan,
+            action: "idle",
+            time: "0.000s"
+        )
+        let noPhysicsMovingFingerprint = geometryFingerprint(
+            in: noPhysicsGeometryPlan,
+            action: "idle",
+            time: "0.500s"
+        )
+        check(
+            noPhysicsStartFingerprint != nil
+                && noPhysicsMovingFingerprint != nil
+                && noPhysicsStartFingerprint == noPhysicsMovingFingerprint,
+            "physics fixture geometry must remain static across the same event-only timeline when physics constraints are stripped",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            physicsStartFingerprint != nil
+                && noPhysicsStartFingerprint != nil
+                && physicsStartFingerprint == noPhysicsStartFingerprint,
+            "physics and stripped-physics fixtures must share the same setup-pose geometry before physics integration diverges",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            physicsMovingFingerprint != nil
+                && noPhysicsMovingFingerprint != nil
+                && physicsMovingFingerprint != noPhysicsMovingFingerprint,
+            "physics-enabled geometry must diverge from the stripped-physics event-only baseline at the same timestamp",
+            failures: &failures,
+            checks: &checks
+        )
+        let invalidPhysicsCases: [(json: String, expectedReason: String)] = [
+            (
+                """
+                {
+                  "skeleton": { "spine": "4.2.43" },
+                  "bones": [
+                    { "name": "root" },
+                    { "name": "hair", "parent": "root" }
+                  ],
+                  "physics": [
+                    { "bone": "hair" }
+                  ],
+                  "animations": { "idle": {} }
+                }
+                """,
+                "physics/unnamed:missing-name-or-bone"
+            ),
+            (
+                """
+                {
+                  "skeleton": { "spine": "4.2.43" },
+                  "bones": [
+                    { "name": "root" },
+                    { "name": "hair", "parent": "root" }
+                  ],
+                  "physics": [
+                    { "name": "ghost-hair", "bone": "ghost" }
+                  ],
+                  "animations": { "idle": {} }
+                }
+                """,
+                "physics/ghost-hair:unknown-bone=ghost"
+            ),
+            (
+                """
+                {
+                  "skeleton": { "spine": "4.2.43" },
+                  "bones": [
+                    { "name": "root" },
+                    { "name": "hair", "parent": "root" }
+                  ],
+                  "physics": [
+                    { "name": "hair", "bone": "hair" },
+                    { "name": "ghost-hair", "bone": "ghost" }
+                  ],
+                  "animations": { "idle": {} }
+                }
+                """,
+                "physics/ghost-hair:unknown-bone=ghost"
+            ),
+            (
+                """
+                {
+                  "skeleton": { "spine": "4.2.43" },
+                  "bones": [
+                    { "name": "root" },
+                    { "name": "hair", "parent": "root" }
+                  ],
+                  "physics": {
+                    "name": "invalid-shape"
+                  },
+                  "animations": { "idle": {} }
+                }
+                """,
+                "physics:invalid-shape"
+            )
+        ]
+        for invalidPhysicsCase in invalidPhysicsCases {
+            try Data(invalidPhysicsCase.json.utf8).write(to: fixtureSpineJSON, options: .atomic)
+            let invalidPhysicsCompatibility = RuntimeCapabilities.nativeSpineCompatibility(
+                manifest: eventOnlyManifest,
+                bundleRoot: fixtureRoot
+            )
+            check(
+                invalidPhysicsCompatibility.isSupported == false
+                    && invalidPhysicsCompatibility.reasonText.contains(invalidPhysicsCase.expectedReason),
+                "invalid Spine physics constraints must fail native compatibility with a specific diagnostic: \(invalidPhysicsCase.expectedReason)",
+                failures: &failures,
+                checks: &checks
+            )
+        }
         let twoBoneIkSpineTemplate = """
         {
           "skeleton": {

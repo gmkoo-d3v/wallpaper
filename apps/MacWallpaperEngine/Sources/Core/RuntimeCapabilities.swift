@@ -21,7 +21,7 @@ struct NativeSpineCompatibility {
     }
 
     var degradationText: String {
-        degradations.isEmpty ? "none" : degradations.joined(separator: "; ")
+        degradations.compactListOrNone
     }
 
     var statusText: String {
@@ -75,7 +75,7 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             return "\(nativeSpineStatus)(\(nativeSpineReasons.joined(separator: "; ")))"
         }
         if nativeSpineStatus == "degraded", nativeSpineDegradations.isEmpty == false {
-            return "\(nativeSpineStatus)(\(nativeSpineDegradations.joined(separator: "; ")))"
+            return "\(nativeSpineStatus)(\(nativeSpineDegradations.compactListOrNone))"
         }
         return nativeSpineStatus
     }
@@ -280,7 +280,9 @@ enum RuntimeCapabilities {
             reasons.append("unsupported blend modes: \(scan.unsupportedBlendModes.listOrNone)")
         }
         if scan.degradedConstraintUsages.isEmpty == false {
-            degradations.append("degraded constraint usages: \(scan.degradedConstraintUsages.compactListOrNone)")
+            degradations.append(contentsOf: scan.degradedConstraintUsages.sorted().map {
+                "degraded constraint usages: \($0)"
+            })
         }
         return NativeSpineCompatibility(
             isSupported: reasons.isEmpty,
@@ -1310,6 +1312,9 @@ private struct SpineFeatureScan {
                     unsupportedConstraintUsages.insert("physics/\(name):missing-name-or-bone")
                 } else if boneNames.contains(boneName) == false {
                     unsupportedConstraintUsages.insert("physics/\(name):unknown-bone=\(boneName)")
+                } else {
+                    // Valid physics constraints are parsed and applied by the renderer, but only as a bounded subset.
+                    degradedConstraintUsages.insert("physics/\(name):subset-runtime")
                 }
             }
         } else if root["physics"] != nil {
@@ -1431,6 +1436,16 @@ private extension Set where Element == String {
 }
 
 private extension Array where Element == String {
+    var compactListOrNone: String {
+        guard isEmpty == false else { return "none" }
+        let maxVisibleItems = 8
+        if count <= maxVisibleItems {
+            return joined(separator: "; ")
+        }
+        return prefix(maxVisibleItems).joined(separator: "; ")
+            + "; ...(+\(count - maxVisibleItems) more)"
+    }
+
     var uniquePreservingOrder: [String] {
         var seen = Set<String>()
         return filter { seen.insert($0).inserted }
