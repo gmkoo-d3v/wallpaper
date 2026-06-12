@@ -934,6 +934,23 @@ enum RuntimeCompletionAudit {
                     "Manual smoke evidence \(label) pass requires a concrete operatorNote describing the observed physical display event"
                 )
             }
+            let incompleteMarkers = [
+                "auto-generated",
+                "manual checklist still required",
+                "partial",
+                "not observed",
+                "not explicitly observed",
+                "required before"
+            ]
+            let foldedNote = note.lowercased()
+            let foldedFullEvidence = normalizedEvidence.lowercased()
+            if let marker = incompleteMarkers.first(where: {
+                foldedNote.contains($0) || foldedFullEvidence.contains($0)
+            }) {
+                throw EngineError.invalidArgument(
+                    "Manual smoke evidence \(label) pass still contains incomplete-evidence marker: \(marker)"
+                )
+            }
         }
         let foldedEvidence = normalizedEvidence.lowercased()
         let missingTokens = requiredPassTokens.filter { foldedEvidence.contains($0) == false }

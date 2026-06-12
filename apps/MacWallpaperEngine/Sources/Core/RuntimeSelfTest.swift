@@ -2686,6 +2686,44 @@ enum RuntimeSelfTest {
             rejectedGenericPhysicalHotplugNote,
             "completion audit must reject generic physical display hotplug notes from older recorder output"
         )
+        let partialPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEnginePartialPhysicalSmoke-\(UUID().uuidString).json")
+        let partialPhysicalHotplugEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "physicalDisplayHotplugSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "Operator observed selectedOnly, selectedPolicy, and allFull, but reconnect restoration was not explicitly observed yet.",
+            "operatorNote": "Partial physical-display evidence only."
+          }
+        }
+        """
+        try partialPhysicalHotplugEvidence.write(
+            to: partialPhysicalHotplugEvidenceURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        defer {
+            try? FileManager.default.removeItem(at: partialPhysicalHotplugEvidenceURL)
+        }
+        var rejectedPartialPhysicalHotplugEvidence = false
+        do {
+            _ = try RuntimeCompletionAudit.make(
+                projectRoot: runtime.config.projectRoot,
+                strictCompositeQuality: true,
+                includeInvalid: true,
+                bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+                manualEvidenceURL: partialPhysicalHotplugEvidenceURL
+            )
+        } catch {
+            rejectedPartialPhysicalHotplugEvidence = String(describing: error)
+                .contains("incomplete-evidence marker")
+        }
+        check(
+            rejectedPartialPhysicalHotplugEvidence,
+            "completion audit must reject physical display hotplug pass evidence that still says partial or not observed"
+        )
         let manualRecordReport = try RuntimeCompletionAudit.recordManualSmokeEvidence(
             to: packageOnlySmokeEvidenceURL,
             packagedLaunchPassed: false,
