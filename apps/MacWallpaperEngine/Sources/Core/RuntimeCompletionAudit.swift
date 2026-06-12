@@ -330,11 +330,19 @@ enum RuntimeCompletionAudit {
         packagedLaunchPassed: Bool,
         liveClickActionsPassed: Bool,
         physicalDisplayHotplugPassed: Bool,
-        blackFrameFlickerPassed: Bool
+        blackFrameFlickerPassed: Bool,
+        physicalDisplayHotplugNote: String? = nil
     ) throws -> String {
         guard packagedLaunchPassed || liveClickActionsPassed || physicalDisplayHotplugPassed || blackFrameFlickerPassed else {
             throw EngineError.invalidArgument(
                 "At least one manual smoke confirmation flag is required: --confirm-packaged-launch, --confirm-live-click-actions, --confirm-physical-display-hotplug, or --confirm-black-frame-flicker"
+            )
+        }
+        let normalizedPhysicalDisplayHotplugNote = physicalDisplayHotplugNote?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if physicalDisplayHotplugPassed && (normalizedPhysicalDisplayHotplugNote?.isEmpty ?? true) {
+            throw EngineError.invalidArgument(
+                "--confirm-physical-display-hotplug requires --physical-display-hotplug-note <observed display event and restored displays>"
             )
         }
 
@@ -360,7 +368,8 @@ enum RuntimeCompletionAudit {
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect/wake restored wallpaper windows on target displays."
+                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect/wake restored wallpaper windows on target displays.",
+                    operatorNote: normalizedPhysicalDisplayHotplugNote
                 )
                 : existing?.physicalDisplayHotplugSmoke ?? templatePhysicalDisplayEntry(),
             blackFrameFlickerSmoke: blackFrameFlickerPassed
@@ -835,7 +844,8 @@ enum RuntimeCompletionAudit {
         try validateManualEvidenceEntry(
             evidence.physicalDisplayHotplugSmoke,
             label: "physicalDisplayHotplugSmoke",
-            requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull", "reconnect"]
+            requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull", "reconnect"],
+            requireOperatorNoteOnPass: true
         )
         try validateManualEvidenceEntry(
             evidence.blackFrameFlickerSmoke,
@@ -850,12 +860,16 @@ enum RuntimeCompletionAudit {
         return try loadManualEvidence(from: url)
     }
 
-    private static func passEntry(recordedAt: String, evidence: String) -> ManualSmokeEvidenceEntry {
+    private static func passEntry(
+        recordedAt: String,
+        evidence: String,
+        operatorNote: String? = nil
+    ) -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: true,
             evidence: evidence,
             recordedAt: recordedAt,
-            operatorNote: "Recorded by --record-manual-smoke-evidence after operator observation."
+            operatorNote: operatorNote ?? "Recorded by --record-manual-smoke-evidence after operator observation."
         )
     }
 
@@ -898,7 +912,8 @@ enum RuntimeCompletionAudit {
     private static func validateManualEvidenceEntry(
         _ entry: ManualSmokeEvidenceEntry?,
         label: String,
-        requiredPassTokens: [String]
+        requiredPassTokens: [String],
+        requireOperatorNoteOnPass: Bool = false
     ) throws {
         guard let entry else { return }
         let normalizedEvidence = entry.normalizedEvidence.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -908,6 +923,17 @@ enum RuntimeCompletionAudit {
         guard entry.passed else { return }
         guard normalizedEvidence.contains("REPLACE_WITH_") == false else {
             throw EngineError.invalidArgument("Manual smoke evidence \(label) cannot pass while template placeholders remain")
+        }
+        if requireOperatorNoteOnPass {
+            let note = entry.operatorNote?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let genericRecorderNote = "Recorded by --record-manual-smoke-evidence after operator observation."
+            guard note.isEmpty == false,
+                  note.contains("REPLACE_WITH_") == false,
+                  note != genericRecorderNote else {
+                throw EngineError.invalidArgument(
+                    "Manual smoke evidence \(label) pass requires a concrete operatorNote describing the observed physical display event"
+                )
+            }
         }
         let foldedEvidence = normalizedEvidence.lowercased()
         let missingTokens = requiredPassTokens.filter { foldedEvidence.contains($0) == false }

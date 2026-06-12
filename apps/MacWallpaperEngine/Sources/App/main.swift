@@ -31,7 +31,8 @@ do {
             packagedLaunchPassed: arguments.contains("--confirm-packaged-launch"),
             liveClickActionsPassed: arguments.contains("--confirm-live-click-actions"),
             physicalDisplayHotplugPassed: arguments.contains("--confirm-physical-display-hotplug"),
-            blackFrameFlickerPassed: arguments.contains("--confirm-black-frame-flicker")
+            blackFrameFlickerPassed: arguments.contains("--confirm-black-frame-flicker"),
+            physicalDisplayHotplugNote: value(after: "--physical-display-hotplug-note", in: arguments)
         ))
         exit(EXIT_SUCCESS)
     }

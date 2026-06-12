@@ -2184,6 +2184,7 @@ enum RuntimeSelfTest {
             EngineConfig.help.contains("--record-manual-smoke-evidence")
                 && EngineConfig.help.contains("--confirm-live-click-actions")
                 && EngineConfig.help.contains("--confirm-physical-display-hotplug")
+                && EngineConfig.help.contains("--physical-display-hotplug-note")
                 && EngineConfig.help.contains("--confirm-black-frame-flicker"),
             "EngineConfig help must document manual smoke evidence recording"
         )
@@ -2552,7 +2553,8 @@ enum RuntimeSelfTest {
           "physicalDisplayHotplugSmoke": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays"
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays",
+            "operatorNote": "self-test observed reconnect event restored target displays"
           },
           "blackFrameFlickerSmoke": {
             "passed": true,
@@ -2629,12 +2631,68 @@ enum RuntimeSelfTest {
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tblack-frame-flicker-smoke"),
             "completion audit must allow package-script launch evidence without falsely closing live click or physical hot-plug evidence"
         )
+        var rejectedPhysicalHotplugWithoutNote = false
+        do {
+            _ = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+                to: packageOnlySmokeEvidenceURL,
+                packagedLaunchPassed: false,
+                liveClickActionsPassed: false,
+                physicalDisplayHotplugPassed: true,
+                blackFrameFlickerPassed: false
+            )
+        } catch {
+            rejectedPhysicalHotplugWithoutNote = String(describing: error)
+                .contains("--physical-display-hotplug-note")
+        }
+        check(
+            rejectedPhysicalHotplugWithoutNote,
+            "manual smoke recorder must reject physical display hotplug pass without a concrete operator note"
+        )
+        let genericPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineGenericPhysicalSmoke-\(UUID().uuidString).json")
+        let genericPhysicalHotplugEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "physicalDisplayHotplugSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays",
+            "operatorNote": "Recorded by --record-manual-smoke-evidence after operator observation."
+          }
+        }
+        """
+        try genericPhysicalHotplugEvidence.write(
+            to: genericPhysicalHotplugEvidenceURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        defer {
+            try? FileManager.default.removeItem(at: genericPhysicalHotplugEvidenceURL)
+        }
+        var rejectedGenericPhysicalHotplugNote = false
+        do {
+            _ = try RuntimeCompletionAudit.make(
+                projectRoot: runtime.config.projectRoot,
+                strictCompositeQuality: true,
+                includeInvalid: true,
+                bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+                manualEvidenceURL: genericPhysicalHotplugEvidenceURL
+            )
+        } catch {
+            rejectedGenericPhysicalHotplugNote = String(describing: error)
+                .contains("concrete operatorNote")
+        }
+        check(
+            rejectedGenericPhysicalHotplugNote,
+            "completion audit must reject generic physical display hotplug notes from older recorder output"
+        )
         let manualRecordReport = try RuntimeCompletionAudit.recordManualSmokeEvidence(
             to: packageOnlySmokeEvidenceURL,
             packagedLaunchPassed: false,
             liveClickActionsPassed: true,
             physicalDisplayHotplugPassed: true,
-            blackFrameFlickerPassed: true
+            blackFrameFlickerPassed: true,
+            physicalDisplayHotplugNote: "self-test reconnect restored selectedOnly selectedPolicy allFull display windows"
         )
         let completionAuditWithRecordedManualEvidence = try RuntimeCompletionAudit.make(
             projectRoot: runtime.config.projectRoot,
@@ -2653,7 +2711,8 @@ enum RuntimeSelfTest {
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tpackaged-app-launch-smoke")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
-                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tblack-frame-flicker-smoke"),
+                && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tblack-frame-flicker-smoke")
+                && completionAuditWithRecordedManualEvidence.contains("note=self-test reconnect restored selectedOnly selectedPolicy allFull display windows"),
             "manual smoke recorder must merge operator-confirmed live click and physical display evidence without losing package launch evidence"
         )
         let manualSmokeTemplateURL = FileManager.default.temporaryDirectory
