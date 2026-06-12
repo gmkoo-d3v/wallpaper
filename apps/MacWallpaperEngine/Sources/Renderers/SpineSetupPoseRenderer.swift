@@ -396,6 +396,7 @@ final class SpineSetupPoseRenderer {
         let uvs: [Double]
         let triangles: [Int]
         let vertices: [Double]
+        let color: SIMD4<Float>
         let sequence: SequenceInfo?
     }
 
@@ -480,6 +481,7 @@ final class SpineSetupPoseRenderer {
         let uvStatus: String
         let bounds: String
         let fingerprint: String
+        let colors: String
         let error: String
     }
 
@@ -728,6 +730,7 @@ final class SpineSetupPoseRenderer {
                     uvStatus: "uv=missing-animation",
                     bounds: "bounds=none",
                     fingerprint: "fp=missing-animation",
+                    colors: "colors=none",
                     error: "missing-animation"
                 ))
                 continue
@@ -1066,6 +1069,7 @@ final class SpineSetupPoseRenderer {
                 uvStatus: "uv=error",
                 bounds: "bounds=none",
                 fingerprint: "fp=error",
+                colors: "colors=none",
                 error: Self.sanitize(error.localizedDescription)
             )
         }
@@ -4370,6 +4374,7 @@ final class SpineSetupPoseRenderer {
                     uvs: parent.uvs,
                     triangles: parent.triangles,
                     vertices: parent.vertices,
+                    color: parseColor(linkedMesh.raw["color"] as? String),
                     sequence: parseSequenceInfo(linkedMesh.raw["sequence"]) ?? parent.sequence
                 )
                 resolvedAtLeastOne = true
@@ -4416,6 +4421,7 @@ final class SpineSetupPoseRenderer {
                     uvs: uvs,
                     triangles: triangles,
                     vertices: vertices,
+                    color: parseColor(raw["color"] as? String),
                     sequence: parseSequenceInfo(raw["sequence"])
                 )
             }
@@ -4468,6 +4474,7 @@ final class SpineSetupPoseRenderer {
             uvs: [0, 1, 0, 0, 1, 0, 1, 1],
             triangles: [0, 1, 2, 2, 3, 0],
             vertices: vertices,
+            color: parseColor(raw["color"] as? String),
             sequence: parseSequenceInfo(raw["sequence"])
         )
     }
@@ -4692,11 +4699,19 @@ final class SpineSetupPoseRenderer {
                     let localU = attachment.uvs[uvIndex]
                     let localV = attachment.uvs[uvIndex + 1]
                     let texCoord = atlasTexCoord(localU: localU, localV: localV, region: region, page: page)
+                    let vertexColor = slot.color * attachment.color
+                    let attachmentTintRGB = unpremultipliedRGB(attachment.color)
+                    let vertexDarkColor = SIMD4<Float>(
+                        slot.darkColor.x * attachmentTintRGB.x,
+                        slot.darkColor.y * attachmentTintRGB.y,
+                        slot.darkColor.z * attachmentTintRGB.z,
+                        slot.darkColor.w
+                    )
                     return RenderVertex(
                         position: position,
                         texCoord: texCoord,
-                        color: slot.color,
-                        darkColor: slot.darkColor
+                        color: vertexColor,
+                        darkColor: vertexDarkColor
                     )
                 }
                 appendTriangle(triangle, clippingPolygons: activeClipPolygons, into: &expanded)
@@ -4970,6 +4985,7 @@ final class SpineSetupPoseRenderer {
             uvStatus: uvStatus,
             bounds: boundsText(vertices),
             fingerprint: geometryFingerprint(vertexBatches),
+            colors: colorSummaryText(vertices),
             error: error
         )
     }
@@ -4997,6 +5013,17 @@ final class SpineSetupPoseRenderer {
             }
         }
         return "fp=\(String(format: "%016llx", hash))"
+    }
+
+    private static func unpremultipliedRGB(_ color: SIMD4<Float>) -> SIMD3<Float> {
+        guard color.w > 0.000001 else {
+            return SIMD3<Float>(0, 0, 0)
+        }
+        return SIMD3<Float>(
+            color.x / color.w,
+            color.y / color.w,
+            color.z / color.w
+        )
     }
 
     private static func hashString(_ value: String, into hash: inout UInt64) {
@@ -5166,6 +5193,13 @@ final class SpineSetupPoseRenderer {
             maxY = max(maxY, vertex.position.y)
         }
         return "bounds=x:\(format(minX))...\(format(maxX)),y:\(format(minY))...\(format(maxY))"
+    }
+
+    private static func colorSummaryText(_ vertices: [RenderVertex]) -> String {
+        guard let first = vertices.first else { return "colors=none" }
+        let light = first.color
+        let dark = first.darkColor
+        return "light:\(format(light.x)),\(format(light.y)),\(format(light.z)),\(format(light.w));dark:\(format(dark.x)),\(format(dark.y)),\(format(dark.z)),\(format(dark.w))"
     }
 
     private static func format(_ value: Float) -> String {

@@ -770,7 +770,7 @@ enum RuntimeCapabilities {
                 category: "spine",
                 name: "attachments",
                 status: attachmentStatus,
-                detail: "renderable=\(scan.renderableAttachmentTypes.listOrNone) ignoredNonVisual=\(scan.ignoredNonVisualAttachmentTypes.listOrNone) unsupported=\(scan.unsupportedAttachmentTypes.listOrNone) linkedmeshIssues=\(scan.unsupportedLinkedMeshReferences.listOrNone)"
+                detail: "renderable=\(scan.renderableAttachmentTypes.listOrNone) ignoredNonVisual=\(scan.ignoredNonVisualAttachmentTypes.listOrNone) supportedFeatures=\(scan.supportedAttachmentFeatures.compactListOrNone) unsupported=\(scan.unsupportedAttachmentTypes.listOrNone) linkedmeshIssues=\(scan.unsupportedLinkedMeshReferences.listOrNone)"
             ),
             RuntimeCapabilityRow(
                 category: "spine",
@@ -849,6 +849,7 @@ private struct SpineFeatureScan {
     var timelineKeys: Set<String> = []
     var constraintKeys: Set<String> = []
     var blendModes: Set<String> = []
+    var supportedAttachmentFeatures: Set<String> = []
     var supportedSlotFeatures: Set<String> = []
     var unsupportedSlotFeatures: Set<String> = []
     var unsupportedConstraintUsages: Set<String> = []
@@ -860,6 +861,7 @@ private struct SpineFeatureScan {
     var eventPayloadKeys: Set<String> = []
 
     private static let renderableAttachmentTypes: Set<String> = ["region", "mesh", "linkedmesh", "path", "clipping"]
+    private static let staticTintAttachmentTypes: Set<String> = ["region", "mesh", "linkedmesh"]
     private static let nonVisualAttachmentTypes: Set<String> = ["point", "boundingbox"]
     private static let structuralKeyTraversalLeafKeys: Set<String> = ["vertices", "triangles", "uvs", "edges", "hull"]
     private static let scanCacheLimit = 64
@@ -1052,6 +1054,9 @@ private struct SpineFeatureScan {
                     } else {
                         type = "region"
                         attachmentTypes.insert("region")
+                    }
+                    if Self.staticTintAttachmentTypes.contains(type), attachment["color"] != nil {
+                        supportedAttachmentFeatures.insert("attachment/\(slotName)/\(attachmentName):static-tint")
                     }
                     guard type == "linkedmesh" else { continue }
                     guard let parentName = attachment["parent"] as? String,

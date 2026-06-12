@@ -29,7 +29,7 @@ struct SpineGeometryDiagnostics {
                 idlePoseSampleFps: runtime.nativeSpineIdlePoseSampleFps(displayRefreshFps: nil)
             ),
             "invalidGeometrySamples: \(invalidSamples.isEmpty ? "none" : invalidSamples.map { "\($0.actionName)@\(formatSeconds($0.time)):\($0.status)" }.joined(separator: ","))",
-            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"
+            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\tcolors\terror"
         ]
 
         for sample in samples {
@@ -44,6 +44,7 @@ struct SpineGeometryDiagnostics {
                 sample.uvStatus,
                 sample.bounds,
                 sample.fingerprint,
+                sample.colors,
                 sample.error
             ].joined(separator: "\t"))
         }
@@ -263,7 +264,7 @@ struct SpineGeometryDiagnostics {
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
             samplePolicyLine(poseSampleFps: nil, idlePoseSampleFps: nil),
             "invalidGeometrySamples: none",
-            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"
+            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\tcolors\terror"
         ].joined(separator: "\n")
     }
 
@@ -276,7 +277,7 @@ struct SpineGeometryDiagnostics {
             "actions: \(actionNames.isEmpty ? "none" : actionNames.joined(separator: ","))",
             samplePolicyLine(poseSampleFps: nil, idlePoseSampleFps: nil),
             "invalidGeometrySamples: metal-unavailable",
-            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"
+            "columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\tcolors\terror"
         ].joined(separator: "\n")
     }
 

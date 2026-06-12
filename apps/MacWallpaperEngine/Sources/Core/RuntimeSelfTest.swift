@@ -1791,7 +1791,7 @@ enum RuntimeSelfTest {
             let spineGeometryPlan = try SpineGeometryDiagnostics.make(runtime: runtime)
             check(
                 spineGeometryPlan.contains("spine geometry plan OK")
-                    && spineGeometryPlan.contains("columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\terror"),
+                    && spineGeometryPlan.contains("columns: kind\taction\ttime\tstatus\tbatches\tvertices\tblendModes\tuv\tbounds\tfingerprint\tcolors\terror"),
                 "Spine geometry diagnostics must expose a stable CLI header and columns"
             )
             check(
@@ -5678,6 +5678,7 @@ enum RuntimeSelfTest {
                     "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
                     "triangles": [0, 1, 2, 2, 3, 0],
                     "vertices": [-50, -50, 50, -50, 50, 50, -50, 50],
+                    "color": "00ff0080",
                     "hull": 4
                   }
                 }
@@ -5688,6 +5689,13 @@ enum RuntimeSelfTest {
               "attachments": {
                 "slot": {
                   "linked": {
+                    "type": "linkedmesh",
+                    "path": "linked",
+                    "skin": "alternate",
+                    "parent": "base",
+                    "color": "ffffff80"
+                  },
+                  "untinted-linked": {
                     "type": "linkedmesh",
                     "path": "linked",
                     "skin": "alternate",
@@ -5911,6 +5919,18 @@ enum RuntimeSelfTest {
                   ]
                 }
               ]
+            },
+            "attachmentTintOff": {
+              "slots": {
+                "slot": {
+                  "attachment": [
+                    {
+                      "time": 0,
+                      "name": "untinted-linked"
+                    }
+                  ]
+                }
+              }
             }
           }
         }
@@ -6013,7 +6033,12 @@ enum RuntimeSelfTest {
                   "trigger": "tap",
                   "buttons": ["left"]
                 }
-              ]
+              ],
+              "defaultAction": {
+                "action": "attachmentTintOff",
+                "trigger": "tap",
+                "buttons": ["left"]
+              }
             }
           ],
           "validation": {
@@ -6040,10 +6065,12 @@ enum RuntimeSelfTest {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: linkedMeshRuntime)
         check(compatibility.isSupported, "external-skin linkedmesh fixture must pass native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText == "supported", "external-skin linkedmesh compatibility must not report unsupported reasons", failures: &failures, checks: &checks)
+        let linkedMeshCapabilitiesSummary = linkedMeshRuntime.runtimeCapabilitiesSummary()
         check(
-            linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\tattachments\tsupported\trenderable=linkedmesh,mesh ignoredNonVisual=boundingbox,point"),
-            "runtime capabilities must report renderable Spine attachments separately from ignored non-visual point/boundingbox attachments",
+            linkedMeshCapabilitiesSummary
+                .contains("spine\tattachments\tsupported\trenderable=linkedmesh,mesh ignoredNonVisual=boundingbox,point")
+                && linkedMeshCapabilitiesSummary.contains("attachment/slot/linked:static-tint"),
+            "runtime capabilities must report renderable Spine attachments, ignored non-visual point/boundingbox attachments, and static attachment tint support (\(linkedMeshCapabilitiesSummary))",
             failures: &failures,
             checks: &checks
         )
@@ -6056,8 +6083,8 @@ enum RuntimeSelfTest {
         )
         check(
             linkedMeshRuntime.runtimeCapabilitiesSummary()
-                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,drawOrder,slots.alpha,slots.color,slots.rgb,slots.rgb2,slots.rgba2,slots.twoColor"),
-            "runtime capabilities must report drawOrder, legacy slot color plus rgb/alpha, Spine 4.2 rgb2/rgba2, and legacy twoColor timelines as supported",
+                .contains("spine\ttimelines\tsupported\tused=attachments.sequence,drawOrder,slots.alpha,slots.attachment,slots.color,slots.rgb,slots.rgb2,slots.rgba2,slots.twoColor"),
+            "runtime capabilities must report drawOrder, attachment swaps, legacy slot color plus rgb/alpha, Spine 4.2 rgb2/rgba2, and legacy twoColor timelines as supported",
             failures: &failures,
             checks: &checks
         )
@@ -6105,8 +6132,12 @@ enum RuntimeSelfTest {
             let rgbPerChannelFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgbCurve", time: "0.025s")
             let rgbSharedFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "rgbSharedCurve", time: "0.025s")
             let drawOrderFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "drawOrderSwap", time: "0.000s")
+            let attachmentTintOffFingerprint = geometryFingerprint(in: linkedMeshGeometryPlan, action: "attachmentTintOff", time: "0.000s")
             let setupVertexCount = geometryColumn(in: linkedMeshGeometryPlan, action: "idle", time: "0.000s", column: 5)
             let drawOrderVertexCount = geometryColumn(in: linkedMeshGeometryPlan, action: "drawOrderSwap", time: "0.000s", column: 5)
+            let attachmentTintOffVertexCount = geometryColumn(in: linkedMeshGeometryPlan, action: "attachmentTintOff", time: "0.000s", column: 5)
+            let setupColors = geometryColumn(in: linkedMeshGeometryPlan, action: "idle", time: "0.000s", column: 10)
+            let attachmentTintOffColors = geometryColumn(in: linkedMeshGeometryPlan, action: "attachmentTintOff", time: "0.000s", column: 10)
             check(
                 setupFingerprint != nil
                     && firstTwoColorFingerprint != nil
@@ -6142,6 +6173,32 @@ enum RuntimeSelfTest {
                 setupVertexCount != nil
                     && setupVertexCount == drawOrderVertexCount,
                 "Spine drawOrder timelines must reorder existing geometry without adding or dropping vertices",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                attachmentTintOffFingerprint != nil
+                    && setupFingerprint != attachmentTintOffFingerprint,
+                "Spine static attachment color tint must affect native geometry color instead of being parsed-only metadata",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                setupVertexCount != nil
+                    && setupVertexCount == attachmentTintOffVertexCount,
+                "Spine static attachment color tint must recolor existing geometry without adding or dropping vertices",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                setupColors == "light:0.502,0.502,0.502,0.502;dark:0.133,0.133,0.133,0.000",
+                "Spine static attachment alpha tint must premultiply light color while keeping two-color dark RGB unpremultiplied (actual \(setupColors ?? "nil"))",
+                failures: &failures,
+                checks: &checks
+            )
+            check(
+                attachmentTintOffColors == "light:1.000,1.000,1.000,1.000;dark:0.133,0.133,0.133,0.000",
+                "Spine linkedmesh without an own color must default to white instead of inheriting parent mesh tint (actual \(attachmentTintOffColors ?? "nil"))",
                 failures: &failures,
                 checks: &checks
             )
@@ -6211,7 +6268,12 @@ enum RuntimeSelfTest {
                   "trigger": "tap",
                   "buttons": ["left"]
                 }
-              ]
+              ],
+              "defaultAction": {
+                "action": "attachmentTintOff",
+                "trigger": "tap",
+                "buttons": ["left"]
+              }
             }
           ],
         """, with: """
