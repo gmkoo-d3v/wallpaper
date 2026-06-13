@@ -52,7 +52,6 @@ struct DeclarativeBindingPlan {
     var springEffectBindings: [DeclarativeBindingPlanEntry] {
         bindingEntries.filter { entry in
             entry.isEnabled
-                && entry.source == .systemTime
                 && entry.target.kind == .effect
                 && entry.adapterKind == BindingAdapterType.spring.rawValue
         }
@@ -113,8 +112,7 @@ struct DeclarativeBindingPlanEntry {
         } else if self.target.kind == .effect,
                   binding.adapter.type == .mapRange {
             self.runtimeStatus = .runtimeExecutable
-        } else if binding.source == .systemTime,
-                  self.target.kind == .effect,
+        } else if self.target.kind == .effect,
                   binding.adapter.type == .spring {
             self.runtimeStatus = .runtimeExecutable
         } else if binding.source == .pointerPosition,

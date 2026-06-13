@@ -630,7 +630,7 @@ enum RuntimeCompletionAudit {
         }.joined(separator: "; ")
         return (
             schemaOK && hasPointerDownEffectBinding,
-            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(system-time-effect-runtime+pointer-spine-runtime,explicit-dynamics-contract); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
+            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
         )
     }
 

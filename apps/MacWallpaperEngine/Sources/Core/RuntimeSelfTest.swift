@@ -2453,12 +2453,13 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains("sample_static")
                 && bundleMatrix.contains("sample_effect")
                 && bundleMatrix.contains("sample_binding_click")
+                && bundleMatrix.contains("sample_spring_effect")
                 && bundleMatrix.contains("sample_spine_fallback")
                 && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
-            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, pointer-down binding fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
+            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
         )
         check(
-            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 6,
+            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 7,
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
@@ -2469,14 +2470,14 @@ enum RuntimeSelfTest {
         check(
             bundleMatrix.contains("performancePlan: target=60 fallback=30 budgeted")
                 && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 5,
-            "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, effect fixture, pointer-down binding fixture, and unsupported Spine fallback bundles"
+            "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, and unsupported Spine fallback bundles"
         )
         check(
-            occurrenceCount("doctor: pass", in: bundleMatrix) == 6,
+            occurrenceCount("doctor: pass", in: bundleMatrix) == 7,
             "bundle validation matrix must validate the combined runtime doctor report for every bundled renderer family"
         )
         check(
-            occurrenceCount("libraryReport: listed=6 invalid=0 capabilities", in: bundleMatrix) == 6,
+            occurrenceCount("libraryReport: listed=7 invalid=0 capabilities", in: bundleMatrix) == 7,
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
@@ -2502,12 +2503,20 @@ enum RuntimeSelfTest {
             "bundle validation matrix must treat pointer.down declarative effect bindings as active desktop input without requiring hit-zone animations"
         )
         check(
+            bundleMatrix.contains("sample_spring_effect")
+                && bundleMatrix.contains("interactions: pointerMove")
+                && bundleMatrix.contains("bindings: spring")
+                && bundleMatrix.contains("effects: blur")
+                && bundleMatrix.contains("input: desktop-empty-best-effort"),
+            "bundle validation matrix must expose pointer.position spring bindings to whitelist effects as manifest-owned runtime input"
+        )
+        check(
             bundleMatrix.contains("golden: pass fixtures: 3")
                 && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 3,
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, static-image, and effect samples"
         )
         check(
-            occurrenceCount("installer: importable", in: bundleMatrix) == 6,
+            occurrenceCount("installer: importable", in: bundleMatrix) == 7,
             "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
         )
         let completionAudit = try RuntimeCompletionAudit.make(
@@ -2526,7 +2535,9 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("sources=pointer.position+pointer.down+system.time+thermal.state")
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
-                && completionAudit.contains("spring(system-time-effect-runtime+pointer-spine-runtime,explicit-dynamics-contract)")
+                && completionAudit.contains("sample_spring_effect=bindings(spring)")
+                && completionAudit.contains("pointerSpringBlur:pointer.position->effect.softBlur.radius via spring runtime-executable")
+                && completionAudit.contains("spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract)")
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
                 && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)")
                 && completionAudit.contains("dynamicShaderLoading=forbidden")
@@ -4451,6 +4462,29 @@ enum RuntimeSelfTest {
             bundleRoot: springContractRoot
         )
         let springContractPlan = DeclarativeBindingPlan(manifest: springContractManifest)
+        var springContractState = DeclarativeBindingEvaluationState()
+        let springContractStart = DeclarativeBindingEvaluator.evaluate(
+            plan: springContractPlan,
+            input: DeclarativeBindingEvaluationInput(
+                pointerPosition: CGPoint(x: 0.0, y: 0.5),
+                systemTimeSeconds: 0
+            ),
+            state: &springContractState
+        )
+        let springContractFirst = DeclarativeBindingEvaluator.evaluate(
+            plan: springContractPlan,
+            input: DeclarativeBindingEvaluationInput(
+                pointerPosition: CGPoint(x: 1.0, y: 0.5),
+                systemTimeSeconds: 0.1
+            ),
+            state: &springContractState
+        )
+        let springContractRendered = DeclarativeEffectState.make(
+            plan: springContractPlan,
+            snapshot: springContractFirst
+        )
+        let springContractStartRadius = springContractStart.number(effectID: "softBlur", property: "radius") ?? -1
+        let springContractFirstRadius = springContractFirst.number(effectID: "softBlur", property: "radius") ?? -1
         let springContractRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
             wallpaperRoot: springContractRoot,
             manifestURL: springContractRoot.appendingPathComponent("wallpaper.native.json"),
@@ -4460,17 +4494,21 @@ enum RuntimeSelfTest {
         ))
         check(
             springContractDiagnostic.status == .valid
-                && springContractPlan.bindingEntries.first?.runtimeStatus == .declaredOnly
-                && springContractPlan.hasPointerInputBindings == false,
-            "spring bindings must accept an explicit deterministic spring contract while remaining declared-only and not enabling pointer monitoring",
+                && springContractPlan.bindingEntries.first?.runtimeStatus == .runtimeExecutable
+                && springContractPlan.hasPointerInputBindings
+                && abs(springContractStartRadius) < 0.001
+                && springContractFirstRadius > springContractStartRadius
+                && springContractFirstRadius <= 1.0
+                && abs(Double(springContractRendered.fragmentEffectParams.x) - springContractFirstRadius) < 0.001,
+            "pointer-driven effect spring bindings must run through deterministic whitelist-effect state instead of remaining declared-only",
             failures: &failures,
             checks: &checks
         )
         check(
             springContractRuntime.runtimeCapabilitiesSummary().contains(
-                "entries=springPointerBlur:pointer.position->effect.softBlur.radius via spring declared-only"
+                "entries=springPointerBlur:pointer.position->effect.softBlur.radius via spring runtime-executable"
             ),
-            "runtime capabilities must name declared-only spring bindings per entry so deferred script-like behavior is visible instead of silently implied",
+            "runtime capabilities must name runtime-executable pointer effect spring bindings per entry so manifest-driven effects stay visible",
             failures: &failures,
             checks: &checks
         )
