@@ -86,6 +86,7 @@ struct InteractionPlan {
     private let directionSwitchMargin: CGFloat
     private let defaultClickTailDuration: CFTimeInterval
     private let actionTailDurations: [String: CFTimeInterval]
+    private let pointerDownBindings: [DeclarativeBindingPlanEntry]
     private let triggerPlayBindings: [DeclarativeBindingPlanEntry]
 
     init(
@@ -100,6 +101,11 @@ struct InteractionPlan {
         self.directionSwitchMargin = CGFloat(policy?.directionSwitchMargin ?? 0.10)
         self.defaultClickTailDuration = policy?.defaultClickTailSeconds ?? 1.15
         self.actionTailDurations = actionTailDurations
+        self.pointerDownBindings = (declarativePlan?.bindingEntries ?? []).filter { entry in
+            entry.isEnabled
+                && entry.runtimeStatus == .runtimeExecutable
+                && entry.source == .pointerDown
+        }
         self.triggerPlayBindings = declarativePlan?.triggerPlayBindings ?? []
     }
 
@@ -207,7 +213,7 @@ struct InteractionPlan {
     }
 
     func pointerDownBindingSummaries() -> [String] {
-        triggerPlayBindings.map { binding in
+        pointerDownBindings.map { binding in
             "\(binding.id):\(binding.source.rawValue)->\(binding.target.summary)"
         }
     }
@@ -224,7 +230,7 @@ struct InteractionPlan {
         if let config = pointerDownConfig() {
             return pointerDownButtons(from: config).contains(button)
         }
-        return button == .left && hasPointerDownBindingTriggers()
+        return button == .left && pointerDownBindings.isEmpty == false
     }
 
     private func legacyHitTest(point: CGPoint, button: PointerButton) -> InteractionHitResult? {
@@ -320,6 +326,7 @@ struct InteractionPlan {
         policy: InteractionPolicy?,
         runtimeInteractive: Bool,
         actionTailDurations: [String: CFTimeInterval] = [:],
+        declarativePlan: DeclarativeBindingPlan? = nil,
         fitMode: RenderFitMode? = nil,
         contentAspect: CGFloat? = nil,
         accessibilityTrusted: Bool? = nil
@@ -327,8 +334,10 @@ struct InteractionPlan {
         let plan = InteractionPlan(
             interactions: interactions,
             policy: policy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         )
+        let hasDeclarativePointerInput = declarativePlan?.hasPointerInputBindings == true
         let effectivePolicy = policy ?? InteractionPolicy(
             mode: runtimeInteractive ? .desktopEmptyOnly : .disabled,
             blockApplicationWindows: true,
@@ -343,6 +352,7 @@ struct InteractionPlan {
         let mode = policy?.mode.rawValue ?? (runtimeInteractive ? "desktop-empty-only(default)" : "disabled(default)")
         let monitorStatus = desktopMonitorStatus(
             interactions: interactions,
+            hasDeclarativePointerInput: hasDeclarativePointerInput,
             policy: effectivePolicy,
             runtimeInteractive: runtimeInteractive,
             accessibilityTrusted: accessibilityTrusted
@@ -362,6 +372,10 @@ struct InteractionPlan {
         let clickButtons = (clickConfig?.buttons ?? [.left]).map(\.rawValue).joined(separator: "+")
         let zones = plan.hitZoneSummaries()
         let defaultAction = plan.defaultActionSummary()
+        let pointerDownBindingSummaries = plan.pointerDownBindingSummaries()
+        let pointerDownBindingText = pointerDownBindingSummaries.isEmpty
+            ? "none"
+            : pointerDownBindingSummaries.joined(separator: "+")
         let idleProbePrevious = moveConfig?.actions?["idle"] ?? "idle"
         let stickyProbePrevious = moveConfig?.actions?["right"] ?? idleProbePrevious
         let moveProbeText = [
@@ -402,6 +416,7 @@ struct InteractionPlan {
             pointerMoveInputMask: plan.pointerMoveInputMask()
         ) + [
             "pointerDownButtons: \(clickConfig == nil ? "none" : clickButtons)",
+            "pointerDownBindings: \(pointerDownBindingText)",
             "defaultAction: \(defaultAction?.detailText ?? "none")",
             "hitZones: \(zones.count)"
         ]
@@ -420,7 +435,8 @@ struct InteractionPlan {
                 let probeController = InteractionController(
                     interactions: interactions,
                     policy: policy,
-                    actionTailDurations: actionTailDurations
+                    actionTailDurations: actionTailDurations,
+                    declarativePlan: declarativePlan
                 )
                 let probeButton = zone.buttons.first ?? .left
                 probeController.pointerDown(at: center, button: probeButton)
@@ -452,7 +468,8 @@ struct InteractionPlan {
                     holdStartSeconds: zone.holdStartSeconds,
                     interactions: interactions,
                     policy: policy,
-                    actionTailDurations: actionTailDurations
+                    actionTailDurations: actionTailDurations,
+                    declarativePlan: declarativePlan
                 ))
             }
         }
@@ -460,7 +477,8 @@ struct InteractionPlan {
             let probeController = InteractionController(
                 interactions: interactions,
                 policy: policy,
-                actionTailDurations: actionTailDurations
+                actionTailDurations: actionTailDurations,
+                declarativePlan: declarativePlan
             )
             let probeButton = defaultAction.buttons.first ?? .left
             let probePoint = CGPoint(x: 0.02, y: 0.02)
@@ -492,7 +510,8 @@ struct InteractionPlan {
                 holdStartSeconds: 0,
                 interactions: interactions,
                 policy: policy,
-                actionTailDurations: actionTailDurations
+                actionTailDurations: actionTailDurations,
+                declarativePlan: declarativePlan
             ))
         }
         if let fitMode, let contentAspect {
@@ -513,12 +532,14 @@ struct InteractionPlan {
         runtimeInteractive: Bool,
         point: CGPoint,
         button: PointerButton,
-        actionTailDurations: [String: CFTimeInterval] = [:]
+        actionTailDurations: [String: CFTimeInterval] = [:],
+        declarativePlan: DeclarativeBindingPlan? = nil
     ) -> String {
         let plan = InteractionPlan(
             interactions: interactions,
             policy: policy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         )
         let clampedPoint = plan.clamp(point)
         let moveConfig = interactions.first { $0.event == .pointerMove }
@@ -535,6 +556,7 @@ struct InteractionPlan {
             interactions: interactions,
             policy: policy,
             actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
             clock: clock.now
         )
         controller.pointerMoved(to: clampedPoint)
@@ -571,12 +593,15 @@ struct InteractionPlan {
 
     private static func desktopMonitorStatus(
         interactions: [InteractionConfig],
+        hasDeclarativePointerInput: Bool,
         policy: InteractionPolicy,
         runtimeInteractive: Bool,
         accessibilityTrusted: Bool?
     ) -> String {
         guard runtimeInteractive else { return "disabled(runtime-settings)" }
-        guard interactions.isEmpty == false else { return "passive(no-interactions)" }
+        guard interactions.isEmpty == false || hasDeclarativePointerInput else {
+            return "passive(no-interactions)"
+        }
         guard policy.mode != .disabled else { return "disabled(policy)" }
         if policy.mode == .desktopEmptyOnly, policy.blockDesktopItems {
             _ = accessibilityTrusted
@@ -696,13 +721,15 @@ struct InteractionPlan {
         holdStartSeconds: CFTimeInterval,
         interactions: [InteractionConfig],
         policy: InteractionPolicy?,
-        actionTailDurations: [String: CFTimeInterval]
+        actionTailDurations: [String: CFTimeInterval],
+        declarativePlan: DeclarativeBindingPlan?
     ) -> String {
         let clock = InteractionDiagnosticClock()
         let controller = InteractionController(
             interactions: interactions,
             policy: policy,
             actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
             clock: clock.now
         )
         let safeTail = max(tailSeconds, 0.001)

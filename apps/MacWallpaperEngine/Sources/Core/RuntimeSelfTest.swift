@@ -2452,12 +2452,13 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains("sample_video")
                 && bundleMatrix.contains("sample_static")
                 && bundleMatrix.contains("sample_effect")
+                && bundleMatrix.contains("sample_binding_click")
                 && bundleMatrix.contains("sample_spine_fallback")
                 && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
-            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
+            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, pointer-down binding fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
         )
         check(
-            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 5,
+            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 6,
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
@@ -2467,15 +2468,15 @@ enum RuntimeSelfTest {
         )
         check(
             bundleMatrix.contains("performancePlan: target=60 fallback=30 budgeted")
-                && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 4,
-            "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, effect fixture, and unsupported Spine fallback bundles"
+                && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 5,
+            "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, effect fixture, pointer-down binding fixture, and unsupported Spine fallback bundles"
         )
         check(
-            occurrenceCount("doctor: pass", in: bundleMatrix) == 5,
+            occurrenceCount("doctor: pass", in: bundleMatrix) == 6,
             "bundle validation matrix must validate the combined runtime doctor report for every bundled renderer family"
         )
         check(
-            occurrenceCount("libraryReport: listed=5 invalid=0 capabilities", in: bundleMatrix) == 5,
+            occurrenceCount("libraryReport: listed=6 invalid=0 capabilities", in: bundleMatrix) == 6,
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
@@ -2494,12 +2495,19 @@ enum RuntimeSelfTest {
             "bundle validation matrix must expose the sample effect fixture capability rows"
         )
         check(
+            bundleMatrix.contains("sample_binding_click")
+                && bundleMatrix.contains("input: desktop-empty-best-effort")
+                && bundleMatrix.contains("bindings: map-range")
+                && bundleMatrix.contains("pointerDownBindings=pressBrightness:pointer.down->effect.tone.brightness"),
+            "bundle validation matrix must treat pointer.down declarative effect bindings as active desktop input without requiring hit-zone animations"
+        )
+        check(
             bundleMatrix.contains("golden: pass fixtures: 3")
                 && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 3,
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, static-image, and effect samples"
         )
         check(
-            occurrenceCount("installer: importable", in: bundleMatrix) == 5,
+            occurrenceCount("installer: importable", in: bundleMatrix) == 6,
             "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
         )
         let completionAudit = try RuntimeCompletionAudit.make(
@@ -2516,6 +2524,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.down+system.time+thermal.state")
+                && completionAudit.contains("sample_binding_click=bindings(map-range)")
+                && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("spring(system-time-effect-runtime+pointer-spine-runtime,explicit-dynamics-contract)")
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
                 && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)")

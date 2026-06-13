@@ -290,11 +290,13 @@ enum BundleValidationMatrix {
 
     private static func validateInteractionDiagnostics(runtime: NativeRuntimeCore) throws -> String {
         let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
+        let declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
         let summary = InteractionPlan.diagnosticSummary(
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy,
             runtimeInteractive: runtime.config.interactive,
             actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
             fitMode: runtime.config.fitMode,
             contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
             accessibilityTrusted: true
@@ -313,8 +315,9 @@ enum BundleValidationMatrix {
             )
         }
 
-        let hasInteractions = runtime.manifest.interactions.isEmpty == false
-        guard hasInteractions else {
+        let hasPointerInput = runtime.manifest.interactions.isEmpty == false
+            || declarativePlan.hasPointerInputBindings
+        guard hasPointerInput else {
             guard summary.contains("desktopMonitor: passive(no-interactions)"),
                   summary.contains("pointerDownButtons: none") else {
                 throw EngineError.invalidArgument(
@@ -327,8 +330,13 @@ enum BundleValidationMatrix {
         let plan = InteractionPlan(
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         )
+        let pointerDownBindingText = plan.pointerDownBindingSummaries().joined(separator: "+")
+        let pointerDownBindingStatus = pointerDownBindingText.isEmpty
+            ? ""
+            : " pointerDownBindings=\(pointerDownBindingText)"
         let zones = plan.hitZoneSummaries()
         let defaultAction = plan.defaultActionSummary()
         if zones.isEmpty == false || defaultAction != nil {
@@ -358,6 +366,18 @@ enum BundleValidationMatrix {
                 )
             }
         }
+        if declarativePlan.bindingEntries.contains(where: {
+            $0.isEnabled
+                && $0.runtimeStatus == .runtimeExecutable
+                && $0.source == .pointerDown
+        }) {
+            guard summary.contains("pointerDownBindings:")
+                    && summary.contains("pointer.down->") else {
+                throw EngineError.invalidArgument(
+                    "pointer.down binding diagnostics are missing for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                )
+            }
+        }
 
         let effectivePolicy = runtime.manifest.interactionPolicy ?? InteractionPolicy(
             mode: runtime.config.interactive ? .desktopEmptyOnly : .disabled,
@@ -376,6 +396,7 @@ enum BundleValidationMatrix {
                 policy: runtime.manifest.interactionPolicy,
                 runtimeInteractive: runtime.config.interactive,
                 actionTailDurations: actionTailDurations,
+                declarativePlan: declarativePlan,
                 fitMode: runtime.config.fitMode,
                 contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
                 accessibilityTrusted: false
@@ -388,10 +409,10 @@ enum BundleValidationMatrix {
                     "interaction diagnostics do not expose no-permission input behavior for \(runtime.config.wallpaperRoot.lastPathComponent)"
                 )
             }
-            return "interactionPlan: active(desktop-empty-only+no-permission-best-effort)"
+            return "interactionPlan: active(desktop-empty-only+no-permission-best-effort)\(pointerDownBindingStatus)"
         }
 
-        return "interactionPlan: active"
+        return "interactionPlan: active\(pointerDownBindingStatus)"
     }
 
     private static func validatePerformancePlan(runtime: NativeRuntimeCore) throws -> String {

@@ -294,7 +294,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             plan: declarativePlan,
             input: DeclarativeBindingEvaluationInput(
                 pointerPosition: interactionSnapshot.pointer,
-                pointerDown: interactionSnapshot.clickPulse > 0,
+                pointerDown: interactionSnapshot.isPointerDown,
                 systemTimeSeconds: now,
                 thermalStateLevel: Self.thermalStateLevel(ProcessInfo.processInfo.thermalState)
             ),

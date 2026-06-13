@@ -610,7 +610,10 @@ enum DisplayPlanner {
     }
 
     private static func plannedInteraction(runtime: NativeRuntimeCore, role: RenderDisplayRole) -> String {
-        guard runtime.manifest.interactions.isEmpty == false else { return "passive(no-interactions)" }
+        let declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
+        guard runtime.manifest.interactions.isEmpty == false || declarativePlan.hasPointerInputBindings else {
+            return "passive(no-interactions)"
+        }
         guard runtime.config.interactive else { return "passive(config-disabled)" }
         guard role.allowsInteraction else { return "passive(display-role)" }
         let policy = runtime.manifest.interactionPolicy ?? InteractionPolicy(

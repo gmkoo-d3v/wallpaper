@@ -166,11 +166,13 @@ do {
 
     if config.interactionPlanOnly {
         let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
+        let declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
         print(InteractionPlan.diagnosticSummary(
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy,
             runtimeInteractive: runtime.config.interactive,
             actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
             fitMode: runtime.config.fitMode,
             contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
             accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()
@@ -180,13 +182,15 @@ do {
 
     if let interactionProbePoint = config.interactionProbePoint {
         let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
+        let declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
         print(InteractionPlan.probeSummary(
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy,
             runtimeInteractive: runtime.config.interactive,
             point: interactionProbePoint,
             button: config.interactionProbeButton,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         ))
         exit(EXIT_SUCCESS)
     }

@@ -27,11 +27,13 @@ enum RuntimeDoctorReport {
         recoveryURL: URL? = RendererRecoveryStore.defaultRecoveryURL()
     ) throws -> String {
         let actionTailDurations = try SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
+        let declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
         let interaction = InteractionPlan.diagnosticSummary(
             interactions: runtime.manifest.interactions,
             policy: runtime.manifest.interactionPolicy,
             runtimeInteractive: runtime.config.interactive,
             actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
             fitMode: runtime.config.fitMode,
             contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
             accessibilityTrusted: DesktopInteractionGate.hasAccessibilityTrust()

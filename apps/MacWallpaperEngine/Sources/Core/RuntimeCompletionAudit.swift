@@ -609,11 +609,27 @@ enum RuntimeCompletionAudit {
             definitionNames: ["declarativeBinding", "bindingAdapter"]
         )
         let bindingKinds = Set(bundles.flatMap(\.capabilities.bindingKinds))
-        let bundleEvidence = bundles.map {
-            "\($0.id)=bindings(\($0.capabilities.bindingKinds.joined(separator: "+")))"
+        var hasPointerDownEffectBinding = false
+        let bundleEvidence = bundles.map { bundle in
+            let planSummary: String
+            do {
+                let manifest = try ManifestLoader.load(url: bundle.manifestURL, bundleRoot: bundle.root)
+                let plan = DeclarativeBindingPlan(manifest: manifest)
+                let entries = plan.bindingEntries.map(\.summary)
+                if entries.contains(where: {
+                    $0.contains("pointer.down->effect.")
+                        && $0.contains("runtime-executable")
+                }) {
+                    hasPointerDownEffectBinding = true
+                }
+                planSummary = entries.isEmpty ? "none" : entries.joined(separator: ",")
+            } catch {
+                planSummary = "invalid(\(oneLine(String(describing: error))))"
+            }
+            return "\(bundle.id)=bindings(\(bundle.capabilities.bindingKinds.joined(separator: "+"))) entries[\(planSummary)]"
         }.joined(separator: "; ")
         return (
-            schemaOK,
+            schemaOK && hasPointerDownEffectBinding,
             "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(system-time-effect-runtime+pointer-spine-runtime,explicit-dynamics-contract); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
         )
     }

@@ -185,7 +185,8 @@ enum RuntimeCapabilities {
         rows.append(contentsOf: interactionRows(
             manifest.interactions,
             policy: manifest.interactionPolicy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         ))
         rows.append(contentsOf: declarativeBindingRows(declarativePlan))
         rows.append(contentsOf: effectRows(declarativePlan))
@@ -305,9 +306,12 @@ enum RuntimeCapabilities {
         if manifest.assets.spine != nil { assetKinds.append("spine") }
         if assetKinds.isEmpty { assetKinds.append("none") }
 
-        let layerKinds = manifest.layers.map(\.type.rawValue).uniquePreservingOrder
-        let interactionKinds = interactionKinds(for: manifest.interactions)
         let declarativePlan = DeclarativeBindingPlan(manifest: manifest)
+        let layerKinds = manifest.layers.map(\.type.rawValue).uniquePreservingOrder
+        let interactionKinds = interactionKinds(
+            for: manifest.interactions,
+            declarativePlan: declarativePlan
+        )
         let bindingKinds = declarativePlan.bindingKinds
         let effectKinds = declarativePlan.effectKinds
         let compatibility = nativeSpineCompatibility(manifest: manifest, bundleRoot: bundleRoot)
@@ -337,7 +341,11 @@ enum RuntimeCapabilities {
             assetKinds: assetKinds,
             layerKinds: layerKinds.isEmpty ? ["none"] : layerKinds,
             interactionKinds: interactionKinds,
-            interactionRequirement: interactionRequirement(for: manifest.interactions, policy: manifest.interactionPolicy),
+            interactionRequirement: interactionRequirement(
+                for: manifest.interactions,
+                policy: manifest.interactionPolicy,
+                declarativePlan: declarativePlan
+            ),
             bindingKinds: bindingKinds,
             effectKinds: effectKinds,
             nativeSpineStatus: nativeSpineStatus,
@@ -540,55 +548,79 @@ enum RuntimeCapabilities {
     private static func interactionRows(
         _ interactions: [InteractionConfig],
         policy: InteractionPolicy?,
-        actionTailDurations: [String: CFTimeInterval]
+        actionTailDurations: [String: CFTimeInterval],
+        declarativePlan: DeclarativeBindingPlan
     ) -> [RuntimeCapabilityRow] {
         var rows: [RuntimeCapabilityRow] = []
         let hasInteractions = interactions.isEmpty == false
+        let pointerPositionBindings = declarativePlan.bindingEntries.filter {
+            $0.isEnabled
+                && $0.runtimeStatus == .runtimeExecutable
+                && $0.source == .pointerPosition
+        }
+        let pointerDownBindings = declarativePlan.bindingEntries.filter {
+            $0.isEnabled
+                && $0.runtimeStatus == .runtimeExecutable
+                && $0.source == .pointerDown
+        }
+        let hasPointerInput = hasInteractions
+            || pointerPositionBindings.isEmpty == false
+            || pointerDownBindings.isEmpty == false
         let policyMode = policy?.mode.rawValue ?? "desktop-empty-only(default)"
         rows.append(RuntimeCapabilityRow(
             category: "interaction",
             name: "policy",
-            status: hasInteractions && policy?.mode != .disabled ? "supported" : "not-used",
-            detail: hasInteractions
+            status: hasPointerInput && policy?.mode != .disabled ? "supported" : "not-used",
+            detail: hasPointerInput
                 ? "mode=\(policyMode) blockAppWindows=\(policy?.blockApplicationWindows ?? true) blockDesktopItems=\(policy?.blockDesktopItems ?? true) desktopItemGate=\(desktopItemGate(policy: policy))"
                 : "no declared interactions"
         ))
 
         let pointerMove = interactions.filter { $0.event == .pointerMove }
         let pointerDown = interactions.filter { $0.event == .pointerDown }
+        let pointerMoveBindingText = pointerPositionBindings.map(\.summary).joined(separator: "; ")
+        let pointerMoveDetail = [
+            pointerMove.isEmpty ? nil : "\(pointerMove.count) mapping(s)",
+            pointerMoveBindingText.isEmpty ? nil : "bindings=\(pointerMoveBindingText)"
+        ].compactMap { $0 }.joined(separator: " ")
 
         rows.append(RuntimeCapabilityRow(
             category: "interaction",
             name: "pointerMove/lookDirection",
-            status: pointerMove.isEmpty ? "not-used" : "supported",
-            detail: pointerMove.isEmpty ? "none" : "\(pointerMove.count) mapping(s)"
+            status: pointerMove.isEmpty && pointerPositionBindings.isEmpty ? "not-used" : "supported",
+            detail: pointerMoveDetail.isEmpty ? "none" : pointerMoveDetail
         ))
 
         let hitZoneCount = pointerDown.reduce(0) { $0 + ($1.hitZones?.count ?? 0) }
         let hitZoneSummaries = InteractionPlan(
             interactions: interactions,
             policy: policy,
-            actionTailDurations: actionTailDurations
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan
         ).hitZoneSummaries()
         let defaultActionSummaries = pointerDown.compactMap {
             InteractionPlan(
                 interactions: [$0],
                 policy: policy,
-                actionTailDurations: actionTailDurations
+                actionTailDurations: actionTailDurations,
+                declarativePlan: declarativePlan
             ).defaultActionSummary()
         }
         let buttons = Set(hitZoneSummaries.flatMap { $0.buttons.map(\.rawValue) }).sorted().joined(separator: ",")
         let defaultButtons = Set(defaultActionSummaries.flatMap { $0.buttons.map(\.rawValue) }).sorted().joined(separator: ",")
         let hitZoneDetails = hitZoneSummaries.map(\.detailText).joined(separator: "; ")
         let defaultActionDetails = defaultActionSummaries.map(\.detailText).joined(separator: "; ")
-        let hasPointerDown = hitZoneCount > 0 || defaultActionSummaries.isEmpty == false
+        let pointerDownBindingText = pointerDownBindings.map(\.summary).joined(separator: "; ")
+        let hasPointerDown = hitZoneCount > 0
+            || defaultActionSummaries.isEmpty == false
+            || pointerDownBindings.isEmpty == false
         rows.append(RuntimeCapabilityRow(
             category: "interaction",
             name: "pointerDown/hitZones",
             status: hasPointerDown ? "supported" : "not-used",
             detail: hasPointerDown == false
                 ? "none"
-                : "\(hitZoneCount) zone(s) buttons=\(buttons.isEmpty ? "left(default)" : buttons) \(hitZoneDetails) default=\(defaultActionDetails.isEmpty ? "none" : defaultActionDetails) defaultButtons=\(defaultButtons.isEmpty ? "left(default)" : defaultButtons)"
+                : "\(hitZoneCount) zone(s) buttons=\(buttons.isEmpty ? "left(default)" : buttons) \(hitZoneDetails) default=\(defaultActionDetails.isEmpty ? "none" : defaultActionDetails) defaultButtons=\(defaultButtons.isEmpty ? "left(default)" : defaultButtons) bindings=\(pointerDownBindingText.isEmpty ? "none" : pointerDownBindingText)"
         ))
 
         return rows
@@ -647,12 +679,25 @@ enum RuntimeCapabilities {
         }
     }
 
-    private static func interactionKinds(for interactions: [InteractionConfig]) -> [String] {
+    private static func interactionKinds(
+        for interactions: [InteractionConfig],
+        declarativePlan: DeclarativeBindingPlan
+    ) -> [String] {
         var kinds: [String] = []
-        if interactions.contains(where: { $0.event == .pointerMove }) {
+        if interactions.contains(where: { $0.event == .pointerMove })
+            || declarativePlan.bindingEntries.contains(where: {
+                $0.isEnabled
+                    && $0.runtimeStatus == .runtimeExecutable
+                    && $0.source == .pointerPosition
+            }) {
             kinds.append("pointerMove")
         }
-        if interactions.contains(where: { $0.event == .pointerDown }) {
+        if interactions.contains(where: { $0.event == .pointerDown })
+            || declarativePlan.bindingEntries.contains(where: {
+                $0.isEnabled
+                    && $0.runtimeStatus == .runtimeExecutable
+                    && $0.source == .pointerDown
+            }) {
             kinds.append("pointerDown")
         }
         return kinds.isEmpty ? ["none"] : kinds
@@ -660,9 +705,10 @@ enum RuntimeCapabilities {
 
     private static func interactionRequirement(
         for interactions: [InteractionConfig],
-        policy: InteractionPolicy?
+        policy: InteractionPolicy?,
+        declarativePlan: DeclarativeBindingPlan
     ) -> String {
-        guard interactions.isEmpty == false else { return "none" }
+        guard interactions.isEmpty == false || declarativePlan.hasPointerInputBindings else { return "none" }
         let mode = policy?.mode ?? .desktopEmptyOnly
         switch mode {
         case .disabled:

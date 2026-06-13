@@ -5,6 +5,7 @@ import QuartzCore
 struct InteractionSnapshot {
     let pointer: CGPoint
     let command: String
+    let isPointerDown: Bool
     let clickPulse: CGFloat
     let isInputActive: Bool
 }
@@ -76,12 +77,14 @@ final class InteractionController {
             clickCommandHeld = true
             clickCommandExpiresAt = now + releaseFadeDuration
         }
+        let isPointerDown = pressedButton != nil
         if let clickCommandState, clickCommandHeld || now < clickCommandExpiresAt {
             let fadeDuration = clickCommandHeld ? releaseFadeDuration : max(activeClickTailDuration, 0.001)
             let pulse = clickCommandHeld ? 1.0 : CGFloat((clickCommandExpiresAt - now) / fadeDuration)
             return InteractionSnapshot(
                 pointer: smoothedPointerState,
                 command: clickCommandState,
+                isPointerDown: isPointerDown,
                 clickPulse: min(max(pulse, 0.0), 1.0),
                 isInputActive: true
             )
@@ -91,6 +94,7 @@ final class InteractionController {
         return InteractionSnapshot(
             pointer: smoothedPointerState,
             command: moveCommandState,
+            isPointerDown: isPointerDown,
             clickPulse: 0.0,
             isInputActive: isPointerInputActiveLocked(now: now)
         )
