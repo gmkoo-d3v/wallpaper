@@ -778,9 +778,11 @@ struct EngineConfig {
       --confirm-live-click-actions
                               With --record-manual-smoke-evidence, confirm manifest-declared click/gaze smoke.
       --confirm-physical-display-hotplug
-                              With --record-manual-smoke-evidence, confirm selectedOnly/selectedPolicy/allFull reconnect smoke.
+                              With --record-manual-smoke-evidence, confirm selectedOnly/selectedPolicy/allFull lifecycle smoke.
+      --physical-display-hotplug-event <wake|reconnect>
+                              Required with --confirm-physical-display-hotplug; selects the observed lifecycle event.
       --physical-display-hotplug-note <text>
-                              Required with --confirm-physical-display-hotplug; describes the observed reconnect/wake event and restored displays.
+                              Required with --confirm-physical-display-hotplug; describes the selected wake/reconnect event and restored displays.
       --confirm-black-frame-flicker
                               With --record-manual-smoke-evidence, confirm packaged start/rebuild no-black-frame/no-flicker smoke.
       --recovery-plan          Print persisted renderer safe-mode recovery/quarantine state, then exit.

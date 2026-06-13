@@ -348,6 +348,7 @@ enum RuntimeCompletionAudit {
         liveClickActionsPassed: Bool,
         physicalDisplayHotplugPassed: Bool,
         blackFrameFlickerPassed: Bool,
+        physicalDisplayHotplugEvent: String? = nil,
         physicalDisplayHotplugNote: String? = nil
     ) throws -> String {
         guard packagedLaunchPassed || liveClickActionsPassed || physicalDisplayHotplugPassed || blackFrameFlickerPassed else {
@@ -362,6 +363,11 @@ enum RuntimeCompletionAudit {
                 "--confirm-physical-display-hotplug requires --physical-display-hotplug-note <observed display event and restored displays>"
             )
         }
+        let normalizedPhysicalDisplayHotplugEvent = try normalizePhysicalDisplayHotplugEvent(
+            physicalDisplayHotplugEvent,
+            note: normalizedPhysicalDisplayHotplugNote,
+            required: physicalDisplayHotplugPassed
+        )
 
         let parent = destination.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
@@ -385,7 +391,7 @@ enum RuntimeCompletionAudit {
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect/wake restored wallpaper windows on target displays.",
+                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, \(normalizedPhysicalDisplayHotplugEvent ?? "wake") restored wallpaper windows on target displays.",
                     operatorNote: normalizedPhysicalDisplayHotplugNote
                 )
                 : existing?.physicalDisplayHotplugSmoke ?? templatePhysicalDisplayEntry(),
@@ -417,6 +423,32 @@ enum RuntimeCompletionAudit {
         confirmed: \(confirmed)
         next: run --completion-audit --manual-smoke-evidence \(destination.path)
         """
+    }
+
+    private static func normalizePhysicalDisplayHotplugEvent(
+        _ event: String?,
+        note: String?,
+        required: Bool
+    ) throws -> String? {
+        guard required else { return nil }
+        let normalized = event?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let normalized, normalized.isEmpty == false else {
+            throw EngineError.invalidArgument(
+                "--confirm-physical-display-hotplug requires --physical-display-hotplug-event wake|reconnect"
+            )
+        }
+        guard ["wake", "reconnect"].contains(normalized) else {
+            throw EngineError.invalidArgument(
+                "--physical-display-hotplug-event must be wake or reconnect"
+            )
+        }
+        let foldedNote = note?.lowercased() ?? ""
+        guard foldedNote.contains(normalized) else {
+            throw EngineError.invalidArgument(
+                "--physical-display-hotplug-note must mention the selected \(normalized) event"
+            )
+        }
+        return normalized
     }
 
     private static func item(id: String, passed: Bool, evidence: String, risk: String) -> CompletionAuditRow {

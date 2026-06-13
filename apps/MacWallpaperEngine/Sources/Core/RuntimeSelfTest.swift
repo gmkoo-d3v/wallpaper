@@ -2184,6 +2184,7 @@ enum RuntimeSelfTest {
             EngineConfig.help.contains("--record-manual-smoke-evidence")
                 && EngineConfig.help.contains("--confirm-live-click-actions")
                 && EngineConfig.help.contains("--confirm-physical-display-hotplug")
+                && EngineConfig.help.contains("--physical-display-hotplug-event")
                 && EngineConfig.help.contains("--physical-display-hotplug-note")
                 && EngineConfig.help.contains("--confirm-black-frame-flicker"),
             "EngineConfig help must document manual smoke evidence recording"
@@ -2713,6 +2714,43 @@ enum RuntimeSelfTest {
             rejectedPhysicalHotplugWithoutNote,
             "manual smoke recorder must reject physical display hotplug pass without a concrete operator note"
         )
+        var rejectedPhysicalHotplugWithoutEvent = false
+        do {
+            _ = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+                to: packageOnlySmokeEvidenceURL,
+                packagedLaunchPassed: false,
+                liveClickActionsPassed: false,
+                physicalDisplayHotplugPassed: true,
+                blackFrameFlickerPassed: false,
+                physicalDisplayHotplugNote: "self-test wake restored selectedOnly selectedPolicy allFull display windows"
+            )
+        } catch {
+            rejectedPhysicalHotplugWithoutEvent = String(describing: error)
+                .contains("--physical-display-hotplug-event")
+        }
+        check(
+            rejectedPhysicalHotplugWithoutEvent,
+            "manual smoke recorder must reject physical display hotplug pass without an explicit wake/reconnect event"
+        )
+        var rejectedPhysicalHotplugEventNoteMismatch = false
+        do {
+            _ = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+                to: packageOnlySmokeEvidenceURL,
+                packagedLaunchPassed: false,
+                liveClickActionsPassed: false,
+                physicalDisplayHotplugPassed: true,
+                blackFrameFlickerPassed: false,
+                physicalDisplayHotplugEvent: "wake",
+                physicalDisplayHotplugNote: "self-test reconnect restored selectedOnly selectedPolicy allFull display windows"
+            )
+        } catch {
+            rejectedPhysicalHotplugEventNoteMismatch = String(describing: error)
+                .contains("must mention the selected wake event")
+        }
+        check(
+            rejectedPhysicalHotplugEventNoteMismatch,
+            "manual smoke recorder must reject physical display hotplug notes that do not mention the selected lifecycle event"
+        )
         let genericPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineGenericPhysicalSmoke-\(UUID().uuidString).json")
         let genericPhysicalHotplugEvidence = """
@@ -2795,6 +2833,7 @@ enum RuntimeSelfTest {
             liveClickActionsPassed: true,
             physicalDisplayHotplugPassed: true,
             blackFrameFlickerPassed: true,
+            physicalDisplayHotplugEvent: "reconnect",
             physicalDisplayHotplugNote: "self-test reconnect restored selectedOnly selectedPolicy allFull display windows"
         )
         let completionAuditWithRecordedManualEvidence = try RuntimeCompletionAudit.make(
