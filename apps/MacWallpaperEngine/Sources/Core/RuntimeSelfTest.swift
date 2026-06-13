@@ -2493,8 +2493,8 @@ enum RuntimeSelfTest {
         )
         check(
             bundleMatrix.contains("golden: pass fixtures: 3")
-                && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 2,
-            "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, and static-image samples"
+                && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 3,
+            "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, static-image, and effect samples"
         )
         check(
             occurrenceCount("installer: importable", in: bundleMatrix) == 4,
