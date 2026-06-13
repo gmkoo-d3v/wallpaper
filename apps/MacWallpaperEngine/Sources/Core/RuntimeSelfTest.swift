@@ -2551,6 +2551,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("tapPulse:pointer.down->spine.animation.pulse via trigger-play runtime-executable")
                 && completionAudit.contains("discovered=map-range+none+smooth-lookat+spring+trigger-play")
                 && completionAudit.contains("spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract)")
+                && completionAudit.contains("sample_trigger_play_spine=manifest-owned")
+                && completionAudit.contains("actions[pulse]")
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
                 && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)")
                 && completionAudit.contains("dynamicShaderLoading=forbidden")

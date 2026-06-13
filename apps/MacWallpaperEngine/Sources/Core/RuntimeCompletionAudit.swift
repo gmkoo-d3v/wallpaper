@@ -606,7 +606,11 @@ enum RuntimeCompletionAudit {
                 let declaredAssetIds = Set(declaredAssetIDs(manifest))
                 let layerRefs = Set(manifest.layers.map(\.asset))
                 let missingLayerRefs = layerRefs.subtracting(declaredAssetIds).sorted()
-                let actionNames = referencedInteractionActions(in: manifest.interactions).sorted()
+                let bindingTriggeredActions = DeclarativeBindingPlan(manifest: manifest)
+                    .triggerPlayBindings
+                    .map(\.target.id)
+                let actionNames = Set(referencedInteractionActions(in: manifest.interactions) + bindingTriggeredActions)
+                    .sorted()
                 let interactionText = interactionOwnershipText(manifest)
                 var checks: [String] = []
                 if manifest.layers.isEmpty {
