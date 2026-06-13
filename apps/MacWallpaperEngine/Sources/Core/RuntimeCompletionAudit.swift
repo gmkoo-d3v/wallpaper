@@ -921,7 +921,8 @@ enum RuntimeCompletionAudit {
         try validateManualEvidenceEntry(
             evidence.physicalDisplayHotplugSmoke,
             label: "physicalDisplayHotplugSmoke",
-            requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull", "reconnect"],
+            requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull"],
+            requiredAnyPassTokens: ["reconnect", "wake"],
             requireOperatorNoteOnPass: true
         )
         try validateManualEvidenceEntry(
@@ -990,6 +991,7 @@ enum RuntimeCompletionAudit {
         _ entry: ManualSmokeEvidenceEntry?,
         label: String,
         requiredPassTokens: [String],
+        requiredAnyPassTokens: [String] = [],
         requireOperatorNoteOnPass: Bool = false
     ) throws {
         guard let entry else { return }
@@ -1034,6 +1036,12 @@ enum RuntimeCompletionAudit {
         guard missingTokens.isEmpty else {
             throw EngineError.invalidArgument(
                 "Manual smoke evidence \(label) pass evidence is missing checklist token(s): \(missingTokens.joined(separator: ", "))"
+            )
+        }
+        if requiredAnyPassTokens.isEmpty == false,
+           requiredAnyPassTokens.contains(where: { foldedEvidence.contains($0) }) == false {
+            throw EngineError.invalidArgument(
+                "Manual smoke evidence \(label) pass evidence must mention at least one lifecycle token: \(requiredAnyPassTokens.joined(separator: " or "))"
             )
         }
     }

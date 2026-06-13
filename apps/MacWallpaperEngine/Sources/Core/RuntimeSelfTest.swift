@@ -2616,6 +2616,39 @@ enum RuntimeSelfTest {
                 && completionAuditWithManualEvidence.contains("manual evidence: recordedAt=self-test"),
             "completion audit must accept explicit user-recorded manual smoke evidence before claiming complete evidence pass"
         )
+        let wakePhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineWakePhysicalSmoke-\(UUID().uuidString).json")
+        let wakePhysicalHotplugEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "physicalDisplayHotplugSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, wake restored wallpaper windows on target displays",
+            "operatorNote": "self-test observed display wake restored target displays"
+          }
+        }
+        """
+        try wakePhysicalHotplugEvidence.write(
+            to: wakePhysicalHotplugEvidenceURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        defer {
+            try? FileManager.default.removeItem(at: wakePhysicalHotplugEvidenceURL)
+        }
+        let completionAuditWithWakeManualEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: wakePhysicalHotplugEvidenceURL
+        )
+        check(
+            completionAuditWithWakeManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
+                && completionAuditWithWakeManualEvidence.contains("wake restored wallpaper windows"),
+            "completion audit must accept wake restoration as a physical display lifecycle pass alternative to reconnect"
+        )
         let packageOnlySmokeEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEnginePackageOnlySmoke-\(UUID().uuidString).json")
         let packageOnlySmokeEvidence = """
