@@ -136,6 +136,7 @@ enum RuntimeCompletionAudit {
             bundles: bundles,
             manifestSchema: manifestSchema
         )
+        let declarativeSafetyBoundary = declarativeSafetyBoundaryEvidence(manifestSchema: manifestSchema)
         let genericSourceBoundary = try genericRuntimeSourceBoundaryEvidence(
             projectRoot: projectRoot,
             bundles: bundles
@@ -184,6 +185,12 @@ enum RuntimeCompletionAudit {
                 passed: whitelistEffectContract.passed,
                 evidence: whitelistEffectContract.evidence,
                 risk: "effects must remain engine-owned descriptors without dynamic shader loading or arbitrary code execution"
+            ),
+            item(
+                id: "declarative-safety-boundary",
+                passed: declarativeSafetyBoundary.passed,
+                evidence: declarativeSafetyBoundary.evidence,
+                risk: "declarative script/effect compatibility must not open executable layers, dynamic shaders, command/file/network sources, or non-engine targets"
             ),
             item(
                 id: "generic-runtime-source-boundary",
@@ -751,6 +758,78 @@ enum RuntimeCompletionAudit {
         )
     }
 
+    private static func declarativeSafetyBoundaryEvidence(
+        manifestSchema: [String: Any]
+    ) -> (passed: Bool, evidence: String) {
+        let layerTypes = schemaEnumValues(manifestSchema, definitionName: "layer", propertyName: "type")
+        let effectTypes = schemaEnumValues(manifestSchema, definitionName: "effect", propertyName: "type")
+        let bindingSources = schemaEnumValues(
+            manifestSchema,
+            definitionName: "declarativeBinding",
+            propertyName: "source"
+        )
+        let bindingAdapters = schemaEnumValues(
+            manifestSchema,
+            definitionName: "bindingAdapter",
+            propertyName: "type"
+        )
+        let bindingTargetPattern = schemaStringValue(
+            manifestSchema,
+            definitionName: "declarativeBinding",
+            propertyName: "target",
+            key: "pattern"
+        ) ?? ""
+
+        let expectedLayerTypes: Set<String> = ["static_image", "video", "spine"]
+        let expectedEffectTypes: Set<String> = [
+            EffectType.blur.rawValue,
+            EffectType.colorMatrix.rawValue,
+            EffectType.scroll.rawValue,
+            EffectType.chromaticAberration.rawValue
+        ]
+        let expectedBindingSources: Set<String> = [
+            BindingSource.pointerPosition.rawValue,
+            BindingSource.pointerDown.rawValue,
+            BindingSource.systemTime.rawValue,
+            BindingSource.thermalState.rawValue
+        ]
+        let expectedBindingAdapters: Set<String> = [
+            BindingAdapterType.smoothLookAt.rawValue,
+            BindingAdapterType.triggerPlay.rawValue,
+            BindingAdapterType.mapRange.rawValue,
+            BindingAdapterType.spring.rawValue
+        ]
+        let forbiddenLayerTypes: Set<String> = ["script", "web", "html", "executable"]
+        let forbiddenEffectTypes: Set<String> = ["shader", "customShader", "metal", "javascript", "lua"]
+        let forbiddenBindingSources: Set<String> = ["command", "file", "filesystem", "network", "process"]
+        let safeTargetPattern = bindingTargetPattern.contains("spine\\.bone\\.")
+            && bindingTargetPattern.contains("spine\\.animation\\.")
+            && bindingTargetPattern.contains("effect\\.")
+            && bindingTargetPattern.contains("^(")
+
+        let closedDefs = [
+            schemaAdditionalPropertiesFalse(manifestSchema, definitionName: "layer"),
+            schemaAdditionalPropertiesFalse(manifestSchema, definitionName: "effect"),
+            schemaAdditionalPropertiesFalse(manifestSchema, definitionName: "declarativeBinding"),
+            schemaAdditionalPropertiesFalse(manifestSchema, definitionName: "bindingAdapter")
+        ].allSatisfy { $0 }
+
+        let passed = closedDefs
+            && layerTypes == expectedLayerTypes
+            && effectTypes == expectedEffectTypes
+            && bindingSources == expectedBindingSources
+            && bindingAdapters == expectedBindingAdapters
+            && forbiddenLayerTypes.isDisjoint(with: layerTypes)
+            && forbiddenEffectTypes.isDisjoint(with: effectTypes)
+            && forbiddenBindingSources.isDisjoint(with: bindingSources)
+            && safeTargetPattern
+
+        return (
+            passed,
+            "schema=closed layerTypes=\(layerTypes.sorted().joined(separator: "+")) effectTypes=\(effectTypes.sorted().joined(separator: "+")) bindingSources=\(bindingSources.sorted().joined(separator: "+")) bindingAdapters=\(bindingAdapters.sorted().joined(separator: "+")) bindingTargetPattern=\(safeTargetPattern ? "engine-owned" : "unsafe") denied=script-layer+shader-effect+command-file-network-source"
+        )
+    }
+
     private static func schemaHasDefinitions(
         _ schema: [String: Any],
         propertyNames: [String],
@@ -760,6 +839,59 @@ enum RuntimeCompletionAudit {
         let defs = schema["$defs"] as? [String: Any] ?? [:]
         return propertyNames.allSatisfy { properties[$0] != nil }
             && definitionNames.allSatisfy { defs[$0] != nil }
+    }
+
+    private static func schemaEnumValues(
+        _ schema: [String: Any],
+        definitionName: String,
+        propertyName: String
+    ) -> Set<String> {
+        guard let property = schemaProperty(schema, definitionName: definitionName, propertyName: propertyName),
+              let values = property["enum"] as? [Any] else {
+            return []
+        }
+        return Set(values.compactMap { $0 as? String })
+    }
+
+    private static func schemaStringValue(
+        _ schema: [String: Any],
+        definitionName: String,
+        propertyName: String,
+        key: String
+    ) -> String? {
+        schemaProperty(schema, definitionName: definitionName, propertyName: propertyName)?[key] as? String
+    }
+
+    private static func schemaAdditionalPropertiesFalse(
+        _ schema: [String: Any],
+        definitionName: String
+    ) -> Bool {
+        guard let definition = schemaDefinition(schema, definitionName: definitionName) else {
+            return false
+        }
+        return (definition["additionalProperties"] as? Bool) == false
+    }
+
+    private static func schemaProperty(
+        _ schema: [String: Any],
+        definitionName: String,
+        propertyName: String
+    ) -> [String: Any]? {
+        guard let definition = schemaDefinition(schema, definitionName: definitionName),
+              let properties = definition["properties"] as? [String: Any] else {
+            return nil
+        }
+        return properties[propertyName] as? [String: Any]
+    }
+
+    private static func schemaDefinition(
+        _ schema: [String: Any],
+        definitionName: String
+    ) -> [String: Any]? {
+        guard let defs = schema["$defs"] as? [String: Any] else {
+            return nil
+        }
+        return defs[definitionName] as? [String: Any]
     }
 
     private static func genericRuntimeSourceBoundaryEvidence(
