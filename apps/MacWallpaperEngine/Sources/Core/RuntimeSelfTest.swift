@@ -2455,13 +2455,14 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains("sample_effect")
                 && bundleMatrix.contains("sample_binding_click")
                 && bundleMatrix.contains("sample_spring_effect")
+                && bundleMatrix.contains("sample_spring_spine")
                 && bundleMatrix.contains("sample_trigger_play_spine")
                 && bundleMatrix.contains("sample_spine_fallback")
                 && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
-            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, trigger-play Spine binding fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
+            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, pointer spring Spine fixture, trigger-play Spine binding fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
         )
         check(
-            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 8,
+            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 9,
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
@@ -2475,11 +2476,11 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, and unsupported Spine fallback bundles"
         )
         check(
-            occurrenceCount("doctor: pass", in: bundleMatrix) == 8,
+            occurrenceCount("doctor: pass", in: bundleMatrix) == 9,
             "bundle validation matrix must validate the combined runtime doctor report for every bundled renderer family"
         )
         check(
-            occurrenceCount("libraryReport: listed=8 invalid=0 capabilities", in: bundleMatrix) == 8,
+            occurrenceCount("libraryReport: listed=9 invalid=0 capabilities", in: bundleMatrix) == 9,
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
@@ -2514,6 +2515,14 @@ enum RuntimeSelfTest {
             "bundle validation matrix must expose pointer.position spring bindings to whitelist effects as manifest-owned runtime input"
         )
         check(
+            bundleMatrix.contains("sample_spring_spine")
+                && bundleMatrix.contains("interactions: pointerMove")
+                && bundleMatrix.contains("bindings: spring")
+                && bundleMatrix.contains("native: supported")
+                && bundleMatrix.contains("input: desktop-empty-best-effort"),
+            "bundle validation matrix must expose pointer.position spring bindings to Spine bones as manifest-owned runtime input"
+        )
+        check(
             bundleMatrix.contains("sample_trigger_play_spine")
                 && bundleMatrix.contains("bindings: trigger-play")
                 && bundleMatrix.contains("native: supported")
@@ -2526,7 +2535,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, static-image, and effect samples"
         )
         check(
-            occurrenceCount("installer: importable", in: bundleMatrix) == 8,
+            occurrenceCount("installer: importable", in: bundleMatrix) == 9,
             "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
         )
         let completionAudit = try RuntimeCompletionAudit.make(
@@ -2547,6 +2556,9 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("sample_spring_effect=bindings(spring)")
                 && completionAudit.contains("pointerSpringBlur:pointer.position->effect.softBlur.radius via spring runtime-executable")
+                && completionAudit.contains("sample_spring_spine=bindings(spring)")
+                && completionAudit.contains("pointerSpringRoot:pointer.position->spine.bone.root via spring runtime-executable")
+                && completionAudit.contains("requiredRuntimeAdapters=smooth-lookat:ok+trigger-play:ok+map-range:pointer-down-effect:ok+spring:effect:ok+spring:spine-bone:ok")
                 && completionAudit.contains("sample_trigger_play_spine=bindings(trigger-play)")
                 && completionAudit.contains("tapPulse:pointer.down->spine.animation.pulse via trigger-play runtime-executable")
                 && completionAudit.contains("discovered=map-range+none+smooth-lookat+spring+trigger-play")

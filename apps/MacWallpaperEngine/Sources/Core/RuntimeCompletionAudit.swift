@@ -646,17 +646,41 @@ enum RuntimeCompletionAudit {
         )
         let bindingKinds = Set(bundles.flatMap(\.capabilities.bindingKinds))
         var hasPointerDownEffectBinding = false
+        var hasTriggerPlayBinding = false
+        var hasSpringEffectBinding = false
+        var hasSpringBoneBinding = false
+        var hasSmoothLookAtBoneBinding = false
         let bundleEvidence = bundles.map { bundle in
             let planSummary: String
             do {
                 let manifest = try ManifestLoader.load(url: bundle.manifestURL, bundleRoot: bundle.root)
                 let plan = DeclarativeBindingPlan(manifest: manifest)
                 let entries = plan.bindingEntries.map(\.summary)
-                if entries.contains(where: {
-                    $0.contains("pointer.down->effect.")
-                        && $0.contains("runtime-executable")
-                }) {
-                    hasPointerDownEffectBinding = true
+                for entry in plan.bindingEntries where entry.runtimeStatus == .runtimeExecutable {
+                    if entry.source == .pointerDown,
+                       entry.target.kind == .effect,
+                       entry.adapter.type == .mapRange {
+                        hasPointerDownEffectBinding = true
+                    }
+                    if entry.source == .pointerDown,
+                       entry.target.kind == .spineAnimation,
+                       entry.adapter.type == .triggerPlay {
+                        hasTriggerPlayBinding = true
+                    }
+                    if entry.target.kind == .effect,
+                       entry.adapter.type == .spring {
+                        hasSpringEffectBinding = true
+                    }
+                    if entry.source == .pointerPosition,
+                       entry.target.kind == .spineBone,
+                       entry.adapter.type == .spring {
+                        hasSpringBoneBinding = true
+                    }
+                    if entry.source == .pointerPosition,
+                       entry.target.kind == .spineBone,
+                       entry.adapter.type == .smoothLookAt {
+                        hasSmoothLookAtBoneBinding = true
+                    }
                 }
                 planSummary = entries.isEmpty ? "none" : entries.joined(separator: ",")
             } catch {
@@ -664,9 +688,21 @@ enum RuntimeCompletionAudit {
             }
             return "\(bundle.id)=bindings(\(bundle.capabilities.bindingKinds.joined(separator: "+"))) entries[\(planSummary)]"
         }.joined(separator: "; ")
+        let requiredRuntimeAdapters = [
+            hasSmoothLookAtBoneBinding ? "smooth-lookat:ok" : "smooth-lookat:missing",
+            hasTriggerPlayBinding ? "trigger-play:ok" : "trigger-play:missing",
+            hasPointerDownEffectBinding ? "map-range:pointer-down-effect:ok" : "map-range:pointer-down-effect:missing",
+            hasSpringEffectBinding ? "spring:effect:ok" : "spring:effect:missing",
+            hasSpringBoneBinding ? "spring:spine-bone:ok" : "spring:spine-bone:missing"
+        ].joined(separator: "+")
         return (
-            schemaOK && hasPointerDownEffectBinding,
-            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
+            schemaOK
+                && hasPointerDownEffectBinding
+                && hasTriggerPlayBinding
+                && hasSpringEffectBinding
+                && hasSpringBoneBinding
+                && hasSmoothLookAtBoneBinding,
+            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract) requiredRuntimeAdapters=\(requiredRuntimeAdapters); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
         )
     }
 
