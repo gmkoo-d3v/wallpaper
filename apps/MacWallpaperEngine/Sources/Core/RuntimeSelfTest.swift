@@ -2524,6 +2524,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("interactions[pointerMove{")
                 && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=5 platformPolicy=4 unsupported=1); derivation(partial imported=13 calibrated=5 platformPolicy=4 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
+                && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+scroll")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
                 && completionAudit.contains("autoNative:true compositeDefault:false")
                 && completionAudit.contains("automated\tpass\tmulti-display-lifecycle")

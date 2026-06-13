@@ -97,6 +97,9 @@ enum RuntimeCompletionAudit {
         let assetFamilies = Set(bundles.flatMap { $0.capabilities.assetKinds })
         let layerFamilies = Set(bundles.flatMap { $0.capabilities.layerKinds })
         let interactionFamilies = Set(bundles.flatMap { $0.capabilities.interactionKinds })
+        let effectFamilies = Set(bundles.flatMap { bundle in
+            bundle.capabilities.effectKinds.filter { $0 != "none" }
+        })
         let interactiveSpineBundles = bundles.filter {
             isNativeSpinePlayable($0.capabilities)
                 && $0.capabilities.interactionKinds.contains("pointerMove")
@@ -107,6 +110,12 @@ enum RuntimeCompletionAudit {
                 && $0.capabilities.assetKinds.contains("spine") == false
         }
         let hasStatic = bundles.contains { $0.capabilities.assetKinds.contains("static") }
+        let hasWhitelistEffectFixture = effectFamilies.isSuperset(of: [
+            "blur",
+            "chromaticAberration",
+            "colorMatrix",
+            "scroll"
+        ])
         let hasDisplayModes = validationMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull")
         let hasDisplayRefresh = validationMatrix.contains("displayRefreshFps: primary120+secondary60")
         let hasPerformancePlan = validationMatrix.contains("performancePlan: target=")
@@ -187,9 +196,10 @@ enum RuntimeCompletionAudit {
                     && layerFamilies.isSuperset(of: ["static_image", "video", "spine"])
                     && hasVideoOnly
                     && hasStatic
+                    && hasWhitelistEffectFixture
                     && interactiveSpineBundles.isEmpty == false,
-                evidence: "assets=\(assetFamilies.sorted().joined(separator: "+")) layers=\(layerFamilies.sorted().joined(separator: "+")) interactiveSpine=\(interactiveSpineBundles.count)",
-                risk: "needs static, video-only, and interactive native-Spine fixtures"
+                evidence: "assets=\(assetFamilies.sorted().joined(separator: "+")) layers=\(layerFamilies.sorted().joined(separator: "+")) effects=\(effectFamilies.sorted().joined(separator: "+")) interactiveSpine=\(interactiveSpineBundles.count)",
+                risk: "needs static, video-only, interactive native-Spine, and whitelist effect fixtures"
             ),
             item(
                 id: "native-spine-default-fallback",
