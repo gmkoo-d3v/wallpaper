@@ -462,6 +462,19 @@ enum RuntimeCompletionAudit {
                 "--physical-display-hotplug-note must mention the selected \(normalized) event"
             )
         }
+        let missingModeTokens = ["selectedonly", "selectedpolicy", "allfull"].filter {
+            foldedNote.contains($0) == false
+        }
+        guard missingModeTokens.isEmpty else {
+            throw EngineError.invalidArgument(
+                "--physical-display-hotplug-note must mention checked display mode token(s): \(missingModeTokens.joined(separator: ", "))"
+            )
+        }
+        guard foldedNote.contains("restore") || foldedNote.contains("restored") else {
+            throw EngineError.invalidArgument(
+                "--physical-display-hotplug-note must mention restored wallpaper windows after \(normalized)"
+            )
+        }
         return normalized
     }
 

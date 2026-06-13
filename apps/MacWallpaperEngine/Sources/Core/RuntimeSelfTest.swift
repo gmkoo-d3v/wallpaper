@@ -2794,6 +2794,25 @@ enum RuntimeSelfTest {
             rejectedPhysicalHotplugEventNoteMismatch,
             "manual smoke recorder must reject physical display hotplug notes that do not mention the selected lifecycle event"
         )
+        var rejectedPhysicalHotplugUnderspecifiedNote = false
+        do {
+            _ = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+                to: packageOnlySmokeEvidenceURL,
+                packagedLaunchPassed: false,
+                liveClickActionsPassed: false,
+                physicalDisplayHotplugPassed: true,
+                blackFrameFlickerPassed: false,
+                physicalDisplayHotplugEvent: "wake",
+                physicalDisplayHotplugNote: "self-test wake restored display windows"
+            )
+        } catch {
+            rejectedPhysicalHotplugUnderspecifiedNote = String(describing: error)
+                .contains("checked display mode token")
+        }
+        check(
+            rejectedPhysicalHotplugUnderspecifiedNote,
+            "manual smoke recorder must reject physical display hotplug notes that omit selectedOnly/selectedPolicy/allFull observations"
+        )
         let genericPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineGenericPhysicalSmoke-\(UUID().uuidString).json")
         let genericPhysicalHotplugEvidence = """
