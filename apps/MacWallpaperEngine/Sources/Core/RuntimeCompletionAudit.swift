@@ -123,6 +123,7 @@ enum RuntimeCompletionAudit {
         let hasInstaller = validationMatrix.contains("installer: importable")
         let nativeDefaultFallback = try nativeDefaultFallbackEvidence(bundles: bundles)
         let unsupportedSpineFallback = try unsupportedSpineFallbackEvidence(bundles: bundles)
+        let unsupportedSpineFallbackTaxonomy = unsupportedSpineFallbackTaxonomyEvidence(bundles: bundles)
         let wallpaperBundleContract = wallpaperBundleContractEvidence(
             bundles: bundles,
             validationMatrix: validationMatrix
@@ -220,6 +221,12 @@ enum RuntimeCompletionAudit {
                 passed: unsupportedSpineFallback.passed,
                 evidence: unsupportedSpineFallback.evidence,
                 risk: "Unsupported Spine features must fail safely through explicit compatibility diagnostics and a declared compositeVideo fallback"
+            ),
+            item(
+                id: "unsupported-spine-fallback-taxonomy",
+                passed: unsupportedSpineFallbackTaxonomy.passed,
+                evidence: unsupportedSpineFallbackTaxonomy.evidence,
+                risk: "Unsupported native-Spine fallback cases must preserve the reason taxonomy so invalid fixture data, nonstandard blend modes, and missing renderer slices are not collapsed into one vague failure"
             ),
             item(
                 id: "interaction-compatibility",
@@ -522,6 +529,63 @@ enum RuntimeCompletionAudit {
             failures.isEmpty,
             failures.isEmpty ? evidence.joined(separator: "; ") : failures.joined(separator: "; ")
         )
+    }
+
+    private static func unsupportedSpineFallbackTaxonomyEvidence(
+        bundles: [WallpaperBundleSummary]
+    ) -> (passed: Bool, evidence: String) {
+        let candidates = bundles.filter {
+            $0.capabilities.nativeSpineStatus == "unsupported"
+                && $0.capabilities.fallbackStatus == "composite"
+                && $0.capabilities.assetKinds.contains("spine")
+                && $0.capabilities.assetKinds.contains("composite")
+        }
+        guard candidates.isEmpty == false else {
+            return (false, "no unsupported native-Spine fallback candidate found")
+        }
+
+        var evidence: [String] = []
+        var allClassified = true
+        for bundle in candidates {
+            let reasonText = bundle.capabilities.nativeSpineReasons.joined(separator: "; ")
+            let classes = unsupportedSpineReasonClasses(reasonText: reasonText)
+            let classText = classes.isEmpty ? "unclassified" : classes.sorted().joined(separator: "+")
+            if classes.isEmpty {
+                allClassified = false
+            }
+            evidence.append(
+                "\(bundle.id)=classes(\(classText)) reasons(\(oneLine(reasonText)))"
+            )
+        }
+
+        return (
+            allClassified,
+            evidence.joined(separator: "; ")
+        )
+    }
+
+    private static func unsupportedSpineReasonClasses(reasonText: String) -> Set<String> {
+        var classes = Set<String>()
+        if reasonText.contains("unsupported attachment types") {
+            classes.insert("attachment-type")
+        }
+        if reasonText.contains("unsupported blend modes") {
+            classes.insert("blend-mode")
+        }
+        if reasonText.contains("unsupported timeline keys") {
+            classes.insert("timeline")
+        }
+        if reasonText.contains("multi-bone") {
+            classes.insert("renderer-slice")
+        }
+        if reasonText.contains("missing-target")
+            || reasonText.contains("missing-target-slot")
+            || reasonText.contains("target-slot-without-path-attachment")
+            || reasonText.contains("unknown-target")
+            || reasonText.contains("unknown-bone") {
+            classes.insert("invalid-reference")
+        }
+        return classes
     }
 
     private static func unsupportedSpineFallbackEvidence(
