@@ -2451,29 +2451,30 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains(activeBundleID)
                 && bundleMatrix.contains("sample_video")
                 && bundleMatrix.contains("sample_static")
+                && bundleMatrix.contains("sample_effect")
                 && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
-            "bundle validation matrix must cover native Spine/video, video-only, static-image, and multi-display simulated render plans"
+            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, and multi-display simulated render plans"
         )
         check(
-            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 3,
+            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 4,
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
             bundleMatrix.contains("interactionPlan: active(desktop-empty-only+no-permission-best-effort)")
-                && occurrenceCount("interactionPlan: passive(no-interactions)", in: bundleMatrix) >= 2,
+                && occurrenceCount("interactionPlan: passive(no-interactions)", in: bundleMatrix) >= 3,
             "bundle validation matrix must validate active no-permission desktop interactions and passive no-interaction bundles"
         )
         check(
             bundleMatrix.contains("performancePlan: target=60 fallback=30 budgeted")
-                && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 2,
-            "bundle validation matrix must validate performance budget plans for native Spine, video-only, and static-image bundles"
+                && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 3,
+            "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, and effect fixture bundles"
         )
         check(
-            occurrenceCount("doctor: pass", in: bundleMatrix) == 3,
+            occurrenceCount("doctor: pass", in: bundleMatrix) == 4,
             "bundle validation matrix must validate the combined runtime doctor report for every bundled renderer family"
         )
         check(
-            occurrenceCount("libraryReport: listed=3 invalid=0 capabilities", in: bundleMatrix) == 3,
+            occurrenceCount("libraryReport: listed=4 invalid=0 capabilities", in: bundleMatrix) == 4,
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
@@ -2482,8 +2483,13 @@ enum RuntimeSelfTest {
             bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=5 platformPolicy=4 unsupported=1")
                 && bundleMatrixHasSourceProvenanceStatus
                 && bundleMatrix.contains("sourceDerivation: partial imported=13 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 platformPolicy=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
+        )
+        check(
+            bundleMatrix.contains("effects: scroll+colorMatrix+blur+chromaticAberration"),
+            "bundle validation matrix must expose the sample effect fixture capability rows"
         )
         check(
             bundleMatrix.contains("golden: pass fixtures: 3")
@@ -2491,7 +2497,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, and static-image samples"
         )
         check(
-            occurrenceCount("installer: importable", in: bundleMatrix) == 3,
+            occurrenceCount("installer: importable", in: bundleMatrix) == 4,
             "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
         )
         let completionAudit = try RuntimeCompletionAudit.make(
