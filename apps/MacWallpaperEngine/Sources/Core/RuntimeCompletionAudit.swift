@@ -716,12 +716,38 @@ enum RuntimeCompletionAudit {
             definitionNames: ["effect"]
         )
         let effectKinds = Set(bundles.flatMap(\.capabilities.effectKinds))
-        let bundleEvidence = bundles.map {
-            "\($0.id)=effects(\($0.capabilities.effectKinds.joined(separator: "+")))"
-        }.joined(separator: "; ")
+        let requiredEffects: Set<String> = [
+            EffectType.blur.rawValue,
+            EffectType.colorMatrix.rawValue,
+            EffectType.scroll.rawValue,
+            EffectType.chromaticAberration.rawValue
+        ]
+        var runtimeRenderedEffects = Set<String>()
+        var bundleEvidenceParts: [String] = []
+        for bundle in bundles {
+            let effectSummary: String
+            do {
+                let manifest = try ManifestLoader.load(url: bundle.manifestURL, bundleRoot: bundle.root)
+                let plan = DeclarativeBindingPlan(manifest: manifest)
+                for entry in plan.effectEntries where entry.runtimeStatus == .runtimeRendered {
+                    runtimeRenderedEffects.insert(entry.effectKind)
+                }
+                let entries = plan.effectEntries.map(\.summary)
+                effectSummary = entries.isEmpty ? "none" : entries.joined(separator: ",")
+            } catch {
+                effectSummary = "invalid(\(oneLine(String(describing: error))))"
+            }
+            bundleEvidenceParts.append(
+                "\(bundle.id)=effects(\(bundle.capabilities.effectKinds.joined(separator: "+"))) entries[\(effectSummary)]"
+            )
+        }
+        let missingRequiredEffects = requiredEffects.subtracting(runtimeRenderedEffects).sorted()
+        let requiredEffectStatus = requiredEffects.sorted().map {
+            runtimeRenderedEffects.contains($0) ? "\($0):ok" : "\($0):missing"
+        }.joined(separator: "+")
         return (
-            schemaOK,
-            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidence); discovered=\(effectKinds.sorted().joined(separator: "+"))"
+            schemaOK && missingRequiredEffects.isEmpty,
+            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered) requiredWhitelistEffects=\(requiredEffectStatus) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidenceParts.joined(separator: "; ")); discovered=\(effectKinds.sorted().joined(separator: "+"))"
         )
     }
 
