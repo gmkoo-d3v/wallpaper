@@ -6,20 +6,26 @@ struct InteractionHitResult {
     let zoneID: String
     let action: String
     let tapAction: String?
+    let rubAction: String?
     let trigger: HitZoneTrigger
     let tailSeconds: CFTimeInterval
     let tapTailSeconds: CFTimeInterval
+    let rubTailSeconds: CFTimeInterval
     let holdStartSeconds: CFTimeInterval
+    let rubStartDistance: CGFloat
 }
 
 struct InteractionHitZoneSummary {
     let id: String
     let action: String
     let tapAction: String?
+    let rubAction: String?
     let trigger: HitZoneTrigger
     let tailSeconds: CFTimeInterval
     let tapTailSeconds: CFTimeInterval
+    let rubTailSeconds: CFTimeInterval
     let holdStartSeconds: CFTimeInterval
+    let rubStartDistance: CGFloat
     let buttons: [PointerButton]
     let rect: [Double]
     let shape: String
@@ -32,7 +38,10 @@ struct InteractionHitZoneSummary {
         let tapText = tapAction.map {
             " tapAction=\($0) tapTail=\(String(format: "%.2fs", tapTailSeconds)) holdStart=\(String(format: "%.2fs", holdStartSeconds))"
         } ?? ""
-        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)"
+        let rubText = rubAction.map {
+            " rubAction=\($0) rubTail=\(String(format: "%.2fs", rubTailSeconds)) rubDistance=\(String(format: "%.3f", Double(rubStartDistance)))"
+        } ?? ""
+        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText)\(rubText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)"
     }
 }
 
@@ -201,10 +210,13 @@ struct InteractionPlan {
             zoneID: "binding:\(binding.id)",
             action: action,
             tapAction: nil,
+            rubAction: nil,
             trigger: .tap,
             tailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
             tapTailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
-            holdStartSeconds: 0
+            rubTailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
+            holdStartSeconds: 0,
+            rubStartDistance: 0.035
         )
     }
 
@@ -262,10 +274,13 @@ struct InteractionPlan {
                 zoneID: selected.id,
                 action: selected.action,
                 tapAction: selected.tapAction,
+                rubAction: selected.rubAction,
                 trigger: selected.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: selected),
                 tapTailSeconds: resolvedTapTailSeconds(for: selected),
-                holdStartSeconds: selected.holdStartSeconds ?? 0
+                rubTailSeconds: resolvedRubTailSeconds(for: selected),
+                holdStartSeconds: selected.holdStartSeconds ?? 0,
+                rubStartDistance: CGFloat(selected.rubStartDistance ?? 0.035)
             )
         }
         if let defaultAction = config.defaultAction {
@@ -275,10 +290,13 @@ struct InteractionPlan {
                 zoneID: "default",
                 action: defaultAction.action,
                 tapAction: nil,
+                rubAction: nil,
                 trigger: defaultAction.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: defaultAction),
                 tapTailSeconds: resolvedTailSeconds(for: defaultAction),
-                holdStartSeconds: 0
+                rubTailSeconds: resolvedTailSeconds(for: defaultAction),
+                holdStartSeconds: 0,
+                rubStartDistance: 0.035
             )
         }
         return nil
@@ -295,10 +313,13 @@ struct InteractionPlan {
                 id: hitZone.id,
                 action: hitZone.action,
                 tapAction: hitZone.tapAction,
+                rubAction: hitZone.rubAction,
                 trigger: hitZone.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: hitZone),
                 tapTailSeconds: resolvedTapTailSeconds(for: hitZone),
+                rubTailSeconds: resolvedRubTailSeconds(for: hitZone),
                 holdStartSeconds: hitZone.holdStartSeconds ?? 0,
+                rubStartDistance: CGFloat(hitZone.rubStartDistance ?? 0.035),
                 buttons: hitZone.buttons ?? interactionButtons,
                 rect: bounds(of: hitZone),
                 shape: shapeName(of: hitZone),
@@ -874,7 +895,10 @@ struct InteractionPlan {
         let tapText = hit.tapAction.map {
             " tapAction=\($0) tapTail=\(formatInteractionNumber(hit.tapTailSeconds)) holdStart=\(formatInteractionNumber(hit.holdStartSeconds))"
         } ?? ""
-        return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText) tail=\(formatInteractionNumber(hit.tailSeconds))"
+        let rubText = hit.rubAction.map {
+            " rubAction=\($0) rubTail=\(formatInteractionNumber(hit.rubTailSeconds)) rubDistance=\(formatInteractionNumber(Double(hit.rubStartDistance)))"
+        } ?? ""
+        return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText)\(rubText) tail=\(formatInteractionNumber(hit.tailSeconds))"
     }
 
     func clamp(_ point: CGPoint) -> CGPoint {
@@ -938,6 +962,17 @@ struct InteractionPlan {
         let declaredTail = hitZone.tapTailSeconds ?? defaultClickTailDuration
         guard let tapAction = hitZone.tapAction,
               let animationTail = actionTailDurations[tapAction],
+              animationTail.isFinite,
+              animationTail > 0 else {
+            return declaredTail
+        }
+        return max(declaredTail, animationTail)
+    }
+
+    private func resolvedRubTailSeconds(for hitZone: HitZone) -> CFTimeInterval {
+        let declaredTail = hitZone.rubTailSeconds ?? defaultClickTailDuration
+        guard let rubAction = hitZone.rubAction,
+              let animationTail = actionTailDurations[rubAction],
               animationTail.isFinite,
               animationTail > 0 else {
             return declaredTail

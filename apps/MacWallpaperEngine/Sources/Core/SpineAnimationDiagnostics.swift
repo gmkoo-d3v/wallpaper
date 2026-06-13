@@ -107,6 +107,9 @@ struct SpineAnimationDiagnostics {
                 if let tapAction = hitZone.tapAction {
                     names.append(tapAction)
                 }
+                if let rubAction = hitZone.rubAction {
+                    names.append(rubAction)
+                }
                 return names
             }
             if (interaction.defaultAction?.trigger ?? .tap) == .tap,
@@ -374,6 +377,9 @@ struct SpineAnimationDiagnostics {
                     references.append(ActionReference(action: zone.action, use: "pointerDown.\(zone.id).\(trigger)"))
                     if let tapAction = zone.tapAction {
                         references.append(ActionReference(action: tapAction, use: "pointerDown.\(zone.id).tapAction"))
+                    }
+                    if let rubAction = zone.rubAction {
+                        references.append(ActionReference(action: rubAction, use: "pointerDown.\(zone.id).rubAction"))
                     }
                 }
             }

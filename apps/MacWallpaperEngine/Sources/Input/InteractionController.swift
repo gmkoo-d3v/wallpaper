@@ -26,13 +26,19 @@ final class InteractionController {
     private var activeClickTailDuration: CFTimeInterval
     private var pressedHitAction: String?
     private var pressedHitTapAction: String?
+    private var pressedHitRubAction: String?
     private var pressedHitTrigger: HitZoneTrigger?
     private var pressedHitTailDuration: CFTimeInterval = 0
     private var pressedHitTapTailDuration: CFTimeInterval = 0
+    private var pressedHitRubTailDuration: CFTimeInterval = 0
     private var pressedHitHoldStartSeconds: CFTimeInterval = 0
+    private var pressedHitRubStartDistance: CGFloat = 0.035
     private var pressedHitHoldActivated = false
+    private var pressedHitRubActivated = false
     private var pressedButton: PointerButton?
     private var pressStartedAt: CFTimeInterval = 0
+    private var pressLastPoint = CGPoint(x: 0.5, y: 0.5)
+    private var pressTravelDistance: CGFloat = 0
     private let plan: InteractionPlan
     private let idleCommand: String
     private let clock: () -> CFTimeInterval
@@ -72,8 +78,8 @@ final class InteractionController {
         activateDelayedHoldIfNeededLocked(now: now)
         if let pressedHitAction,
            pressedHitTrigger == .hold,
-           pressedHitTapAction == nil || pressedHitHoldActivated {
-            clickCommandState = pressedHitAction
+           pressedHitTapAction == nil || pressedHitHoldActivated || pressedHitRubActivated {
+            clickCommandState = pressedHitRubActivated ? (pressedHitRubAction ?? pressedHitAction) : pressedHitAction
             clickCommandHeld = true
             clickCommandExpiresAt = now + releaseFadeDuration
         }
@@ -127,7 +133,11 @@ final class InteractionController {
             pointerState = plan.lookNeutralPoint()
             pointerInputActiveUntil = 0
         }
-        activateDelayedHoldLocked(now: now)
+        updatePressTravelLocked(to: pointer)
+        activateRubIfNeededLocked(now: now)
+        if pressedHitRubAction == nil {
+            activateDelayedHoldLocked(now: now)
+        }
         lock.unlock()
     }
 
@@ -140,14 +150,20 @@ final class InteractionController {
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
         pressStartedAt = now
+        pressLastPoint = pointer
+        pressTravelDistance = 0
         pressedButton = button
         pressedHitAction = hitResult?.action
         pressedHitTapAction = hitResult?.tapAction
+        pressedHitRubAction = hitResult?.rubAction
         pressedHitTrigger = hitResult?.trigger ?? .tap
         pressedHitTailDuration = hitResult?.tailSeconds ?? defaultClickTailDuration
         pressedHitTapTailDuration = hitResult?.tapTailSeconds ?? defaultClickTailDuration
+        pressedHitRubTailDuration = hitResult?.rubTailSeconds ?? defaultClickTailDuration
         pressedHitHoldStartSeconds = hitResult?.holdStartSeconds ?? 0
+        pressedHitRubStartDistance = hitResult?.rubStartDistance ?? 0.035
         pressedHitHoldActivated = false
+        pressedHitRubActivated = false
         clickCommandState = nil
         clickCommandHeld = false
         clickCommandExpiresAt = 0
@@ -200,12 +216,17 @@ final class InteractionController {
         }
         pressedHitAction = nil
         pressedHitTapAction = nil
+        pressedHitRubAction = nil
         pressedHitTrigger = nil
         pressedHitTailDuration = 0
         pressedHitTapTailDuration = 0
+        pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitRubStartDistance = 0.035
         pressedHitHoldActivated = false
+        pressedHitRubActivated = false
         pressedButton = nil
+        pressTravelDistance = 0
         pointerInputActiveUntil = now
         lock.unlock()
     }
@@ -224,12 +245,17 @@ final class InteractionController {
         clickCommandHeld = false
         pressedHitAction = nil
         pressedHitTapAction = nil
+        pressedHitRubAction = nil
         pressedHitTrigger = nil
         pressedHitTailDuration = 0
         pressedHitTapTailDuration = 0
+        pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitRubStartDistance = 0.035
         pressedHitHoldActivated = false
+        pressedHitRubActivated = false
         pressedButton = nil
+        pressTravelDistance = 0
         pointerInputActiveUntil = now
         lock.unlock()
     }
@@ -247,12 +273,17 @@ final class InteractionController {
         }
         pressedHitAction = nil
         pressedHitTapAction = nil
+        pressedHitRubAction = nil
         pressedHitTrigger = nil
         pressedHitTailDuration = 0
         pressedHitTapTailDuration = 0
+        pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitRubStartDistance = 0.035
         pressedHitHoldActivated = false
+        pressedHitRubActivated = false
         pressedButton = nil
+        pressTravelDistance = 0
         lock.unlock()
     }
 
@@ -287,6 +318,7 @@ final class InteractionController {
     private func activateDelayedHoldIfNeededLocked(now: CFTimeInterval) {
         guard pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
+              pressedHitRubActivated == false,
               pressedHitHoldActivated == false,
               now - pressStartedAt >= pressedHitHoldStartSeconds else {
             return
@@ -298,6 +330,7 @@ final class InteractionController {
         guard let pressedHitAction,
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
+              pressedHitRubActivated == false,
               pressedHitHoldActivated == false else {
             return
         }
@@ -305,6 +338,30 @@ final class InteractionController {
         clickCommandState = pressedHitAction
         clickCommandHeld = true
         activeClickTailDuration = pressedHitTailDuration
+        clickCommandExpiresAt = now + releaseFadeDuration
+    }
+
+    private func updatePressTravelLocked(to point: CGPoint) {
+        guard pressedButton != nil else { return }
+        let dx = point.x - pressLastPoint.x
+        let dy = point.y - pressLastPoint.y
+        pressTravelDistance += sqrt(dx * dx + dy * dy)
+        pressLastPoint = point
+    }
+
+    private func activateRubIfNeededLocked(now: CFTimeInterval) {
+        guard let pressedHitRubAction,
+              pressedHitTrigger == .hold,
+              pressedHitTapAction != nil,
+              pressedHitRubActivated == false,
+              pressTravelDistance >= pressedHitRubStartDistance else {
+            return
+        }
+        pressedHitRubActivated = true
+        pressedHitHoldActivated = false
+        clickCommandState = pressedHitRubAction
+        clickCommandHeld = true
+        activeClickTailDuration = pressedHitRubTailDuration
         clickCommandExpiresAt = now + releaseFadeDuration
     }
 
@@ -321,7 +378,10 @@ final class InteractionController {
         } else if let pressedHitAction, pressedHitTrigger == .hold {
             let releasedAction: String
             let releasedTail: CFTimeInterval
-            if let pressedHitTapAction, pressedHitHoldActivated == false {
+            if let pressedHitRubAction, pressedHitRubActivated {
+                releasedAction = pressedHitRubAction
+                releasedTail = pressedHitRubTailDuration
+            } else if let pressedHitTapAction, pressedHitHoldActivated == false {
                 releasedAction = pressedHitTapAction
                 releasedTail = pressedHitTapTailDuration
             } else {
@@ -335,12 +395,17 @@ final class InteractionController {
         }
         pressedHitAction = nil
         pressedHitTapAction = nil
+        pressedHitRubAction = nil
         pressedHitTrigger = nil
         pressedHitTailDuration = 0
         pressedHitTapTailDuration = 0
+        pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitRubStartDistance = 0.035
         pressedHitHoldActivated = false
+        pressedHitRubActivated = false
         pressedButton = nil
+        pressTravelDistance = 0
         if plan.allowsPointerMove(button: nil) == false {
             pointerState = plan.lookNeutralPoint()
             moveCommandState = idleCommand

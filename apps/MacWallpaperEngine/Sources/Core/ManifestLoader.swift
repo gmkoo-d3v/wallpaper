@@ -838,6 +838,9 @@ enum ManifestLoader {
         if let tapAction = hitZone.tapAction, tapAction.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) tapAction must not be empty")
         }
+        if let rubAction = hitZone.rubAction, rubAction.isEmpty {
+            throw EngineError.manifest("hitZone \(hitZone.id) rubAction must not be empty")
+        }
         let hasRect = hitZone.rect != nil
         let hasEllipse = hitZone.ellipse != nil
         guard hasRect != hasEllipse else {
@@ -884,11 +887,26 @@ enum ManifestLoader {
         if let tapTailSeconds = hitZone.tapTailSeconds {
             try validateInteractionDuration(tapTailSeconds, label: "hitZone \(hitZone.id) tapTailSeconds")
         }
+        if let rubTailSeconds = hitZone.rubTailSeconds {
+            try validateInteractionDuration(rubTailSeconds, label: "hitZone \(hitZone.id) rubTailSeconds")
+        }
         if let holdStartSeconds = hitZone.holdStartSeconds {
             try validateInteractionDuration(holdStartSeconds, label: "hitZone \(hitZone.id) holdStartSeconds")
         }
+        if let rubStartDistance = hitZone.rubStartDistance {
+            try validateFiniteNumber(
+                rubStartDistance,
+                label: "hitZone \(hitZone.id) rubStartDistance",
+                min: 0,
+                max: 1,
+                allowMin: false
+            )
+        }
         if hitZone.tapAction != nil, (hitZone.trigger ?? .tap) != .hold {
             throw EngineError.manifest("hitZone \(hitZone.id) tapAction requires trigger=hold")
+        }
+        if hitZone.rubAction != nil, (hitZone.trigger ?? .tap) != .hold {
+            throw EngineError.manifest("hitZone \(hitZone.id) rubAction requires trigger=hold")
         }
         if let buttons = hitZone.buttons, buttons.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")
@@ -1075,6 +1093,9 @@ enum ManifestLoader {
                 actions.insert($0.action)
                 if let tapAction = $0.tapAction {
                     actions.insert(tapAction)
+                }
+                if let rubAction = $0.rubAction {
+                    actions.insert(rubAction)
                 }
             }
             if let defaultAction = interaction.defaultAction {

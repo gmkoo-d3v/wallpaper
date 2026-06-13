@@ -786,7 +786,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=13 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=14 calibrated=9 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         check(
@@ -845,18 +845,18 @@ enum RuntimeSelfTest {
         let sourceManagedScriptStatusOK = (
             sourceProvenanceReport.contains("behaviorScripts=Assembly-CSharp:4")
                 && sourceProvenanceReport.contains("interactionOwner=SpineFaceTracker")
-                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=5")
+                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=9")
         ) || (
             sourceProvenanceReport.contains("scripts=Assembly-CSharp=4")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=5")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=9")
         )
         check(
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=13 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=14 calibrated=9 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceManagedScriptStatusOK
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceArchiveDescriptorStatusOK
@@ -864,8 +864,8 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("converter=unitypy-monoscript-index-v1")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("blockedFields=5")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=5")
+                && sourceProvenanceReport.contains("blockedFields=9")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=9")
                 && sourceProvenanceReport.contains("requiredCapabilities=unity-managed-method-behavior-import")
                 && sourceProvenanceReport.contains("methodBodyStatus=not-read")
                 && sourceProvenanceReport.contains("methodBodyRead=forbidden")
@@ -1776,6 +1776,9 @@ enum RuntimeSelfTest {
                 if let tapAction = $0.tapAction {
                     manifestActionNames.insert(tapAction)
                 }
+                if let rubAction = $0.rubAction {
+                    manifestActionNames.insert(rubAction)
+                }
             }
             if let defaultAction = interaction.defaultAction {
                 manifestActionNames.insert(defaultAction.action)
@@ -1920,20 +1923,47 @@ enum RuntimeSelfTest {
                     "interaction controller must keep initial click action \(shortTouchAction) visible after pointerUp for hit zone \(hitZone.id)"
                 )
                 if hitZone.tapAction != nil {
-                    var scratchClock: CFTimeInterval = 0
-                    let scratchController = InteractionController(
+                    var gestureClock: CFTimeInterval = 0
+                    let holdController = InteractionController(
                         interactions: manifest.interactions,
                         policy: manifest.interactionPolicy,
                         actionTailDurations: tapActionDurations,
-                        clock: { scratchClock }
+                        clock: { gestureClock }
                     )
-                    scratchController.pointerDown(at: center, button: acceptedButton)
-                    scratchController.pointerDragged(to: CGPoint(x: min(center.x + 0.01, 1.0), y: center.y), button: acceptedButton)
-                    scratchClock += 1.0 / 60.0
+                    holdController.pointerDown(at: center, button: acceptedButton)
+                    let jitterPoint = CGPoint(x: min(center.x + 0.01, 1.0), y: center.y)
+                    holdController.pointerDragged(to: jitterPoint, button: acceptedButton)
+                    let jitterSnapshot = holdController.snapshot()
                     check(
-                        scratchController.snapshot().command == hitZone.action,
-                        "interaction controller must promote hit zone \(hitZone.id) from tapAction to hold action \(hitZone.action) when the pointer rubs/drags"
+                        jitterSnapshot.command == shortTouchAction,
+                        "interaction controller must keep short-touch action \(shortTouchAction) for small pointer jitter before hold/rub thresholds"
                     )
+                    gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
+                    check(
+                        holdController.snapshot().command == hitZone.action,
+                        "interaction controller must promote hit zone \(hitZone.id) from tapAction to hold action \(hitZone.action) after holdStartSeconds"
+                    )
+                    if let rubAction = hitZone.rubAction {
+                        gestureClock = 0
+                        let rubController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        let rubDelta = hitZone.rubStartDistance + 0.02
+                        let rubPoint = CGPoint(
+                            x: center.x + rubDelta <= 1.0 ? center.x + rubDelta : max(center.x - rubDelta, 0.0),
+                            y: center.y
+                        )
+                        rubController.pointerDown(at: center, button: acceptedButton)
+                        rubController.pointerDragged(to: rubPoint, button: acceptedButton)
+                        gestureClock += 1.0 / 60.0
+                        check(
+                            rubController.snapshot().command == rubAction,
+                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) only after pointer travel exceeds rubStartDistance"
+                        )
+                    }
                 }
                 let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
                     .right
@@ -2109,6 +2139,7 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"nativeSpineTransitionSeconds\"")
                 && manifestSchemaText.contains("\"physicsIdlePolicy\"")
                 && manifestSchemaText.contains("\"tapAction\"")
+                && manifestSchemaText.contains("\"rubAction\"")
                 && manifestSchemaText.contains("\"semi-implicit-euler\"")
                 && manifestSchemaText.contains("\"stiffness\""),
             "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
@@ -2486,9 +2517,9 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=5 platformPolicy=4 unsupported=1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=14 calibrated=9 platformPolicy=4 unsupported=1")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=13 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=14 calibrated=9 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=5 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=3 calibrated=0 platformPolicy=0 unsupported=0")
@@ -2585,7 +2616,7 @@ enum RuntimeSelfTest {
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("sample_imported=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=5 platformPolicy=4 unsupported=1); derivation(partial imported=13 calibrated=5 platformPolicy=4 unsupported=1")
+                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=14 calibrated=9 platformPolicy=4 unsupported=1); derivation(partial imported=14 calibrated=9 platformPolicy=4 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+scroll")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
@@ -4382,10 +4413,13 @@ enum RuntimeSelfTest {
                             ellipse: nil,
                             action: "boll",
                             tapAction: nil,
+                            rubAction: nil,
                             trigger: .tap,
                             tailSeconds: 0.5,
                             tapTailSeconds: nil,
+                            rubTailSeconds: nil,
                             holdStartSeconds: nil,
+                            rubStartDistance: nil,
                             buttons: [.left],
                             priority: 0
                         ),
@@ -4395,10 +4429,13 @@ enum RuntimeSelfTest {
                             ellipse: nil,
                             action: "act",
                             tapAction: nil,
+                            rubAction: nil,
                             trigger: .hold,
                             tailSeconds: 1.15,
                             tapTailSeconds: nil,
+                            rubTailSeconds: nil,
                             holdStartSeconds: nil,
+                            rubStartDistance: nil,
                             buttons: [.left],
                             priority: 10
                         )
@@ -8230,6 +8267,38 @@ enum RuntimeSelfTest {
                 }
                 """,
                 "physics:invalid-shape"
+            ),
+            (
+                """
+                {
+                  "skeleton": { "spine": "4.2.43" },
+                  "bones": [
+                    { "name": "root" },
+                    { "name": "hair", "parent": "root" }
+                  ],
+                  "physics": [
+                    { "name": "hair", "bone": "hair", "damping": "nan" }
+                  ],
+                  "animations": { "idle": {} }
+                }
+                """,
+                "physics/hair:invalid-number=damping"
+            ),
+            (
+                """
+                {
+                  "skeleton": { "spine": "4.2.43" },
+                  "bones": [
+                    { "name": "root" },
+                    { "name": "hair", "parent": "root" }
+                  ],
+                  "physics": [
+                    { "name": "hair", "bone": "hair", "damping": -0.5 }
+                  ],
+                  "animations": { "idle": {} }
+                }
+                """,
+                "physics/hair:invalid-range=damping"
             )
         ]
         for invalidPhysicsCase in invalidPhysicsCases {

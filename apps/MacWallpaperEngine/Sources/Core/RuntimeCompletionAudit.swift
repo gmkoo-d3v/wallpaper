@@ -1062,7 +1062,7 @@ enum RuntimeCompletionAudit {
                     }
                 }
                 for zone in interaction.hitZones ?? [] {
-                    for token in [zone.id, zone.action, zone.tapAction].compactMap({ $0 }) where token.count >= 4 {
+                    for token in [zone.id, zone.action, zone.tapAction, zone.rubAction].compactMap({ $0 }) where token.count >= 4 {
                         if genericInteractionTokens.contains(token) == false {
                             tokens.insert(token)
                         }
@@ -1095,6 +1095,9 @@ enum RuntimeCompletionAudit {
                 actions.insert($0.action)
                 if let tapAction = $0.tapAction {
                     actions.insert(tapAction)
+                }
+                if let rubAction = $0.rubAction {
+                    actions.insert(rubAction)
                 }
             }
             if let defaultAction = interaction.defaultAction {
@@ -1167,7 +1170,10 @@ enum RuntimeCompletionAudit {
                 .joined(separator: ",") ?? "none"
             let zoneText = plan.hitZoneSummaries().map { zone in
                 if let tapAction = zone.tapAction {
-                    return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))"
+                    let rubText = zone.rubAction.map {
+                        ",rub=\($0)@distance\(String(format: "%.3f", Double(zone.rubStartDistance)))"
+                    } ?? ""
+                    return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))\(rubText)"
                 }
                 return "\(zone.id):\(zone.trigger.rawValue)=\(zone.action)"
             }.joined(separator: ",")

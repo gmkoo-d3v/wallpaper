@@ -1366,6 +1366,8 @@ private struct SpineFeatureScan {
                     unsupportedConstraintUsages.insert("physics/\(name):missing-name-or-bone")
                 } else if boneNames.contains(boneName) == false {
                     unsupportedConstraintUsages.insert("physics/\(name):unknown-bone=\(boneName)")
+                } else if let invalidNumericReason = invalidPhysicsNumericReason(constraint, name: name) {
+                    unsupportedConstraintUsages.insert(invalidNumericReason)
                 } else {
                     // Valid physics constraints are parsed and applied by the renderer, but only as a bounded subset.
                     degradedConstraintUsages.insert("physics/\(name):subset-runtime")
@@ -1408,6 +1410,57 @@ private struct SpineFeatureScan {
     private func namedConstraint(_ constraint: [String: Any]) -> String {
         let name = constraint["name"] as? String ?? "unnamed"
         return name.isEmpty ? "unnamed" : name
+    }
+
+    private func invalidPhysicsNumericReason(_ constraint: [String: Any], name: String) -> String? {
+        let numericKeys = [
+            "x",
+            "y",
+            "rotate",
+            "scaleX",
+            "shearX",
+            "limit",
+            "fps",
+            "mass",
+            "inertia",
+            "strength",
+            "damping",
+            "wind",
+            "gravity",
+            "mix"
+        ]
+        for key in numericKeys where constraint[key] != nil {
+            guard let value = finiteNumber(constraint[key]) else {
+                return "physics/\(name):invalid-number=\(key)"
+            }
+            if key == "damping", value < 0 {
+                return "physics/\(name):invalid-range=damping"
+            }
+        }
+        return nil
+    }
+
+    private func finiteNumber(_ raw: Any?) -> Double? {
+        if isJSONBoolean(raw) { return nil }
+        let value: Double?
+        if let raw = raw as? Double {
+            value = raw
+        } else if let raw = raw as? Int {
+            value = Double(raw)
+        } else if let raw = raw as? NSNumber {
+            value = raw.doubleValue
+        } else if let raw = raw as? String {
+            value = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            value = nil
+        }
+        guard let value, value.isFinite else { return nil }
+        return value
+    }
+
+    private func isJSONBoolean(_ raw: Any?) -> Bool {
+        guard let number = raw as? NSNumber else { return false }
+        return CFGetTypeID(number) == CFBooleanGetTypeID()
     }
 
     private func normalizedMode(_ value: Any?, default defaultValue: String) -> String {

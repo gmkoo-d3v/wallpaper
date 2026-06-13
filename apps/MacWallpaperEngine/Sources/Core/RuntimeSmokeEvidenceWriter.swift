@@ -235,6 +235,14 @@ enum RuntimeSmokeEvidenceWriter {
                     isEmptyClick: false
                 ))
             }
+            if let rubAction = zone.rubAction {
+                expectations.append(LiveInteractionExpectation(
+                    id: "zone:\(zone.id):rub:\(rubAction)",
+                    zoneID: zone.id,
+                    action: rubAction,
+                    isEmptyClick: false
+                ))
+            }
             expectations.append(LiveInteractionExpectation(
                 id: "zone:\(zone.id):action:\(zone.action)",
                 zoneID: zone.id,

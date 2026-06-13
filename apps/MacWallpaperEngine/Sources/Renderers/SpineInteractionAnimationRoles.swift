@@ -54,6 +54,9 @@ enum SpineInteractionAnimationRoles {
             interaction.hitZones?
                 .compactMap(\.tapAction)
                 .forEach { names.insert($0) }
+            interaction.hitZones?
+                .compactMap(\.rubAction)
+                .forEach { names.insert($0) }
         }
         DeclarativeBindingPlan(manifest: manifest).triggerPlayBindings
             .forEach { names.insert($0.target.id) }

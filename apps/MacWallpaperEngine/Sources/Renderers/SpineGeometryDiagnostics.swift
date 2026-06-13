@@ -290,6 +290,9 @@ struct SpineGeometryDiagnostics {
                 if let tapAction = $0.tapAction {
                     names.insert(tapAction)
                 }
+                if let rubAction = $0.rubAction {
+                    names.insert(rubAction)
+                }
             }
             if let defaultAction = interaction.defaultAction {
                 names.insert(defaultAction.action)
