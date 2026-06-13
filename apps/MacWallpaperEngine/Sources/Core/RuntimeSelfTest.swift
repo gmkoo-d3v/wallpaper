@@ -4717,6 +4717,33 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let unsafeShaderEffectRoot = fixtureParent.appendingPathComponent("unsafe_shader_effect_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: unsafeShaderEffectRoot,
+            imageSource: sourceImage,
+            id: "unsafe_shader_effect_bundle",
+            title: "Unsafe Shader Effect Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "dynamicShader",
+              "type": "shader",
+              "properties": {
+                "source": "kernel.metal"
+              }
+            }
+          ],
+"""
+        )
+        let unsafeShaderEffectDiagnostic = WallpaperBundleCatalog.diagnoseBundle(unsafeShaderEffectRoot)
+        check(
+            unsafeShaderEffectDiagnostic.status == .invalid
+                && (unsafeShaderEffectDiagnostic.errorMessage?.contains("Schema enum mismatch at $.effects[0].type") == true),
+            "bundle diagnostics must reject dynamic shader effect types before renderer dispatch",
+            failures: &failures,
+            checks: &checks
+        )
+
         let invalidLoopRangeRoot = fixtureParent.appendingPathComponent("invalid_loop_range_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: invalidLoopRangeRoot,
@@ -5066,6 +5093,28 @@ enum RuntimeSelfTest {
             permissiveLayerDiagnostic.status == .invalid
                 && (permissiveLayerDiagnostic.errorMessage?.contains("rejectUnknownLayerTypes") == true),
             "bundle validation must require rejectUnknownLayerTypes=true for deterministic renderer dispatch",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let unsafeScriptLayerRoot = fixtureParent.appendingPathComponent("unsafe_script_layer_bundle", isDirectory: true)
+        let unsafeScriptLayerManifest = try writeStaticImageBundleFixture(
+            root: unsafeScriptLayerRoot,
+            imageSource: sourceImage,
+            id: "unsafe_script_layer_bundle",
+            title: "Unsafe Script Layer Bundle"
+        )
+        var unsafeScriptLayerJSON = try String(contentsOf: unsafeScriptLayerManifest)
+        unsafeScriptLayerJSON = unsafeScriptLayerJSON.replacingOccurrences(
+            of: "\"type\": \"static_image\"",
+            with: "\"type\": \"script\""
+        )
+        try Data(unsafeScriptLayerJSON.utf8).write(to: unsafeScriptLayerManifest, options: .atomic)
+        let unsafeScriptLayerDiagnostic = WallpaperBundleCatalog.diagnoseBundle(unsafeScriptLayerRoot)
+        check(
+            unsafeScriptLayerDiagnostic.status == .invalid
+                && (unsafeScriptLayerDiagnostic.errorMessage?.contains("Schema enum mismatch at $.layers[0].type") == true),
+            "bundle diagnostics must reject executable script layer types before renderer dispatch",
             failures: &failures,
             checks: &checks
         )
