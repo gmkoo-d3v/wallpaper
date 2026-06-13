@@ -122,6 +122,7 @@ enum RuntimeCompletionAudit {
         let hasGolden = validationMatrix.contains("golden: pass")
         let hasInstaller = validationMatrix.contains("installer: importable")
         let nativeDefaultFallback = try nativeDefaultFallbackEvidence(bundles: bundles)
+        let unsupportedSpineFallback = try unsupportedSpineFallbackEvidence(bundles: bundles)
         let wallpaperBundleContract = wallpaperBundleContractEvidence(
             bundles: bundles,
             validationMatrix: validationMatrix
@@ -206,6 +207,12 @@ enum RuntimeCompletionAudit {
                 passed: nativeDefaultFallback.passed,
                 evidence: nativeDefaultFallback.evidence,
                 risk: "Native-supported interactive wallpapers must not silently default to the lower-quality composite fallback"
+            ),
+            item(
+                id: "unsupported-spine-composite-fallback",
+                passed: unsupportedSpineFallback.passed,
+                evidence: unsupportedSpineFallback.evidence,
+                risk: "Unsupported Spine features must fail safely through explicit compatibility diagnostics and a declared compositeVideo fallback"
             ),
             item(
                 id: "interaction-compatibility",
@@ -469,6 +476,50 @@ enum RuntimeCompletionAudit {
             }
             evidence.append(
                 "\(bundle.id)=autoNative:\(usesNativeSpine) compositeDefault:\(usesCompositeAsDefault) fallback:\(fpsFallbackOnly ? "fps-only" : "unexpected") compositeQuality:\(quality.summaryLine)"
+            )
+        }
+
+        return (
+            failures.isEmpty,
+            failures.isEmpty ? evidence.joined(separator: "; ") : failures.joined(separator: "; ")
+        )
+    }
+
+    private static func unsupportedSpineFallbackEvidence(
+        bundles: [WallpaperBundleSummary]
+    ) throws -> (passed: Bool, evidence: String) {
+        let candidates = bundles.filter {
+            $0.capabilities.nativeSpineStatus == "unsupported"
+                && $0.capabilities.fallbackStatus == "composite"
+                && $0.capabilities.assetKinds.contains("spine")
+                && $0.capabilities.assetKinds.contains("composite")
+        }
+        guard candidates.isEmpty == false else {
+            return (false, "no unsupported native-Spine bundle with composite fallback found")
+        }
+
+        var failures: [String] = []
+        var evidence: [String] = []
+        for bundle in candidates {
+            let config = try EngineConfig.parse([
+                "--wallpaper-root", bundle.root.path,
+                "--manifest", bundle.manifestURL.path,
+                "--foreground-mode", ForegroundRenderMode.automatic.rawValue,
+                "--display-mode", DisplayMode.primaryOnly.cliName,
+                "--render-plan"
+            ])
+            let runtime = try NativeRuntimeCore(config: config)
+            let renderSummary = DisplayPlanner.headlessRenderSummary(runtime: runtime)
+            let usesCompositeFallback = renderSummary.contains("foreground=compositeVideo(auto)")
+                && renderSummary.contains("fallback=auto->compositeVideo")
+            let reportsUnsupported = renderSummary.contains("nativeCompatibility: unsupported")
+            if usesCompositeFallback == false || reportsUnsupported == false {
+                failures.append(
+                    "\(bundle.id) unsupported native Spine did not select composite fallback: \(oneLine(renderSummary))"
+                )
+            }
+            evidence.append(
+                "\(bundle.id)=nativeUnsupported:true fallback:composite autoComposite:\(usesCompositeFallback) diagnostics:\(reportsUnsupported)"
             )
         }
 

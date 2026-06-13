@@ -2452,11 +2452,12 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains("sample_video")
                 && bundleMatrix.contains("sample_static")
                 && bundleMatrix.contains("sample_effect")
+                && bundleMatrix.contains("sample_spine_fallback")
                 && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
-            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, and multi-display simulated render plans"
+            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
         )
         check(
-            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 4,
+            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) == 5,
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
@@ -2466,15 +2467,15 @@ enum RuntimeSelfTest {
         )
         check(
             bundleMatrix.contains("performancePlan: target=60 fallback=30 budgeted")
-                && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 3,
-            "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, and effect fixture bundles"
+                && occurrenceCount("performancePlan: target=30 fallback=15 budgeted", in: bundleMatrix) >= 4,
+            "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, effect fixture, and unsupported Spine fallback bundles"
         )
         check(
-            occurrenceCount("doctor: pass", in: bundleMatrix) == 4,
+            occurrenceCount("doctor: pass", in: bundleMatrix) == 5,
             "bundle validation matrix must validate the combined runtime doctor report for every bundled renderer family"
         )
         check(
-            occurrenceCount("libraryReport: listed=4 invalid=0 capabilities", in: bundleMatrix) == 4,
+            occurrenceCount("libraryReport: listed=5 invalid=0 capabilities", in: bundleMatrix) == 5,
             "bundle validation matrix must validate the bundle library list report and capability rows"
         )
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
@@ -2484,6 +2485,7 @@ enum RuntimeSelfTest {
                 && bundleMatrixHasSourceProvenanceStatus
                 && bundleMatrix.contains("sourceDerivation: partial imported=13 calibrated=5 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
+                && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=5 calibrated=0 platformPolicy=0 unsupported=0")
                 && occurrenceCount("source: sample runtime=native project=test-fixture descriptors=0 imported=2 calibrated=0 platformPolicy=0 unsupported=0", in: bundleMatrix) >= 2,
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
@@ -2497,7 +2499,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, static-image, and effect samples"
         )
         check(
-            occurrenceCount("installer: importable", in: bundleMatrix) == 4,
+            occurrenceCount("installer: importable", in: bundleMatrix) == 5,
             "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
         )
         let completionAudit = try RuntimeCompletionAudit.make(
@@ -2527,6 +2529,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+scroll")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
                 && completionAudit.contains("autoNative:true compositeDefault:false")
+                && completionAudit.contains("automated\tpass\tunsupported-spine-composite-fallback")
+                && completionAudit.contains("sample_spine_fallback=nativeUnsupported:true fallback:composite autoComposite:true diagnostics:true")
                 && completionAudit.contains("automated\tpass\tmulti-display-lifecycle")
                 && completionAudit.contains("automated\tpass\tperformance-budget")
                 && completionAudit.contains("manual\tmanual\tlive-desktop-click-actions")
