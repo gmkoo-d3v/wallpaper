@@ -492,6 +492,17 @@ struct InteractionPlan {
                     actionTailDurations: actionTailDurations,
                     declarativePlan: declarativePlan
                 ))
+                if zone.tapAction != nil || zone.rubAction != nil {
+                    lines.append(Self.gestureProbeText(
+                        zone: zone,
+                        point: center,
+                        button: probeButton,
+                        interactions: interactions,
+                        policy: policy,
+                        actionTailDurations: actionTailDurations,
+                        declarativePlan: declarativePlan
+                    ))
+                }
             }
         }
         if let defaultAction {
@@ -800,6 +811,82 @@ struct InteractionPlan {
                 "expired@\(formatInteractionNumber(holdSampleTime + safeTail + 0.10))=\(snapshotText(expired))"
             ].joined(separator: " ")
         }
+    }
+
+    private static func gestureProbeText(
+        zone: InteractionHitZoneSummary,
+        point: CGPoint,
+        button: PointerButton,
+        interactions: [InteractionConfig],
+        policy: InteractionPolicy?,
+        actionTailDurations: [String: CFTimeInterval],
+        declarativePlan: DeclarativeBindingPlan?
+    ) -> String {
+        let tapClock = InteractionDiagnosticClock()
+        let tapController = InteractionController(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
+            clock: tapClock.now
+        )
+        tapController.pointerDown(at: point, button: button)
+        let tapDown = tapController.snapshot()
+        tapClock.time = 0.016
+        tapController.pointerUp(at: point, button: button)
+        let tapUp = tapController.snapshot()
+
+        let holdClock = InteractionDiagnosticClock()
+        let holdController = InteractionController(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
+            clock: holdClock.now
+        )
+        holdController.pointerDown(at: point, button: button)
+        let preHoldSampleTime = max(0.016, min(max(zone.holdStartSeconds - 0.05, 0.016), zone.holdStartSeconds))
+        holdClock.time = preHoldSampleTime
+        let preHold = holdController.snapshot()
+        let holdSampleTime = max(0.10, zone.holdStartSeconds + 0.05)
+        holdClock.time = holdSampleTime
+        let held = holdController.snapshot()
+        holdController.pointerUp(at: point, button: button)
+        let holdUp = holdController.snapshot()
+
+        let rubDelta = max(zone.rubStartDistance + 0.02, 0.02)
+        let rubPoint = CGPoint(
+            x: point.x + rubDelta <= 1.0 ? point.x + rubDelta : max(point.x - rubDelta, 0.0),
+            y: point.y
+        )
+        let rubClock = InteractionDiagnosticClock()
+        let rubController = InteractionController(
+            interactions: interactions,
+            policy: policy,
+            actionTailDurations: actionTailDurations,
+            declarativePlan: declarativePlan,
+            clock: rubClock.now
+        )
+        rubController.pointerDown(at: point, button: button)
+        rubController.pointerDragged(to: rubPoint, button: button)
+        let rubDragged = rubController.snapshot()
+        rubController.pointerUp(at: rubPoint, button: button)
+        let rubUp = rubController.snapshot()
+
+        return [
+            "gestureProbe: \(zone.id)",
+            "button=\(button.rawValue)",
+            "tap=\(zone.tapAction ?? "none")",
+            "hold=\(zone.action)@\(formatInteractionNumber(zone.holdStartSeconds))s",
+            "rub=\(zone.rubAction ?? "none")@distance\(formatInteractionNumber(Double(zone.rubStartDistance)))",
+            "tapDown@0.000=\(snapshotText(tapDown))",
+            "tapUp@0.016=\(snapshotText(tapUp))",
+            "preHold@\(formatInteractionNumber(preHoldSampleTime))=\(snapshotText(preHold))",
+            "held@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(held))",
+            "holdUp@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(holdUp))",
+            "rubDrag@distance\(formatInteractionNumber(Double(rubDelta)))=\(snapshotText(rubDragged))",
+            "rubUp=\(snapshotText(rubUp))"
+        ].joined(separator: " ")
     }
 
     private static func coordinateProbeLines(
