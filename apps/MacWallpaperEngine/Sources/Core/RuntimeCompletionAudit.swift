@@ -389,12 +389,20 @@ enum RuntimeCompletionAudit {
         liveClickActionsPassed: Bool,
         physicalDisplayHotplugPassed: Bool,
         blackFrameFlickerPassed: Bool,
+        liveClickActionsNote: String? = nil,
         physicalDisplayHotplugEvent: String? = nil,
         physicalDisplayHotplugNote: String? = nil
     ) throws -> String {
         guard packagedLaunchPassed || liveClickActionsPassed || physicalDisplayHotplugPassed || blackFrameFlickerPassed else {
             throw EngineError.invalidArgument(
                 "At least one manual smoke confirmation flag is required: --confirm-packaged-launch, --confirm-live-click-actions, --confirm-physical-display-hotplug, or --confirm-black-frame-flicker"
+            )
+        }
+        let normalizedLiveClickActionsNote = liveClickActionsNote?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if liveClickActionsPassed && (normalizedLiveClickActionsNote?.isEmpty ?? true) {
+            throw EngineError.invalidArgument(
+                "--confirm-live-click-actions requires --live-click-actions-note <observed tap, hold, rub, empty-click, and gaze behavior>"
             )
         }
         let normalizedPhysicalDisplayHotplugNote = physicalDisplayHotplugNote?
@@ -430,6 +438,7 @@ enum RuntimeCompletionAudit {
                 ? passEntry(
                     recordedAt: recordedAt,
                     evidence: "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(liveInteractionProtocol)",
+                    operatorNote: normalizedLiveClickActionsNote,
                     protocolText: liveInteractionProtocol
                 )
                 : existing?.liveDesktopClickActions ?? templateLiveClickEntry(protocolText: liveInteractionProtocol),
@@ -1314,14 +1323,17 @@ enum RuntimeCompletionAudit {
         try validateManualEvidenceEntry(
             evidence.liveDesktopClickActions,
             label: "liveDesktopClickActions",
-            requiredPassTokens: ["click", "gaze"]
+            requiredPassTokens: ["click", "gaze", "tap", "hold", "rub", "empty"],
+            requireOperatorNoteOnPass: true,
+            operatorNoteSubject: "live click/gaze tap, hold, rub, empty-click, and gaze observations"
         )
         try validateManualEvidenceEntry(
             evidence.physicalDisplayHotplugSmoke,
             label: "physicalDisplayHotplugSmoke",
             requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull"],
             requiredAnyPassTokens: ["reconnect", "wake"],
-            requireOperatorNoteOnPass: true
+            requireOperatorNoteOnPass: true,
+            operatorNoteSubject: "the observed physical display event"
         )
         try validateManualEvidenceEntry(
             evidence.blackFrameFlickerSmoke,
@@ -1366,7 +1378,7 @@ enum RuntimeCompletionAudit {
             passed: false,
             evidence: "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            operatorNote: "Required before live-desktop-click-actions can pass.",
+            operatorNote: "Required before live-desktop-click-actions can pass: describe observed tap, hold, rub, empty-click, and gaze behavior.",
             protocolText: protocolText
         )
     }
@@ -1396,7 +1408,8 @@ enum RuntimeCompletionAudit {
         label: String,
         requiredPassTokens: [String],
         requiredAnyPassTokens: [String] = [],
-        requireOperatorNoteOnPass: Bool = false
+        requireOperatorNoteOnPass: Bool = false,
+        operatorNoteSubject: String = "the observed smoke"
     ) throws {
         guard let entry else { return }
         let normalizedEvidence = entry.normalizedEvidence.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1414,7 +1427,7 @@ enum RuntimeCompletionAudit {
                   note.contains("REPLACE_WITH_") == false,
                   note != genericRecorderNote else {
                 throw EngineError.invalidArgument(
-                    "Manual smoke evidence \(label) pass requires a concrete operatorNote describing the observed physical display event"
+                    "Manual smoke evidence \(label) pass requires a concrete operatorNote describing \(operatorNoteSubject)"
                 )
             }
             let incompleteMarkers = [

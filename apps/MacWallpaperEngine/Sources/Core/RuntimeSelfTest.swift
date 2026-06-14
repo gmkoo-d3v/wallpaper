@@ -2282,6 +2282,7 @@ enum RuntimeSelfTest {
         check(
             EngineConfig.help.contains("--record-manual-smoke-evidence")
                 && EngineConfig.help.contains("--confirm-live-click-actions")
+                && EngineConfig.help.contains("--live-click-actions-note")
                 && EngineConfig.help.contains("--confirm-physical-display-hotplug")
                 && EngineConfig.help.contains("--physical-display-hotplug-event")
                 && EngineConfig.help.contains("--physical-display-hotplug-note")
@@ -2716,6 +2717,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")]
         )
+        let liveClickObservationNote = "self-test observed tap hold rub empty click and gaze behavior"
         let currentLiveClickProtocolJSON = currentLiveClickProtocol
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -2745,6 +2747,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(currentLiveClickProtocolJSON)",
+            "operatorNote": "\(liveClickObservationNote)",
             "protocolText": "\(currentLiveClickProtocolJSON)"
           },
           "physicalDisplayHotplugSmoke": {
@@ -2797,6 +2800,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "Operator confirmed live click/gaze interactions against an older selected wallpaper manifest-declared pointerMove and pointerDown action set.",
+            "operatorNote": "\(liveClickObservationNote)",
             "protocolText": "verify manifest-declared pointerMove/pointerDown behavior: old-protocol"
           },
           "physicalDisplayHotplugSmoke": {
@@ -2877,6 +2881,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(currentLiveClickProtocolJSON)",
+            "operatorNote": "\(liveClickObservationNote)",
             "protocolText": "\(currentLiveClickProtocolJSON)"
           },
           "physicalDisplayHotplugSmoke": {
@@ -2928,6 +2933,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(currentLiveClickProtocolJSON)",
+            "operatorNote": "\(liveClickObservationNote)",
             "protocolText": "\(currentLiveClickProtocolJSON)"
           },
           "physicalDisplayHotplugSmoke": {
@@ -3012,6 +3018,23 @@ enum RuntimeSelfTest {
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke")
                 && completionAuditWithPackageEvidence.contains("manual\tmanual\tblack-frame-flicker-smoke"),
             "completion audit must allow package-script launch evidence without falsely closing live click or physical hot-plug evidence"
+        )
+        var rejectedLiveClickWithoutNote = false
+        do {
+            _ = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+                to: packageOnlySmokeEvidenceURL,
+                packagedLaunchPassed: false,
+                liveClickActionsPassed: true,
+                physicalDisplayHotplugPassed: false,
+                blackFrameFlickerPassed: false
+            )
+        } catch {
+            rejectedLiveClickWithoutNote = String(describing: error)
+                .contains("--live-click-actions-note")
+        }
+        check(
+            rejectedLiveClickWithoutNote,
+            "manual smoke recorder must reject live click/gaze pass without a concrete operator note"
         )
         var rejectedPhysicalHotplugWithoutNote = false
         do {
@@ -3168,6 +3191,7 @@ enum RuntimeSelfTest {
             liveClickActionsPassed: true,
             physicalDisplayHotplugPassed: true,
             blackFrameFlickerPassed: true,
+            liveClickActionsNote: liveClickObservationNote,
             physicalDisplayHotplugEvent: "reconnect",
             physicalDisplayHotplugNote: "self-test reconnect restored selectedOnly selectedPolicy allFull display windows"
         )

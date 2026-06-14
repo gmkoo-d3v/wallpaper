@@ -42,6 +42,8 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   `--confirm-physical-display-hotplug`, and `--confirm-black-frame-flicker` to
   avoid hand-editing JSON while still requiring an explicit human confirmation
   for the live desktop, hot-plug, and no-black-frame/no-flicker evidence gates.
+  Live click confirmation also requires `--live-click-actions-note <text>` so
+  the evidence records observed tap, hold, rub, empty-click, and gaze behavior.
   Physical display hot-plug confirmation also requires
   `--physical-display-hotplug-note <text>` so the evidence records which
   reconnect/wake event and displays were actually observed.
@@ -523,7 +525,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality
 swift run MacWallpaperEngine --write-manual-smoke-template /path/to/manual-smoke-evidence.json
-swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --confirm-physical-display-hotplug --physical-display-hotplug-note "Observed display wake; selectedOnly, selectedPolicy, and allFull restored on AOC and LG." --confirm-black-frame-flicker
+swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --live-click-actions-note "Observed head tap, stationary hold, held rub, empty click no-action, and gaze directions." --confirm-physical-display-hotplug --physical-display-hotplug-event wake --physical-display-hotplug-note "Observed display wake; selectedOnly, selectedPolicy, and allFull restored on AOC and LG." --confirm-black-frame-flicker
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json

@@ -777,6 +777,8 @@ struct EngineConfig {
                               With --record-manual-smoke-evidence, confirm packaged launch/no-crash smoke.
       --confirm-live-click-actions
                               With --record-manual-smoke-evidence, confirm manifest-declared click/gaze smoke.
+      --live-click-actions-note <text>
+                              Required with --confirm-live-click-actions; describes observed tap, hold, rub, empty-click, and gaze behavior.
       --confirm-physical-display-hotplug
                               With --record-manual-smoke-evidence, confirm selectedOnly/selectedPolicy/allFull lifecycle smoke.
       --physical-display-hotplug-event <wake|reconnect>
