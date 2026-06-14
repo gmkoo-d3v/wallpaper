@@ -37,8 +37,8 @@ final class InteractionController {
     private var pressedHitRubActivated = false
     private var pressedButton: PointerButton?
     private var pressStartedAt: CFTimeInterval = 0
-    private var pressLastPoint = CGPoint(x: 0.5, y: 0.5)
-    private var pressTravelDistance: CGFloat = 0
+    private var pressStartPoint = CGPoint(x: 0.5, y: 0.5)
+    private var pressMaxDisplacement: CGFloat = 0
     private let plan: InteractionPlan
     private let idleCommand: String
     private let clock: () -> CFTimeInterval
@@ -134,7 +134,7 @@ final class InteractionController {
             pointerState = plan.lookNeutralPoint()
             pointerInputActiveUntil = 0
         }
-        updatePressTravelLocked(to: pointer)
+        updatePressDisplacementLocked(to: pointer)
         activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
         lock.unlock()
@@ -149,8 +149,8 @@ final class InteractionController {
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
         pressStartedAt = now
-        pressLastPoint = pointer
-        pressTravelDistance = 0
+        pressStartPoint = pointer
+        pressMaxDisplacement = 0
         pressedButton = button
         pressedHitAction = hitResult?.action
         pressedHitTapAction = hitResult?.tapAction
@@ -193,7 +193,7 @@ final class InteractionController {
         lock.lock()
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
-        updatePressTravelLocked(to: pointer)
+        updatePressDisplacementLocked(to: pointer)
         activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
@@ -232,7 +232,7 @@ final class InteractionController {
         pressedHitHoldActivated = false
         pressedHitRubActivated = false
         pressedButton = nil
-        pressTravelDistance = 0
+        pressMaxDisplacement = 0
         pointerInputActiveUntil = now
         lock.unlock()
     }
@@ -261,7 +261,7 @@ final class InteractionController {
         pressedHitHoldActivated = false
         pressedHitRubActivated = false
         pressedButton = nil
-        pressTravelDistance = 0
+        pressMaxDisplacement = 0
         pointerInputActiveUntil = now
         lock.unlock()
     }
@@ -289,7 +289,7 @@ final class InteractionController {
         pressedHitHoldActivated = false
         pressedHitRubActivated = false
         pressedButton = nil
-        pressTravelDistance = 0
+        pressMaxDisplacement = 0
         lock.unlock()
     }
 
@@ -347,12 +347,11 @@ final class InteractionController {
         clickCommandExpiresAt = now + releaseFadeDuration
     }
 
-    private func updatePressTravelLocked(to point: CGPoint) {
+    private func updatePressDisplacementLocked(to point: CGPoint) {
         guard pressedButton != nil else { return }
-        let dx = point.x - pressLastPoint.x
-        let dy = point.y - pressLastPoint.y
-        pressTravelDistance += sqrt(dx * dx + dy * dy)
-        pressLastPoint = point
+        let dx = point.x - pressStartPoint.x
+        let dy = point.y - pressStartPoint.y
+        pressMaxDisplacement = max(pressMaxDisplacement, sqrt(dx * dx + dy * dy))
     }
 
     private func activateRubIfNeededLocked(now: CFTimeInterval) {
@@ -360,7 +359,7 @@ final class InteractionController {
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
               pressedHitRubActivated == false,
-              pressTravelDistance >= pressedHitRubStartDistance else {
+              pressMaxDisplacement >= pressedHitRubStartDistance else {
             return
         }
         pressedHitRubActivated = true
@@ -411,7 +410,7 @@ final class InteractionController {
         pressedHitHoldActivated = false
         pressedHitRubActivated = false
         pressedButton = nil
-        pressTravelDistance = 0
+        pressMaxDisplacement = 0
         if plan.allowsPointerMove(button: nil) == false {
             pointerState = plan.lookNeutralPoint()
             moveCommandState = idleCommand

@@ -1948,8 +1948,12 @@ enum RuntimeSelfTest {
                         clock: { gestureClock }
                     )
                     holdController.pointerDown(at: center, button: acceptedButton)
-                    let jitterPoint = CGPoint(x: min(center.x + 0.01, 1.0), y: center.y)
-                    holdController.pointerDragged(to: jitterPoint, button: acceptedButton)
+                    let jitterAmplitude = max(min(hitZone.rubStartDistance * 0.40, 0.012), 0.0005)
+                    let jitterRight = CGPoint(x: min(center.x + jitterAmplitude, 1.0), y: center.y)
+                    let jitterLeft = CGPoint(x: max(center.x - jitterAmplitude, 0.0), y: center.y)
+                    for jitterPoint in [jitterRight, jitterLeft, center, jitterRight, jitterLeft] {
+                        holdController.pointerDragged(to: jitterPoint, button: acceptedButton)
+                    }
                     let jitterSnapshot = holdController.snapshot()
                     check(
                         jitterSnapshot.command == interactionPlan.idleCommand(),
@@ -1958,7 +1962,7 @@ enum RuntimeSelfTest {
                     gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
                     check(
                         holdController.snapshot().command == hitZone.action,
-                        "interaction controller must promote hit zone \(hitZone.id) from tapAction to hold action \(hitZone.action) after holdStartSeconds"
+                        "interaction controller must promote hit zone \(hitZone.id) from tapAction to hold action \(hitZone.action) after holdStartSeconds without letting accumulated jitter become rub"
                     )
                     let holdReleaseController = InteractionController(
                         interactions: manifest.interactions,
@@ -1991,7 +1995,25 @@ enum RuntimeSelfTest {
                         rubController.pointerDragged(to: rubPoint, button: acceptedButton)
                         check(
                             rubController.snapshot().command == rubAction,
-                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) as soon as held pointer travel exceeds rubStartDistance"
+                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) as soon as held pointer displacement exceeds rubStartDistance"
+                        )
+                        let holdThenRubController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        gestureClock = 0
+                        holdThenRubController.pointerDown(at: center, button: acceptedButton)
+                        gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
+                        check(
+                            holdThenRubController.snapshot().command == hitZone.action,
+                            "interaction controller must first resolve stationary left-click hold \(hitZone.id) to hold action \(hitZone.action)"
+                        )
+                        holdThenRubController.pointerDragged(to: rubPoint, button: acceptedButton)
+                        check(
+                            holdThenRubController.snapshot().command == rubAction,
+                            "interaction controller must still promote held hit zone \(hitZone.id) to rubAction \(rubAction) after hold action has started"
                         )
                         let rubReleaseController = InteractionController(
                             interactions: manifest.interactions,
