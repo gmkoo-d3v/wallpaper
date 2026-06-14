@@ -189,15 +189,22 @@ final class InteractionController {
 
     func pointerUp(at normalizedPoint: CGPoint, button: PointerButton = .left) {
         let pointer = clamp(normalizedPoint)
+        let now = clock()
         lock.lock()
         pointerState = pointer
-        markPointerInputActiveLocked(now: clock())
+        markPointerInputActiveLocked(now: now)
+        updatePressTravelLocked(to: pointer)
+        activateDelayedHoldIfNeededLocked(now: now)
+        activateRubIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }
 
     func pointerUp(button: PointerButton = .left) {
+        let now = clock()
         lock.lock()
+        activateDelayedHoldIfNeededLocked(now: now)
+        activateRubIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }
@@ -353,7 +360,6 @@ final class InteractionController {
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
               pressedHitRubActivated == false,
-              now - pressStartedAt >= pressedHitHoldStartSeconds,
               pressTravelDistance >= pressedHitRubStartDistance else {
             return
         }

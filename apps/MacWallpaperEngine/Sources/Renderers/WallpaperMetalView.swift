@@ -459,7 +459,7 @@ final class WallpaperMetalView: MTKView {
                     view.interaction.pointerDown(at: point, button: .left)
                     view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
                 }
-                delay += max(0.05, zone.trigger == .hold ? zone.holdStartSeconds + 0.12 : 0.05)
+                delay += 0.05
                 scheduleInteractionSmokeStep(after: delay) { view in
                     view.interaction.pointerDragged(to: rubPoint, button: .left)
                     view.recordDirectInteraction(event: "drag", decision: "delivered", point: rubPoint, delivered: true)

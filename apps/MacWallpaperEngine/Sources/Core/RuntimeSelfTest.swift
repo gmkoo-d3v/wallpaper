@@ -1960,6 +1960,20 @@ enum RuntimeSelfTest {
                         holdController.snapshot().command == hitZone.action,
                         "interaction controller must promote hit zone \(hitZone.id) from tapAction to hold action \(hitZone.action) after holdStartSeconds"
                     )
+                    let holdReleaseController = InteractionController(
+                        interactions: manifest.interactions,
+                        policy: manifest.interactionPolicy,
+                        actionTailDurations: tapActionDurations,
+                        clock: { gestureClock }
+                    )
+                    gestureClock = 0
+                    holdReleaseController.pointerDown(at: center, button: acceptedButton)
+                    gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
+                    holdReleaseController.pointerUp(at: center, button: acceptedButton)
+                    check(
+                        holdReleaseController.snapshot().command == hitZone.action,
+                        "interaction controller must resolve stationary left-click hold \(hitZone.id) to hold action \(hitZone.action) even when release is the next sampled event"
+                    )
                     if let rubAction = hitZone.rubAction {
                         gestureClock = 0
                         let rubController = InteractionController(
@@ -1975,16 +1989,22 @@ enum RuntimeSelfTest {
                         )
                         rubController.pointerDown(at: center, button: acceptedButton)
                         rubController.pointerDragged(to: rubPoint, button: acceptedButton)
-                        let earlyRubSnapshot = rubController.snapshot()
-                        check(
-                            earlyRubSnapshot.command == interactionPlan.idleCommand(),
-                            "interaction controller must not promote hit zone \(hitZone.id) to rubAction \(rubAction) before holdStartSeconds"
-                        )
-                        gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
-                        gestureClock += 1.0 / 60.0
                         check(
                             rubController.snapshot().command == rubAction,
-                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) only after holdStartSeconds and pointer travel exceeds rubStartDistance"
+                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) as soon as held pointer travel exceeds rubStartDistance"
+                        )
+                        let rubReleaseController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        gestureClock = 0
+                        rubReleaseController.pointerDown(at: center, button: acceptedButton)
+                        rubReleaseController.pointerUp(at: rubPoint, button: acceptedButton)
+                        check(
+                            rubReleaseController.snapshot().command == rubAction,
+                            "interaction controller must resolve left-click drag release for hit zone \(hitZone.id) to rubAction \(rubAction)"
                         )
                     }
                 }
