@@ -2716,14 +2716,20 @@ enum RuntimeSelfTest {
         let currentLiveClickProtocolJSON = currentLiveClickProtocol
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        let currentPhysicalDisplayProtocol = "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
+        let currentLiveClickProtocolEncodedJSON = currentLiveClickProtocolJSON
+            .replacingOccurrences(of: "/", with: "\\/")
+        let currentPhysicalDisplayProtocol = RuntimeCompletionAudit.physicalDisplayHotplugProtocolText()
         let currentPhysicalDisplayProtocolJSON = currentPhysicalDisplayProtocol
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+        let currentPhysicalDisplayProtocolEncodedJSON = currentPhysicalDisplayProtocolJSON
+            .replacingOccurrences(of: "/", with: "\\/")
         let currentBlackFrameFlickerProtocol = RuntimeCompletionAudit.currentBlackFrameFlickerProtocolText()
         let currentBlackFrameFlickerProtocolJSON = currentBlackFrameFlickerProtocol
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+        let currentBlackFrameFlickerProtocolEncodedJSON = currentBlackFrameFlickerProtocolJSON
+            .replacingOccurrences(of: "/", with: "\\/")
         let manualSmokeEvidence = """
         {
           "schemaVersion": "mac-wallpaper-manual-smoke.v1",
@@ -3192,14 +3198,17 @@ enum RuntimeSelfTest {
         let manualSmokeTemplate = try String(contentsOf: manualSmokeTemplateURL, encoding: .utf8)
         check(
             templateWriteReport.contains("manual smoke evidence template OK")
-                && manualSmokeTemplate.contains("\"schemaVersion\": \"mac-wallpaper-manual-smoke.v1\"")
+                && manualSmokeTemplate.contains("\"schemaVersion\" : \"mac-wallpaper-manual-smoke.v1\"")
                 && manualSmokeTemplate.contains("\"packagedAppLaunchSmoke\"")
                 && manualSmokeTemplate.contains("\"liveDesktopClickActions\"")
                 && manualSmokeTemplate.contains("\"physicalDisplayHotplugSmoke\"")
                 && manualSmokeTemplate.contains("\"blackFrameFlickerSmoke\"")
-                && manualSmokeTemplate.contains("REPLACE_WITH_CURRENT_BLACK_FRAME_FLICKER_PROTOCOL_FROM_COMPLETION_AUDIT")
-                && manualSmokeTemplate.contains("\"passed\": false"),
-            "completion audit must provide a fill-in manual smoke evidence template before requiring live evidence ingestion"
+                && manualSmokeTemplate.contains(currentLiveClickProtocolEncodedJSON)
+                && manualSmokeTemplate.contains(currentPhysicalDisplayProtocolEncodedJSON)
+                && manualSmokeTemplate.contains(currentBlackFrameFlickerProtocolEncodedJSON)
+                && manualSmokeTemplate.contains("REPLACE_WITH_CURRENT_") == false
+                && manualSmokeTemplate.contains("\"passed\" : false"),
+            "completion audit must provide a fill-in manual smoke evidence template with current protocolText before requiring live evidence ingestion"
         )
         let completionAuditWithUnfilledTemplate = try RuntimeCompletionAudit.make(
             projectRoot: runtime.config.projectRoot,
@@ -3230,7 +3239,9 @@ enum RuntimeSelfTest {
                 && runtimeSmokeEvidence.contains("\"schemaVersion\" : \"mac-wallpaper-manual-smoke.v1\"")
                 && runtimeSmokeEvidence.contains("\"liveDesktopClickActions\"")
                 && runtimeSmokeEvidence.contains("\"blackFrameFlickerSmoke\"")
-                && runtimeSmokeEvidence.contains("\"protocolText\"")
+                && runtimeSmokeEvidence.contains(currentLiveClickProtocolEncodedJSON)
+                && runtimeSmokeEvidence.contains(currentPhysicalDisplayProtocolEncodedJSON)
+                && runtimeSmokeEvidence.contains(currentBlackFrameFlickerProtocolEncodedJSON)
                 && runtimeSmokeEvidence.contains("expected no black frame")
                 && runtimeSmokeEvidence.contains("runtime telemetry captured")
                 && runtimeSmokeEvidence.contains("live telemetry proof:")

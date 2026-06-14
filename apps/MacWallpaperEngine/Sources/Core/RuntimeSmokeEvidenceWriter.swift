@@ -107,6 +107,10 @@ enum RuntimeSmokeEvidenceWriter {
         let evidence = """
         runtime telemetry captured; inputPolicy=no-permission-best-effort; accessibilityAPIUsed=false; permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); manifestChecklist=\(checklistText); \(liveProof.evidence); telemetry=\(telemetry); \(liveProof.passed ? "live checklist satisfied by packaged telemetry for manifest-declared interactions" : "manual checklist still required for manifest-declared interactions and application-window gating")
         """
+        let protocolText = try? RuntimeCompletionAudit.currentLiveClickProtocolText(
+            projectRoot: runtime.config.projectRoot,
+            bundleDirectories: [runtime.config.wallpaperRoot.deletingLastPathComponent()]
+        )
         return EvidenceEntry(
             passed: liveProof.passed,
             recordedAt: recordedAt,
@@ -114,7 +118,7 @@ enum RuntimeSmokeEvidenceWriter {
             operatorNote: liveProof.passed
                 ? "Auto-passed because packaged runtime telemetry observed every manifest-declared live click/gaze action."
                 : "Auto-generated runtime telemetry only. Set passed=true only after observing the manifest-declared click/gaze checklist on the packaged app. Do not grant Accessibility for this smoke.",
-            protocolText: nil
+            protocolText: protocolText
         )
     }
 
@@ -132,7 +136,7 @@ enum RuntimeSmokeEvidenceWriter {
             recordedAt: recordedAt,
             evidence: oneLine(evidence),
             operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing physical display mode and reconnect/wake behavior.",
-            protocolText: nil
+            protocolText: RuntimeCompletionAudit.physicalDisplayHotplugProtocolText()
         )
     }
 

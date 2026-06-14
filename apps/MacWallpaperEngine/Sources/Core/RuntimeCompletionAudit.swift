@@ -361,8 +361,20 @@ enum RuntimeCompletionAudit {
     static func writeManualSmokeEvidenceTemplate(to destination: URL) throws -> String {
         let parent = destination.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-        let text = manualSmokeEvidenceTemplateText()
-        try text.write(to: destination, atomically: true, encoding: .utf8)
+        let template = ManualSmokeEvidenceFile(
+            schemaVersion: manualSmokeEvidenceSchemaVersion,
+            packagedAppLaunchSmoke: templatePackagedLaunchEntry(),
+            liveDesktopClickActions: templateLiveClickEntry(protocolText: try currentLiveClickProtocolText()),
+            physicalDisplayHotplugSmoke: templatePhysicalDisplayEntry(
+                protocolText: physicalDisplayHotplugProtocolText()
+            ),
+            blackFrameFlickerSmoke: templateBlackFrameFlickerEntry(
+                protocolText: currentBlackFrameFlickerProtocolText()
+            )
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(template).write(to: destination, options: .atomic)
         return """
         manual smoke evidence template OK
         schemaVersion: \(manualSmokeEvidenceSchemaVersion)
@@ -403,15 +415,9 @@ enum RuntimeCompletionAudit {
 
         let existing = try loadExistingManualEvidence(from: destination)
         let recordedAt = ISO8601DateFormatter().string(from: Date())
-        let liveInteractionProtocol = liveClickActionsPassed
-            ? try currentLiveClickProtocolText()
-            : nil
-        let physicalDisplayProtocol = physicalDisplayHotplugPassed
-            ? physicalDisplayHotplugProtocolText()
-            : nil
-        let blackFrameFlickerProtocol = blackFrameFlickerPassed
-            ? currentBlackFrameFlickerProtocolText()
-            : nil
+        let liveInteractionProtocol = try currentLiveClickProtocolText()
+        let physicalDisplayProtocol = physicalDisplayHotplugProtocolText()
+        let blackFrameFlickerProtocol = currentBlackFrameFlickerProtocolText()
         let updated = ManualSmokeEvidenceFile(
             schemaVersion: manualSmokeEvidenceSchemaVersion,
             packagedAppLaunchSmoke: packagedLaunchPassed
@@ -423,25 +429,25 @@ enum RuntimeCompletionAudit {
             liveDesktopClickActions: liveClickActionsPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(liveInteractionProtocol ?? "unavailable")",
+                    evidence: "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(liveInteractionProtocol)",
                     protocolText: liveInteractionProtocol
                 )
-                : existing?.liveDesktopClickActions ?? templateLiveClickEntry(),
+                : existing?.liveDesktopClickActions ?? templateLiveClickEntry(protocolText: liveInteractionProtocol),
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, \(normalizedPhysicalDisplayHotplugEvent ?? "wake") restored wallpaper windows on target displays. Protocol: \(physicalDisplayProtocol ?? "unavailable")",
+                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, \(normalizedPhysicalDisplayHotplugEvent ?? "wake") restored wallpaper windows on target displays. Protocol: \(physicalDisplayProtocol)",
                     operatorNote: normalizedPhysicalDisplayHotplugNote,
                     protocolText: physicalDisplayProtocol
                 )
-                : existing?.physicalDisplayHotplugSmoke ?? templatePhysicalDisplayEntry(),
+                : existing?.physicalDisplayHotplugSmoke ?? templatePhysicalDisplayEntry(protocolText: physicalDisplayProtocol),
             blackFrameFlickerSmoke: blackFrameFlickerPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed black-frame/flicker smoke: packaged app start, mode switch, display rebuild or wake produced no black frame, no visible flicker loop, and no crash. Protocol: \(blackFrameFlickerProtocol ?? "unavailable")",
+                    evidence: "Operator confirmed black-frame/flicker smoke: packaged app start, mode switch, display rebuild or wake produced no black frame, no visible flicker loop, and no crash. Protocol: \(blackFrameFlickerProtocol)",
                     protocolText: blackFrameFlickerProtocol
                 )
-                : existing?.blackFrameFlickerSmoke ?? templateBlackFrameFlickerEntry()
+                : existing?.blackFrameFlickerSmoke ?? templateBlackFrameFlickerEntry(protocolText: blackFrameFlickerProtocol)
         )
 
         let encoder = JSONEncoder()
@@ -1229,7 +1235,7 @@ enum RuntimeCompletionAudit {
         return liveClickProtocolText(bundles: interactiveSpineBundles)
     }
 
-    private static func physicalDisplayHotplugProtocolText() -> String {
+    static func physicalDisplayHotplugProtocolText() -> String {
         "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
     }
 
@@ -1355,33 +1361,33 @@ enum RuntimeCompletionAudit {
         )
     }
 
-    private static func templateLiveClickEntry() -> ManualSmokeEvidenceEntry {
+    private static func templateLiveClickEntry(protocolText: String? = nil) -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
             evidence: "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
             operatorNote: "Required before live-desktop-click-actions can pass.",
-            protocolText: nil
+            protocolText: protocolText
         )
     }
 
-    private static func templatePhysicalDisplayEntry() -> ManualSmokeEvidenceEntry {
+    private static func templatePhysicalDisplayEntry(protocolText: String? = nil) -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
             evidence: "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
             operatorNote: "Required before physical-display-hotplug-smoke can pass.",
-            protocolText: nil
+            protocolText: protocolText
         )
     }
 
-    private static func templateBlackFrameFlickerEntry() -> ManualSmokeEvidenceEntry {
+    private static func templateBlackFrameFlickerEntry(protocolText: String? = nil) -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
             evidence: "Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
             operatorNote: "Required before black-frame-flicker-smoke can pass.",
-            protocolText: nil
+            protocolText: protocolText
         )
     }
 
@@ -1442,41 +1448,6 @@ enum RuntimeCompletionAudit {
                 "Manual smoke evidence \(label) pass evidence must mention at least one lifecycle token: \(requiredAnyPassTokens.joined(separator: " or "))"
             )
         }
-    }
-
-    private static func manualSmokeEvidenceTemplateText() -> String {
-        """
-        {
-          "schemaVersion": "\(manualSmokeEvidenceSchemaVersion)",
-          "packagedAppLaunchSmoke": {
-            "passed": false,
-            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Launch dist/MacWallpaperEngine.app from Finder or package smoke gate; record whether the app stays alive without crash.",
-            "operatorNote": "Required before packaged-app-launch-smoke can pass."
-          },
-          "liveDesktopClickActions": {
-            "passed": false,
-            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating.",
-            "operatorNote": "Required before live-desktop-click-actions can pass.",
-            "protocolText": "REPLACE_WITH_CURRENT_LIVE_CLICK_PROTOCOL_FROM_COMPLETION_AUDIT"
-          },
-          "physicalDisplayHotplugSmoke": {
-            "passed": false,
-            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
-            "operatorNote": "Required before physical-display-hotplug-smoke can pass.",
-            "protocolText": "REPLACE_WITH_CURRENT_PHYSICAL_DISPLAY_PROTOCOL_FROM_COMPLETION_AUDIT"
-          },
-          "blackFrameFlickerSmoke": {
-            "passed": false,
-            "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash.",
-            "operatorNote": "Required before black-frame-flicker-smoke can pass.",
-            "protocolText": "REPLACE_WITH_CURRENT_BLACK_FRAME_FLICKER_PROTOCOL_FROM_COMPLETION_AUDIT"
-          }
-        }
-        """
     }
 
     private static func protocolItem(id: String, evidence: String) -> CompletionAuditRow {
