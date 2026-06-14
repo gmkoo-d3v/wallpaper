@@ -1748,6 +1748,11 @@ enum RuntimeSelfTest {
             )
             let probeButton = probeHitZone.buttons.first ?? .left
             let probeInitialAction = probeHitZone.tapAction ?? probeHitZone.action
+            let probeDefersShortTouch = probeHitZone.trigger == .hold && probeHitZone.tapAction != nil
+            let probeDownExpectation = probeDefersShortTouch
+                ? "downSnapshot: \(interactionPlan.idleCommand())/0"
+                : "downSnapshot: \(probeInitialAction)/1"
+            let probeUpExpectation = "upSnapshot: \(probeInitialAction)/1"
             let hitZoneProbeSummary = InteractionPlan.probeSummary(
                 interactions: manifest.interactions,
                 policy: manifest.interactionPolicy,
@@ -1758,7 +1763,8 @@ enum RuntimeSelfTest {
             )
             check(
                 hitZoneProbeSummary.contains("hit: zone=\(probeHitZone.id) action=\(probeHitZone.action) trigger=\(probeHitZone.trigger.rawValue)")
-                    && hitZoneProbeSummary.contains("downSnapshot: \(probeInitialAction)/1"),
+                    && hitZoneProbeSummary.contains(probeDownExpectation)
+                    && hitZoneProbeSummary.contains(probeUpExpectation),
                 "interaction probe diagnostics must expose the manifest-declared hit-zone action and click timeline"
             )
         }
@@ -1905,22 +1911,33 @@ enum RuntimeSelfTest {
                 )
                 clickController.pointerDown(at: center, button: acceptedButton)
                 let downSnapshot = clickController.snapshot()
-                clickController.pointerTrackingStopped()
-                let stoppedSnapshot = clickController.snapshot()
                 let shortTouchAction = hitZone.tapAction ?? hitZone.action
+                let defersShortTouchUntilRelease = hitZone.trigger == .hold && hitZone.tapAction != nil
+                let pendingTouchAction = defersShortTouchUntilRelease ? interactionPlan.idleCommand() : shortTouchAction
+                let pendingTouchPulseIsValid = defersShortTouchUntilRelease
+                    ? downSnapshot.clickPulse == 0
+                    : downSnapshot.clickPulse > 0
                 check(
-                    downSnapshot.command == shortTouchAction && downSnapshot.clickPulse > 0,
-                    "interaction controller must emit initial click action \(shortTouchAction) on pointerDown for hit zone \(hitZone.id)"
-                )
-                check(
-                    stoppedSnapshot.command == shortTouchAction && stoppedSnapshot.clickPulse > 0,
-                    "interaction controller must preserve initial click action \(shortTouchAction) when desktop tracking stops after pointerDown"
+                    downSnapshot.command == pendingTouchAction && pendingTouchPulseIsValid,
+                    "interaction controller must defer short-touch action \(shortTouchAction) until pointerUp when hit zone \(hitZone.id) also has hold/rub semantics"
                 )
                 clickController.pointerUp(at: center, button: acceptedButton)
                 let upSnapshot = clickController.snapshot()
                 check(
                     upSnapshot.command == shortTouchAction && upSnapshot.clickPulse > 0,
                     "interaction controller must keep initial click action \(shortTouchAction) visible after pointerUp for hit zone \(hitZone.id)"
+                )
+                let stoppedController = InteractionController(
+                    interactions: manifest.interactions,
+                    policy: manifest.interactionPolicy,
+                    actionTailDurations: tapActionDurations
+                )
+                stoppedController.pointerDown(at: center, button: acceptedButton)
+                stoppedController.pointerTrackingStopped()
+                let stoppedSnapshot = stoppedController.snapshot()
+                check(
+                    stoppedSnapshot.command == pendingTouchAction,
+                    "interaction controller must preserve pending click state when desktop tracking stops after pointerDown for hit zone \(hitZone.id)"
                 )
                 if hitZone.tapAction != nil {
                     var gestureClock: CFTimeInterval = 0
@@ -1935,8 +1952,8 @@ enum RuntimeSelfTest {
                     holdController.pointerDragged(to: jitterPoint, button: acceptedButton)
                     let jitterSnapshot = holdController.snapshot()
                     check(
-                        jitterSnapshot.command == shortTouchAction,
-                        "interaction controller must keep short-touch action \(shortTouchAction) for small pointer jitter before hold/rub thresholds"
+                        jitterSnapshot.command == interactionPlan.idleCommand(),
+                        "interaction controller must keep hold/rub hit zone \(hitZone.id) pending for small pointer jitter before hold/rub thresholds"
                     )
                     gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
                     check(
@@ -1958,10 +1975,16 @@ enum RuntimeSelfTest {
                         )
                         rubController.pointerDown(at: center, button: acceptedButton)
                         rubController.pointerDragged(to: rubPoint, button: acceptedButton)
+                        let earlyRubSnapshot = rubController.snapshot()
+                        check(
+                            earlyRubSnapshot.command == interactionPlan.idleCommand(),
+                            "interaction controller must not promote hit zone \(hitZone.id) to rubAction \(rubAction) before holdStartSeconds"
+                        )
+                        gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
                         gestureClock += 1.0 / 60.0
                         check(
                             rubController.snapshot().command == rubAction,
-                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) only after pointer travel exceeds rubStartDistance"
+                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) only after holdStartSeconds and pointer travel exceeds rubStartDistance"
                         )
                     }
                 }

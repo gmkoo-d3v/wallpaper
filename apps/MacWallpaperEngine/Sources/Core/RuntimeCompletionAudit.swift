@@ -1188,7 +1188,7 @@ enum RuntimeCompletionAudit {
             let zoneText = plan.hitZoneSummaries().map { zone in
                 if let tapAction = zone.tapAction {
                     let rubText = zone.rubAction.map {
-                        ",rub=\($0)@distance\(String(format: "%.3f", Double(zone.rubStartDistance)))"
+                        ",rub=\($0)@\(String(format: "%.2fs", zone.holdStartSeconds))+distance\(String(format: "%.3f", Double(zone.rubStartDistance)))"
                     } ?? ""
                     return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))\(rubText)"
                 }

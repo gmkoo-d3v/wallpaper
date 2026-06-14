@@ -76,6 +76,7 @@ final class InteractionController {
         advanceSmoothedPointerLocked()
         let now = clock()
         activateDelayedHoldIfNeededLocked(now: now)
+        activateRubIfNeededLocked(now: now)
         if let pressedHitAction,
            pressedHitTrigger == .hold,
            pressedHitTapAction == nil || pressedHitHoldActivated || pressedHitRubActivated {
@@ -134,10 +135,8 @@ final class InteractionController {
             pointerInputActiveUntil = 0
         }
         updatePressTravelLocked(to: pointer)
+        activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
-        if pressedHitRubAction == nil {
-            activateDelayedHoldLocked(now: now)
-        }
         lock.unlock()
     }
 
@@ -170,11 +169,11 @@ final class InteractionController {
         activeClickTailDuration = pressedHitTailDuration
         if let hitResult {
             let trigger = hitResult.trigger
-            if trigger == .hold, let tapAction = hitResult.tapAction {
-                clickCommandState = tapAction
-                clickCommandHeld = true
+            if trigger == .hold, hitResult.tapAction != nil {
+                clickCommandState = nil
+                clickCommandHeld = false
                 activeClickTailDuration = hitResult.tapTailSeconds
-                clickCommandExpiresAt = now + releaseFadeDuration
+                clickCommandExpiresAt = 0
             } else {
                 let hitAction = hitResult.action
                 clickCommandState = hitAction
@@ -354,6 +353,7 @@ final class InteractionController {
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
               pressedHitRubActivated == false,
+              now - pressStartedAt >= pressedHitHoldStartSeconds,
               pressTravelDistance >= pressedHitRubStartDistance else {
             return
         }
