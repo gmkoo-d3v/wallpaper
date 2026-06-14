@@ -2698,6 +2698,10 @@ enum RuntimeSelfTest {
         let currentPhysicalDisplayProtocolJSON = currentPhysicalDisplayProtocol
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+        let currentBlackFrameFlickerProtocol = RuntimeCompletionAudit.currentBlackFrameFlickerProtocolText()
+        let currentBlackFrameFlickerProtocolJSON = currentBlackFrameFlickerProtocol
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
         let manualSmokeEvidence = """
         {
           "schemaVersion": "mac-wallpaper-manual-smoke.v1",
@@ -2722,7 +2726,8 @@ enum RuntimeSelfTest {
           "blackFrameFlickerSmoke": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "packaged app start, mode switch, display rebuild produced no black frame, no visible flicker loop, and no crash"
+            "evidence": "packaged app start, mode switch, display rebuild produced no black frame, no visible flicker loop, and no crash. Protocol: \(currentBlackFrameFlickerProtocolJSON)",
+            "protocolText": "\(currentBlackFrameFlickerProtocolJSON)"
           }
         }
         """
@@ -2877,6 +2882,58 @@ enum RuntimeSelfTest {
                 && completionAuditWithStalePhysicalEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke")
                 && completionAuditWithStalePhysicalEvidence.contains("manual evidence stale:"),
             "completion audit must reopen physical display evidence when the recorded display protocol no longer matches the current contract"
+        )
+        let staleBlackFrameFlickerEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineStaleBlackFrameSmoke-\(UUID().uuidString).json")
+        let staleBlackFrameFlickerEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "packagedAppLaunchSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app launched from Finder or package smoke gate without crash"
+          },
+          "liveDesktopClickActions": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(currentLiveClickProtocolJSON)",
+            "protocolText": "\(currentLiveClickProtocolJSON)"
+          },
+          "physicalDisplayHotplugSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays. Protocol: \(currentPhysicalDisplayProtocolJSON)",
+            "operatorNote": "self-test observed reconnect event restored target displays",
+            "protocolText": "\(currentPhysicalDisplayProtocolJSON)"
+          },
+          "blackFrameFlickerSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app start, mode switch, display rebuild produced no black frame, no visible flicker loop, and no crash",
+            "protocolText": "old-black-frame-flicker-protocol"
+          }
+        }
+        """
+        try staleBlackFrameFlickerEvidence.write(
+            to: staleBlackFrameFlickerEvidenceURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        defer {
+            try? FileManager.default.removeItem(at: staleBlackFrameFlickerEvidenceURL)
+        }
+        let completionAuditWithStaleBlackFrameEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: staleBlackFrameFlickerEvidenceURL
+        )
+        check(
+            completionAuditWithStaleBlackFrameEvidence.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithStaleBlackFrameEvidence.contains("manual\tmanual\tblack-frame-flicker-smoke")
+                && completionAuditWithStaleBlackFrameEvidence.contains("manual evidence stale:"),
+            "completion audit must reopen black-frame/flicker evidence when the recorded display-rebuild protocol no longer matches the current contract"
         )
         let packageOnlySmokeEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEnginePackageOnlySmoke-\(UUID().uuidString).json")
@@ -3118,6 +3175,7 @@ enum RuntimeSelfTest {
                 && manualSmokeTemplate.contains("\"liveDesktopClickActions\"")
                 && manualSmokeTemplate.contains("\"physicalDisplayHotplugSmoke\"")
                 && manualSmokeTemplate.contains("\"blackFrameFlickerSmoke\"")
+                && manualSmokeTemplate.contains("REPLACE_WITH_CURRENT_BLACK_FRAME_FLICKER_PROTOCOL_FROM_COMPLETION_AUDIT")
                 && manualSmokeTemplate.contains("\"passed\": false"),
             "completion audit must provide a fill-in manual smoke evidence template before requiring live evidence ingestion"
         )
@@ -3150,6 +3208,8 @@ enum RuntimeSelfTest {
                 && runtimeSmokeEvidence.contains("\"schemaVersion\" : \"mac-wallpaper-manual-smoke.v1\"")
                 && runtimeSmokeEvidence.contains("\"liveDesktopClickActions\"")
                 && runtimeSmokeEvidence.contains("\"blackFrameFlickerSmoke\"")
+                && runtimeSmokeEvidence.contains("\"protocolText\"")
+                && runtimeSmokeEvidence.contains("expected no black frame")
                 && runtimeSmokeEvidence.contains("runtime telemetry captured")
                 && runtimeSmokeEvidence.contains("live telemetry proof:")
                 && runtimeSmokeEvidence.contains("expected=")

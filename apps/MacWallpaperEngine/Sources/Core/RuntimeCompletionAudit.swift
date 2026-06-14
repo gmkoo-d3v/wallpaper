@@ -151,6 +151,7 @@ enum RuntimeCompletionAudit {
         let blackFrameFlickerEvidence = manualEvidence?.blackFrameFlickerSmoke
         let liveInteractionProtocol = liveClickProtocolText(bundles: interactiveSpineBundles)
         let physicalDisplayProtocol = physicalDisplayHotplugProtocolText()
+        let blackFrameFlickerProtocol = currentBlackFrameFlickerProtocolText()
 
         let automatedItems = [
             item(
@@ -303,10 +304,15 @@ enum RuntimeCompletionAudit {
             ),
             manualItem(
                 id: "black-frame-flicker-smoke",
-                passed: manualEvidencePassed(blackFrameFlickerEvidence, fallback: false),
+                passed: manualEvidencePassed(
+                    blackFrameFlickerEvidence,
+                    fallback: false,
+                    requiredProtocolText: blackFrameFlickerProtocol
+                ),
                 evidence: manualEvidenceText(
                     blackFrameFlickerEvidence,
-                    fallback: "renderer warmup/rebuild guards are covered by automated tests, but live no-black-frame/no-flicker observation is not recorded"
+                    fallback: "renderer warmup/rebuild guards are covered by automated tests, but live no-black-frame/no-flicker observation is not recorded",
+                    requiredProtocolText: blackFrameFlickerProtocol
                 )
             )
         ]
@@ -321,7 +327,7 @@ enum RuntimeCompletionAudit {
             ),
             protocolItem(
                 id: "black-frame-flicker-smoke-protocol",
-                evidence: "start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; expected no black frame, no visible flicker loop, and no crash"
+                evidence: blackFrameFlickerProtocol
             )
         ]
         let scopeItems = [
@@ -403,6 +409,9 @@ enum RuntimeCompletionAudit {
         let physicalDisplayProtocol = physicalDisplayHotplugPassed
             ? physicalDisplayHotplugProtocolText()
             : nil
+        let blackFrameFlickerProtocol = blackFrameFlickerPassed
+            ? currentBlackFrameFlickerProtocolText()
+            : nil
         let updated = ManualSmokeEvidenceFile(
             schemaVersion: manualSmokeEvidenceSchemaVersion,
             packagedAppLaunchSmoke: packagedLaunchPassed
@@ -429,7 +438,8 @@ enum RuntimeCompletionAudit {
             blackFrameFlickerSmoke: blackFrameFlickerPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed black-frame/flicker smoke: packaged app start, mode switch, display rebuild or wake produced no black frame, no visible flicker loop, and no crash."
+                    evidence: "Operator confirmed black-frame/flicker smoke: packaged app start, mode switch, display rebuild or wake produced no black frame, no visible flicker loop, and no crash. Protocol: \(blackFrameFlickerProtocol ?? "unavailable")",
+                    protocolText: blackFrameFlickerProtocol
                 )
                 : existing?.blackFrameFlickerSmoke ?? templateBlackFrameFlickerEntry()
         )
@@ -1223,6 +1233,10 @@ enum RuntimeCompletionAudit {
         "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
     }
 
+    static func currentBlackFrameFlickerProtocolText() -> String {
+        "start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; expected no black frame, no visible flicker loop, and no crash"
+    }
+
     private static func oneLine(_ value: String) -> String {
         value
             .split(whereSeparator: \.isNewline)
@@ -1458,7 +1472,8 @@ enum RuntimeCompletionAudit {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
             "evidence": "Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash.",
-            "operatorNote": "Required before black-frame-flicker-smoke can pass."
+            "operatorNote": "Required before black-frame-flicker-smoke can pass.",
+            "protocolText": "REPLACE_WITH_CURRENT_BLACK_FRAME_FLICKER_PROTOCOL_FROM_COMPLETION_AUDIT"
           }
         }
         """

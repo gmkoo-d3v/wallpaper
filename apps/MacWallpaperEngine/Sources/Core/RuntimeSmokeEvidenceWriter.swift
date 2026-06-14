@@ -35,6 +35,7 @@ enum RuntimeSmokeEvidenceWriter {
         let recordedAt: String
         let evidence: String
         let operatorNote: String?
+        let protocolText: String?
     }
 
     static func write(runtime: NativeRuntimeCore, destination: URL) throws -> String {
@@ -76,7 +77,8 @@ enum RuntimeSmokeEvidenceWriter {
             evidence: oneLine(evidence),
             operatorNote: isPackaged
                 ? "Auto-generated because the packaged app reached applicationWillTerminate."
-                : "Source/unpackaged smoke only. Package the app and rerun before passing packaged-app-launch-smoke."
+                : "Source/unpackaged smoke only. Package the app and rerun before passing packaged-app-launch-smoke.",
+            protocolText: nil
         )
     }
 
@@ -111,7 +113,8 @@ enum RuntimeSmokeEvidenceWriter {
             evidence: oneLine(evidence),
             operatorNote: liveProof.passed
                 ? "Auto-passed because packaged runtime telemetry observed every manifest-declared live click/gaze action."
-                : "Auto-generated runtime telemetry only. Set passed=true only after observing the manifest-declared click/gaze checklist on the packaged app. Do not grant Accessibility for this smoke."
+                : "Auto-generated runtime telemetry only. Set passed=true only after observing the manifest-declared click/gaze checklist on the packaged app. Do not grant Accessibility for this smoke.",
+            protocolText: nil
         )
     }
 
@@ -128,7 +131,8 @@ enum RuntimeSmokeEvidenceWriter {
             passed: false,
             recordedAt: recordedAt,
             evidence: oneLine(evidence),
-            operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing physical display mode and reconnect/wake behavior."
+            operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing physical display mode and reconnect/wake behavior.",
+            protocolText: nil
         )
     }
 
@@ -144,7 +148,8 @@ enum RuntimeSmokeEvidenceWriter {
             passed: false,
             recordedAt: recordedAt,
             evidence: oneLine(evidence),
-            operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing black-frame/flicker behavior on the packaged app."
+            operatorNote: "Auto-generated runtime telemetry only. Set passed=true only after observing black-frame/flicker behavior on the packaged app.",
+            protocolText: RuntimeCompletionAudit.currentBlackFrameFlickerProtocolText()
         )
     }
 
