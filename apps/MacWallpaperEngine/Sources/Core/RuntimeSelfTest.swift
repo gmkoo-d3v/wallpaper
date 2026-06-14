@@ -2651,6 +2651,10 @@ enum RuntimeSelfTest {
         let currentLiveClickProtocolJSON = currentLiveClickProtocol
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+        let currentPhysicalDisplayProtocol = "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
+        let currentPhysicalDisplayProtocolJSON = currentPhysicalDisplayProtocol
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
         let manualSmokeEvidence = """
         {
           "schemaVersion": "mac-wallpaper-manual-smoke.v1",
@@ -2668,8 +2672,9 @@ enum RuntimeSelfTest {
           "physicalDisplayHotplugSmoke": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays",
-            "operatorNote": "self-test observed reconnect event restored target displays"
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays. Protocol: \(currentPhysicalDisplayProtocolJSON)",
+            "operatorNote": "self-test observed reconnect event restored target displays",
+            "protocolText": "\(currentPhysicalDisplayProtocolJSON)"
           },
           "blackFrameFlickerSmoke": {
             "passed": true,
@@ -2753,8 +2758,9 @@ enum RuntimeSelfTest {
           "physicalDisplayHotplugSmoke": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, wake restored wallpaper windows on target displays",
-            "operatorNote": "self-test observed display wake restored target displays"
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, wake restored wallpaper windows on target displays. Protocol: \(currentPhysicalDisplayProtocolJSON)",
+            "operatorNote": "self-test observed display wake restored target displays",
+            "protocolText": "\(currentPhysicalDisplayProtocolJSON)"
           }
         }
         """
@@ -2777,6 +2783,57 @@ enum RuntimeSelfTest {
             completionAuditWithWakeManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
                 && completionAuditWithWakeManualEvidence.contains("wake restored wallpaper windows"),
             "completion audit must accept wake restoration as a physical display lifecycle pass alternative to reconnect"
+        )
+        let stalePhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineStalePhysicalSmoke-\(UUID().uuidString).json")
+        let stalePhysicalHotplugEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "packagedAppLaunchSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app launched from Finder or package smoke gate without crash"
+          },
+          "liveDesktopClickActions": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(currentLiveClickProtocolJSON)",
+            "protocolText": "\(currentLiveClickProtocolJSON)"
+          },
+          "physicalDisplayHotplugSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays",
+            "operatorNote": "self-test observed reconnect event restored target displays",
+            "protocolText": "old-physical-display-protocol"
+          },
+          "blackFrameFlickerSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app start, mode switch, display rebuild produced no black frame, no visible flicker loop, and no crash"
+          }
+        }
+        """
+        try stalePhysicalHotplugEvidence.write(
+            to: stalePhysicalHotplugEvidenceURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        defer {
+            try? FileManager.default.removeItem(at: stalePhysicalHotplugEvidenceURL)
+        }
+        let completionAuditWithStalePhysicalEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: stalePhysicalHotplugEvidenceURL
+        )
+        check(
+            completionAuditWithStalePhysicalEvidence.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithStalePhysicalEvidence.contains("manual\tmanual\tphysical-display-hotplug-smoke")
+                && completionAuditWithStalePhysicalEvidence.contains("manual evidence stale:"),
+            "completion audit must reopen physical display evidence when the recorded display protocol no longer matches the current contract"
         )
         let packageOnlySmokeEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEnginePackageOnlySmoke-\(UUID().uuidString).json")

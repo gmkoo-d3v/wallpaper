@@ -150,6 +150,7 @@ enum RuntimeCompletionAudit {
         let physicalDisplayEvidence = manualEvidence?.physicalDisplayHotplugSmoke
         let blackFrameFlickerEvidence = manualEvidence?.blackFrameFlickerSmoke
         let liveInteractionProtocol = liveClickProtocolText(bundles: interactiveSpineBundles)
+        let physicalDisplayProtocol = physicalDisplayHotplugProtocolText()
 
         let automatedItems = [
             item(
@@ -289,10 +290,15 @@ enum RuntimeCompletionAudit {
             ),
             manualItem(
                 id: "physical-display-hotplug-smoke",
-                passed: manualEvidencePassed(physicalDisplayEvidence, fallback: false),
+                passed: manualEvidencePassed(
+                    physicalDisplayEvidence,
+                    fallback: false,
+                    requiredProtocolText: physicalDisplayProtocol
+                ),
                 evidence: manualEvidenceText(
                     physicalDisplayEvidence,
-                    fallback: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run"
+                    fallback: "simulated display matrix passed; physical reconnect/hot-plug smoke evidence is not recorded in this CLI run",
+                    requiredProtocolText: physicalDisplayProtocol
                 )
             ),
             manualItem(
@@ -311,7 +317,7 @@ enum RuntimeCompletionAudit {
             ),
             protocolItem(
                 id: "physical-display-hotplug-smoke-protocol",
-                evidence: "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
+                evidence: physicalDisplayProtocol
             ),
             protocolItem(
                 id: "black-frame-flicker-smoke-protocol",
@@ -394,6 +400,9 @@ enum RuntimeCompletionAudit {
         let liveInteractionProtocol = liveClickActionsPassed
             ? try currentLiveClickProtocolText()
             : nil
+        let physicalDisplayProtocol = physicalDisplayHotplugPassed
+            ? physicalDisplayHotplugProtocolText()
+            : nil
         let updated = ManualSmokeEvidenceFile(
             schemaVersion: manualSmokeEvidenceSchemaVersion,
             packagedAppLaunchSmoke: packagedLaunchPassed
@@ -412,8 +421,9 @@ enum RuntimeCompletionAudit {
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, \(normalizedPhysicalDisplayHotplugEvent ?? "wake") restored wallpaper windows on target displays.",
-                    operatorNote: normalizedPhysicalDisplayHotplugNote
+                    evidence: "Operator confirmed physical display smoke: selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, \(normalizedPhysicalDisplayHotplugEvent ?? "wake") restored wallpaper windows on target displays. Protocol: \(physicalDisplayProtocol ?? "unavailable")",
+                    operatorNote: normalizedPhysicalDisplayHotplugNote,
+                    protocolText: physicalDisplayProtocol
                 )
                 : existing?.physicalDisplayHotplugSmoke ?? templatePhysicalDisplayEntry(),
             blackFrameFlickerSmoke: blackFrameFlickerPassed
@@ -1209,6 +1219,10 @@ enum RuntimeCompletionAudit {
         return liveClickProtocolText(bundles: interactiveSpineBundles)
     }
 
+    private static func physicalDisplayHotplugProtocolText() -> String {
+        "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
+    }
+
     private static func oneLine(_ value: String) -> String {
         value
             .split(whereSeparator: \.isNewline)
@@ -1437,7 +1451,8 @@ enum RuntimeCompletionAudit {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
             "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
-            "operatorNote": "Required before physical-display-hotplug-smoke can pass."
+            "operatorNote": "Required before physical-display-hotplug-smoke can pass.",
+            "protocolText": "REPLACE_WITH_CURRENT_PHYSICAL_DISPLAY_PROTOCOL_FROM_COMPLETION_AUDIT"
           },
           "blackFrameFlickerSmoke": {
             "passed": false,
