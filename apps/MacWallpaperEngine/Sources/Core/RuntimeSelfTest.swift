@@ -2644,6 +2644,13 @@ enum RuntimeSelfTest {
         )
         let manualSmokeEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineManualSmoke-\(UUID().uuidString).json")
+        let currentLiveClickProtocol = try RuntimeCompletionAudit.currentLiveClickProtocolText(
+            projectRoot: runtime.config.projectRoot,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")]
+        )
+        let currentLiveClickProtocolJSON = currentLiveClickProtocol
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
         let manualSmokeEvidence = """
         {
           "schemaVersion": "mac-wallpaper-manual-smoke.v1",
@@ -2655,7 +2662,8 @@ enum RuntimeSelfTest {
           "liveDesktopClickActions": {
             "passed": true,
             "recordedAt": "self-test",
-            "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions"
+            "evidence": "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(currentLiveClickProtocolJSON)",
+            "protocolText": "\(currentLiveClickProtocolJSON)"
           },
           "physicalDisplayHotplugSmoke": {
             "passed": true,
@@ -2690,6 +2698,52 @@ enum RuntimeSelfTest {
                 && completionAuditWithManualEvidence.contains("manual\tpass\tblack-frame-flicker-smoke")
                 && completionAuditWithManualEvidence.contains("manual evidence: recordedAt=self-test"),
             "completion audit must accept explicit user-recorded manual smoke evidence before claiming complete evidence pass"
+        )
+        let staleLiveClickEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineStaleLiveClickSmoke-\(UUID().uuidString).json")
+        let staleLiveClickEvidence = """
+        {
+          "schemaVersion": "mac-wallpaper-manual-smoke.v1",
+          "packagedAppLaunchSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app launched from Finder or package smoke gate without crash"
+          },
+          "liveDesktopClickActions": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "Operator confirmed live click/gaze interactions against an older selected wallpaper manifest-declared pointerMove and pointerDown action set.",
+            "protocolText": "verify manifest-declared pointerMove/pointerDown behavior: old-protocol"
+          },
+          "physicalDisplayHotplugSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays",
+            "operatorNote": "self-test observed reconnect event restored target displays"
+          },
+          "blackFrameFlickerSmoke": {
+            "passed": true,
+            "recordedAt": "self-test",
+            "evidence": "packaged app start, mode switch, display rebuild produced no black frame, no visible flicker loop, and no crash"
+          }
+        }
+        """
+        try staleLiveClickEvidence.write(to: staleLiveClickEvidenceURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: staleLiveClickEvidenceURL)
+        }
+        let completionAuditWithStaleLiveClickEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: staleLiveClickEvidenceURL
+        )
+        check(
+            completionAuditWithStaleLiveClickEvidence.contains("overall: automated-pass/manual-evidence-open")
+                && completionAuditWithStaleLiveClickEvidence.contains("manual\tmanual\tlive-desktop-click-actions")
+                && completionAuditWithStaleLiveClickEvidence.contains("manual evidence stale:"),
+            "completion audit must reopen live click evidence when the recorded interaction protocol no longer matches the current manifest"
         )
         let wakePhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineWakePhysicalSmoke-\(UUID().uuidString).json")

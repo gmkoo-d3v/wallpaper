@@ -40,6 +40,7 @@ private struct ManualSmokeEvidenceEntry: Codable {
     let evidence: String
     let recordedAt: String?
     let operatorNote: String?
+    let protocolText: String?
 
     var normalizedEvidence: String {
         var parts: [String] = []
@@ -277,11 +278,13 @@ enum RuntimeCompletionAudit {
                 id: "live-desktop-click-actions",
                 passed: manualEvidencePassed(
                     liveClickEvidence,
-                    fallback: false
+                    fallback: false,
+                    requiredProtocolText: liveInteractionProtocol
                 ),
                 evidence: manualEvidenceText(
                     liveClickEvidence,
-                    fallback: "no-permission input policy; manual live smoke still required: \(liveInteractionProtocol)"
+                    fallback: "no-permission input policy; manual live smoke still required: \(liveInteractionProtocol)",
+                    requiredProtocolText: liveInteractionProtocol
                 )
             ),
             manualItem(
@@ -388,6 +391,9 @@ enum RuntimeCompletionAudit {
 
         let existing = try loadExistingManualEvidence(from: destination)
         let recordedAt = ISO8601DateFormatter().string(from: Date())
+        let liveInteractionProtocol = liveClickActionsPassed
+            ? try currentLiveClickProtocolText()
+            : nil
         let updated = ManualSmokeEvidenceFile(
             schemaVersion: manualSmokeEvidenceSchemaVersion,
             packagedAppLaunchSmoke: packagedLaunchPassed
@@ -399,7 +405,8 @@ enum RuntimeCompletionAudit {
             liveDesktopClickActions: liveClickActionsPassed
                 ? passEntry(
                     recordedAt: recordedAt,
-                    evidence: "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions."
+                    evidence: "Operator confirmed live click/gaze interactions against the selected wallpaper manifest-declared pointerMove and pointerDown actions. Protocol: \(liveInteractionProtocol ?? "unavailable")",
+                    protocolText: liveInteractionProtocol
                 )
                 : existing?.liveDesktopClickActions ?? templateLiveClickEntry(),
             physicalDisplayHotplugSmoke: physicalDisplayHotplugPassed
@@ -1187,6 +1194,21 @@ enum RuntimeCompletionAudit {
         return "verify manifest-declared pointerMove/pointerDown behavior: \(bundleTexts.joined(separator: "; "))\(suffix)"
     }
 
+    static func currentLiveClickProtocolText(
+        projectRoot: URL? = ProjectPaths.findCatalogProjectRoot(),
+        bundleDirectories: [URL]? = nil
+    ) throws -> String {
+        let diagnostics = bundleDirectories.map(WallpaperBundleCatalog.diagnose(in:))
+            ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
+        let bundles = diagnostics.compactMap(\.bundle)
+        let interactiveSpineBundles = bundles.filter {
+            isNativeSpinePlayable($0.capabilities)
+                && $0.capabilities.interactionKinds.contains("pointerMove")
+                && $0.capabilities.interactionKinds.contains("pointerDown")
+        }
+        return liveClickProtocolText(bundles: interactiveSpineBundles)
+    }
+
     private static func oneLine(_ value: String) -> String {
         value
             .split(whereSeparator: \.isNewline)
@@ -1195,7 +1217,11 @@ enum RuntimeCompletionAudit {
             .joined(separator: " / ")
     }
 
-    private static func manualEvidenceText(_ entry: ManualSmokeEvidenceEntry?, fallback: String) -> String {
+    private static func manualEvidenceText(
+        _ entry: ManualSmokeEvidenceEntry?,
+        fallback: String,
+        requiredProtocolText: String? = nil
+    ) -> String {
         guard let entry else { return fallback }
         let normalized = entry.normalizedEvidence
         guard normalized.isEmpty == false else {
@@ -1203,13 +1229,38 @@ enum RuntimeCompletionAudit {
                 ? "manual evidence marked pass but evidence text is empty"
                 : "manual evidence marked fail with empty evidence text"
         }
+        if entry.passed,
+           let requiredProtocolText,
+           manualEvidenceProtocolMatches(entry, requiredProtocolText: requiredProtocolText) == false {
+            let recordedProtocol = entry.protocolText?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let recordedText = (recordedProtocol?.isEmpty == false)
+                ? recordedProtocol!
+                : "missing"
+            return "manual evidence stale: expected protocol '\(requiredProtocolText)' but recorded '\(recordedText)'; \(normalized)"
+        }
         return entry.passed
             ? "manual evidence: \(normalized)"
             : "manual evidence failed: \(normalized)"
     }
 
-    private static func manualEvidencePassed(_ entry: ManualSmokeEvidenceEntry?, fallback: Bool) -> Bool {
-        entry?.passed ?? fallback
+    private static func manualEvidencePassed(
+        _ entry: ManualSmokeEvidenceEntry?,
+        fallback: Bool,
+        requiredProtocolText: String? = nil
+    ) -> Bool {
+        guard let entry else { return fallback }
+        guard entry.passed else { return false }
+        guard let requiredProtocolText else { return true }
+        return manualEvidenceProtocolMatches(entry, requiredProtocolText: requiredProtocolText)
+    }
+
+    private static func manualEvidenceProtocolMatches(
+        _ entry: ManualSmokeEvidenceEntry,
+        requiredProtocolText: String
+    ) -> Bool {
+        if entry.protocolText == requiredProtocolText { return true }
+        return entry.normalizedEvidence.contains(requiredProtocolText)
     }
 
     private static func loadManualEvidence(from url: URL?) throws -> ManualSmokeEvidenceFile? {
@@ -1254,13 +1305,15 @@ enum RuntimeCompletionAudit {
     private static func passEntry(
         recordedAt: String,
         evidence: String,
-        operatorNote: String? = nil
+        operatorNote: String? = nil,
+        protocolText: String? = nil
     ) -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: true,
             evidence: evidence,
             recordedAt: recordedAt,
-            operatorNote: operatorNote ?? "Recorded by --record-manual-smoke-evidence after operator observation."
+            operatorNote: operatorNote ?? "Recorded by --record-manual-smoke-evidence after operator observation.",
+            protocolText: protocolText
         )
     }
 
@@ -1269,7 +1322,8 @@ enum RuntimeCompletionAudit {
             passed: false,
             evidence: "Launch dist/MacWallpaperEngine.app from Finder or package smoke gate; record whether the app stays alive without crash.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            operatorNote: "Required before packaged-app-launch-smoke can pass."
+            operatorNote: "Required before packaged-app-launch-smoke can pass.",
+            protocolText: nil
         )
     }
 
@@ -1278,7 +1332,8 @@ enum RuntimeCompletionAudit {
             passed: false,
             evidence: "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            operatorNote: "Required before live-desktop-click-actions can pass."
+            operatorNote: "Required before live-desktop-click-actions can pass.",
+            protocolText: nil
         )
     }
 
@@ -1287,7 +1342,8 @@ enum RuntimeCompletionAudit {
             passed: false,
             evidence: "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            operatorNote: "Required before physical-display-hotplug-smoke can pass."
+            operatorNote: "Required before physical-display-hotplug-smoke can pass.",
+            protocolText: nil
         )
     }
 
@@ -1296,7 +1352,8 @@ enum RuntimeCompletionAudit {
             passed: false,
             evidence: "Start packaged app; switch selectedOnly/selectedPolicy/allFull; trigger display rebuild or wake; confirm no black frame, no visible flicker loop, and no crash.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            operatorNote: "Required before black-frame-flicker-smoke can pass."
+            operatorNote: "Required before black-frame-flicker-smoke can pass.",
+            protocolText: nil
         )
     }
 
@@ -1373,7 +1430,8 @@ enum RuntimeCompletionAudit {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
             "evidence": "Do not grant Accessibility; enable click actions; run --interaction-plan for the selected wallpaper bundle; verify the manifest-declared pointerMove and pointerDown click/gaze actions, plus application-window gating.",
-            "operatorNote": "Required before live-desktop-click-actions can pass."
+            "operatorNote": "Required before live-desktop-click-actions can pass.",
+            "protocolText": "REPLACE_WITH_CURRENT_LIVE_CLICK_PROTOCOL_FROM_COMPLETION_AUDIT"
           },
           "physicalDisplayHotplugSmoke": {
             "passed": false,
