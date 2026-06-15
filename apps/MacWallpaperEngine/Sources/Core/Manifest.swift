@@ -287,6 +287,7 @@ struct DeclarativeBinding: Decodable {
 enum BindingSource: String, Decodable {
     case pointerPosition = "pointer.position"
     case pointerDown = "pointer.down"
+    case pointerSpeed = "pointer.speed"
     case systemTime = "system.time"
     case thermalState = "thermal.state"
 }

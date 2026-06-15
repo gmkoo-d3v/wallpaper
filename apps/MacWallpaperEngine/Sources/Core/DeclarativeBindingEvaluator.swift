@@ -4,17 +4,20 @@ import Foundation
 struct DeclarativeBindingEvaluationInput {
     let pointerPosition: CGPoint
     let pointerDown: Bool
+    let pointerSpeed: Double
     let systemTimeSeconds: Double
     let thermalStateLevel: Double
 
     init(
         pointerPosition: CGPoint = CGPoint(x: 0.5, y: 0.5),
         pointerDown: Bool = false,
+        pointerSpeed: Double = 0,
         systemTimeSeconds: Double = 0,
         thermalStateLevel: Double = 0
     ) {
         self.pointerPosition = pointerPosition
         self.pointerDown = pointerDown
+        self.pointerSpeed = pointerSpeed
         self.systemTimeSeconds = systemTimeSeconds
         self.thermalStateLevel = thermalStateLevel
     }
@@ -138,6 +141,8 @@ enum DeclarativeBindingEvaluator {
             return Double(input.pointerPosition.x)
         case .pointerDown:
             return input.pointerDown ? 1 : 0
+        case .pointerSpeed:
+            return min(max(input.pointerSpeed, 0), 10)
         case .systemTime:
             return input.systemTimeSeconds
         case .thermalState:

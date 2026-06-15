@@ -28,7 +28,7 @@ struct DeclarativeBindingPlan {
     var hasPointerInputBindings: Bool {
         bindingEntries.contains { entry in
             entry.runtimeStatus == .runtimeExecutable
-                && (entry.source == .pointerDown || entry.source == .pointerPosition)
+                && entry.source.isPointerInputSource
         }
     }
 
@@ -84,6 +84,17 @@ struct DeclarativeBindingPlan {
     private func statusSummary(_ statuses: [String]) -> String {
         let counts = Dictionary(grouping: statuses, by: { $0 }).mapValues(\.count)
         return counts.keys.sorted().map { "\($0)=\(counts[$0] ?? 0)" }.joined(separator: ",")
+    }
+}
+
+extension BindingSource {
+    var isPointerInputSource: Bool {
+        switch self {
+        case .pointerPosition, .pointerDown, .pointerSpeed:
+            return true
+        case .systemTime, .thermalState:
+            return false
+        }
     }
 }
 

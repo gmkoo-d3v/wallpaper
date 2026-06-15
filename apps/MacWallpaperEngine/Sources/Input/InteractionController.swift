@@ -6,6 +6,7 @@ struct InteractionSnapshot {
     let pointer: CGPoint
     let command: String
     let isPointerDown: Bool
+    let pointerSpeed: CGFloat
     let clickPulse: CGFloat
     let isInputActive: Bool
 }
@@ -18,6 +19,9 @@ final class InteractionController {
     private var pointerState = CGPoint(x: 0.5, y: 0.5)
     private var smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
     private var lastSmoothSampleAt: CFTimeInterval
+    private var lastPointerSpeedSampleAt: CFTimeInterval
+    private var lastPointerSpeedSamplePoint = CGPoint(x: 0.5, y: 0.5)
+    private var pointerSpeed: CGFloat = 0
     private var pointerInputActiveUntil: CFTimeInterval = 0
     private var moveCommandState: String
     private var clickCommandState: String?
@@ -69,7 +73,10 @@ final class InteractionController {
         self.pointerState = neutralPoint
         self.smoothedPointerState = neutralPoint
         self.clock = clock
-        self.lastSmoothSampleAt = clock()
+        let now = clock()
+        self.lastSmoothSampleAt = now
+        self.lastPointerSpeedSampleAt = now
+        self.lastPointerSpeedSamplePoint = neutralPoint
     }
 
     func snapshot() -> InteractionSnapshot {
@@ -91,22 +98,26 @@ final class InteractionController {
         if let clickCommandState, clickCommandHeld || now < clickCommandExpiresAt {
             let fadeDuration = clickCommandHeld ? releaseFadeDuration : max(activeClickTailDuration, 0.001)
             let pulse = clickCommandHeld ? 1.0 : CGFloat((clickCommandExpiresAt - now) / fadeDuration)
+            let inputActive = true
             return InteractionSnapshot(
                 pointer: smoothedPointerState,
                 command: clickCommandState,
                 isPointerDown: isPointerDown,
+                pointerSpeed: inputActive ? pointerSpeed : 0,
                 clickPulse: min(max(pulse, 0.0), 1.0),
-                isInputActive: true
+                isInputActive: inputActive
             )
         }
 
         clickCommandState = nil
+        let inputActive = isPointerInputActiveLocked(now: now)
         return InteractionSnapshot(
             pointer: smoothedPointerState,
             command: moveCommandState,
             isPointerDown: isPointerDown,
+            pointerSpeed: inputActive ? pointerSpeed : 0,
             clickPulse: 0.0,
-            isInputActive: isPointerInputActiveLocked(now: now)
+            isInputActive: inputActive
         )
     }
 
@@ -114,10 +125,13 @@ final class InteractionController {
         let pointer = clamp(normalizedPoint)
 
         lock.lock()
+        let now = clock()
         if plan.allowsPointerMove(button: nil) {
+            updatePointerSpeedLocked(to: pointer, now: now)
             pointerState = pointer
-            markPointerInputActiveLocked(now: clock())
+            markPointerInputActiveLocked(now: now)
         } else {
+            pointerSpeed = 0
             pointerState = plan.lookNeutralPoint()
             moveCommandState = idleCommand
             pointerInputActiveUntil = 0
@@ -131,9 +145,11 @@ final class InteractionController {
         lock.lock()
         let now = clock()
         if plan.allowsPointerMove(button: button) {
+            updatePointerSpeedLocked(to: pointer, now: now)
             pointerState = pointer
             markPointerInputActiveLocked(now: now)
         } else {
+            pointerSpeed = 0
             pointerState = plan.lookNeutralPoint()
             pointerInputActiveUntil = 0
         }
@@ -149,6 +165,7 @@ final class InteractionController {
 
         let now = clock()
         lock.lock()
+        resetPointerSpeedSampleLocked(to: pointer, now: now)
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
         pressStartedAt = now
@@ -197,6 +214,7 @@ final class InteractionController {
         let pointer = clamp(normalizedPoint)
         let now = clock()
         lock.lock()
+        resetPointerSpeedSampleLocked(to: pointer, now: now)
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
         updatePressDisplacementLocked(to: pointer, now: now)
@@ -241,6 +259,7 @@ final class InteractionController {
         pressRubWindowActivated = false
         pressedButton = nil
         pressMaxDisplacement = 0
+        pointerSpeed = 0
         pointerInputActiveUntil = now
         lock.unlock()
     }
@@ -252,6 +271,7 @@ final class InteractionController {
         pointerState = neutralPoint
         smoothedPointerState = neutralPoint
         lastSmoothSampleAt = now
+        resetPointerSpeedSampleLocked(to: neutralPoint, now: now)
         pointerInputActiveUntil = 0
         moveCommandState = idleCommand
         clickCommandState = nil
@@ -302,6 +322,7 @@ final class InteractionController {
         pressRubWindowActivated = false
         pressedButton = nil
         pressMaxDisplacement = 0
+        pointerSpeed = 0
         lock.unlock()
     }
 
@@ -323,6 +344,28 @@ final class InteractionController {
 
     private func markPointerInputActiveLocked(now: CFTimeInterval) {
         pointerInputActiveUntil = now + pointerInputActiveTailSeconds
+    }
+
+    private func updatePointerSpeedLocked(to point: CGPoint, now: CFTimeInterval) {
+        let elapsed = now - lastPointerSpeedSampleAt
+        defer {
+            lastPointerSpeedSampleAt = now
+            lastPointerSpeedSamplePoint = point
+        }
+        guard elapsed > 0.000001, elapsed.isFinite else {
+            pointerSpeed = 0
+            return
+        }
+        let dx = point.x - lastPointerSpeedSamplePoint.x
+        let dy = point.y - lastPointerSpeedSamplePoint.y
+        let distance = sqrt(dx * dx + dy * dy)
+        pointerSpeed = min(max(distance / CGFloat(elapsed), 0), 10)
+    }
+
+    private func resetPointerSpeedSampleLocked(to point: CGPoint, now: CFTimeInterval) {
+        lastPointerSpeedSampleAt = now
+        lastPointerSpeedSamplePoint = point
+        pointerSpeed = 0
     }
 
     private func isPointerInputActiveLocked(now: CFTimeInterval) -> Bool {

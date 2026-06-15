@@ -556,7 +556,7 @@ enum RuntimeCapabilities {
         let pointerPositionBindings = declarativePlan.bindingEntries.filter {
             $0.isEnabled
                 && $0.runtimeStatus == .runtimeExecutable
-                && $0.source == .pointerPosition
+                && ($0.source == .pointerPosition || $0.source == .pointerSpeed)
         }
         let pointerDownBindings = declarativePlan.bindingEntries.filter {
             $0.isEnabled

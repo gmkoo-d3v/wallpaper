@@ -421,6 +421,7 @@
           "enum": [
             "pointer.position",
             "pointer.down",
+            "pointer.speed",
             "system.time",
             "thermal.state"
           ]

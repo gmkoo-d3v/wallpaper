@@ -1142,6 +1142,48 @@ enum RuntimeSelfTest {
             colorMatrixEffectPlan.effectEntries.first?.runtimeStatus == .runtimeRendered,
             "whitelist effect plan entries must report runtime-rendered status when the renderer owns the implementation"
         )
+        let pointerSpeedEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "moveOpacity",
+                    source: .pointerSpeed,
+                    target: "effect.tone.opacity",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .smoothStep,
+                        factor: nil,
+                        inputRange: [0, 1, 10],
+                        outputRange: [1.0, 0.85, 0.65],
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "tone",
+                    type: .colorMatrix,
+                    properties: [
+                        "brightness": .number(0.0),
+                        "opacity": .number(1.0)
+                    ]
+                )
+            ]
+        )
+        let pointerSpeedSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: pointerSpeedEffectPlan,
+            input: DeclarativeBindingEvaluationInput(pointerSpeed: 5.5)
+        )
+        let pointerSpeedState = DeclarativeEffectState.make(
+            plan: pointerSpeedEffectPlan,
+            snapshot: pointerSpeedSnapshot
+        )
+        check(
+            abs(Double(pointerSpeedState.colorMultiplier.w) - 0.75) < 0.001,
+            "pointer.speed bindings must evaluate normalized movement speed into safe effect properties without wallpaper-specific code"
+        )
         let scrollEffectPlan = DeclarativeBindingPlan(
             bindings: [
                 DeclarativeBinding(
@@ -2685,14 +2727,15 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
-                && completionAudit.contains("sources=pointer.position+pointer.down+system.time+thermal.state")
+                && completionAudit.contains("sources=pointer.position+pointer.down+pointer.speed+system.time+thermal.state")
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
+                && completionAudit.contains("moveOpacity:pointer.speed->effect.tone.opacity via map-range runtime-executable")
                 && completionAudit.contains("sample_spring_effect=bindings(spring)")
                 && completionAudit.contains("pointerSpringBlur:pointer.position->effect.softBlur.radius via spring runtime-executable")
                 && completionAudit.contains("sample_spring_spine=bindings(spring)")
                 && completionAudit.contains("pointerSpringRoot:pointer.position->spine.bone.root via spring runtime-executable")
-                && completionAudit.contains("requiredRuntimeAdapters=smooth-lookat:ok+trigger-play:ok+map-range:pointer-down-effect:ok+spring:effect:ok+spring:spine-bone:ok")
+                && completionAudit.contains("requiredRuntimeAdapters=smooth-lookat:ok+trigger-play:ok+map-range:pointer-down-effect:ok+map-range:pointer-speed-effect:ok+spring:effect:ok+spring:spine-bone:ok")
                 && completionAudit.contains("sample_trigger_play_spine=bindings(trigger-play)")
                 && completionAudit.contains("tapPulse:pointer.down->spine.animation.pulse via trigger-play runtime-executable")
                 && completionAudit.contains("discovered=map-range+none+smooth-lookat+spring+trigger-play")
@@ -2712,7 +2755,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tdeclarative-safety-boundary")
                 && completionAudit.contains("layerTypes=spine+static_image+video")
                 && completionAudit.contains("effectTypes=blur+chromaticAberration+colorMatrix+scroll+vignette")
-                && completionAudit.contains("bindingSources=pointer.down+pointer.position+system.time+thermal.state")
+                && completionAudit.contains("bindingSources=pointer.down+pointer.position+pointer.speed+system.time+thermal.state")
                 && completionAudit.contains("bindingAdapters=map-range+smooth-lookat+spring+trigger-play")
                 && completionAudit.contains("bindingTargetPattern=engine-owned")
                 && completionAudit.contains("denied=script-layer+shader-effect+command-file-network-source")
