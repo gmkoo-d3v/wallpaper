@@ -4407,6 +4407,20 @@ final class SpineSetupPoseRenderer {
                     )
                     continue
                 }
+                if type == "sequence" {
+                    guard let sequence = parseSequenceInfo(raw["sequence"]) ?? parseSequenceInfo(raw),
+                          number(raw["width"], default: 0) > 0,
+                          number(raw["height"], default: 0) > 0 else {
+                        throw EngineError.asset("Spine sequence attachment \(slotName)/\(attachmentName) missing sequence metadata or region geometry")
+                    }
+                    bySlot[slotName, default: [:]][attachmentName] = makeRegionAttachment(
+                        name: atlasRegionName,
+                        slotName: slotName,
+                        raw: raw,
+                        sequence: sequence
+                    )
+                    continue
+                }
                 guard type == "mesh" else {
                     continue
                 }
@@ -4439,7 +4453,12 @@ final class SpineSetupPoseRenderer {
         return "region"
     }
 
-    private static func makeRegionAttachment(name: String, slotName: String, raw: [String: Any]) -> Attachment {
+    private static func makeRegionAttachment(
+        name: String,
+        slotName: String,
+        raw: [String: Any],
+        sequence: SequenceInfo? = nil
+    ) -> Attachment {
         let width = number(raw["width"], default: 0)
         let height = number(raw["height"], default: 0)
         let x = number(raw["x"], default: 0)
@@ -4475,7 +4494,7 @@ final class SpineSetupPoseRenderer {
             triangles: [0, 1, 2, 2, 3, 0],
             vertices: vertices,
             color: parseColor(raw["color"] as? String),
-            sequence: parseSequenceInfo(raw["sequence"])
+            sequence: sequence ?? parseSequenceInfo(raw["sequence"])
         )
     }
 

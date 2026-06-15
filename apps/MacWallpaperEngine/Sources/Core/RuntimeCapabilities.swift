@@ -267,7 +267,7 @@ enum RuntimeCapabilities {
         let scan = SpineFeatureScan.scan(url: spineJSON)
         var reasons: [String] = []
         var degradations: [String] = []
-        if scan.unsupportedAttachmentTypes.isEmpty == false {
+        if scan.unsupportedAttachmentReasons.isEmpty == false {
             reasons.append("unsupported attachment types: \(scan.unsupportedAttachmentReasons.listOrNone)")
         }
         if scan.unsupportedLinkedMeshReferences.isEmpty == false {
@@ -753,12 +753,13 @@ enum RuntimeCapabilities {
 
         let compatibility = nativeSpineCompatibility(runtime: runtime)
         let scan = SpineFeatureScan.scan(url: spine.json)
-        let attachmentStatus = scan.unsupportedAttachmentTypes.isEmpty && scan.unsupportedLinkedMeshReferences.isEmpty
+        let attachmentStatus = scan.unsupportedAttachmentReasons.isEmpty && scan.unsupportedLinkedMeshReferences.isEmpty
             ? "supported"
             : "unsupported"
         let timelineStatus = scan.unsupportedTimelineKeys.isEmpty ? "supported" : "unsupported"
         let eventFeatureStatus: String
-        let hasUnsupportedSequenceAttachment = scan.attachmentTypes.contains("sequence")
+        let hasUnsupportedSequenceAttachment = scan.unsupportedAttachmentTypes.contains("sequence")
+            || scan.unsupportedAttachmentIssues.contains { $0.hasPrefix("sequence(") }
         if hasUnsupportedSequenceAttachment {
             eventFeatureStatus = "unsupported"
         } else if scan.hasEventData || scan.hasAudioData || scan.hasSequenceData {
@@ -900,13 +901,14 @@ private struct SpineFeatureScan {
     var unsupportedSlotFeatures: Set<String> = []
     var unsupportedConstraintUsages: Set<String> = []
     var degradedConstraintUsages: Set<String> = []
+    var unsupportedAttachmentIssues: Set<String> = []
     var unsupportedLinkedMeshReferences: Set<String> = []
     var hasEventData = false
     var hasAudioData = false
     var hasSequenceData = false
     var eventPayloadKeys: Set<String> = []
 
-    private static let renderableAttachmentTypes: Set<String> = ["region", "mesh", "linkedmesh", "path", "clipping"]
+    private static let renderableAttachmentTypes: Set<String> = ["region", "mesh", "linkedmesh", "sequence", "path", "clipping"]
     private static let staticTintAttachmentTypes: Set<String> = ["region", "mesh", "linkedmesh"]
     private static let nonVisualAttachmentTypes: Set<String> = ["point", "boundingbox"]
     private static let structuralKeyTraversalLeafKeys: Set<String> = ["vertices", "triangles", "uvs", "edges", "hull"]
@@ -933,7 +935,7 @@ private struct SpineFeatureScan {
                 return "sequence(standalone-attachment; use region/mesh sequence metadata)"
             }
             return type
-        })
+        }).union(unsupportedAttachmentIssues)
     }
 
     var unsupportedTimelineKeys: Set<String> {
@@ -1110,6 +1112,13 @@ private struct SpineFeatureScan {
                         type = "region"
                         attachmentTypes.insert("region")
                     }
+                    if type == "sequence" {
+                        if Self.isRenderableStandaloneSequence(attachment) {
+                            supportedAttachmentFeatures.insert("attachment/\(slotName)/\(attachmentName):standalone-sequence")
+                        } else {
+                            unsupportedAttachmentIssues.insert("sequence(\(slotName)/\(attachmentName):missing-region-geometry-or-sequence-metadata)")
+                        }
+                    }
                     if Self.staticTintAttachmentTypes.contains(type), attachment["color"] != nil {
                         supportedAttachmentFeatures.insert("attachment/\(slotName)/\(attachmentName):static-tint")
                     }
@@ -1130,6 +1139,34 @@ private struct SpineFeatureScan {
                     }
                 }
             }
+        }
+    }
+
+    private static func isRenderableStandaloneSequence(_ attachment: [String: Any]) -> Bool {
+        let width = numericValue(attachment["width"], default: 0)
+        let height = numericValue(attachment["height"], default: 0)
+        return width > 0 && height > 0 && sequenceCount(attachment) > 0
+    }
+
+    private static func sequenceCount(_ attachment: [String: Any]) -> Int {
+        if let sequence = attachment["sequence"] as? [String: Any] {
+            return Int(numericValue(sequence["count"], default: 0))
+        }
+        return Int(numericValue(attachment["count"], default: 0))
+    }
+
+    private static func numericValue(_ value: Any?, default fallback: Double) -> Double {
+        switch value {
+        case let value as Double:
+            return value
+        case let value as Int:
+            return Double(value)
+        case let value as NSNumber:
+            return value.doubleValue
+        case let value as String:
+            return Double(value) ?? fallback
+        default:
+            return fallback
         }
     }
 

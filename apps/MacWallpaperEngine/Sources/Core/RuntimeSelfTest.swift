@@ -6362,6 +6362,11 @@ enum RuntimeSelfTest {
               "attachment": "front"
             },
             {
+              "name": "standalone-sequence",
+              "bone": "root",
+              "attachment": "spark"
+            },
+            {
               "name": "markers",
               "bone": "root",
               "blend": "screen"
@@ -6415,6 +6420,23 @@ enum RuntimeSelfTest {
                     "triangles": [0, 1, 2, 2, 3, 0],
                     "vertices": [-20, -20, 40, -20, 40, 40, -20, 40],
                     "hull": 4
+                  }
+                },
+                "standalone-sequence": {
+                  "spark": {
+                    "type": "sequence",
+                    "path": "linked",
+                    "sequence": {
+                      "count": 2,
+                      "start": 0,
+                      "digits": 1,
+                      "setupIndex": 0
+                    },
+                    "x": -24,
+                    "y": 24,
+                    "width": 24,
+                    "height": 24,
+                    "color": "ffffffbf"
                   }
                 },
                 "markers": {
@@ -6494,6 +6516,18 @@ enum RuntimeSelfTest {
                 "default": {
                   "slot": {
                     "linked": {
+                      "sequence": [
+                        {
+                          "time": 0,
+                          "mode": "loop",
+                          "index": 0,
+                          "delay": 0.1
+                        }
+                      ]
+                    }
+                  },
+                  "standalone-sequence": {
+                    "spark": {
                       "sequence": [
                         {
                           "time": 0,
@@ -6773,9 +6807,9 @@ enum RuntimeSelfTest {
         let linkedMeshCapabilitiesSummary = linkedMeshRuntime.runtimeCapabilitiesSummary()
         check(
             linkedMeshCapabilitiesSummary
-                .contains("spine\tattachments\tsupported\trenderable=linkedmesh,mesh ignoredNonVisual=boundingbox,point")
+                .contains("spine\tattachments\tsupported\trenderable=linkedmesh,mesh,sequence ignoredNonVisual=boundingbox,point")
                 && linkedMeshCapabilitiesSummary.contains("attachment/slot/linked:static-tint"),
-            "runtime capabilities must report renderable Spine attachments, ignored non-visual point/boundingbox attachments, and static attachment tint support (\(linkedMeshCapabilitiesSummary))",
+            "runtime capabilities must report renderable Spine attachments, standalone sequence support, ignored non-visual point/boundingbox attachments, and static attachment tint support (\(linkedMeshCapabilitiesSummary))",
             failures: &failures,
             checks: &checks
         )
@@ -6821,7 +6855,7 @@ enum RuntimeSelfTest {
                 && linkedMeshAnimationPlan.contains("slot.rgba2=1")
                 && linkedMeshAnimationPlan.contains("slot.rgb2=1")
                 && linkedMeshAnimationPlan.contains("slot.twoColor=1")
-                && linkedMeshAnimationPlan.contains("attachment.sequence=1")
+                && linkedMeshAnimationPlan.contains("attachment.sequence=2")
                 && linkedMeshAnimationPlan.contains("drawOrder=1"),
             "Spine animation diagnostics must align with native runtime support for drawOrder, slot color/rgb/alpha/rgb2/rgba2/twoColor, and sequence timelines",
             failures: &failures,
@@ -9734,7 +9768,7 @@ enum RuntimeSelfTest {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: unsupportedRuntime)
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
-        check(compatibility.reasonText.contains("sequence(standalone-attachment"), "compatibility gate must distinguish standalone sequence attachments from supported region/mesh sequence metadata", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("sequence(face/animated-sequence:missing-region-geometry-or-sequence-metadata)"), "compatibility gate must distinguish malformed standalone sequence attachments from renderable standalone sequence attachments", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported constraint usages"), "compatibility gate must report unsupported constraint usages", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported slot features") == false, "static Spine two-color tint must not force unsupported native compatibility", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported blend modes"), "compatibility gate must report unsupported Spine blend modes", failures: &failures, checks: &checks)
@@ -9752,8 +9786,8 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
-            unsupportedRuntime.runtimeCapabilitiesSummary().contains("unsupported=sequence(standalone-attachment"),
-            "capability diagnostics must keep standalone sequence attachment fallback separate from supported sequence metadata",
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("unsupported=sequence(face/animated-sequence:missing-region-geometry-or-sequence-metadata)"),
+            "capability diagnostics must keep malformed standalone sequence attachment fallback separate from supported sequence metadata",
             failures: &failures,
             checks: &checks
         )
