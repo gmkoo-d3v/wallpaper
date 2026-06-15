@@ -9679,6 +9679,7 @@ enum RuntimeSelfTest {
         let compatibility = RuntimeCapabilities.nativeSpineCompatibility(runtime: unsupportedRuntime)
         check(compatibility.isSupported == false, "unsupported Spine fixture must fail native compatibility gate", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported attachment types"), "compatibility gate must report unsupported attachment types", failures: &failures, checks: &checks)
+        check(compatibility.reasonText.contains("sequence(standalone-attachment"), "compatibility gate must distinguish standalone sequence attachments from supported region/mesh sequence metadata", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported constraint usages"), "compatibility gate must report unsupported constraint usages", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported slot features") == false, "static Spine two-color tint must not force unsupported native compatibility", failures: &failures, checks: &checks)
         check(compatibility.reasonText.contains("unsupported blend modes"), "compatibility gate must report unsupported Spine blend modes", failures: &failures, checks: &checks)
@@ -9692,6 +9693,12 @@ enum RuntimeSelfTest {
         check(
             unsupportedRuntime.runtimeCapabilitiesSummary().contains("sequence=unsupported-attachment"),
             "capability diagnostics must distinguish unsupported sequence attachment types from tolerated sequence metadata",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            unsupportedRuntime.runtimeCapabilitiesSummary().contains("unsupported=sequence(standalone-attachment"),
+            "capability diagnostics must keep standalone sequence attachment fallback separate from supported sequence metadata",
             failures: &failures,
             checks: &checks
         )

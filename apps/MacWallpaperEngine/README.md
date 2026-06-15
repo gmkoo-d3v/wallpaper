@@ -312,6 +312,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Spine `sequence` metadata and `attachments.sequence` timelines are supported
   for otherwise supported region/mesh attachments, selecting alternate atlas
   regions without forcing a composite fallback.
+- Standalone Spine attachments whose attachment `type` is `sequence` are still
+  compatibility-gated to composite fallback until they have a renderable
+  region/mesh contract.
 - Spine `point` and `boundingbox` attachments are treated as non-visual
   metadata and do not force a composite fallback.
 - Shared interaction plan for deterministic hit-zone, default-action, button, and

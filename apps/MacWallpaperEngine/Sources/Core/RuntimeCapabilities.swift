@@ -268,7 +268,7 @@ enum RuntimeCapabilities {
         var reasons: [String] = []
         var degradations: [String] = []
         if scan.unsupportedAttachmentTypes.isEmpty == false {
-            reasons.append("unsupported attachment types: \(scan.unsupportedAttachmentTypes.listOrNone)")
+            reasons.append("unsupported attachment types: \(scan.unsupportedAttachmentReasons.listOrNone)")
         }
         if scan.unsupportedLinkedMeshReferences.isEmpty == false {
             reasons.append("unsupported linkedmesh references: \(scan.unsupportedLinkedMeshReferences.listOrNone)")
@@ -816,7 +816,7 @@ enum RuntimeCapabilities {
                 category: "spine",
                 name: "attachments",
                 status: attachmentStatus,
-                detail: "renderable=\(scan.renderableAttachmentTypes.listOrNone) ignoredNonVisual=\(scan.ignoredNonVisualAttachmentTypes.listOrNone) supportedFeatures=\(scan.supportedAttachmentFeatures.compactListOrNone) unsupported=\(scan.unsupportedAttachmentTypes.listOrNone) linkedmeshIssues=\(scan.unsupportedLinkedMeshReferences.listOrNone)"
+                detail: "renderable=\(scan.renderableAttachmentTypes.listOrNone) ignoredNonVisual=\(scan.ignoredNonVisualAttachmentTypes.listOrNone) supportedFeatures=\(scan.supportedAttachmentFeatures.compactListOrNone) unsupported=\(scan.unsupportedAttachmentReasons.listOrNone) linkedmeshIssues=\(scan.unsupportedLinkedMeshReferences.listOrNone)"
             ),
             RuntimeCapabilityRow(
                 category: "spine",
@@ -925,6 +925,15 @@ private struct SpineFeatureScan {
 
     var unsupportedAttachmentTypes: Set<String> {
         attachmentTypes.subtracting(Self.renderableAttachmentTypes.union(Self.nonVisualAttachmentTypes))
+    }
+
+    var unsupportedAttachmentReasons: Set<String> {
+        Set(unsupportedAttachmentTypes.map { type in
+            if type == "sequence" {
+                return "sequence(standalone-attachment; use region/mesh sequence metadata)"
+            }
+            return type
+        })
     }
 
     var unsupportedTimelineKeys: Set<String> {
