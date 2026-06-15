@@ -371,6 +371,7 @@ enum EffectType: String, Decodable {
     case colorMatrix
     case scroll
     case chromaticAberration
+    case vignette
 }
 
 enum EffectPropertyValue: Decodable {

@@ -859,7 +859,8 @@ enum RuntimeCompletionAudit {
             EffectType.blur.rawValue,
             EffectType.colorMatrix.rawValue,
             EffectType.scroll.rawValue,
-            EffectType.chromaticAberration.rawValue
+            EffectType.chromaticAberration.rawValue,
+            EffectType.vignette.rawValue
         ]
         var runtimeRenderedEffects = Set<String>()
         var bundleEvidenceParts: [String] = []
@@ -886,7 +887,7 @@ enum RuntimeCompletionAudit {
         }.joined(separator: "+")
         return (
             schemaOK && missingRequiredEffects.isEmpty,
-            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered) requiredWhitelistEffects=\(requiredEffectStatus) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidenceParts.joined(separator: "; ")); discovered=\(effectKinds.sorted().joined(separator: "+"))"
+            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered) requiredWhitelistEffects=\(requiredEffectStatus) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidenceParts.joined(separator: "; ")); discovered=\(effectKinds.sorted().joined(separator: "+"))"
         )
     }
 
@@ -917,7 +918,8 @@ enum RuntimeCompletionAudit {
             EffectType.blur.rawValue,
             EffectType.colorMatrix.rawValue,
             EffectType.scroll.rawValue,
-            EffectType.chromaticAberration.rawValue
+            EffectType.chromaticAberration.rawValue,
+            EffectType.vignette.rawValue
         ]
         let expectedBindingSources: Set<String> = [
             BindingSource.pointerPosition.rawValue,

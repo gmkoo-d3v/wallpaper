@@ -25,6 +25,8 @@ struct WallpaperSnapshotDiagnostics {
         private let screenPipelineState: MTLRenderPipelineState
         private let foregroundPlan: ForegroundRenderPlan
         private let spineRenderer: SpineSetupPoseRenderer?
+        private let declarativePlan: DeclarativeBindingPlan
+        private var declarativeBindingState = DeclarativeBindingEvaluationState()
 
         init(
             runtime: NativeRuntimeCore,
@@ -59,6 +61,7 @@ struct WallpaperSnapshotDiagnostics {
                 role: role,
                 compatibility: RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime)
             )
+            self.declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
 
             if foregroundPlan.usesNativeSpine,
                let spineAsset = runtime.assetCatalog.spineAsset {
@@ -79,7 +82,7 @@ struct WallpaperSnapshotDiagnostics {
                     idleAnimationName: SpineInteractionAnimationRoles.idleAnimationName(from: runtime.manifest),
                     loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
                     oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
-                    declarativePlan: DeclarativeBindingPlan(manifest: runtime.manifest)
+                    declarativePlan: declarativePlan
                 )
             } else {
                 self.spineRenderer = nil
@@ -109,10 +112,20 @@ struct WallpaperSnapshotDiagnostics {
             }
 
             if let backgroundTexture = background.texture {
+                let effectSnapshot = DeclarativeBindingEvaluator.evaluate(
+                    plan: declarativePlan,
+                    input: DeclarativeBindingEvaluationInput(
+                        systemTimeSeconds: time,
+                        thermalStateLevel: 0
+                    ),
+                    state: &declarativeBindingState
+                )
+                let effectState = DeclarativeEffectState.make(plan: declarativePlan, snapshot: effectSnapshot)
                 WallpaperSnapshotDiagnostics.drawVideo(
                     texture: backgroundTexture,
                     fitMode: runtime.config.fitMode,
                     drawableSize: CGSize(width: width, height: height),
+                    effectState: effectState,
                     encoder: encoder,
                     normalPipelineState: normalPipelineState
                 )
@@ -317,13 +330,21 @@ struct WallpaperSnapshotDiagnostics {
         texture: MTLTexture,
         fitMode: RenderFitMode,
         drawableSize: CGSize,
+        effectState: DeclarativeEffectState,
         encoder: MTLRenderCommandEncoder,
         normalPipelineState: MTLRenderPipelineState
     ) {
         encoder.setRenderPipelineState(normalPipelineState)
         switch fitMode {
         case .fill:
-            draw(texture: texture, rect: aspectFillRect(texture: texture, drawableSize: drawableSize), encoder: encoder)
+            draw(
+                texture: texture,
+                rect: aspectFillRect(texture: texture, drawableSize: drawableSize),
+                color: effectState.colorMultiplier,
+                textureOffset: effectState.textureOffset,
+                effectParams: effectState.fragmentEffectParams,
+                encoder: encoder
+            )
         case .contain:
             draw(
                 texture: texture,
@@ -331,7 +352,14 @@ struct WallpaperSnapshotDiagnostics {
                 color: SIMD4<Float>(0.72, 0.72, 0.72, 1),
                 encoder: encoder
             )
-            draw(texture: texture, rect: aspectFitRect(texture: texture, drawableSize: drawableSize), encoder: encoder)
+            draw(
+                texture: texture,
+                rect: aspectFitRect(texture: texture, drawableSize: drawableSize),
+                color: effectState.colorMultiplier,
+                textureOffset: effectState.textureOffset,
+                effectParams: effectState.fragmentEffectParams,
+                encoder: encoder
+            )
         }
     }
 
@@ -339,6 +367,8 @@ struct WallpaperSnapshotDiagnostics {
         texture: MTLTexture,
         rect: CGRect,
         color: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
+        textureOffset: SIMD2<Float> = SIMD2<Float>(0, 0),
+        effectParams: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0),
         encoder: MTLRenderCommandEncoder
     ) {
         let vertices = [
@@ -350,7 +380,9 @@ struct WallpaperSnapshotDiagnostics {
         var uniforms = RenderUniforms.make(
             scale: 1,
             offset: SIMD2<Float>(0, 0),
-            aspectScale: SIMD2<Float>(1, 1)
+            aspectScale: SIMD2<Float>(1, 1),
+            textureOffset: textureOffset,
+            effectParams: effectParams
         )
         encoder.setVertexBytes(vertices, length: MemoryLayout<RenderVertex>.stride * vertices.count, index: 0)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)

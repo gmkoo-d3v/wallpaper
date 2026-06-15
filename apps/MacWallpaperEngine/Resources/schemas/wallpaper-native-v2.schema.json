@@ -521,7 +521,8 @@
             "blur",
             "colorMatrix",
             "scroll",
-            "chromaticAberration"
+            "chromaticAberration",
+            "vignette"
           ]
         },
         "properties": { "type": "object" }

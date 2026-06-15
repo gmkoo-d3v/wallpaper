@@ -560,6 +560,8 @@ enum ManifestLoader {
             return ["offsetX", "offsetY", "x", "y"]
         case .chromaticAberration:
             return ["amount", "offset"]
+        case .vignette:
+            return ["amount", "intensity", "radius"]
         }
     }
 

@@ -20,6 +20,8 @@ struct DeclarativeEffectState {
         var textureOffset = SIMD2<Float>(0, 0)
         var blurRadiusPixels: Double = 0
         var chromaticOffsetPixels: Double = 0
+        var vignetteIntensity: Double = 0
+        var vignetteRadius: Double = 0.55
 
         for effect in plan.effectEntries where effect.effectKind == EffectType.colorMatrix.rawValue {
             let brightness = number(
@@ -83,6 +85,23 @@ struct DeclarativeEffectState {
             chromaticOffsetPixels = max(chromaticOffsetPixels, min(max(amount, 0), 8))
         }
 
+        for effect in plan.effectEntries where effect.effectKind == EffectType.vignette.rawValue {
+            let intensity = number(
+                effect: effect,
+                property: "intensity",
+                snapshot: snapshot,
+                fallback: number(effect: effect, property: "amount", snapshot: snapshot, fallback: 0)
+            )
+            let radius = number(
+                effect: effect,
+                property: "radius",
+                snapshot: snapshot,
+                fallback: 0.55
+            )
+            vignetteIntensity = max(vignetteIntensity, min(max(intensity, 0), 1))
+            vignetteRadius = min(max(radius, 0.05), 0.95)
+        }
+
         return DeclarativeEffectState(
             colorMultiplier: colorMultiplier,
             textureOffset: SIMD2<Float>(
@@ -92,8 +111,8 @@ struct DeclarativeEffectState {
             fragmentEffectParams: SIMD4<Float>(
                 Float(blurRadiusPixels),
                 Float(chromaticOffsetPixels),
-                0,
-                0
+                Float(vignetteIntensity),
+                Float(vignetteRadius)
             )
         )
     }

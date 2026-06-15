@@ -889,6 +889,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         );
         float blurRadius = max(in.effects.x, 0.0);
         float chromaticOffset = max(in.effects.y, 0.0);
+        float vignetteIntensity = clamp(in.effects.z, 0.0, 1.0);
+        float vignetteRadius = clamp(in.effects.w, 0.05, 0.95);
 
         float4 sample = colorTexture.sample(textureSampler, in.texCoord);
         if (blurRadius > 0.000001) {
@@ -906,6 +908,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             float red = colorTexture.sample(textureSampler, in.texCoord + chromaticStep).r;
             float blue = colorTexture.sample(textureSampler, in.texCoord - chromaticStep).b;
             sample = float4(red, sample.g, blue, sample.a);
+        }
+        if (vignetteIntensity > 0.000001) {
+            float edge = smoothstep(vignetteRadius, 0.70710678, distance(fract(in.texCoord), float2(0.5, 0.5)));
+            sample.rgb *= (1.0 - edge * vignetteIntensity);
         }
         float4 tinted = sample * in.color;
         tinted.rgb += max(sample.a - sample.rgb, float3(0.0)) * in.darkColor.rgb * in.color.a;
