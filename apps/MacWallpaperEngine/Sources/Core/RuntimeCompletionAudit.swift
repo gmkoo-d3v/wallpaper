@@ -409,7 +409,7 @@ enum RuntimeCompletionAudit {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if physicalDisplayHotplugPassed && (normalizedPhysicalDisplayHotplugNote?.isEmpty ?? true) {
             throw EngineError.invalidArgument(
-                "--confirm-physical-display-hotplug requires --physical-display-hotplug-note <observed display event and restored displays>"
+                "--confirm-physical-display-hotplug requires --physical-display-hotplug-note <observed wake/reconnect, selectedOnly/selectedPolicy/allFull, and restored displays>; example: \"재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인\""
             )
         }
         let normalizedPhysicalDisplayHotplugEvent = try normalizePhysicalDisplayHotplugEvent(
@@ -490,7 +490,7 @@ enum RuntimeCompletionAudit {
         let normalized = event?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let normalized, normalized.isEmpty == false else {
             throw EngineError.invalidArgument(
-                "--confirm-physical-display-hotplug requires --physical-display-hotplug-event wake|reconnect"
+                "--confirm-physical-display-hotplug requires --physical-display-hotplug-event wake|reconnect; the note must also mention the same event"
             )
         }
         guard ["wake", "reconnect"].contains(normalized) else {
@@ -510,7 +510,7 @@ enum RuntimeCompletionAudit {
         }
         guard containsAnyToken(eventTokens, in: foldedNote) else {
             throw EngineError.invalidArgument(
-                "--physical-display-hotplug-note must mention the selected \(normalized) event"
+                "--physical-display-hotplug-note must mention the selected \(normalized) event; accepted note words include \(eventTokens.joined(separator: ", "))"
             )
         }
         let missingModeTokens = ["selectedonly", "selectedpolicy", "allfull"].filter {
@@ -518,12 +518,12 @@ enum RuntimeCompletionAudit {
         }
         guard missingModeTokens.isEmpty else {
             throw EngineError.invalidArgument(
-                "--physical-display-hotplug-note must mention checked display mode token(s): \(missingModeTokens.joined(separator: ", "))"
+                "--physical-display-hotplug-note must mention checked display mode token(s): \(missingModeTokens.joined(separator: ", ")); include selectedOnly selectedPolicy allFull"
             )
         }
         guard containsAnyToken(["restore", "restored", "복원", "복구", "정상"], in: foldedNote) else {
             throw EngineError.invalidArgument(
-                "--physical-display-hotplug-note must mention restored wallpaper windows after \(normalized)"
+                "--physical-display-hotplug-note must mention restored wallpaper windows after \(normalized); accepted restore words include restore, restored, 복원, 복구, 정상"
             )
         }
         return normalized
@@ -1258,7 +1258,7 @@ enum RuntimeCompletionAudit {
     }
 
     static func physicalDisplayHotplugProtocolText() -> String {
-        "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays"
+        "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays; evidence note must mention wake/reconnect, selectedOnly selectedPolicy allFull, and restored/복원"
     }
 
     static func currentBlackFrameFlickerProtocolText() -> String {
@@ -1401,7 +1401,7 @@ enum RuntimeCompletionAudit {
             passed: false,
             evidence: "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            operatorNote: "Required before physical-display-hotplug-smoke can pass.",
+            operatorNote: "Required before physical-display-hotplug-smoke can pass: mention wake/reconnect, selectedOnly selectedPolicy allFull, and restored/복원. Example: 재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인.",
             protocolText: protocolText
         )
     }
