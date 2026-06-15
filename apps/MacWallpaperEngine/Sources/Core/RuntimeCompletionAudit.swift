@@ -57,6 +57,13 @@ private struct ManualSmokeEvidenceEntry: Codable {
 
 enum RuntimeCompletionAudit {
     static let manualSmokeEvidenceSchemaVersion = "mac-wallpaper-manual-smoke.v1"
+    private static let requiredRuntimeRenderedEffectTypes: Set<String> = [
+        EffectType.blur.rawValue,
+        EffectType.colorMatrix.rawValue,
+        EffectType.scroll.rawValue,
+        EffectType.chromaticAberration.rawValue,
+        EffectType.vignette.rawValue
+    ]
 
     private static func isNativeSpinePlayable(_ capabilities: WallpaperBundleCapabilityInfo) -> Bool {
         if capabilities.nativeSpineStatus == "supported" { return true }
@@ -111,12 +118,7 @@ enum RuntimeCompletionAudit {
                 && $0.capabilities.assetKinds.contains("spine") == false
         }
         let hasStatic = bundles.contains { $0.capabilities.assetKinds.contains("static") }
-        let hasWhitelistEffectFixture = effectFamilies.isSuperset(of: [
-            "blur",
-            "chromaticAberration",
-            "colorMatrix",
-            "scroll"
-        ])
+        let hasWhitelistEffectFixture = effectFamilies.isSuperset(of: requiredRuntimeRenderedEffectTypes)
         let hasDisplayModes = validationMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull")
         let hasDisplayRefresh = validationMatrix.contains("displayRefreshFps: primary120+secondary60")
         let hasPerformancePlan = validationMatrix.contains("performancePlan: target=")
@@ -855,13 +857,7 @@ enum RuntimeCompletionAudit {
             definitionNames: ["effect"]
         )
         let effectKinds = Set(bundles.flatMap(\.capabilities.effectKinds))
-        let requiredEffects: Set<String> = [
-            EffectType.blur.rawValue,
-            EffectType.colorMatrix.rawValue,
-            EffectType.scroll.rawValue,
-            EffectType.chromaticAberration.rawValue,
-            EffectType.vignette.rawValue
-        ]
+        let requiredEffects = requiredRuntimeRenderedEffectTypes
         var runtimeRenderedEffects = Set<String>()
         var bundleEvidenceParts: [String] = []
         for bundle in bundles {
@@ -914,13 +910,7 @@ enum RuntimeCompletionAudit {
         ) ?? ""
 
         let expectedLayerTypes: Set<String> = ["static_image", "video", "spine"]
-        let expectedEffectTypes: Set<String> = [
-            EffectType.blur.rawValue,
-            EffectType.colorMatrix.rawValue,
-            EffectType.scroll.rawValue,
-            EffectType.chromaticAberration.rawValue,
-            EffectType.vignette.rawValue
-        ]
+        let expectedEffectTypes = requiredRuntimeRenderedEffectTypes
         let expectedBindingSources: Set<String> = [
             BindingSource.pointerPosition.rawValue,
             BindingSource.pointerDown.rawValue,
