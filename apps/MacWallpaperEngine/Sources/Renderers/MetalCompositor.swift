@@ -343,6 +343,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 color: effectState.colorMultiplier,
                 textureOffset: effectState.textureOffset,
                 effectParams: effectState.fragmentEffectParams,
+                effectParams2: effectState.fragmentEffectParams2,
                 encoder: encoder
             )
         } else {
@@ -430,6 +431,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         color: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
         textureOffset: SIMD2<Float> = SIMD2<Float>(0, 0),
         effectParams: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0),
+        effectParams2: SIMD4<Float> = SIMD4<Float>(1, 0, 0, 0),
         encoder: MTLRenderCommandEncoder
     ) {
         draw(
@@ -439,6 +441,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             color: color,
             textureOffset: textureOffset,
             effectParams: effectParams,
+            effectParams2: effectParams2,
             encoder: encoder
         )
     }
@@ -450,6 +453,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         color: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
         textureOffset: SIMD2<Float> = SIMD2<Float>(0, 0),
         effectParams: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0),
+        effectParams2: SIMD4<Float> = SIMD4<Float>(1, 0, 0, 0),
         encoder: MTLRenderCommandEncoder
     ) {
         let x0 = Float(rect.minX)
@@ -471,7 +475,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             offset: SIMD2<Float>(0, 0),
             aspectScale: SIMD2<Float>(1, 1),
             textureOffset: textureOffset,
-            effectParams: effectParams
+            effectParams: effectParams,
+            effectParams2: effectParams2
         )
         encoder.setVertexBytes(vertices, length: MemoryLayout<RenderVertex>.stride * vertices.count, index: 0)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)
@@ -495,6 +500,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 color: effectState.colorMultiplier,
                 textureOffset: effectState.textureOffset,
                 effectParams: effectState.fragmentEffectParams,
+                effectParams2: effectState.fragmentEffectParams2,
                 encoder: encoder
             )
         case .contain:
@@ -507,6 +513,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 color: effectState.colorMultiplier,
                 textureOffset: effectState.textureOffset,
                 effectParams: effectState.fragmentEffectParams,
+                effectParams2: effectState.fragmentEffectParams2,
                 encoder: encoder
             )
         }
@@ -846,6 +853,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         float4 color;
         float4 darkColor;
         float4 effects;
+        float4 effects2;
     };
 
     struct Uniforms {
@@ -853,6 +861,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         float4 aspectScale;
         float4 textureTransform;
         float4 effectParams;
+        float4 effectParams2;
     };
 
     vertex RasterData wallpaper_vertex(
@@ -873,6 +882,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         out.color = vertices[vertexID].color;
         out.darkColor = vertices[vertexID].darkColor;
         out.effects = uniforms.effectParams;
+        out.effects2 = uniforms.effectParams2;
         return out;
     }
 
@@ -894,6 +904,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         float chromaticOffset = max(in.effects.y, 0.0);
         float vignetteIntensity = clamp(in.effects.z, 0.0, 1.0);
         float vignetteRadius = clamp(in.effects.w, 0.05, 0.95);
+        float saturation = clamp(in.effects2.x, 0.0, 2.0);
 
         float4 sample = colorTexture.sample(textureSampler, in.texCoord);
         if (blurRadius > 0.000001) {
@@ -911,6 +922,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             float red = colorTexture.sample(textureSampler, in.texCoord + chromaticStep).r;
             float blue = colorTexture.sample(textureSampler, in.texCoord - chromaticStep).b;
             sample = float4(red, sample.g, blue, sample.a);
+        }
+        if (abs(saturation - 1.0) > 0.000001) {
+            float luma = dot(sample.rgb, float3(0.2126, 0.7152, 0.0722));
+            sample.rgb = mix(float3(luma), sample.rgb, saturation);
         }
         if (vignetteIntensity > 0.000001) {
             float edge = smoothstep(vignetteRadius, 0.70710678, distance(fract(in.texCoord), float2(0.5, 0.5)));

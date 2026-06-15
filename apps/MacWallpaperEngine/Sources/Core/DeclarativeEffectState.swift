@@ -5,11 +5,13 @@ struct DeclarativeEffectState {
     let colorMultiplier: SIMD4<Float>
     let textureOffset: SIMD2<Float>
     let fragmentEffectParams: SIMD4<Float>
+    let fragmentEffectParams2: SIMD4<Float>
 
     static let identity = DeclarativeEffectState(
         colorMultiplier: SIMD4<Float>(1, 1, 1, 1),
         textureOffset: SIMD2<Float>(0, 0),
-        fragmentEffectParams: SIMD4<Float>(0, 0, 0, 0)
+        fragmentEffectParams: SIMD4<Float>(0, 0, 0, 0),
+        fragmentEffectParams2: SIMD4<Float>(1, 0, 0, 0)
     )
 
     static func make(
@@ -22,6 +24,7 @@ struct DeclarativeEffectState {
         var chromaticOffsetPixels: Double = 0
         var vignetteIntensity: Double = 0
         var vignetteRadius: Double = 0.55
+        var saturation: Double = 1
 
         for effect in plan.effectEntries where effect.effectKind == EffectType.colorMatrix.rawValue {
             let brightness = number(
@@ -41,9 +44,16 @@ struct DeclarativeEffectState {
                     fallback: 1
                 )
             )
+            let effectSaturation = number(
+                effect: effect,
+                property: "saturation",
+                snapshot: snapshot,
+                fallback: 1
+            )
             let rgbScale = Float(min(max(1.0 + brightness, 0), 2))
             let alphaScale = Float(min(max(alpha, 0), 1))
             colorMultiplier *= SIMD4<Float>(rgbScale, rgbScale, rgbScale, alphaScale)
+            saturation *= min(max(effectSaturation, 0), 2)
         }
 
         for effect in plan.effectEntries where effect.effectKind == EffectType.scroll.rawValue {
@@ -113,6 +123,12 @@ struct DeclarativeEffectState {
                 Float(chromaticOffsetPixels),
                 Float(vignetteIntensity),
                 Float(vignetteRadius)
+            ),
+            fragmentEffectParams2: SIMD4<Float>(
+                Float(min(max(saturation, 0), 2)),
+                0,
+                0,
+                0
             )
         )
     }

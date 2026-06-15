@@ -1118,7 +1118,8 @@ enum RuntimeSelfTest {
                     id: "tone",
                     type: .colorMatrix,
                     properties: [
-                        "opacity": .number(0.5)
+                        "opacity": .number(0.5),
+                        "saturation": .number(0.4)
                     ]
                 )
             ]
@@ -1135,8 +1136,9 @@ enum RuntimeSelfTest {
             abs(Double(colorMatrixState.colorMultiplier.x) - 1.25) < 0.001
                 && abs(Double(colorMatrixState.colorMultiplier.y) - 1.25) < 0.001
                 && abs(Double(colorMatrixState.colorMultiplier.z) - 1.25) < 0.001
-                && abs(Double(colorMatrixState.colorMultiplier.w) - 0.5) < 0.001,
-            "colorMatrix whitelist effects must convert evaluated bindings into renderer-owned color multipliers"
+                && abs(Double(colorMatrixState.colorMultiplier.w) - 0.5) < 0.001
+                && abs(Double(colorMatrixState.fragmentEffectParams2.x) - 0.4) < 0.001,
+            "colorMatrix whitelist effects must convert evaluated bindings and static saturation into renderer-owned color parameters"
         )
         check(
             colorMatrixEffectPlan.effectEntries.first?.runtimeStatus == .runtimeRendered,
@@ -2833,7 +2835,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("requiredWhitelistEffects=blur:ok+chromaticAberration:ok+colorMatrix:ok+scroll:ok+vignette:ok")
                 && completionAudit.contains("sample_effect=effects(scroll+colorMatrix+blur+chromaticAberration+vignette)")
                 && completionAudit.contains("loopPan:scroll properties=1 runtime-rendered")
-                && completionAudit.contains("tone:colorMatrix properties=2 runtime-rendered")
+                && completionAudit.contains("tone:colorMatrix properties=3 runtime-rendered")
                 && completionAudit.contains("softBlur:blur properties=1 runtime-rendered")
                 && completionAudit.contains("split:chromaticAberration properties=1 runtime-rendered")
                 && completionAudit.contains("edgeShade:vignette properties=2 runtime-rendered")

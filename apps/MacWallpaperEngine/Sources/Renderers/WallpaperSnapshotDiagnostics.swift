@@ -343,6 +343,7 @@ struct WallpaperSnapshotDiagnostics {
                 color: effectState.colorMultiplier,
                 textureOffset: effectState.textureOffset,
                 effectParams: effectState.fragmentEffectParams,
+                effectParams2: effectState.fragmentEffectParams2,
                 encoder: encoder
             )
         case .contain:
@@ -358,6 +359,7 @@ struct WallpaperSnapshotDiagnostics {
                 color: effectState.colorMultiplier,
                 textureOffset: effectState.textureOffset,
                 effectParams: effectState.fragmentEffectParams,
+                effectParams2: effectState.fragmentEffectParams2,
                 encoder: encoder
             )
         }
@@ -369,6 +371,7 @@ struct WallpaperSnapshotDiagnostics {
         color: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
         textureOffset: SIMD2<Float> = SIMD2<Float>(0, 0),
         effectParams: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0),
+        effectParams2: SIMD4<Float> = SIMD4<Float>(1, 0, 0, 0),
         encoder: MTLRenderCommandEncoder
     ) {
         let vertices = [
@@ -382,7 +385,8 @@ struct WallpaperSnapshotDiagnostics {
             offset: SIMD2<Float>(0, 0),
             aspectScale: SIMD2<Float>(1, 1),
             textureOffset: textureOffset,
-            effectParams: effectParams
+            effectParams: effectParams,
+            effectParams2: effectParams2
         )
         encoder.setVertexBytes(vertices, length: MemoryLayout<RenderVertex>.stride * vertices.count, index: 0)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)

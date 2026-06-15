@@ -555,7 +555,7 @@ enum ManifestLoader {
         case .blur:
             return ["amount", "radius"]
         case .colorMatrix:
-            return ["alpha", "brightness", "opacity"]
+            return ["alpha", "brightness", "opacity", "saturation"]
         case .scroll:
             return ["offsetX", "offsetY", "x", "y"]
         case .chromaticAberration:
