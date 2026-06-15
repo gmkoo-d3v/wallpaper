@@ -1286,6 +1286,72 @@ enum RuntimeSelfTest {
             abs(Double(pointerDragDistanceState.fragmentEffectParams.z) - 0.325) < 0.001,
             "pointer.dragDistance bindings must evaluate held-drag displacement into safe effect properties without wallpaper-specific code"
         )
+        let pointerAxisEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "cursorPanY",
+                    source: .pointerX,
+                    target: "effect.cursorPan.offsetY",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 1],
+                        outputRange: [-0.05, 0.05],
+                        loop: nil
+                    ),
+                    enabled: nil
+                ),
+                DeclarativeBinding(
+                    id: "cursorShadeRadius",
+                    source: .pointerY,
+                    target: "effect.dragShade.radius",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 1],
+                        outputRange: [0.45, 0.7],
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "cursorPan",
+                    type: .scroll,
+                    properties: [
+                        "offsetY": .number(0.0)
+                    ]
+                ),
+                EffectConfig(
+                    id: "dragShade",
+                    type: .vignette,
+                    properties: [
+                        "intensity": .number(0.0),
+                        "radius": .number(0.55)
+                    ]
+                )
+            ]
+        )
+        let pointerAxisSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: pointerAxisEffectPlan,
+            input: DeclarativeBindingEvaluationInput(pointerPosition: CGPoint(x: 0.8, y: 0.2))
+        )
+        let pointerAxisState = DeclarativeEffectState.make(
+            plan: pointerAxisEffectPlan,
+            snapshot: pointerAxisSnapshot
+        )
+        check(
+            abs(Double(pointerAxisState.textureOffset.y) - 0.03) < 0.001
+                && abs(Double(pointerAxisState.fragmentEffectParams.w) - 0.5) < 0.001,
+            "pointer.x and pointer.y bindings must expose clamped scalar pointer axes to safe effect properties without arbitrary scripts"
+        )
         let scrollEffectPlan = DeclarativeBindingPlan(
             bindings: [
                 DeclarativeBinding(
@@ -2830,13 +2896,15 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
-                && completionAudit.contains("sources=pointer.position+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state")
+                && completionAudit.contains("sources=pointer.position+pointer.x+pointer.y+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state")
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("moveOpacity:pointer.speed->effect.tone.opacity via map-range runtime-executable")
                 && completionAudit.contains("speedSaturation:pointer.speed->effect.tone.saturation via map-range runtime-executable")
+                && completionAudit.contains("cursorPanY:pointer.x->effect.cursorPan.offsetY via map-range runtime-executable")
                 && completionAudit.contains("holdBlurRadius:pointer.pressDuration->effect.holdBlur.radius via map-range runtime-executable")
                 && completionAudit.contains("dragShadeIntensity:pointer.dragDistance->effect.dragShade.intensity via map-range runtime-executable")
+                && completionAudit.contains("cursorShadeRadius:pointer.y->effect.dragShade.radius via map-range runtime-executable")
                 && completionAudit.contains("sample_spring_effect=bindings(spring)")
                 && completionAudit.contains("pointerSpringBlur:pointer.position->effect.softBlur.radius via spring runtime-executable")
                 && completionAudit.contains("sample_spring_spine=bindings(spring)")
@@ -2861,7 +2929,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tdeclarative-safety-boundary")
                 && completionAudit.contains("layerTypes=spine+static_image+video")
                 && completionAudit.contains("effectTypes=blur+chromaticAberration+colorMatrix+scroll+vignette")
-                && completionAudit.contains("bindingSources=pointer.down+pointer.dragDistance+pointer.position+pointer.pressDuration+pointer.speed+system.time+thermal.state")
+                && completionAudit.contains("bindingSources=pointer.down+pointer.dragDistance+pointer.position+pointer.pressDuration+pointer.speed+pointer.x+pointer.y+system.time+thermal.state")
                 && completionAudit.contains("bindingAdapters=map-range+smooth-lookat+spring+trigger-play")
                 && completionAudit.contains("bindingTargetPattern=engine-owned")
                 && completionAudit.contains("denied=script-layer+shader-effect+command-file-network-source")

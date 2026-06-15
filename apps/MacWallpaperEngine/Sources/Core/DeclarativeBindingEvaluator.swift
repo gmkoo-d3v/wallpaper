@@ -145,6 +145,10 @@ enum DeclarativeBindingEvaluator {
         switch source {
         case .pointerPosition:
             return Double(input.pointerPosition.x)
+        case .pointerX:
+            return min(max(Double(input.pointerPosition.x), 0), 1)
+        case .pointerY:
+            return min(max(Double(input.pointerPosition.y), 0), 1)
         case .pointerDown:
             return input.pointerDown ? 1 : 0
         case .pointerSpeed:

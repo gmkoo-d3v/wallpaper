@@ -420,6 +420,8 @@
         "source": {
           "enum": [
             "pointer.position",
+            "pointer.x",
+            "pointer.y",
             "pointer.down",
             "pointer.speed",
             "pointer.pressDuration",

@@ -867,7 +867,7 @@ enum RuntimeCompletionAudit {
                 && hasSpringEffectBinding
                 && hasSpringBoneBinding
                 && hasSmoothLookAtBoneBinding,
-            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract) requiredRuntimeAdapters=\(requiredRuntimeAdapters); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
+            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.x+pointer.y+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract) requiredRuntimeAdapters=\(requiredRuntimeAdapters); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
         )
     }
 
@@ -937,6 +937,8 @@ enum RuntimeCompletionAudit {
         let expectedEffectTypes = requiredRuntimeRenderedEffectTypes
         let expectedBindingSources: Set<String> = [
             BindingSource.pointerPosition.rawValue,
+            BindingSource.pointerX.rawValue,
+            BindingSource.pointerY.rawValue,
             BindingSource.pointerDown.rawValue,
             BindingSource.pointerSpeed.rawValue,
             BindingSource.pointerPressDuration.rawValue,
