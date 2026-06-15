@@ -90,7 +90,7 @@ struct DeclarativeBindingPlan {
 extension BindingSource {
     var isPointerInputSource: Bool {
         switch self {
-        case .pointerPosition, .pointerDown, .pointerSpeed, .pointerPressDuration:
+        case .pointerPosition, .pointerDown, .pointerSpeed, .pointerPressDuration, .pointerDragDistance:
             return true
         case .systemTime, .thermalState:
             return false

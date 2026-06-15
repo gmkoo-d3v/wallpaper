@@ -561,7 +561,9 @@ enum RuntimeCapabilities {
         let pointerDownBindings = declarativePlan.bindingEntries.filter {
             $0.isEnabled
                 && $0.runtimeStatus == .runtimeExecutable
-                && ($0.source == .pointerDown || $0.source == .pointerPressDuration)
+                && ($0.source == .pointerDown
+                    || $0.source == .pointerPressDuration
+                    || $0.source == .pointerDragDistance)
         }
         let hasPointerInput = hasInteractions
             || pointerPositionBindings.isEmpty == false

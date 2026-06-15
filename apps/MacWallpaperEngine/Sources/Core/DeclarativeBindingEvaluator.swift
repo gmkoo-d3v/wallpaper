@@ -6,6 +6,7 @@ struct DeclarativeBindingEvaluationInput {
     let pointerDown: Bool
     let pointerSpeed: Double
     let pointerPressDurationSeconds: Double
+    let pointerDragDistance: Double
     let systemTimeSeconds: Double
     let thermalStateLevel: Double
 
@@ -14,6 +15,7 @@ struct DeclarativeBindingEvaluationInput {
         pointerDown: Bool = false,
         pointerSpeed: Double = 0,
         pointerPressDurationSeconds: Double = 0,
+        pointerDragDistance: Double = 0,
         systemTimeSeconds: Double = 0,
         thermalStateLevel: Double = 0
     ) {
@@ -21,6 +23,7 @@ struct DeclarativeBindingEvaluationInput {
         self.pointerDown = pointerDown
         self.pointerSpeed = pointerSpeed
         self.pointerPressDurationSeconds = pointerPressDurationSeconds
+        self.pointerDragDistance = pointerDragDistance
         self.systemTimeSeconds = systemTimeSeconds
         self.thermalStateLevel = thermalStateLevel
     }
@@ -148,6 +151,8 @@ enum DeclarativeBindingEvaluator {
             return min(max(input.pointerSpeed, 0), 10)
         case .pointerPressDuration:
             return min(max(input.pointerPressDurationSeconds, 0), 10)
+        case .pointerDragDistance:
+            return min(max(input.pointerDragDistance, 0), 2)
         case .systemTime:
             return input.systemTimeSeconds
         case .thermalState:

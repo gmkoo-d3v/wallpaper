@@ -369,7 +369,9 @@ enum BundleValidationMatrix {
         let pointerDownInputBindings = declarativePlan.bindingEntries.filter {
             $0.isEnabled
                 && $0.runtimeStatus == .runtimeExecutable
-                && ($0.source == .pointerDown || $0.source == .pointerPressDuration)
+                && ($0.source == .pointerDown
+                    || $0.source == .pointerPressDuration
+                    || $0.source == .pointerDragDistance)
         }
         if pointerDownInputBindings.isEmpty == false {
             guard summary.contains("pointerDownBindings:")

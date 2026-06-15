@@ -8,6 +8,7 @@ struct InteractionSnapshot {
     let isPointerDown: Bool
     let pointerSpeed: CGFloat
     let pointerPressDuration: CGFloat
+    let pointerDragDistance: CGFloat
     let clickPulse: CGFloat
     let isInputActive: Bool
 }
@@ -46,6 +47,7 @@ final class InteractionController {
     private var pressStartPoint = CGPoint(x: 0.5, y: 0.5)
     private var pressRubStartPoint = CGPoint(x: 0.5, y: 0.5)
     private var pressRubWindowActivated = false
+    private var pressMaxDragDistance: CGFloat = 0
     private var pressMaxDisplacement: CGFloat = 0
     private let plan: InteractionPlan
     private let idleCommand: String
@@ -101,12 +103,14 @@ final class InteractionController {
             let pulse = clickCommandHeld ? 1.0 : CGFloat((clickCommandExpiresAt - now) / fadeDuration)
             let inputActive = true
             let pressDuration = isPointerDown ? pointerPressDurationLocked(now: now) : 0
+            let dragDistance = isPointerDown ? pointerDragDistanceLocked() : 0
             return InteractionSnapshot(
                 pointer: smoothedPointerState,
                 command: clickCommandState,
                 isPointerDown: isPointerDown,
                 pointerSpeed: inputActive ? pointerSpeed : 0,
                 pointerPressDuration: pressDuration,
+                pointerDragDistance: dragDistance,
                 clickPulse: min(max(pulse, 0.0), 1.0),
                 isInputActive: inputActive
             )
@@ -115,12 +119,14 @@ final class InteractionController {
         clickCommandState = nil
         let inputActive = isPointerInputActiveLocked(now: now)
         let pressDuration = isPointerDown ? pointerPressDurationLocked(now: now) : 0
+        let dragDistance = isPointerDown ? pointerDragDistanceLocked() : 0
         return InteractionSnapshot(
             pointer: smoothedPointerState,
             command: moveCommandState,
             isPointerDown: isPointerDown,
             pointerSpeed: inputActive ? pointerSpeed : 0,
             pointerPressDuration: pressDuration,
+            pointerDragDistance: dragDistance,
             clickPulse: 0.0,
             isInputActive: inputActive
         )
@@ -158,6 +164,7 @@ final class InteractionController {
             pointerState = plan.lookNeutralPoint()
             pointerInputActiveUntil = 0
         }
+        updatePressDragDistanceLocked(to: pointer)
         updatePressDisplacementLocked(to: pointer, now: now)
         activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
@@ -176,6 +183,7 @@ final class InteractionController {
         pressStartedAt = now
         pressStartPoint = pointer
         pressRubStartPoint = pointer
+        pressMaxDragDistance = 0
         pressMaxDisplacement = 0
         pressedButton = button
         pressedHitAction = hitResult?.action
@@ -222,6 +230,7 @@ final class InteractionController {
         resetPointerSpeedSampleLocked(to: pointer, now: now)
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
+        updatePressDragDistanceLocked(to: pointer)
         updatePressDisplacementLocked(to: pointer, now: now)
         activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
@@ -263,6 +272,7 @@ final class InteractionController {
         pressedHitRubActivated = false
         pressRubWindowActivated = false
         pressedButton = nil
+        pressMaxDragDistance = 0
         pressMaxDisplacement = 0
         pointerSpeed = 0
         pointerInputActiveUntil = now
@@ -296,6 +306,7 @@ final class InteractionController {
         pressedHitRubActivated = false
         pressRubWindowActivated = false
         pressedButton = nil
+        pressMaxDragDistance = 0
         pressMaxDisplacement = 0
         pointerInputActiveUntil = now
         lock.unlock()
@@ -326,6 +337,7 @@ final class InteractionController {
         pressedHitRubActivated = false
         pressRubWindowActivated = false
         pressedButton = nil
+        pressMaxDragDistance = 0
         pressMaxDisplacement = 0
         pointerSpeed = 0
         lock.unlock()
@@ -379,6 +391,10 @@ final class InteractionController {
         return CGFloat(min(max(duration, 0), 10))
     }
 
+    private func pointerDragDistanceLocked() -> CGFloat {
+        min(max(pressMaxDragDistance, 0), 2)
+    }
+
     private func isPointerInputActiveLocked(now: CFTimeInterval) -> Bool {
         if now < pointerInputActiveUntil {
             return true
@@ -429,6 +445,13 @@ final class InteractionController {
         let dx = point.x - pressRubStartPoint.x
         let dy = point.y - pressRubStartPoint.y
         pressMaxDisplacement = max(pressMaxDisplacement, sqrt(dx * dx + dy * dy))
+    }
+
+    private func updatePressDragDistanceLocked(to point: CGPoint) {
+        guard pressedButton != nil else { return }
+        let dx = point.x - pressStartPoint.x
+        let dy = point.y - pressStartPoint.y
+        pressMaxDragDistance = max(pressMaxDragDistance, sqrt(dx * dx + dy * dy))
     }
 
     private func activateRubIfNeededLocked(now: CFTimeInterval) {
@@ -490,6 +513,7 @@ final class InteractionController {
         pressedHitRubActivated = false
         pressRubWindowActivated = false
         pressedButton = nil
+        pressMaxDragDistance = 0
         pressMaxDisplacement = 0
         if plan.allowsPointerMove(button: nil) == false {
             pointerState = plan.lookNeutralPoint()

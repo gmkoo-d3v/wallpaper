@@ -1225,6 +1225,48 @@ enum RuntimeSelfTest {
             abs(Double(pointerPressDurationState.fragmentEffectParams.x) - 2.5) < 0.001,
             "pointer.pressDuration bindings must evaluate held-click duration into safe effect properties without wallpaper-specific code"
         )
+        let pointerDragDistanceEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "dragShadeIntensity",
+                    source: .pointerDragDistance,
+                    target: "effect.dragShade.intensity",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 0.2],
+                        outputRange: [0, 0.65],
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "dragShade",
+                    type: .vignette,
+                    properties: [
+                        "intensity": .number(0.0),
+                        "radius": .number(0.55)
+                    ]
+                )
+            ]
+        )
+        let pointerDragDistanceSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: pointerDragDistanceEffectPlan,
+            input: DeclarativeBindingEvaluationInput(pointerDragDistance: 0.10)
+        )
+        let pointerDragDistanceState = DeclarativeEffectState.make(
+            plan: pointerDragDistanceEffectPlan,
+            snapshot: pointerDragDistanceSnapshot
+        )
+        check(
+            abs(Double(pointerDragDistanceState.fragmentEffectParams.z) - 0.325) < 0.001,
+            "pointer.dragDistance bindings must evaluate held-drag displacement into safe effect properties without wallpaper-specific code"
+        )
         let scrollEffectPlan = DeclarativeBindingPlan(
             bindings: [
                 DeclarativeBinding(
@@ -2720,8 +2762,9 @@ enum RuntimeSelfTest {
             bundleMatrix.contains("sample_binding_click")
                 && bundleMatrix.contains("input: desktop-empty-best-effort")
                 && bundleMatrix.contains("bindings: map-range")
-                && bundleMatrix.contains("pointerDownBindings=pressBrightness:pointer.down->effect.tone.brightness"),
-            "bundle validation matrix must treat pointer.down declarative effect bindings as active desktop input without requiring hit-zone animations"
+                && bundleMatrix.contains("pointerDownBindings=pressBrightness:pointer.down->effect.tone.brightness")
+                && bundleMatrix.contains("dragShadeIntensity:pointer.dragDistance->effect.dragShade.intensity"),
+            "bundle validation matrix must treat pointer.down and pointer.dragDistance declarative effect bindings as active desktop input without requiring hit-zone animations"
         )
         check(
             bundleMatrix.contains("sample_spring_effect")
@@ -2768,16 +2811,17 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
-                && completionAudit.contains("sources=pointer.position+pointer.down+pointer.speed+pointer.pressDuration+system.time+thermal.state")
+                && completionAudit.contains("sources=pointer.position+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state")
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("moveOpacity:pointer.speed->effect.tone.opacity via map-range runtime-executable")
                 && completionAudit.contains("holdBlurRadius:pointer.pressDuration->effect.holdBlur.radius via map-range runtime-executable")
+                && completionAudit.contains("dragShadeIntensity:pointer.dragDistance->effect.dragShade.intensity via map-range runtime-executable")
                 && completionAudit.contains("sample_spring_effect=bindings(spring)")
                 && completionAudit.contains("pointerSpringBlur:pointer.position->effect.softBlur.radius via spring runtime-executable")
                 && completionAudit.contains("sample_spring_spine=bindings(spring)")
                 && completionAudit.contains("pointerSpringRoot:pointer.position->spine.bone.root via spring runtime-executable")
-                && completionAudit.contains("requiredRuntimeAdapters=smooth-lookat:ok+trigger-play:ok+map-range:pointer-down-effect:ok+map-range:pointer-speed-effect:ok+map-range:pointer-press-duration-effect:ok+spring:effect:ok+spring:spine-bone:ok")
+                && completionAudit.contains("requiredRuntimeAdapters=smooth-lookat:ok+trigger-play:ok+map-range:pointer-down-effect:ok+map-range:pointer-speed-effect:ok+map-range:pointer-press-duration-effect:ok+map-range:pointer-drag-distance-effect:ok+spring:effect:ok+spring:spine-bone:ok")
                 && completionAudit.contains("sample_trigger_play_spine=bindings(trigger-play)")
                 && completionAudit.contains("tapPulse:pointer.down->spine.animation.pulse via trigger-play runtime-executable")
                 && completionAudit.contains("discovered=map-range+none+smooth-lookat+spring+trigger-play")
@@ -2797,7 +2841,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tdeclarative-safety-boundary")
                 && completionAudit.contains("layerTypes=spine+static_image+video")
                 && completionAudit.contains("effectTypes=blur+chromaticAberration+colorMatrix+scroll+vignette")
-                && completionAudit.contains("bindingSources=pointer.down+pointer.position+pointer.pressDuration+pointer.speed+system.time+thermal.state")
+                && completionAudit.contains("bindingSources=pointer.down+pointer.dragDistance+pointer.position+pointer.pressDuration+pointer.speed+system.time+thermal.state")
                 && completionAudit.contains("bindingAdapters=map-range+smooth-lookat+spring+trigger-play")
                 && completionAudit.contains("bindingTargetPattern=engine-owned")
                 && completionAudit.contains("denied=script-layer+shader-effect+command-file-network-source")
