@@ -893,6 +893,9 @@ enum ManifestLoader {
         if let holdStartSeconds = hitZone.holdStartSeconds {
             try validateInteractionDuration(holdStartSeconds, label: "hitZone \(hitZone.id) holdStartSeconds")
         }
+        if let rubStartSeconds = hitZone.rubStartSeconds {
+            try validateInteractionDuration(rubStartSeconds, label: "hitZone \(hitZone.id) rubStartSeconds")
+        }
         if let rubStartDistance = hitZone.rubStartDistance {
             try validateFiniteNumber(
                 rubStartDistance,

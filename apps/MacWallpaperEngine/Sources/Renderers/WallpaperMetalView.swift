@@ -455,19 +455,29 @@ final class WallpaperMetalView: MTKView {
                     x: rubX,
                     y: point.y
                 )
+                let rubX2 = rubPoint.x + rubDelta <= 1.0 ? rubPoint.x + rubDelta : max(rubPoint.x - rubDelta, 0.0)
+                let rubPoint2 = CGPoint(
+                    x: rubX2,
+                    y: point.y
+                )
                 scheduleInteractionSmokeStep(after: delay) { view in
                     view.interaction.pointerDown(at: point, button: .left)
                     view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
                 }
-                delay += 0.05
+                delay += max(zone.rubStartSeconds + 0.05, 0.05)
                 scheduleInteractionSmokeStep(after: delay) { view in
                     view.interaction.pointerDragged(to: rubPoint, button: .left)
                     view.recordDirectInteraction(event: "drag", decision: "delivered", point: rubPoint, delivered: true)
                 }
                 delay += 0.05
                 scheduleInteractionSmokeStep(after: delay) { view in
-                    view.interaction.pointerUp(at: rubPoint, button: .left)
-                    view.recordDirectInteraction(event: "leftUp", decision: "delivered", point: rubPoint, delivered: true)
+                    view.interaction.pointerDragged(to: rubPoint2, button: .left)
+                    view.recordDirectInteraction(event: "drag", decision: "delivered", point: rubPoint2, delivered: true)
+                }
+                delay += 0.05
+                scheduleInteractionSmokeStep(after: delay) { view in
+                    view.interaction.pointerUp(at: rubPoint2, button: .left)
+                    view.recordDirectInteraction(event: "leftUp", decision: "delivered", point: rubPoint2, delivered: true)
                 }
                 delay += 0.25
             }

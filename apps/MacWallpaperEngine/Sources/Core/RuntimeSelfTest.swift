@@ -786,7 +786,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=14 calibrated=9 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=14 calibrated=10 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         check(
@@ -845,18 +845,18 @@ enum RuntimeSelfTest {
         let sourceManagedScriptStatusOK = (
             sourceProvenanceReport.contains("behaviorScripts=Assembly-CSharp:4")
                 && sourceProvenanceReport.contains("interactionOwner=SpineFaceTracker")
-                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=9")
+                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=10")
         ) || (
             sourceProvenanceReport.contains("scripts=Assembly-CSharp=4")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=9")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=10")
         )
         check(
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=14 calibrated=9 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=14 calibrated=10 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceManagedScriptStatusOK
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceArchiveDescriptorStatusOK
@@ -864,8 +864,8 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("converter=unitypy-monoscript-index-v1")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("blockedFields=9")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=9")
+                && sourceProvenanceReport.contains("blockedFields=10")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=10")
                 && sourceProvenanceReport.contains("requiredCapabilities=unity-managed-method-behavior-import")
                 && sourceProvenanceReport.contains("methodBodyStatus=not-read")
                 && sourceProvenanceReport.contains("methodBodyRead=forbidden")
@@ -1994,11 +1994,24 @@ enum RuntimeSelfTest {
                             x: center.x + rubDelta <= 1.0 ? center.x + rubDelta : max(center.x - rubDelta, 0.0),
                             y: center.y
                         )
+                        let rubPoint2 = CGPoint(
+                            x: rubPoint.x + rubDelta <= 1.0 ? rubPoint.x + rubDelta : max(rubPoint.x - rubDelta, 0.0),
+                            y: center.y
+                        )
                         rubController.pointerDown(at: center, button: acceptedButton)
                         rubController.pointerDragged(to: rubPoint, button: acceptedButton)
+                        if hitZone.rubStartSeconds > 0 {
+                            check(
+                                rubController.snapshot().command == interactionPlan.idleCommand(),
+                                "interaction controller must not promote hit zone \(hitZone.id) to rubAction \(rubAction) before rubStartSeconds"
+                            )
+                            gestureClock += max(hitZone.rubStartSeconds + 0.05, 0.10)
+                            _ = rubController.snapshot()
+                            rubController.pointerDragged(to: rubPoint2, button: acceptedButton)
+                        }
                         check(
                             rubController.snapshot().command == rubAction,
-                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) as soon as held pointer displacement exceeds rubStartDistance"
+                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) only after rubStartSeconds and pointer displacement exceeds rubStartDistance"
                         )
                         let holdThenRubController = InteractionController(
                             interactions: manifest.interactions,
@@ -2027,9 +2040,10 @@ enum RuntimeSelfTest {
                         gestureClock = 0
                         rubReleaseController.pointerDown(at: center, button: acceptedButton)
                         rubReleaseController.pointerUp(at: rubPoint, button: acceptedButton)
+                        let earlyRubReleaseAction = hitZone.rubStartSeconds > 0 ? (hitZone.tapAction ?? hitZone.action) : rubAction
                         check(
-                            rubReleaseController.snapshot().command == rubAction,
-                            "interaction controller must resolve left-click drag release for hit zone \(hitZone.id) to rubAction \(rubAction)"
+                            rubReleaseController.snapshot().command == earlyRubReleaseAction,
+                            "interaction controller must not resolve pre-rubStart drag release for hit zone \(hitZone.id) to rubAction \(rubAction)"
                         )
                     }
                 }
@@ -2208,6 +2222,7 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"physicsIdlePolicy\"")
                 && manifestSchemaText.contains("\"tapAction\"")
                 && manifestSchemaText.contains("\"rubAction\"")
+                && manifestSchemaText.contains("\"rubStartSeconds\"")
                 && manifestSchemaText.contains("\"semi-implicit-euler\"")
                 && manifestSchemaText.contains("\"stiffness\""),
             "manifest schema resource must be valid JSON and cover current v2 provenance and interaction fields"
@@ -2586,9 +2601,9 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=14 calibrated=9 platformPolicy=4 unsupported=1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=14 calibrated=10 platformPolicy=4 unsupported=1")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=14 calibrated=9 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=14 calibrated=10 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=5 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=3 calibrated=0 platformPolicy=0 unsupported=0")
@@ -2685,7 +2700,7 @@ enum RuntimeSelfTest {
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("sample_imported=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=14 calibrated=9 platformPolicy=4 unsupported=1); derivation(partial imported=14 calibrated=9 platformPolicy=4 unsupported=1")
+                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=14 calibrated=10 platformPolicy=4 unsupported=1); derivation(partial imported=14 calibrated=10 platformPolicy=4 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+scroll")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
@@ -4693,6 +4708,7 @@ enum RuntimeSelfTest {
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
                             holdStartSeconds: nil,
+                            rubStartSeconds: nil,
                             rubStartDistance: nil,
                             buttons: [.left],
                             priority: 0
@@ -4709,6 +4725,7 @@ enum RuntimeSelfTest {
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
                             holdStartSeconds: nil,
+                            rubStartSeconds: nil,
                             rubStartDistance: nil,
                             buttons: [.left],
                             priority: 10

@@ -12,6 +12,7 @@ struct InteractionHitResult {
     let tapTailSeconds: CFTimeInterval
     let rubTailSeconds: CFTimeInterval
     let holdStartSeconds: CFTimeInterval
+    let rubStartSeconds: CFTimeInterval
     let rubStartDistance: CGFloat
 }
 
@@ -25,6 +26,7 @@ struct InteractionHitZoneSummary {
     let tapTailSeconds: CFTimeInterval
     let rubTailSeconds: CFTimeInterval
     let holdStartSeconds: CFTimeInterval
+    let rubStartSeconds: CFTimeInterval
     let rubStartDistance: CGFloat
     let buttons: [PointerButton]
     let rect: [Double]
@@ -39,7 +41,7 @@ struct InteractionHitZoneSummary {
             " tapAction=\($0) tapTail=\(String(format: "%.2fs", tapTailSeconds)) holdStart=\(String(format: "%.2fs", holdStartSeconds))"
         } ?? ""
         let rubText = rubAction.map {
-            " rubAction=\($0) rubTail=\(String(format: "%.2fs", rubTailSeconds)) rubDistance=\(String(format: "%.3f", Double(rubStartDistance)))"
+            " rubAction=\($0) rubTail=\(String(format: "%.2fs", rubTailSeconds)) rubStart=\(String(format: "%.2fs", rubStartSeconds)) rubDistance=\(String(format: "%.3f", Double(rubStartDistance)))"
         } ?? ""
         return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText)\(rubText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)"
     }
@@ -216,6 +218,7 @@ struct InteractionPlan {
             tapTailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
             rubTailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
             holdStartSeconds: 0,
+            rubStartSeconds: 0,
             rubStartDistance: 0.035
         )
     }
@@ -280,6 +283,7 @@ struct InteractionPlan {
                 tapTailSeconds: resolvedTapTailSeconds(for: selected),
                 rubTailSeconds: resolvedRubTailSeconds(for: selected),
                 holdStartSeconds: selected.holdStartSeconds ?? 0,
+                rubStartSeconds: selected.rubStartSeconds ?? 0,
                 rubStartDistance: CGFloat(selected.rubStartDistance ?? 0.035)
             )
         }
@@ -296,6 +300,7 @@ struct InteractionPlan {
                 tapTailSeconds: resolvedTailSeconds(for: defaultAction),
                 rubTailSeconds: resolvedTailSeconds(for: defaultAction),
                 holdStartSeconds: 0,
+                rubStartSeconds: 0,
                 rubStartDistance: 0.035
             )
         }
@@ -319,6 +324,7 @@ struct InteractionPlan {
                 tapTailSeconds: resolvedTapTailSeconds(for: hitZone),
                 rubTailSeconds: resolvedRubTailSeconds(for: hitZone),
                 holdStartSeconds: hitZone.holdStartSeconds ?? 0,
+                rubStartSeconds: hitZone.rubStartSeconds ?? 0,
                 rubStartDistance: CGFloat(hitZone.rubStartDistance ?? 0.035),
                 buttons: hitZone.buttons ?? interactionButtons,
                 rect: bounds(of: hitZone),
@@ -859,6 +865,10 @@ struct InteractionPlan {
             x: point.x + rubDelta <= 1.0 ? point.x + rubDelta : max(point.x - rubDelta, 0.0),
             y: point.y
         )
+        let rubPoint2 = CGPoint(
+            x: rubPoint.x + rubDelta <= 1.0 ? rubPoint.x + rubDelta : max(rubPoint.x - rubDelta, 0.0),
+            y: point.y
+        )
         let rubClock = InteractionDiagnosticClock()
         let rubController = InteractionController(
             interactions: interactions,
@@ -869,8 +879,14 @@ struct InteractionPlan {
         )
         rubController.pointerDown(at: point, button: button)
         rubController.pointerDragged(to: rubPoint, button: button)
+        let preRub = rubController.snapshot()
+        if zone.rubStartSeconds > 0 {
+            rubClock.time = max(zone.rubStartSeconds + 0.05, 0.10)
+            _ = rubController.snapshot()
+            rubController.pointerDragged(to: rubPoint2, button: button)
+        }
         let rubDragged = rubController.snapshot()
-        rubController.pointerUp(at: rubPoint, button: button)
+        rubController.pointerUp(at: zone.rubStartSeconds > 0 ? rubPoint2 : rubPoint, button: button)
         let rubUp = rubController.snapshot()
 
         return [
@@ -878,12 +894,13 @@ struct InteractionPlan {
             "button=\(button.rawValue)",
             "tap=\(zone.tapAction ?? "none")",
             "hold=\(zone.action)@\(formatInteractionNumber(zone.holdStartSeconds))s",
-            "rub=\(zone.rubAction ?? "none")@distance\(formatInteractionNumber(Double(zone.rubStartDistance)))",
+            "rub=\(zone.rubAction ?? "none")@\(formatInteractionNumber(zone.rubStartSeconds))s+distance\(formatInteractionNumber(Double(zone.rubStartDistance)))",
             "tapDown@0.000=\(snapshotText(tapDown))",
             "tapUp@0.016=\(snapshotText(tapUp))",
             "preHold@\(formatInteractionNumber(preHoldSampleTime))=\(snapshotText(preHold))",
             "held@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(held))",
             "holdUp@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(holdUp))",
+            "preRub@distance\(formatInteractionNumber(Double(rubDelta)))=\(snapshotText(preRub))",
             "rubDrag@distance\(formatInteractionNumber(Double(rubDelta)))=\(snapshotText(rubDragged))",
             "rubUp=\(snapshotText(rubUp))"
         ].joined(separator: " ")
@@ -983,7 +1000,7 @@ struct InteractionPlan {
             " tapAction=\($0) tapTail=\(formatInteractionNumber(hit.tapTailSeconds)) holdStart=\(formatInteractionNumber(hit.holdStartSeconds))"
         } ?? ""
         let rubText = hit.rubAction.map {
-            " rubAction=\($0) rubTail=\(formatInteractionNumber(hit.rubTailSeconds)) rubDistance=\(formatInteractionNumber(Double(hit.rubStartDistance)))"
+            " rubAction=\($0) rubTail=\(formatInteractionNumber(hit.rubTailSeconds)) rubStart=\(formatInteractionNumber(hit.rubStartSeconds)) rubDistance=\(formatInteractionNumber(Double(hit.rubStartDistance)))"
         } ?? ""
         return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText)\(rubText) tail=\(formatInteractionNumber(hit.tailSeconds))"
     }

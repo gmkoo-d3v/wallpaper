@@ -257,6 +257,7 @@ struct HitZone: Decodable {
     let tapTailSeconds: Double?
     let rubTailSeconds: Double?
     let holdStartSeconds: Double?
+    let rubStartSeconds: Double?
     let rubStartDistance: Double?
     let buttons: [PointerButton]?
     let priority: Int?
