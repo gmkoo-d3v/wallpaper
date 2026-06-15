@@ -6,11 +6,15 @@ enum RuntimeSmokeEvidenceWriter {
         let id: String
         let zoneID: String?
         let action: String?
+        let kind: String?
         let isEmptyClick: Bool
 
         var label: String {
             if isEmptyClick {
                 return "empty-click:no-action"
+            }
+            if let zoneID, let kind, let action {
+                return "\(zoneID):\(kind):\(action)"
             }
             if let zoneID, let action {
                 return "\(zoneID):\(action)"
@@ -241,6 +245,7 @@ enum RuntimeSmokeEvidenceWriter {
                     id: "zone:\(zone.id):tap:\(tapAction)",
                     zoneID: zone.id,
                     action: tapAction,
+                    kind: "tap",
                     isEmptyClick: false
                 ))
             }
@@ -249,6 +254,7 @@ enum RuntimeSmokeEvidenceWriter {
                     id: "zone:\(zone.id):rub:\(rubAction)",
                     zoneID: zone.id,
                     action: rubAction,
+                    kind: "rub",
                     isEmptyClick: false
                 ))
             }
@@ -256,6 +262,7 @@ enum RuntimeSmokeEvidenceWriter {
                 id: "zone:\(zone.id):action:\(zone.action)",
                 zoneID: zone.id,
                 action: zone.action,
+                kind: zone.trigger == .hold ? "hold" : "action",
                 isEmptyClick: false
             ))
         }
@@ -264,6 +271,7 @@ enum RuntimeSmokeEvidenceWriter {
                 id: "default:\(defaultAction.action)",
                 zoneID: "default",
                 action: defaultAction.action,
+                kind: defaultAction.trigger == .hold ? "hold" : "action",
                 isEmptyClick: false
             ))
         } else if expectations.isEmpty == false {
@@ -271,6 +279,7 @@ enum RuntimeSmokeEvidenceWriter {
                 id: "empty-click:no-action",
                 zoneID: nil,
                 action: nil,
+                kind: nil,
                 isEmptyClick: true
             ))
         }
