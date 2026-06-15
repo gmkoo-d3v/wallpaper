@@ -7,6 +7,7 @@ struct InteractionSnapshot {
     let command: String
     let isPointerDown: Bool
     let pointerSpeed: CGFloat
+    let pointerPressDuration: CGFloat
     let clickPulse: CGFloat
     let isInputActive: Bool
 }
@@ -99,11 +100,13 @@ final class InteractionController {
             let fadeDuration = clickCommandHeld ? releaseFadeDuration : max(activeClickTailDuration, 0.001)
             let pulse = clickCommandHeld ? 1.0 : CGFloat((clickCommandExpiresAt - now) / fadeDuration)
             let inputActive = true
+            let pressDuration = isPointerDown ? pointerPressDurationLocked(now: now) : 0
             return InteractionSnapshot(
                 pointer: smoothedPointerState,
                 command: clickCommandState,
                 isPointerDown: isPointerDown,
                 pointerSpeed: inputActive ? pointerSpeed : 0,
+                pointerPressDuration: pressDuration,
                 clickPulse: min(max(pulse, 0.0), 1.0),
                 isInputActive: inputActive
             )
@@ -111,11 +114,13 @@ final class InteractionController {
 
         clickCommandState = nil
         let inputActive = isPointerInputActiveLocked(now: now)
+        let pressDuration = isPointerDown ? pointerPressDurationLocked(now: now) : 0
         return InteractionSnapshot(
             pointer: smoothedPointerState,
             command: moveCommandState,
             isPointerDown: isPointerDown,
             pointerSpeed: inputActive ? pointerSpeed : 0,
+            pointerPressDuration: pressDuration,
             clickPulse: 0.0,
             isInputActive: inputActive
         )
@@ -366,6 +371,12 @@ final class InteractionController {
         lastPointerSpeedSampleAt = now
         lastPointerSpeedSamplePoint = point
         pointerSpeed = 0
+    }
+
+    private func pointerPressDurationLocked(now: CFTimeInterval) -> CGFloat {
+        guard pressedButton != nil else { return 0 }
+        let duration = max(now - pressStartedAt, 0)
+        return CGFloat(min(max(duration, 0), 10))
     }
 
     private func isPointerInputActiveLocked(now: CFTimeInterval) -> Bool {

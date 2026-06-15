@@ -422,6 +422,7 @@
             "pointer.position",
             "pointer.down",
             "pointer.speed",
+            "pointer.pressDuration",
             "system.time",
             "thermal.state"
           ]

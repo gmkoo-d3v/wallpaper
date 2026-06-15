@@ -788,6 +788,7 @@ enum RuntimeCompletionAudit {
         let bindingKinds = Set(bundles.flatMap(\.capabilities.bindingKinds))
         var hasPointerDownEffectBinding = false
         var hasPointerSpeedEffectBinding = false
+        var hasPointerPressDurationEffectBinding = false
         var hasTriggerPlayBinding = false
         var hasSpringEffectBinding = false
         var hasSpringBoneBinding = false
@@ -808,6 +809,11 @@ enum RuntimeCompletionAudit {
                        entry.target.kind == .effect,
                        entry.adapter.type == .mapRange {
                         hasPointerSpeedEffectBinding = true
+                    }
+                    if entry.source == .pointerPressDuration,
+                       entry.target.kind == .effect,
+                       entry.adapter.type == .mapRange {
+                        hasPointerPressDurationEffectBinding = true
                     }
                     if entry.source == .pointerDown,
                        entry.target.kind == .spineAnimation,
@@ -840,6 +846,7 @@ enum RuntimeCompletionAudit {
             hasTriggerPlayBinding ? "trigger-play:ok" : "trigger-play:missing",
             hasPointerDownEffectBinding ? "map-range:pointer-down-effect:ok" : "map-range:pointer-down-effect:missing",
             hasPointerSpeedEffectBinding ? "map-range:pointer-speed-effect:ok" : "map-range:pointer-speed-effect:missing",
+            hasPointerPressDurationEffectBinding ? "map-range:pointer-press-duration-effect:ok" : "map-range:pointer-press-duration-effect:missing",
             hasSpringEffectBinding ? "spring:effect:ok" : "spring:effect:missing",
             hasSpringBoneBinding ? "spring:spine-bone:ok" : "spring:spine-bone:missing"
         ].joined(separator: "+")
@@ -847,11 +854,12 @@ enum RuntimeCompletionAudit {
             schemaOK
                 && hasPointerDownEffectBinding
                 && hasPointerSpeedEffectBinding
+                && hasPointerPressDurationEffectBinding
                 && hasTriggerPlayBinding
                 && hasSpringEffectBinding
                 && hasSpringBoneBinding
                 && hasSmoothLookAtBoneBinding,
-            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+pointer.speed+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract) requiredRuntimeAdapters=\(requiredRuntimeAdapters); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
+            "schema=\(schemaOK ? "declared" : "missing") sources=pointer.position+pointer.down+pointer.speed+pointer.pressDuration+system.time+thermal.state targets=spine.bone+spine.animation+effect adapters=smooth-lookat(runtime-bone-rotation)+trigger-play(runtime-executable)+map-range(runtime-evaluable)+spring(effect-runtime+pointer-spine-runtime,explicit-dynamics-contract) requiredRuntimeAdapters=\(requiredRuntimeAdapters); \(bundleEvidence); discovered=\(bindingKinds.sorted().joined(separator: "+"))"
         )
     }
 
@@ -923,6 +931,7 @@ enum RuntimeCompletionAudit {
             BindingSource.pointerPosition.rawValue,
             BindingSource.pointerDown.rawValue,
             BindingSource.pointerSpeed.rawValue,
+            BindingSource.pointerPressDuration.rawValue,
             BindingSource.systemTime.rawValue,
             BindingSource.thermalState.rawValue
         ]

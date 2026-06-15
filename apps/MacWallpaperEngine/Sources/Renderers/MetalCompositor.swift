@@ -296,6 +296,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 pointerPosition: interactionSnapshot.pointer,
                 pointerDown: interactionSnapshot.isPointerDown,
                 pointerSpeed: Double(interactionSnapshot.pointerSpeed),
+                pointerPressDurationSeconds: Double(interactionSnapshot.pointerPressDuration),
                 systemTimeSeconds: now,
                 thermalStateLevel: Self.thermalStateLevel(ProcessInfo.processInfo.thermalState)
             ),

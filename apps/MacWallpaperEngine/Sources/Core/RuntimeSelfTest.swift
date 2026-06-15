@@ -1184,6 +1184,47 @@ enum RuntimeSelfTest {
             abs(Double(pointerSpeedState.colorMultiplier.w) - 0.75) < 0.001,
             "pointer.speed bindings must evaluate normalized movement speed into safe effect properties without wallpaper-specific code"
         )
+        let pointerPressDurationEffectPlan = DeclarativeBindingPlan(
+            bindings: [
+                DeclarativeBinding(
+                    id: "holdBlurRadius",
+                    source: .pointerPressDuration,
+                    target: "effect.holdBlur.radius",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .linear,
+                        factor: nil,
+                        inputRange: [0, 2],
+                        outputRange: [0, 4],
+                        loop: nil
+                    ),
+                    enabled: nil
+                )
+            ],
+            effects: [
+                EffectConfig(
+                    id: "holdBlur",
+                    type: .blur,
+                    properties: [
+                        "radius": .number(0.0)
+                    ]
+                )
+            ]
+        )
+        let pointerPressDurationSnapshot = DeclarativeBindingEvaluator.evaluate(
+            plan: pointerPressDurationEffectPlan,
+            input: DeclarativeBindingEvaluationInput(pointerPressDurationSeconds: 1.25)
+        )
+        let pointerPressDurationState = DeclarativeEffectState.make(
+            plan: pointerPressDurationEffectPlan,
+            snapshot: pointerPressDurationSnapshot
+        )
+        check(
+            abs(Double(pointerPressDurationState.fragmentEffectParams.x) - 2.5) < 0.001,
+            "pointer.pressDuration bindings must evaluate held-click duration into safe effect properties without wallpaper-specific code"
+        )
         let scrollEffectPlan = DeclarativeBindingPlan(
             bindings: [
                 DeclarativeBinding(
@@ -2727,15 +2768,16 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
-                && completionAudit.contains("sources=pointer.position+pointer.down+pointer.speed+system.time+thermal.state")
+                && completionAudit.contains("sources=pointer.position+pointer.down+pointer.speed+pointer.pressDuration+system.time+thermal.state")
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("moveOpacity:pointer.speed->effect.tone.opacity via map-range runtime-executable")
+                && completionAudit.contains("holdBlurRadius:pointer.pressDuration->effect.holdBlur.radius via map-range runtime-executable")
                 && completionAudit.contains("sample_spring_effect=bindings(spring)")
                 && completionAudit.contains("pointerSpringBlur:pointer.position->effect.softBlur.radius via spring runtime-executable")
                 && completionAudit.contains("sample_spring_spine=bindings(spring)")
                 && completionAudit.contains("pointerSpringRoot:pointer.position->spine.bone.root via spring runtime-executable")
-                && completionAudit.contains("requiredRuntimeAdapters=smooth-lookat:ok+trigger-play:ok+map-range:pointer-down-effect:ok+map-range:pointer-speed-effect:ok+spring:effect:ok+spring:spine-bone:ok")
+                && completionAudit.contains("requiredRuntimeAdapters=smooth-lookat:ok+trigger-play:ok+map-range:pointer-down-effect:ok+map-range:pointer-speed-effect:ok+map-range:pointer-press-duration-effect:ok+spring:effect:ok+spring:spine-bone:ok")
                 && completionAudit.contains("sample_trigger_play_spine=bindings(trigger-play)")
                 && completionAudit.contains("tapPulse:pointer.down->spine.animation.pulse via trigger-play runtime-executable")
                 && completionAudit.contains("discovered=map-range+none+smooth-lookat+spring+trigger-play")
@@ -2755,7 +2797,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tdeclarative-safety-boundary")
                 && completionAudit.contains("layerTypes=spine+static_image+video")
                 && completionAudit.contains("effectTypes=blur+chromaticAberration+colorMatrix+scroll+vignette")
-                && completionAudit.contains("bindingSources=pointer.down+pointer.position+pointer.speed+system.time+thermal.state")
+                && completionAudit.contains("bindingSources=pointer.down+pointer.position+pointer.pressDuration+pointer.speed+system.time+thermal.state")
                 && completionAudit.contains("bindingAdapters=map-range+smooth-lookat+spring+trigger-play")
                 && completionAudit.contains("bindingTargetPattern=engine-owned")
                 && completionAudit.contains("denied=script-layer+shader-effect+command-file-network-source")

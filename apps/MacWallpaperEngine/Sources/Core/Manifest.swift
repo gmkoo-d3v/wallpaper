@@ -288,6 +288,7 @@ enum BindingSource: String, Decodable {
     case pointerPosition = "pointer.position"
     case pointerDown = "pointer.down"
     case pointerSpeed = "pointer.speed"
+    case pointerPressDuration = "pointer.pressDuration"
     case systemTime = "system.time"
     case thermalState = "thermal.state"
 }

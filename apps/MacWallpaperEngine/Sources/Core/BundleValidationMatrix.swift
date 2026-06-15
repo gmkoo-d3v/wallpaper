@@ -366,15 +366,16 @@ enum BundleValidationMatrix {
                 )
             }
         }
-        if declarativePlan.bindingEntries.contains(where: {
+        let pointerDownInputBindings = declarativePlan.bindingEntries.filter {
             $0.isEnabled
                 && $0.runtimeStatus == .runtimeExecutable
-                && $0.source == .pointerDown
-        }) {
+                && ($0.source == .pointerDown || $0.source == .pointerPressDuration)
+        }
+        if pointerDownInputBindings.isEmpty == false {
             guard summary.contains("pointerDownBindings:")
-                    && summary.contains("pointer.down->") else {
+                    && pointerDownInputBindings.allSatisfy({ summary.contains("\($0.source.rawValue)->") }) else {
                 throw EngineError.invalidArgument(
-                    "pointer.down binding diagnostics are missing for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                    "pointerDown binding diagnostics are missing for \(runtime.config.wallpaperRoot.lastPathComponent)"
                 )
             }
         }

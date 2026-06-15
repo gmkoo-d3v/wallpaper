@@ -138,7 +138,7 @@ struct InteractionPlan {
         self.pointerDownBindings = (declarativePlan?.bindingEntries ?? []).filter { entry in
             entry.isEnabled
                 && entry.runtimeStatus == .runtimeExecutable
-                && entry.source == .pointerDown
+                && (entry.source == .pointerDown || entry.source == .pointerPressDuration)
         }
         self.triggerPlayBindings = declarativePlan?.triggerPlayBindings ?? []
     }
