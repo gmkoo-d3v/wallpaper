@@ -1161,6 +1161,22 @@ enum RuntimeSelfTest {
                         loop: nil
                     ),
                     enabled: nil
+                ),
+                DeclarativeBinding(
+                    id: "speedSaturation",
+                    source: .pointerSpeed,
+                    target: "effect.tone.saturation",
+                    adapter: BindingAdapter(
+                        type: .mapRange,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        interpolation: .smoothStep,
+                        factor: nil,
+                        inputRange: [0, 1, 10],
+                        outputRange: [1.0, 0.9, 0.75],
+                        loop: nil
+                    ),
+                    enabled: nil
                 )
             ],
             effects: [
@@ -1183,8 +1199,9 @@ enum RuntimeSelfTest {
             snapshot: pointerSpeedSnapshot
         )
         check(
-            abs(Double(pointerSpeedState.colorMultiplier.w) - 0.75) < 0.001,
-            "pointer.speed bindings must evaluate normalized movement speed into safe effect properties without wallpaper-specific code"
+            abs(Double(pointerSpeedState.colorMultiplier.w) - 0.75) < 0.001
+                && abs(Double(pointerSpeedState.fragmentEffectParams2.x) - 0.825) < 0.001,
+            "pointer.speed bindings must evaluate normalized movement speed into safe colorMatrix effect properties without wallpaper-specific code"
         )
         let pointerPressDurationEffectPlan = DeclarativeBindingPlan(
             bindings: [
@@ -2817,6 +2834,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("moveOpacity:pointer.speed->effect.tone.opacity via map-range runtime-executable")
+                && completionAudit.contains("speedSaturation:pointer.speed->effect.tone.saturation via map-range runtime-executable")
                 && completionAudit.contains("holdBlurRadius:pointer.pressDuration->effect.holdBlur.radius via map-range runtime-executable")
                 && completionAudit.contains("dragShadeIntensity:pointer.dragDistance->effect.dragShade.intensity via map-range runtime-executable")
                 && completionAudit.contains("sample_spring_effect=bindings(spring)")
