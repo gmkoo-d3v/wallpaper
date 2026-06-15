@@ -1917,6 +1917,15 @@ enum RuntimeSelfTest {
                         "tap hit-zone \(hitZone.id) tail must cover its Spine animation duration"
                     )
                 }
+                if hitZone.rubAction != nil,
+                   hitZone.rubTailSeconds > hitZone.declaredRubTailSeconds + 0.005 {
+                    let declaredRubTail = String(format: "%.2fs", hitZone.declaredRubTailSeconds)
+                    let effectiveRubTail = String(format: "%.2fs", hitZone.rubTailSeconds)
+                    check(
+                        capabilitySummary.contains("rubTail=\(declaredRubTail) effectiveRubTail=\(effectiveRubTail)"),
+                        "runtime capabilities must distinguish declared rubTail \(declaredRubTail) from effective rubTail \(effectiveRubTail) for hit zone \(hitZone.id)"
+                    )
+                }
                 let clickController = InteractionController(
                     interactions: manifest.interactions,
                     policy: manifest.interactionPolicy,
