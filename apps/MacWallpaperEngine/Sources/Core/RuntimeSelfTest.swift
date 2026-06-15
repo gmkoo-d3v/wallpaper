@@ -3124,6 +3124,33 @@ enum RuntimeSelfTest {
             rejectedPhysicalHotplugUnderspecifiedNote,
             "manual smoke recorder must reject physical display hotplug notes that omit selectedOnly/selectedPolicy/allFull observations"
         )
+        let koreanPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineKoreanPhysicalSmoke-\(UUID().uuidString).json")
+        let koreanPhysicalHotplugRecordReport = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+            to: koreanPhysicalHotplugEvidenceURL,
+            packagedLaunchPassed: false,
+            liveClickActionsPassed: false,
+            physicalDisplayHotplugPassed: true,
+            blackFrameFlickerPassed: false,
+            physicalDisplayHotplugEvent: "reconnect",
+            physicalDisplayHotplugNote: "재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: koreanPhysicalHotplugEvidenceURL)
+        }
+        let completionAuditWithKoreanPhysicalHotplugEvidence = try RuntimeCompletionAudit.make(
+            projectRoot: runtime.config.projectRoot,
+            strictCompositeQuality: true,
+            includeInvalid: true,
+            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            manualEvidenceURL: koreanPhysicalHotplugEvidenceURL
+        )
+        check(
+            koreanPhysicalHotplugRecordReport.contains("physical-display-hotplug-smoke")
+                && completionAuditWithKoreanPhysicalHotplugEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
+                && completionAuditWithKoreanPhysicalHotplugEvidence.contains("note=재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인"),
+            "manual smoke recorder must accept Korean physical display reconnect/restored wording while preserving selectedOnly/selectedPolicy/allFull evidence tokens"
+        )
         let genericPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineGenericPhysicalSmoke-\(UUID().uuidString).json")
         let genericPhysicalHotplugEvidence = """

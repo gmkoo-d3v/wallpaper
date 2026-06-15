@@ -499,7 +499,16 @@ enum RuntimeCompletionAudit {
             )
         }
         let foldedNote = note?.lowercased() ?? ""
-        guard foldedNote.contains(normalized) else {
+        let eventTokens: [String]
+        switch normalized {
+        case "wake":
+            eventTokens = ["wake", "woke", "sleep", "resume", "잠자기", "잠자기 해제", "깨움", "웨이크"]
+        case "reconnect":
+            eventTokens = ["reconnect", "reconnected", "disconnect", "plug", "unplug", "재연결", "분리", "연결"]
+        default:
+            eventTokens = [normalized]
+        }
+        guard containsAnyToken(eventTokens, in: foldedNote) else {
             throw EngineError.invalidArgument(
                 "--physical-display-hotplug-note must mention the selected \(normalized) event"
             )
@@ -512,12 +521,16 @@ enum RuntimeCompletionAudit {
                 "--physical-display-hotplug-note must mention checked display mode token(s): \(missingModeTokens.joined(separator: ", "))"
             )
         }
-        guard foldedNote.contains("restore") || foldedNote.contains("restored") else {
+        guard containsAnyToken(["restore", "restored", "복원", "복구", "정상"], in: foldedNote) else {
             throw EngineError.invalidArgument(
                 "--physical-display-hotplug-note must mention restored wallpaper windows after \(normalized)"
             )
         }
         return normalized
+    }
+
+    private static func containsAnyToken(_ tokens: [String], in text: String) -> Bool {
+        tokens.contains { text.contains($0) }
     }
 
     private static func item(id: String, passed: Bool, evidence: String, risk: String) -> CompletionAuditRow {
