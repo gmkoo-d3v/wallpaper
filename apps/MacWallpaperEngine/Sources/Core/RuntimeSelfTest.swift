@@ -8627,6 +8627,36 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+        let playablePhysicsDegradation = NativeSpineDegradationReason.physicsSubsetRuntime(name: "hair")
+        let nonPhysicsDegradation = NativeSpineDegradationReason(rawValue: "path/hair:subset-runtime")
+        let malformedPhysicsDegradation = NativeSpineDegradationReason(rawValue: "physics/:subset-runtime")
+        check(
+            NativeSpinePlayability.isPlayable(
+                status: "degraded",
+                degradationReasons: [playablePhysicsDegradation]
+            ),
+            "native Spine playability must allow only typed physics subset degraded runtimes",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            NativeSpinePlayability.isPlayable(
+                status: "degraded",
+                degradationReasons: [playablePhysicsDegradation, nonPhysicsDegradation]
+            ) == false,
+            "native Spine playability must reject mixed degraded reasons even when one physics subset reason is present",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            NativeSpinePlayability.isPlayable(
+                status: "degraded",
+                degradationReasons: [malformedPhysicsDegradation]
+            ) == false,
+            "native Spine playability must reject malformed physics degraded reasons",
+            failures: &failures,
+            checks: &checks
+        )
         let physicsConstraintSpineJSON = """
         {
           "skeleton": {

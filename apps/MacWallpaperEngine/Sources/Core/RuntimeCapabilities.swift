@@ -16,10 +16,68 @@ private func nativeSpineDegradationText(_ degradations: [String]) -> String {
     return "degraded constraint usages: \(Set(degradations).compactListOrNone)"
 }
 
+struct NativeSpineDegradationReason: Equatable {
+    enum Kind: Equatable {
+        case physicsSubsetRuntime(name: String)
+        case unknown
+    }
+
+    let rawValue: String
+    let kind: Kind
+
+    var isPlayableNativeSubset: Bool {
+        if case .physicsSubsetRuntime = kind { return true }
+        return false
+    }
+
+    init(rawValue: String) {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.rawValue = trimmed
+        self.kind = Self.classify(trimmed)
+    }
+
+    static func physicsSubsetRuntime(name: String) -> NativeSpineDegradationReason {
+        NativeSpineDegradationReason(rawValue: "\(physicsPrefix)\(name)\(subsetRuntimeSuffix)")
+    }
+
+    private static let physicsPrefix = "physics/"
+    private static let subsetRuntimeSuffix = ":subset-runtime"
+
+    private static func classify(_ rawValue: String) -> Kind {
+        guard rawValue.hasPrefix(physicsPrefix),
+              rawValue.hasSuffix(subsetRuntimeSuffix) else {
+            return .unknown
+        }
+        let nameStart = rawValue.index(rawValue.startIndex, offsetBy: physicsPrefix.count)
+        let nameEnd = rawValue.index(rawValue.endIndex, offsetBy: -subsetRuntimeSuffix.count)
+        let name = rawValue[nameStart..<nameEnd].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard name.isEmpty == false, name.contains(":") == false else {
+            return .unknown
+        }
+        return .physicsSubsetRuntime(name: String(name))
+    }
+}
+
 struct NativeSpineCompatibility {
     let isSupported: Bool
     let reasons: [String]
-    let degradations: [String]
+    let degradationReasons: [NativeSpineDegradationReason]
+
+    var degradations: [String] {
+        degradationReasons.map(\.rawValue)
+    }
+
+    init(isSupported: Bool, reasons: [String], degradations: [String]) {
+        self.isSupported = isSupported
+        self.reasons = reasons
+        self.degradationReasons = degradations.map(NativeSpineDegradationReason.init(rawValue:))
+    }
+
+    init(isSupported: Bool, reasons: [String], degradationReasons: [NativeSpineDegradationReason]) {
+        self.isSupported = isSupported
+        self.reasons = reasons
+        self.degradationReasons = degradationReasons
+    }
 
     var reasonText: String {
         reasons.isEmpty ? "supported" : reasons.joined(separator: "; ")
@@ -53,11 +111,15 @@ struct WallpaperBundleCapabilityInfo: Equatable {
     let effectKinds: [String]
     let nativeSpineStatus: String
     let nativeSpineReasons: [String]
-    let nativeSpineDegradations: [String]
+    let nativeSpineDegradationReasons: [NativeSpineDegradationReason]
     let fallbackStatus: String
     let qualityStatus: String
     let qualityWarnings: [String]
     let qualityRecommendations: [String]
+
+    var nativeSpineDegradations: [String] {
+        nativeSpineDegradationReasons.map(\.rawValue)
+    }
 
     var briefText: String {
         [
@@ -103,6 +165,26 @@ struct WallpaperBundleCapabilityInfo: Equatable {
             return "\(qualityStatus)+rec(\(qualityRecommendations.count))"
         }
         return qualityStatus
+    }
+}
+
+enum NativeSpinePlayability {
+    static func isPlayable(_ capabilities: WallpaperBundleCapabilityInfo) -> Bool {
+        isPlayable(
+            status: capabilities.nativeSpineStatus,
+            degradationReasons: capabilities.nativeSpineDegradationReasons
+        )
+    }
+
+    static func isPlayable(
+        status: String,
+        degradationReasons: [NativeSpineDegradationReason]
+    ) -> Bool {
+        if status == "supported" { return true }
+        guard status == "degraded", degradationReasons.isEmpty == false else {
+            return false
+        }
+        return degradationReasons.allSatisfy(\.isPlayableNativeSubset)
     }
 }
 
@@ -350,7 +432,7 @@ enum RuntimeCapabilities {
             effectKinds: effectKinds,
             nativeSpineStatus: nativeSpineStatus,
             nativeSpineReasons: compatibility.reasons,
-            nativeSpineDegradations: compatibility.degradations,
+            nativeSpineDegradationReasons: compatibility.degradationReasons,
             fallbackStatus: fallbackStatus,
             qualityStatus: qualityStatus,
             qualityWarnings: qualityWarnings,

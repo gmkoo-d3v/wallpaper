@@ -65,19 +65,6 @@ enum RuntimeCompletionAudit {
         EffectType.vignette.rawValue
     ]
 
-    private static func isNativeSpinePlayable(_ capabilities: WallpaperBundleCapabilityInfo) -> Bool {
-        if capabilities.nativeSpineStatus == "supported" { return true }
-        guard capabilities.nativeSpineStatus == "degraded",
-              capabilities.nativeSpineDegradations.isEmpty == false else {
-            return false
-        }
-        return capabilities.nativeSpineDegradations.allSatisfy(isPlayableNativeSpineDegradation)
-    }
-
-    private static func isPlayableNativeSpineDegradation(_ degradation: String) -> Bool {
-        degradation.hasPrefix("physics/") && degradation.hasSuffix(":subset-runtime")
-    }
-
     static func make(
         projectRoot: URL?,
         strictCompositeQuality: Bool,
@@ -109,7 +96,7 @@ enum RuntimeCompletionAudit {
             bundle.capabilities.effectKinds.filter { $0 != "none" }
         })
         let interactiveSpineBundles = bundles.filter {
-            isNativeSpinePlayable($0.capabilities)
+            NativeSpinePlayability.isPlayable($0.capabilities)
                 && $0.capabilities.interactionKinds.contains("pointerMove")
                 && $0.capabilities.interactionKinds.contains("pointerDown")
         }
@@ -559,7 +546,7 @@ enum RuntimeCompletionAudit {
         bundles: [WallpaperBundleSummary]
     ) throws -> (passed: Bool, evidence: String) {
         let candidates = bundles.filter {
-            isNativeSpinePlayable($0.capabilities)
+            NativeSpinePlayability.isPlayable($0.capabilities)
                 && $0.capabilities.assetKinds.contains("spine")
                 && $0.capabilities.assetKinds.contains("composite")
         }
@@ -1271,7 +1258,7 @@ enum RuntimeCompletionAudit {
             ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
         let interactiveSpineBundles = bundles.filter {
-            isNativeSpinePlayable($0.capabilities)
+            NativeSpinePlayability.isPlayable($0.capabilities)
                 && $0.capabilities.interactionKinds.contains("pointerMove")
                 && $0.capabilities.interactionKinds.contains("pointerDown")
         }
