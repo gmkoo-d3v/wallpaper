@@ -12,6 +12,7 @@ struct WallpaperGoldenDiagnostics {
         let time: Double
         let size: String
         let reference: String
+        let input: SnapshotInputState?
         let thresholds: Thresholds?
     }
 
@@ -56,6 +57,7 @@ struct WallpaperGoldenDiagnostics {
                 metrics.maxDelta == Int.max ? "inf" : "\(metrics.maxDelta)",
                 WallpaperGoldenDiagnostics.formatNumber(metrics.changedPixelRatio * 100) + "%",
                 passed ? "pass" : "fail",
+                fixture.input?.summary ?? "default",
                 referenceURL.path
             ].joined(separator: "\t")
         }
@@ -93,7 +95,7 @@ struct WallpaperGoldenDiagnostics {
             failures.isEmpty ? "wallpaper golden check OK" : "wallpaper golden check FAILED",
             "manifest: \(manifestURL.path)",
             "fixtures: \(results.count)",
-            "columns: type\tid\taction\ttime\tsize\tmae\tmax\tchangedPixels\tstatus\treference"
+            "columns: type\tid\taction\ttime\tsize\tmae\tmax\tchangedPixels\tstatus\tinput\treference"
         ]
         lines.append(contentsOf: results.map(\.line))
         let report = lines.joined(separator: "\n")
@@ -131,13 +133,15 @@ struct WallpaperGoldenDiagnostics {
         }
         let size = try parsePixelSize(fixture.size, fixtureID: id)
         let referenceURL = try resolveBundleRelativePath(fixture.reference, runtime: runtime)
+        let inputState = fixture.input ?? SnapshotInputState()
 
         let snapshot = try WallpaperSnapshotDiagnostics.renderSnapshot(
             runtime: runtime,
             actionName: action,
             time: fixture.time,
             width: size.width,
-            height: size.height
+            height: size.height,
+            inputState: inputState
         )
         let metrics = try WallpaperSnapshotDiagnostics.diffMetrics(
             generated: snapshot.image,

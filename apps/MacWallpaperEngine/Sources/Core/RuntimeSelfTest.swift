@@ -2615,6 +2615,13 @@ enum RuntimeSelfTest {
             EngineConfig.help.contains("--spine-profile"),
             "EngineConfig help must document native Spine profile diagnostics"
         )
+        check(
+            EngineConfig.help.contains("--snapshot-pointer")
+                && EngineConfig.help.contains("--snapshot-pointer-down")
+                && EngineConfig.help.contains("--snapshot-pointer-press-duration")
+                && EngineConfig.help.contains("--snapshot-pointer-drag-distance"),
+            "EngineConfig help must document wallpaper snapshot declarative input diagnostics"
+        )
         let snapshotActionForParse = manifestActionNames.sorted().first ?? "idle"
         let parsedSpineSnapshot = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,
@@ -2647,6 +2654,29 @@ enum RuntimeSelfTest {
                 && parsedWallpaperSnapshot.spineSnapshotWidth == 320
                 && parsedWallpaperSnapshot.spineSnapshotHeight == 180,
             "EngineConfig must parse full wallpaper snapshot diagnostics"
+        )
+        let parsedWallpaperSnapshotInput = try EngineConfig.parse([
+            "--wallpaper-root", runtime.config.wallpaperRoot.path,
+            "--wallpaper-snapshot", "/tmp/wallpaper-snapshot-input.png",
+            "--snapshot-pointer", "0.8,0.2",
+            "--snapshot-pointer-down",
+            "--snapshot-pointer-speed", "5.5",
+            "--snapshot-pointer-press-duration", "1.25",
+            "--snapshot-pointer-drag-distance", "0.1",
+            "--snapshot-thermal-state", "2"
+        ])
+        let parsedSnapshotInput = try parsedWallpaperSnapshotInput.snapshotInput.evaluationInput(
+            systemTimeSeconds: 2.5,
+            context: "self-test"
+        )
+        check(
+            parsedSnapshotInput.pointerPosition == CGPoint(x: 0.8, y: 0.2)
+                && parsedSnapshotInput.pointerDown
+                && abs(parsedSnapshotInput.pointerSpeed - 5.5) < 0.001
+                && abs(parsedSnapshotInput.pointerPressDurationSeconds - 1.25) < 0.001
+                && abs(parsedSnapshotInput.pointerDragDistance - 0.1) < 0.001
+                && abs(parsedSnapshotInput.thermalStateLevel - 2) < 0.001,
+            "EngineConfig must parse wallpaper snapshot declarative pointer input overrides"
         )
         let parsedWallpaperGolden = try EngineConfig.parse([
             "--wallpaper-root", runtime.config.wallpaperRoot.path,

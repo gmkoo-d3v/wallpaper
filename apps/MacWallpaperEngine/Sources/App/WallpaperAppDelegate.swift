@@ -559,6 +559,7 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             spineSnapshotTime: 0,
             spineSnapshotWidth: 1280,
             spineSnapshotHeight: 720,
+            snapshotInput: SnapshotInputState(),
             wallpaperSnapshotURL: nil,
             wallpaperSnapshotReferenceURL: nil,
             wallpaperGoldenCheckOnly: false,

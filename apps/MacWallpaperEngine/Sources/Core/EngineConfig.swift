@@ -112,6 +112,7 @@ struct EngineConfig {
     let spineSnapshotTime: Double
     let spineSnapshotWidth: Int
     let spineSnapshotHeight: Int
+    let snapshotInput: SnapshotInputState
     let wallpaperSnapshotURL: URL?
     let wallpaperSnapshotReferenceURL: URL?
     let wallpaperGoldenCheckOnly: Bool
@@ -175,6 +176,7 @@ struct EngineConfig {
         spineSnapshotTime: Double? = nil,
         spineSnapshotWidth: Int? = nil,
         spineSnapshotHeight: Int? = nil,
+        snapshotInput: SnapshotInputState? = nil,
         wallpaperSnapshotURL: URL? = nil,
         wallpaperSnapshotReferenceURL: URL? = nil,
         wallpaperGoldenCheckOnly: Bool? = nil,
@@ -224,6 +226,7 @@ struct EngineConfig {
             spineSnapshotTime: spineSnapshotTime ?? self.spineSnapshotTime,
             spineSnapshotWidth: spineSnapshotWidth ?? self.spineSnapshotWidth,
             spineSnapshotHeight: spineSnapshotHeight ?? self.spineSnapshotHeight,
+            snapshotInput: snapshotInput ?? self.snapshotInput,
             wallpaperSnapshotURL: wallpaperSnapshotURL ?? self.wallpaperSnapshotURL,
             wallpaperSnapshotReferenceURL: wallpaperSnapshotReferenceURL ?? self.wallpaperSnapshotReferenceURL,
             wallpaperGoldenCheckOnly: wallpaperGoldenCheckOnly ?? self.wallpaperGoldenCheckOnly,
@@ -291,6 +294,7 @@ struct EngineConfig {
         var spineSnapshotTime = 0.0
         var spineSnapshotWidth = 1280
         var spineSnapshotHeight = 720
+        var snapshotInput = SnapshotInputState()
         var wallpaperSnapshotURL: URL?
         var wallpaperSnapshotReferenceURL: URL?
         var wallpaperGoldenCheckOnly = false
@@ -489,6 +493,54 @@ struct EngineConfig {
                 let parsedSize = try parsePixelSize(raw, option: argument)
                 spineSnapshotWidth = parsedSize.width
                 spineSnapshotHeight = parsedSize.height
+            case "--snapshot-pointer":
+                index += 1
+                let point = try parseNormalizedPoint(try value(arguments, index, option: argument), option: argument)
+                snapshotInput = snapshotInput.replacing(
+                    pointerPosition: SnapshotInputPoint(x: Double(point.x), y: Double(point.y))
+                )
+            case "--snapshot-pointer-down":
+                snapshotInput = snapshotInput.replacing(pointerDown: true)
+            case "--snapshot-pointer-speed":
+                index += 1
+                snapshotInput = snapshotInput.replacing(
+                    pointerSpeed: try parseBoundedDouble(
+                        try value(arguments, index, option: argument),
+                        option: argument,
+                        minimum: 0,
+                        maximum: 10
+                    )
+                )
+            case "--snapshot-pointer-press-duration":
+                index += 1
+                snapshotInput = snapshotInput.replacing(
+                    pointerPressDurationSeconds: try parseBoundedDouble(
+                        try value(arguments, index, option: argument),
+                        option: argument,
+                        minimum: 0,
+                        maximum: 10
+                    )
+                )
+            case "--snapshot-pointer-drag-distance":
+                index += 1
+                snapshotInput = snapshotInput.replacing(
+                    pointerDragDistance: try parseBoundedDouble(
+                        try value(arguments, index, option: argument),
+                        option: argument,
+                        minimum: 0,
+                        maximum: 2
+                    )
+                )
+            case "--snapshot-thermal-state":
+                index += 1
+                snapshotInput = snapshotInput.replacing(
+                    thermalStateLevel: try parseBoundedDouble(
+                        try value(arguments, index, option: argument),
+                        option: argument,
+                        minimum: 0,
+                        maximum: 3
+                    )
+                )
             case "--spine-snapshot-size":
                 index += 1
                 let raw = try value(arguments, index, option: argument)
@@ -673,6 +725,7 @@ struct EngineConfig {
             spineSnapshotTime: spineSnapshotTime,
             spineSnapshotWidth: spineSnapshotWidth,
             spineSnapshotHeight: spineSnapshotHeight,
+            snapshotInput: snapshotInput,
             wallpaperSnapshotURL: wallpaperSnapshotURL,
             wallpaperSnapshotReferenceURL: wallpaperSnapshotReferenceURL,
             wallpaperGoldenCheckOnly: wallpaperGoldenCheckOnly,
@@ -738,6 +791,21 @@ struct EngineConfig {
             throw EngineError.invalidArgument("Invalid \(option): \(value). Expected normalized x,y in 0...1")
         }
         return CGPoint(x: CGFloat(x), y: CGFloat(y))
+    }
+
+    private static func parseBoundedDouble(
+        _ value: String,
+        option: String,
+        minimum: Double,
+        maximum: Double
+    ) throws -> Double {
+        guard let parsed = Double(value),
+              parsed.isFinite,
+              parsed >= minimum,
+              parsed <= maximum else {
+            throw EngineError.invalidArgument("Invalid \(option): \(value). Expected finite value in \(minimum)...\(maximum)")
+        }
+        return parsed
     }
 
     static let help = """
@@ -817,6 +885,16 @@ struct EngineConfig {
       --snapshot-time <seconds>
                               Pose/video time for snapshot diagnostics. Default: 0.
       --snapshot-size <WxH>    Pixel size for snapshot diagnostics. Default: 1280x720.
+      --snapshot-pointer <x,y> Pointer input for wallpaper snapshot declarative bindings.
+      --snapshot-pointer-down  Set wallpaper snapshot pointer.down input to true.
+      --snapshot-pointer-speed <value>
+                              Pointer speed input for wallpaper snapshot declarative bindings. Range: 0...10.
+      --snapshot-pointer-press-duration <seconds>
+                              Pointer press duration input for wallpaper snapshot declarative bindings. Range: 0...10.
+      --snapshot-pointer-drag-distance <value>
+                              Pointer drag distance input for wallpaper snapshot declarative bindings. Range: 0...2.
+      --snapshot-thermal-state <value>
+                              Thermal state input for wallpaper snapshot declarative bindings. Range: 0...3.
       --spine-snapshot-action <name>
                               Backward-compatible alias for --snapshot-action.
       --spine-snapshot-time <seconds>

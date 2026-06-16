@@ -205,11 +205,12 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   white diagnostic background for action/time/size-specific renderer review.
 - `--wallpaper-snapshot` writes a full diagnostic wallpaper PNG using sampled
   video/composite/static background, the selected fit mode, native Spine when
-  active, and optional reference PNG diff metrics.
+  active, optional declarative input overrides such as pointer position/down/
+  speed/press/drag/thermal state, and optional reference PNG diff metrics.
 - `--wallpaper-golden-check` loads bundle-local
   `golden/wallpaper.golden.json` fixtures, renders each snapshot through the
-  same full wallpaper diagnostic path, and fails when configured pixel
-  thresholds are exceeded.
+  same full wallpaper diagnostic path, including fixture-declared input state,
+  and fails when configured pixel thresholds are exceeded.
 - `--interaction-plan` probes pointer-move commands, hit-zone/default-action
   resolution, and click command hold/tap state for every declared pointerDown
   path.

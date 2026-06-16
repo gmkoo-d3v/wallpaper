@@ -757,14 +757,20 @@ final class SpineSetupPoseRenderer {
         return samples
     }
 
-    func diagnosticSnapshot(actionName: String, time: Double, width: Int, height: Int) throws -> CGImage {
+    func diagnosticSnapshot(
+        actionName: String,
+        time: Double,
+        width: Int,
+        height: Int,
+        bindingInput: DeclarativeBindingEvaluationInput? = nil
+    ) throws -> CGImage {
         guard width > 0, height > 0, width <= 8192, height <= 8192 else {
             throw EngineError.invalidArgument("Spine snapshot size must be between 1x1 and 8192x8192")
         }
         guard let animation = animations[actionName] else {
             throw EngineError.renderer("Missing Spine animation for snapshot action: \(actionName)")
         }
-        let vertexBatches = try diagnosticVertexBatches(animation: animation, time: time)
+        let vertexBatches = try diagnosticVertexBatches(animation: animation, time: time, bindingInput: bindingInput)
         return try Self.snapshotImage(
             vertexBatches: vertexBatches,
             device: device,
@@ -780,12 +786,13 @@ final class SpineSetupPoseRenderer {
         normalPipelineState: MTLRenderPipelineState,
         additivePipelineState: MTLRenderPipelineState,
         multiplyPipelineState: MTLRenderPipelineState,
-        screenPipelineState: MTLRenderPipelineState
+        screenPipelineState: MTLRenderPipelineState,
+        bindingInput: DeclarativeBindingEvaluationInput? = nil
     ) throws {
         guard let animation = animations[actionName] else {
             throw EngineError.renderer("Missing Spine animation for snapshot action: \(actionName)")
         }
-        let vertexBatches = try diagnosticVertexBatches(animation: animation, time: time)
+        let vertexBatches = try diagnosticVertexBatches(animation: animation, time: time, bindingInput: bindingInput)
         try Self.encodeVertexBatches(
             vertexBatches,
             device: device,
@@ -1078,10 +1085,21 @@ final class SpineSetupPoseRenderer {
     private func diagnosticVertexBatches(
         animation: SpineAnimation,
         time: Double,
-        overlayMix: Double? = nil
+        overlayMix: Double? = nil,
+        bindingInput: DeclarativeBindingEvaluationInput? = nil
     ) throws -> [VertexBatch] {
         let overlayAnimation = animation.name == idleAnimationName ? nil : animation
         let effectiveOverlayMix = overlayAnimation == nil ? 0 : min(max(overlayMix ?? 1, 0), 1)
+        var bindingOffsets: [String: Double] = [:]
+        if let bindingInput {
+            var bindingState = DeclarativeBindingEvaluationState()
+            let bindingSnapshot = DeclarativeBindingEvaluator.evaluate(
+                plan: declarativePlan,
+                input: bindingInput,
+                state: &bindingState
+            )
+            bindingOffsets = bindingSnapshot.spineBoneRotationOffsets
+        }
         let pose = evaluate(
             baseAnimation: animations[idleAnimationName],
             baseTime: time,
@@ -1091,7 +1109,8 @@ final class SpineSetupPoseRenderer {
             overlayAnimation: overlayAnimation,
             overlayTime: time,
             overlayMix: effectiveOverlayMix,
-            physicsTime: time
+            physicsTime: time,
+            boneRotationOffsets: bindingOffsets
         )
         return try Self.buildVertexBatches(
             slots: pose.slots,

@@ -228,7 +228,8 @@ do {
             actionName: config.spineSnapshotAction,
             time: config.spineSnapshotTime,
             width: config.spineSnapshotWidth,
-            height: config.spineSnapshotHeight
+            height: config.spineSnapshotHeight,
+            inputState: config.snapshotInput
         ))
         exit(EXIT_SUCCESS)
     }

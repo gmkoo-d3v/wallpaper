@@ -89,7 +89,8 @@ struct WallpaperSnapshotDiagnostics {
             }
         }
 
-        func render(actionName: String, time: Double) throws -> Snapshot {
+        func render(actionName: String, time: Double, inputState: SnapshotInputState = SnapshotInputState()) throws -> Snapshot {
+            let bindingInput = try inputState.evaluationInput(systemTimeSeconds: time, context: "wallpaper snapshot")
             guard let commandBuffer = commandQueue.makeCommandBuffer() else {
                 throw EngineError.renderer("Could not create Metal command buffer for wallpaper snapshot")
             }
@@ -114,10 +115,7 @@ struct WallpaperSnapshotDiagnostics {
             if let backgroundTexture = background.texture {
                 let effectSnapshot = DeclarativeBindingEvaluator.evaluate(
                     plan: declarativePlan,
-                    input: DeclarativeBindingEvaluationInput(
-                        systemTimeSeconds: time,
-                        thermalStateLevel: 0
-                    ),
+                    input: bindingInput,
                     state: &declarativeBindingState
                 )
                 let effectState = DeclarativeEffectState.make(plan: declarativePlan, snapshot: effectSnapshot)
@@ -142,7 +140,8 @@ struct WallpaperSnapshotDiagnostics {
                     normalPipelineState: normalPipelineState,
                     additivePipelineState: additivePipelineState,
                     multiplyPipelineState: multiplyPipelineState,
-                    screenPipelineState: screenPipelineState
+                    screenPipelineState: screenPipelineState,
+                    bindingInput: bindingInput
                 )
                 foreground = "nativeSpine"
             } else if foregroundPlan.usesCompositeVideo || background.usesCompositeVideo {
@@ -184,14 +183,16 @@ struct WallpaperSnapshotDiagnostics {
         actionName: String,
         time: Double,
         width: Int,
-        height: Int
+        height: Int,
+        inputState: SnapshotInputState = SnapshotInputState()
     ) throws -> String {
         let snapshot = try renderSnapshot(
             runtime: runtime,
             actionName: actionName,
             time: time,
             width: width,
-            height: height
+            height: height,
+            inputState: inputState
         )
         try MetalSnapshotImage.writePNG(snapshot.image, to: destination)
 
@@ -201,6 +202,7 @@ struct WallpaperSnapshotDiagnostics {
             "time: \(formatSeconds(time))",
             "size: \(width)x\(height)",
             "fitMode: \(runtime.config.fitMode.rawValue)",
+            "input: \(inputState.summary)",
             "background: \(snapshot.background)",
             "foreground: \(snapshot.foreground)",
             "output: \(destination.path)"
@@ -216,13 +218,14 @@ struct WallpaperSnapshotDiagnostics {
         actionName: String,
         time: Double,
         width: Int,
-        height: Int
+        height: Int,
+        inputState: SnapshotInputState = SnapshotInputState()
     ) throws -> Snapshot {
         try Renderer(
             runtime: runtime,
             width: width,
             height: height
-        ).render(actionName: actionName, time: time)
+        ).render(actionName: actionName, time: time, inputState: inputState)
     }
 
     static func diffMetrics(generated: CGImage, reference: URL) throws -> DiffMetrics {
