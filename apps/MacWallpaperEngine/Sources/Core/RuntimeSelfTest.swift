@@ -2977,7 +2977,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must expose pointer.down trigger-play bindings to Spine animations as manifest-owned runtime input"
         )
         check(
-            bundleMatrix.contains("golden: pass fixtures: 3")
+            bundleMatrix.contains("golden: pass fixtures: 8")
                 && occurrenceCount("golden: pass fixtures: 1", in: bundleMatrix) >= 3,
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, static-image, and effect samples"
         )
