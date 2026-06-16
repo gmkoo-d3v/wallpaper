@@ -2136,6 +2136,16 @@ enum RuntimeSelfTest {
                         "runtime capabilities must distinguish declared rubTail \(declaredRubTail) from effective rubTail \(effectiveRubTail) for hit zone \(hitZone.id)"
                     )
                 }
+                if runtime.manifest.metadata?.id == "sample_imported", hitZone.id == "head" {
+                    check(
+                        hitZone.tapAction == "boll"
+                            && hitZone.action == "eye"
+                            && hitZone.rubAction == "act"
+                            && hitZone.trigger == .hold
+                            && hitZone.holdStartSeconds <= 0.20,
+                        "Imported head interaction must map short click to boll, quick stationary hold to eye, and held rub to act without using gaze direction semantics"
+                    )
+                }
                 let clickController = InteractionController(
                     interactions: manifest.interactions,
                     policy: manifest.interactionPolicy,
