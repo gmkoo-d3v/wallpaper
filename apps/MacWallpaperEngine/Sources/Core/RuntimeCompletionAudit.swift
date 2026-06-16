@@ -171,7 +171,7 @@ enum RuntimeCompletionAudit {
                 id: "source-adapter-library-audit",
                 passed: sourceAdapterAudit.passed,
                 evidence: sourceAdapterAudit.evidence,
-                risk: "source adapter ownership must be checked at wallpaper library scope, not only through the active Imported bundle"
+                risk: "source adapter ownership must be checked at wallpaper library scope, not only through the active selected bundle"
             ),
             item(
                 id: "generic-player-contract",
@@ -741,14 +741,34 @@ enum RuntimeCompletionAudit {
             let lines = report.split(separator: "\n").map(String.init)
             let validLine = lines.first { $0.hasPrefix("validBundles:") } ?? "validBundles: unknown"
             let invalidLine = lines.first { $0.hasPrefix("invalidDiagnostics:") } ?? "invalidDiagnostics: unknown"
-            let convertedAdapterChecked = report.contains(
-                "\tsourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:14+calibrated:10+platform-policy:4+unsupported:1"
-            )
-            let samplesSourceDerived = report.contains("\tsourceAdapter=none\t")
-                && report.contains("sourceDerivation: source-derived")
+            let rows = lines
+                .filter { $0.hasPrefix("valid\t") }
+                .map { $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
+                .filter { $0.count >= 6 }
+            let adapterContractRows = rows.filter { row in
+                let adapterColumn = row[3]
+                return adapterColumn.hasPrefix("sourceAdapter=")
+                    && adapterColumn != "sourceAdapter=none"
+                    && adapterColumn.contains(" kind=")
+                    && adapterColumn.contains(" fields=")
+            }
+            let sourceDerivedRows = rows.filter { row in
+                row[3] == "sourceAdapter=none"
+                    && row[4].contains("sourceDerivation: source-derived")
+            }
+            let consistencyRowsOK = rows.allSatisfy { row in
+                row[5].hasPrefix("sourceProvenance: pass")
+                    || row[5] == "sourceProvenance: skipped(no-descriptors)"
+            }
+            let failedRows = lines.filter { $0.hasPrefix("failed\t") || $0.hasPrefix("invalid\t") }
             return (
-                report.contains("source adapter audit OK") && convertedAdapterChecked && samplesSourceDerived,
-                "\(validLine) \(invalidLine) adapter=unity-metadata-source-adapter samples=source-derived"
+                report.contains("source adapter audit OK")
+                    && rows.isEmpty == false
+                    && adapterContractRows.isEmpty == false
+                    && sourceDerivedRows.isEmpty == false
+                    && consistencyRowsOK
+                    && failedRows.isEmpty,
+                "\(validLine) \(invalidLine) adapterContracts=\(adapterContractRows.count) sourceDerived=\(sourceDerivedRows.count) consistency=\(consistencyRowsOK ? "pass" : "fail") failedRows=\(failedRows.count)"
             )
         } catch {
             return (false, "source adapter audit failed: \(error.localizedDescription)")

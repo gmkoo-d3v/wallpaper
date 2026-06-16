@@ -944,15 +944,33 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             includeInvalid: false
         )
+        let sourceAdapterAuditRows = sourceAdapterAudit
+            .split(separator: "\n")
+            .filter { $0.hasPrefix("valid\t") }
+            .map { $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
+            .filter { $0.count >= 6 }
+        let sourceAdapterContractRows = sourceAdapterAuditRows.filter { row in
+            let adapterColumn = row[3]
+            return adapterColumn.hasPrefix("sourceAdapter=")
+                && adapterColumn != "sourceAdapter=none"
+                && adapterColumn.contains(" kind=")
+                && adapterColumn.contains(" fields=")
+        }
+        let sourceDerivedRows = sourceAdapterAuditRows.filter { row in
+            row[3] == "sourceAdapter=none"
+                && row[4].contains("sourceDerivation: source-derived")
+        }
+        let sourceAdapterRowsConsistent = sourceAdapterAuditRows.allSatisfy { row in
+            row[5].hasPrefix("sourceProvenance: pass")
+                || row[5] == "sourceProvenance: skipped(no-descriptors)"
+        }
         check(
             sourceAdapterAudit.contains("source adapter audit OK")
                 && sourceAdapterAudit.contains("validBundles: 9")
                 && sourceAdapterAudit.contains("columns: status\tid\tsource\tadapter\tderivation\tconsistency")
-                && sourceAdapterAudit.contains("sample_imported")
-                && sourceAdapterAudit.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:14+calibrated:10+platform-policy:4+unsupported:1")
-                && sourceAdapterAudit.contains("sample_effect")
-                && sourceAdapterAudit.contains("sourceAdapter=none")
-                && sourceAdapterAudit.contains("sourceDerivation: source-derived"),
+                && sourceAdapterContractRows.isEmpty == false
+                && sourceDerivedRows.isEmpty == false
+                && sourceAdapterRowsConsistent,
             "source adapter audit must cover the whole wallpaper library so adapter-owned fields do not remain a single-bundle diagnostic"
         )
         check(
@@ -3020,7 +3038,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
                 && completionAudit.contains("automated\tpass\tsource-adapter-library-audit")
-                && completionAudit.contains("adapter=unity-metadata-source-adapter samples=source-derived")
+                && completionAudit.contains("adapterContracts=")
+                && completionAudit.contains("sourceDerived=")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.x+pointer.y+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state")
