@@ -30,11 +30,37 @@ struct SourceProvenance: Decodable {
     let sourceRuntime: String?
     let projectType: String?
     let sourceDescriptors: [SourceDescriptor]?
+    let sourceAdapter: SourceAdapterContract?
     let importedFields: [String]?
     let calibratedFields: [String]?
     let platformPolicyFields: [String]?
     let unsupportedFields: [String]?
     let notes: [String]?
+}
+
+struct SourceAdapterContract: Decodable {
+    let id: String
+    let version: String?
+    let kind: String
+    let fieldDerivations: [SourceAdapterFieldDerivation]?
+    let capabilities: [String]?
+    let limitations: [String]?
+}
+
+struct SourceAdapterFieldDerivation: Decodable {
+    let field: String
+    let mode: SourceAdapterFieldMode
+    let source: String?
+    let owner: String?
+    let requiredCapability: String?
+    let reason: String?
+}
+
+enum SourceAdapterFieldMode: String, Decodable, Hashable {
+    case imported
+    case calibrated
+    case platformPolicy = "platform-policy"
+    case unsupported
 }
 
 struct SourceDescriptor: Decodable {
@@ -377,6 +403,7 @@ enum EffectType: String, Decodable {
     case scroll
     case chromaticAberration
     case vignette
+    case pixelate
 }
 
 enum EffectPropertyValue: Decodable {

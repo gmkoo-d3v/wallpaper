@@ -562,6 +562,8 @@ enum ManifestLoader {
             return ["amount", "offset"]
         case .vignette:
             return ["amount", "intensity", "radius"]
+        case .pixelate:
+            return ["amount", "size"]
         }
     }
 

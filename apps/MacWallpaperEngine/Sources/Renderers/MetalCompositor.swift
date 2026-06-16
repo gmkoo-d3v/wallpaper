@@ -905,22 +905,33 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
         float vignetteIntensity = clamp(in.effects.z, 0.0, 1.0);
         float vignetteRadius = clamp(in.effects.w, 0.05, 0.95);
         float saturation = clamp(in.effects2.x, 0.0, 2.0);
+        float pixelateSize = max(in.effects2.y, 0.0);
 
-        float4 sample = colorTexture.sample(textureSampler, in.texCoord);
+        float2 sampleCoord = in.texCoord;
+        if (pixelateSize > 1.0) {
+            float2 textureSize = float2(
+                max(float(colorTexture.get_width()), 1.0),
+                max(float(colorTexture.get_height()), 1.0)
+            );
+            float2 grid = max(textureSize / pixelateSize, float2(1.0, 1.0));
+            sampleCoord = (floor(sampleCoord * grid) + 0.5) / grid;
+        }
+
+        float4 sample = colorTexture.sample(textureSampler, sampleCoord);
         if (blurRadius > 0.000001) {
             float2 blurStep = texel * blurRadius;
             sample = (
                 sample * 0.36
-                + colorTexture.sample(textureSampler, in.texCoord + float2(blurStep.x, 0.0)) * 0.16
-                + colorTexture.sample(textureSampler, in.texCoord - float2(blurStep.x, 0.0)) * 0.16
-                + colorTexture.sample(textureSampler, in.texCoord + float2(0.0, blurStep.y)) * 0.16
-                + colorTexture.sample(textureSampler, in.texCoord - float2(0.0, blurStep.y)) * 0.16
+                + colorTexture.sample(textureSampler, sampleCoord + float2(blurStep.x, 0.0)) * 0.16
+                + colorTexture.sample(textureSampler, sampleCoord - float2(blurStep.x, 0.0)) * 0.16
+                + colorTexture.sample(textureSampler, sampleCoord + float2(0.0, blurStep.y)) * 0.16
+                + colorTexture.sample(textureSampler, sampleCoord - float2(0.0, blurStep.y)) * 0.16
             );
         }
         if (chromaticOffset > 0.000001) {
             float2 chromaticStep = texel * chromaticOffset;
-            float red = colorTexture.sample(textureSampler, in.texCoord + chromaticStep).r;
-            float blue = colorTexture.sample(textureSampler, in.texCoord - chromaticStep).b;
+            float red = colorTexture.sample(textureSampler, sampleCoord + chromaticStep).r;
+            float blue = colorTexture.sample(textureSampler, sampleCoord - chromaticStep).b;
             sample = float4(red, sample.g, blue, sample.a);
         }
         if (abs(saturation - 1.0) > 0.000001) {

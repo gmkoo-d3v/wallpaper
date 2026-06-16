@@ -25,6 +25,7 @@ struct DeclarativeEffectState {
         var vignetteIntensity: Double = 0
         var vignetteRadius: Double = 0.55
         var saturation: Double = 1
+        var pixelateSizePixels: Double = 0
 
         for effect in plan.effectEntries where effect.effectKind == EffectType.colorMatrix.rawValue {
             let brightness = number(
@@ -112,6 +113,16 @@ struct DeclarativeEffectState {
             vignetteRadius = min(max(radius, 0.05), 0.95)
         }
 
+        for effect in plan.effectEntries where effect.effectKind == EffectType.pixelate.rawValue {
+            let size = number(
+                effect: effect,
+                property: "size",
+                snapshot: snapshot,
+                fallback: number(effect: effect, property: "amount", snapshot: snapshot, fallback: 0)
+            )
+            pixelateSizePixels = max(pixelateSizePixels, min(max(size, 0), 64))
+        }
+
         return DeclarativeEffectState(
             colorMultiplier: colorMultiplier,
             textureOffset: SIMD2<Float>(
@@ -126,7 +137,7 @@ struct DeclarativeEffectState {
             ),
             fragmentEffectParams2: SIMD4<Float>(
                 Float(min(max(saturation, 0), 2)),
-                0,
+                Float(pixelateSizePixels),
                 0,
                 0
             )

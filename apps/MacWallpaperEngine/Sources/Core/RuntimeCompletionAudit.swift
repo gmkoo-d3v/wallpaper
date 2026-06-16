@@ -62,7 +62,8 @@ enum RuntimeCompletionAudit {
         EffectType.colorMatrix.rawValue,
         EffectType.scroll.rawValue,
         EffectType.chromaticAberration.rawValue,
-        EffectType.vignette.rawValue
+        EffectType.vignette.rawValue,
+        EffectType.pixelate.rawValue
     ]
 
     static func make(
@@ -894,7 +895,7 @@ enum RuntimeCompletionAudit {
         }.joined(separator: "+")
         return (
             schemaOK && missingRequiredEffects.isEmpty,
-            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered) requiredWhitelistEffects=\(requiredEffectStatus) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidenceParts.joined(separator: "; ")); discovered=\(effectKinds.sorted().joined(separator: "+"))"
+            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered)+pixelate(runtime-rendered) requiredWhitelistEffects=\(requiredEffectStatus) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidenceParts.joined(separator: "; ")); discovered=\(effectKinds.sorted().joined(separator: "+"))"
         )
     }
 

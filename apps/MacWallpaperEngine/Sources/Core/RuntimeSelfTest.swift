@@ -919,6 +919,8 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
                 && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=14 calibrated=10 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("sourceAdapter:")
+                && sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:14+calibrated:10+platform-policy:4+unsupported:1")
                 && sourceManagedScriptStatusOK
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceArchiveDescriptorStatusOK
@@ -2516,6 +2518,8 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"macos-wallpaper-native.v2\"")
                 && manifestSchemaText.contains("\"sourceProvenance\"")
                 && manifestSchemaText.contains("\"sourceDescriptors\"")
+                && manifestSchemaText.contains("\"sourceAdapter\"")
+                && manifestSchemaText.contains("\"fieldDerivations\"")
                 && manifestSchemaText.contains("\"unity-managed-script-index\"")
                 && manifestSchemaText.contains("\"platformPolicyFields\"")
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
@@ -2942,7 +2946,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must expose source provenance so bundle-specific settings stay outside the generic runtime"
         )
         check(
-            bundleMatrix.contains("effects: scroll+colorMatrix+blur+chromaticAberration+vignette"),
+            bundleMatrix.contains("effects: scroll+colorMatrix+blur+chromaticAberration+vignette+pixelate"),
             "bundle validation matrix must expose the sample effect fixture capability rows"
         )
         check(
@@ -3019,18 +3023,19 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("sample_trigger_play_spine=manifest-owned")
                 && completionAudit.contains("actions[pulse]")
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
-                && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered)")
-                && completionAudit.contains("requiredWhitelistEffects=blur:ok+chromaticAberration:ok+colorMatrix:ok+scroll:ok+vignette:ok")
-                && completionAudit.contains("sample_effect=effects(scroll+colorMatrix+blur+chromaticAberration+vignette)")
+                && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered)+pixelate(runtime-rendered)")
+                && completionAudit.contains("requiredWhitelistEffects=blur:ok+chromaticAberration:ok+colorMatrix:ok+pixelate:ok+scroll:ok+vignette:ok")
+                && completionAudit.contains("sample_effect=effects(scroll+colorMatrix+blur+chromaticAberration+vignette+pixelate)")
                 && completionAudit.contains("loopPan:scroll properties=1 runtime-rendered")
                 && completionAudit.contains("tone:colorMatrix properties=3 runtime-rendered")
                 && completionAudit.contains("softBlur:blur properties=1 runtime-rendered")
                 && completionAudit.contains("split:chromaticAberration properties=1 runtime-rendered")
                 && completionAudit.contains("edgeShade:vignette properties=2 runtime-rendered")
+                && completionAudit.contains("pixelGrid:pixelate properties=1 runtime-rendered")
                 && completionAudit.contains("dynamicShaderLoading=forbidden")
                 && completionAudit.contains("automated\tpass\tdeclarative-safety-boundary")
                 && completionAudit.contains("layerTypes=spine+static_image+video")
-                && completionAudit.contains("effectTypes=blur+chromaticAberration+colorMatrix+scroll+vignette")
+                && completionAudit.contains("effectTypes=blur+chromaticAberration+colorMatrix+pixelate+scroll+vignette")
                 && completionAudit.contains("bindingSources=pointer.down+pointer.dragDistance+pointer.position+pointer.pressDuration+pointer.speed+pointer.x+pointer.y+system.time+thermal.state")
                 && completionAudit.contains("bindingAdapters=map-range+smooth-lookat+spring+trigger-play")
                 && completionAudit.contains("bindingTargetPattern=engine-owned")
@@ -3041,7 +3046,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("interactions[pointerMove{")
                 && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=14 calibrated=10 platformPolicy=4 unsupported=1); derivation(partial imported=14 calibrated=10 platformPolicy=4 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
-                && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+scroll+vignette")
+                && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+pixelate+scroll+vignette")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
                 && completionAudit.contains("autoNative:true compositeDefault:false")
                 && completionAudit.contains("automated\tpass\tunsupported-spine-composite-fallback")

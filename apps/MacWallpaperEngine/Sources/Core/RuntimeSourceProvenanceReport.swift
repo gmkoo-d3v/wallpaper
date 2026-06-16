@@ -19,6 +19,7 @@ enum RuntimeSourceProvenanceReport {
             "policy: wallpaper-specific placement, hit zones, action names, timing, and neutral points must stay in the manifest or importer output.",
             "consistency: \(consistencyLine(runtime: runtime))",
             "derivation: \(derivationStatus(runtime: runtime))",
+            sourceAdapterSection(provenance?.sourceAdapter),
             sourceDescriptorSection(provenance?.sourceDescriptors, projectRoot: runtime.config.projectRoot),
             section("importedFields", provenance?.importedFields),
             section("calibratedFields", provenance?.calibratedFields),
@@ -72,6 +73,10 @@ enum RuntimeSourceProvenanceReport {
         var readableUnityExtractionCount = 0
         var checks = Set<String>()
         var warnings: [String] = []
+
+        if let sourceAdapterCheck = try validateSourceAdapterContract(runtime.manifest.sourceProvenance) {
+            checks.insert(sourceAdapterCheck)
+        }
 
         for descriptor in descriptors where descriptor.kind == .unityAssetExtractionManifest {
             let descriptorURL = runtime.config.projectRoot
@@ -180,6 +185,86 @@ enum RuntimeSourceProvenanceReport {
         return "sourceProvenance: pass \(checkText)"
     }
 
+    private static func validateSourceAdapterContract(_ provenance: SourceProvenance?) throws -> String? {
+        guard let adapter = provenance?.sourceAdapter else {
+            return nil
+        }
+
+        let derivations = adapter.fieldDerivations ?? []
+        guard derivations.isEmpty == false else {
+            throw EngineError.manifest("source adapter \(adapter.id) must declare fieldDerivations")
+        }
+
+        var seenFields = Set<String>()
+        for derivation in derivations {
+            guard derivation.field.isEmpty == false else {
+                throw EngineError.manifest("source adapter \(adapter.id) fieldDerivations must not contain empty field names")
+            }
+            guard seenFields.insert(derivation.field).inserted else {
+                throw EngineError.manifest("source adapter \(adapter.id) declares duplicate field derivation: \(derivation.field)")
+            }
+            switch derivation.mode {
+            case .calibrated, .unsupported:
+                guard derivation.owner?.isEmpty == false,
+                      derivation.requiredCapability?.isEmpty == false else {
+                    throw EngineError.manifest("source adapter \(adapter.id) \(derivation.mode.rawValue) field \(derivation.field) requires owner and requiredCapability")
+                }
+            case .imported, .platformPolicy:
+                break
+            }
+        }
+
+        try validateDerivationMode(
+            adapter: adapter,
+            mode: .imported,
+            legacyFields: provenance?.importedFields ?? []
+        )
+        try validateDerivationMode(
+            adapter: adapter,
+            mode: .calibrated,
+            legacyFields: provenance?.calibratedFields ?? []
+        )
+        try validateDerivationMode(
+            adapter: adapter,
+            mode: .platformPolicy,
+            legacyFields: provenance?.platformPolicyFields ?? []
+        )
+        try validateDerivationMode(
+            adapter: adapter,
+            mode: .unsupported,
+            legacyFields: provenance?.unsupportedFields ?? []
+        )
+
+        let counts = Dictionary(grouping: derivations, by: \.mode)
+            .mapValues(\.count)
+        let countText = [
+            "imported:\(counts[.imported] ?? 0)",
+            "calibrated:\(counts[.calibrated] ?? 0)",
+            "platform-policy:\(counts[.platformPolicy] ?? 0)",
+            "unsupported:\(counts[.unsupported] ?? 0)"
+        ].joined(separator: "+")
+        return "sourceAdapter=\(adapter.id) kind=\(adapter.kind) fields=\(countText)"
+    }
+
+    private static func validateDerivationMode(
+        adapter: SourceAdapterContract,
+        mode: SourceAdapterFieldMode,
+        legacyFields: [String]
+    ) throws {
+        let derivationFields = Set((adapter.fieldDerivations ?? [])
+            .filter { $0.mode == mode }
+            .map(\.field))
+        let expectedFields = Set(legacyFields)
+        guard derivationFields == expectedFields else {
+            let missing = expectedFields.subtracting(derivationFields).sorted()
+            let extra = derivationFields.subtracting(expectedFields).sorted()
+            throw EngineError.manifest(
+                "source adapter \(adapter.id) \(mode.rawValue) derivations do not match sourceProvenance lists"
+                    + " missing=[\(missing.joined(separator: ","))] extra=[\(extra.joined(separator: ","))]"
+            )
+        }
+    }
+
     private static func consistencyLine(runtime: NativeRuntimeCore) -> String {
         do {
             return try consistencyStatus(runtime: runtime)
@@ -227,6 +312,30 @@ enum RuntimeSourceProvenanceReport {
             }
         }
         return "sourceDescriptors:\n" + lines.map { "  - \($0)" }.joined(separator: "\n")
+    }
+
+    private static func sourceAdapterSection(_ adapter: SourceAdapterContract?) -> String {
+        guard let adapter else {
+            return "sourceAdapter: none"
+        }
+
+        let derivations = adapter.fieldDerivations ?? []
+        let counts = Dictionary(grouping: derivations, by: \.mode)
+            .mapValues(\.count)
+        let capabilities = adapter.capabilities?.sorted().joined(separator: ",") ?? "none"
+        let limitations = adapter.limitations?.sorted().joined(separator: ",") ?? "none"
+        let countText = [
+            "imported=\(counts[.imported] ?? 0)",
+            "calibrated=\(counts[.calibrated] ?? 0)",
+            "platform-policy=\(counts[.platformPolicy] ?? 0)",
+            "unsupported=\(counts[.unsupported] ?? 0)"
+        ].joined(separator: " ")
+        return [
+            "sourceAdapter:",
+            "  - id=\(adapter.id) version=\(adapter.version ?? "unspecified") kind=\(adapter.kind) \(countText)",
+            "  - capabilities=\(capabilities)",
+            "  - limitations=\(limitations)"
+        ].joined(separator: "\n")
     }
 
     private static func wallpaperEngineProjectLine(descriptor: SourceDescriptor, url: URL) -> String {
