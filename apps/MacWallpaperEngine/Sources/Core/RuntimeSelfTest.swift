@@ -2200,12 +2200,12 @@ enum RuntimeSelfTest {
                 }
                 if runtime.manifest.metadata?.id == "sample_imported", hitZone.id == "head" {
                     check(
-                        hitZone.tapAction == "boll"
+                        hitZone.tapAction == "act"
                             && hitZone.action == "eye"
                             && hitZone.rubAction == "act"
                             && hitZone.trigger == .hold
-                            && hitZone.holdStartSeconds <= 0.20,
-                        "Imported head interaction must map short click to boll, quick stationary hold to eye, and held rub to act without using gaze direction semantics"
+                            && hitZone.holdStartSeconds <= 0.08,
+                        "Imported head interaction must map short head click to act, near-immediate stationary hold to eye, and held rub to act without using gaze direction semantics"
                     )
                 }
                 let clickController = InteractionController(
