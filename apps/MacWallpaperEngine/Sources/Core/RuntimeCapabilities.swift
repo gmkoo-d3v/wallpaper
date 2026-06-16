@@ -188,6 +188,20 @@ enum NativeSpinePlayability {
     }
 }
 
+struct SpineFeatureScanCacheDiagnostics: Equatable {
+    let beforeEntries: Int
+    let firstHits: Int
+    let firstMisses: Int
+    let firstStores: Int
+    let firstEvictions: Int
+    let secondHits: Int
+    let secondMisses: Int
+    let secondStores: Int
+    let secondEvictions: Int
+    let afterEntries: Int
+    let invalidatedAfterMutation: Bool
+}
+
 enum RuntimeCapabilities {
     static func summary(runtime: NativeRuntimeCore) -> String {
         let rows = makeRows(runtime: runtime)
@@ -375,6 +389,10 @@ enum RuntimeCapabilities {
             reasons: reasons,
             degradations: degradations
         )
+    }
+
+    static func spineFeatureScanCacheDiagnostics(url: URL, mutate: () throws -> Void) rethrows -> SpineFeatureScanCacheDiagnostics {
+        try SpineFeatureScan.cacheDiagnostics(url: url, mutate: mutate)
     }
 
     static func bundleInfo(
@@ -1000,6 +1018,10 @@ private struct SpineFeatureScan {
     private static let scanCacheLock = NSLock()
     private static var scanCache: [ScanCacheKey: SpineFeatureScan] = [:]
     private static var scanCacheOrder: [ScanCacheKey] = []
+    private static var scanCacheHits = 0
+    private static var scanCacheMisses = 0
+    private static var scanCacheStores = 0
+    private static var scanCacheEvictions = 0
 
     var renderableAttachmentTypes: Set<String> {
         attachmentTypes.intersection(Self.renderableAttachmentTypes)
@@ -1087,6 +1109,11 @@ private struct SpineFeatureScan {
         if let cacheKey {
             scanCacheLock.lock()
             let cached = scanCache[cacheKey]
+            if cached != nil {
+                scanCacheHits += 1
+            } else {
+                scanCacheMisses += 1
+            }
             scanCacheLock.unlock()
             if let cached {
                 return cached
@@ -1098,15 +1125,75 @@ private struct SpineFeatureScan {
             scanCacheLock.lock()
             if scanCache[cacheKey] == nil {
                 scanCacheOrder.append(cacheKey)
+                scanCacheStores += 1
             }
             scanCache[cacheKey] = scan
             while scanCache.count > scanCacheLimit, scanCacheOrder.isEmpty == false {
                 let overflowKey = scanCacheOrder.removeFirst()
-                scanCache.removeValue(forKey: overflowKey)
+                if scanCache.removeValue(forKey: overflowKey) != nil {
+                    scanCacheEvictions += 1
+                }
             }
             scanCacheLock.unlock()
         }
         return scan
+    }
+
+    static func cacheDiagnostics(url: URL, mutate: () throws -> Void) rethrows -> SpineFeatureScanCacheDiagnostics {
+        resetCacheDiagnostics()
+        let beforeEntries = cacheEntryCount()
+        _ = scan(url: url)
+        let firstStats = cacheStats()
+        _ = scan(url: url)
+        let secondStats = cacheStats()
+        try mutate()
+        _ = scan(url: url)
+        let thirdStats = cacheStats()
+        let afterEntries = cacheEntryCount()
+        return SpineFeatureScanCacheDiagnostics(
+            beforeEntries: beforeEntries,
+            firstHits: firstStats.hits,
+            firstMisses: firstStats.misses,
+            firstStores: firstStats.stores,
+            firstEvictions: firstStats.evictions,
+            secondHits: secondStats.hits,
+            secondMisses: secondStats.misses,
+            secondStores: secondStats.stores,
+            secondEvictions: secondStats.evictions,
+            afterEntries: afterEntries,
+            invalidatedAfterMutation: thirdStats.misses > secondStats.misses
+                && thirdStats.stores > secondStats.stores
+        )
+    }
+
+    private static func resetCacheDiagnostics() {
+        scanCacheLock.lock()
+        scanCache.removeAll()
+        scanCacheOrder.removeAll()
+        scanCacheHits = 0
+        scanCacheMisses = 0
+        scanCacheStores = 0
+        scanCacheEvictions = 0
+        scanCacheLock.unlock()
+    }
+
+    private static func cacheEntryCount() -> Int {
+        scanCacheLock.lock()
+        let count = scanCache.count
+        scanCacheLock.unlock()
+        return count
+    }
+
+    private static func cacheStats() -> (hits: Int, misses: Int, stores: Int, evictions: Int) {
+        scanCacheLock.lock()
+        let stats = (
+            hits: scanCacheHits,
+            misses: scanCacheMisses,
+            stores: scanCacheStores,
+            evictions: scanCacheEvictions
+        )
+        scanCacheLock.unlock()
+        return stats
     }
 
     private static func scanCacheKey(url: URL) -> ScanCacheKey? {

@@ -16,6 +16,68 @@ enum RuntimeSelfTest {
 
         let manifest = runtime.manifest
         let plan = runtime.performancePlan
+        let featureScanCacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineFeatureScanCacheSelfTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: featureScanCacheRoot,
+            withIntermediateDirectories: true
+        )
+        defer {
+            try? FileManager.default.removeItem(at: featureScanCacheRoot)
+        }
+        let featureScanCacheSpine = featureScanCacheRoot.appendingPathComponent("cache-probe.json")
+        let featureScanCacheSpineJSON = """
+        {
+          "skeleton": { "spine": "4.2.43" },
+          "bones": [
+            { "name": "root" }
+          ],
+          "slots": [
+            { "name": "slot", "bone": "root", "attachment": "region" }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "slot": {
+                  "region": {
+                    "type": "region",
+                    "path": "region",
+                    "width": 1,
+                    "height": 1
+                  }
+                }
+              }
+            }
+          ],
+          "animations": { "idle": {} }
+        }
+        """
+        try Data(featureScanCacheSpineJSON.utf8).write(to: featureScanCacheSpine, options: .atomic)
+        let featureScanCacheDiagnostics = try RuntimeCapabilities.spineFeatureScanCacheDiagnostics(
+            url: featureScanCacheSpine
+        ) {
+            let mutated = featureScanCacheSpineJSON.replacingOccurrences(
+                of: "{ \"name\": \"slot\", \"bone\": \"root\", \"attachment\": \"region\" }",
+                with: "{ \"name\": \"slot\", \"bone\": \"root\", \"attachment\": \"region\", \"blend\": \"multiply\" }"
+            ) + "\n "
+            try Data(mutated.utf8).write(to: featureScanCacheSpine, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.modificationDate: Date(timeIntervalSince1970: 4_102_444_800)],
+                ofItemAtPath: featureScanCacheSpine.path
+            )
+        }
+        check(
+            featureScanCacheDiagnostics.beforeEntries == 0
+                && featureScanCacheDiagnostics.firstMisses == 1
+                && featureScanCacheDiagnostics.firstStores == 1
+                && featureScanCacheDiagnostics.secondHits == 1
+                && featureScanCacheDiagnostics.secondMisses == 1
+                && featureScanCacheDiagnostics.secondStores == 1
+                && featureScanCacheDiagnostics.invalidatedAfterMutation
+                && featureScanCacheDiagnostics.secondEvictions == 0,
+            "Spine feature scan cache must miss/store once, hit on the same file metadata, and invalidate after file metadata changes"
+        )
 
         check(plan.maxFps >= 1, "maxFps must be positive")
         check(plan.fallbackFps >= 1, "fallbackFps must be positive")
