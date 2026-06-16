@@ -89,6 +89,11 @@ enum RuntimeCompletionAudit {
             includeInvalid: includeInvalid,
             bundleDirectories: bundleDirectories
         )
+        let sourceAdapterAudit = sourceAdapterAuditEvidence(
+            projectRoot: projectRoot,
+            includeInvalid: includeInvalid,
+            bundleDirectories: bundleDirectories
+        )
 
         let assetFamilies = Set(bundles.flatMap { $0.capabilities.assetKinds })
         let layerFamilies = Set(bundles.flatMap { $0.capabilities.layerKinds })
@@ -161,6 +166,12 @@ enum RuntimeCompletionAudit {
                 passed: wallpaperBundleContract.passed,
                 evidence: wallpaperBundleContract.evidence,
                 risk: "wallpaper-specific placement, hit zones, action names, timing, and neutral points must stay in the manifest/source-adapter bundle contract, not the generic runtime"
+            ),
+            item(
+                id: "source-adapter-library-audit",
+                passed: sourceAdapterAudit.passed,
+                evidence: sourceAdapterAudit.evidence,
+                risk: "source adapter ownership must be checked at wallpaper library scope, not only through the active Imported bundle"
             ),
             item(
                 id: "generic-player-contract",
@@ -714,6 +725,34 @@ enum RuntimeCompletionAudit {
             unknownBundles.isEmpty && partialBundlesHaveExplicitBlockers && partialSourceProvenanceChecked,
             bundleSummaries.joined(separator: "; ")
         )
+    }
+
+    private static func sourceAdapterAuditEvidence(
+        projectRoot: URL?,
+        includeInvalid: Bool,
+        bundleDirectories: [URL]?
+    ) -> (passed: Bool, evidence: String) {
+        do {
+            let report = try RuntimeSourceProvenanceReport.makeLibraryReport(
+                projectRoot: projectRoot,
+                includeInvalid: includeInvalid,
+                bundleDirectories: bundleDirectories
+            )
+            let lines = report.split(separator: "\n").map(String.init)
+            let validLine = lines.first { $0.hasPrefix("validBundles:") } ?? "validBundles: unknown"
+            let invalidLine = lines.first { $0.hasPrefix("invalidDiagnostics:") } ?? "invalidDiagnostics: unknown"
+            let convertedAdapterChecked = report.contains(
+                "\tsourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:14+calibrated:10+platform-policy:4+unsupported:1"
+            )
+            let samplesSourceDerived = report.contains("\tsourceAdapter=none\t")
+                && report.contains("sourceDerivation: source-derived")
+            return (
+                report.contains("source adapter audit OK") && convertedAdapterChecked && samplesSourceDerived,
+                "\(validLine) \(invalidLine) adapter=unity-metadata-source-adapter samples=source-derived"
+            )
+        } catch {
+            return (false, "source adapter audit failed: \(error.localizedDescription)")
+        }
     }
 
     private static func sourceDerivationEvidence(

@@ -3019,6 +3019,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("overall: automated-pass/manual-evidence-open")
                 && completionAudit.contains("automated\tpass\tbundle-discovery-library")
                 && completionAudit.contains("automated\tpass\twallpaper-bundle-contract")
+                && completionAudit.contains("automated\tpass\tsource-adapter-library-audit")
+                && completionAudit.contains("adapter=unity-metadata-source-adapter samples=source-derived")
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.x+pointer.y+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state")
