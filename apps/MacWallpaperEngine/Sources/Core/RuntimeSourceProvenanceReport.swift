@@ -29,6 +29,89 @@ enum RuntimeSourceProvenanceReport {
         ].joined(separator: "\n")
     }
 
+    static func makeLibraryReport(
+        projectRoot: URL?,
+        includeInvalid: Bool,
+        bundleDirectories: [URL]? = nil
+    ) throws -> String {
+        let diagnostics = bundleDirectories.map(WallpaperBundleCatalog.diagnose(in:))
+            ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
+        let bundles = diagnostics.compactMap(\.bundle)
+        let invalidDiagnostics = diagnostics.filter { $0.status == .invalid }
+        guard bundles.isEmpty == false else {
+            if invalidDiagnostics.isEmpty == false {
+                throw EngineError.invalidArgument(
+                    "No valid wallpaper bundles found for source adapter audit.\nInvalid diagnostics:\n"
+                        + invalidDiagnosticsDetails(invalidDiagnostics)
+                )
+            }
+            throw EngineError.invalidArgument("No valid wallpaper bundles found for source adapter audit.")
+        }
+
+        var rows: [String] = []
+        var failures: [String] = []
+
+        for bundle in bundles {
+            do {
+                let config = try EngineConfig.parse([
+                    "--wallpaper-root", bundle.root.path,
+                    "--manifest", bundle.manifestURL.path,
+                    "--validate-only"
+                ])
+                let runtime = try NativeRuntimeCore(config: config)
+                let provenance = runtime.manifest.sourceProvenance
+                rows.append([
+                    "valid",
+                    bundle.id,
+                    sourceSummary(provenance),
+                    try sourceAdapterStatus(provenance: provenance),
+                    derivationStatus(provenance: provenance),
+                    try consistencyStatus(runtime: runtime)
+                ].joined(separator: "\t"))
+            } catch {
+                failures.append("\(bundle.id): \(error.localizedDescription)")
+                rows.append([
+                    "failed",
+                    bundle.id,
+                    "source=unknown",
+                    "sourceAdapter=fail",
+                    "sourceDerivation=unknown",
+                    error.localizedDescription
+                ].joined(separator: "\t"))
+            }
+        }
+
+        if includeInvalid {
+            for diagnostic in invalidDiagnostics {
+                rows.append([
+                    "invalid",
+                    diagnostic.id,
+                    "source=unknown",
+                    "sourceAdapter=invalid-bundle",
+                    "sourceDerivation=unknown",
+                    diagnostic.errorMessage ?? "invalid bundle"
+                ].joined(separator: "\t"))
+            }
+        }
+
+        if invalidDiagnostics.isEmpty == false {
+            failures.append("Invalid bundle diagnostics:\n\(invalidDiagnosticsDetails(invalidDiagnostics))")
+        }
+
+        if failures.isEmpty == false {
+            let details = failures.map { "- \($0)" }.joined(separator: "\n")
+            throw EngineError.invalidArgument("Source adapter audit failed:\n\(details)")
+        }
+
+        return """
+        source adapter audit OK
+        validBundles: \(bundles.count)
+        invalidDiagnostics: \(invalidDiagnostics.count)
+        columns: status\tid\tsource\tadapter\tderivation\tconsistency
+        \(rows.joined(separator: "\n"))
+        """
+    }
+
     static func derivationStatus(runtime: NativeRuntimeCore) -> String {
         derivationStatus(provenance: runtime.manifest.sourceProvenance)
     }
@@ -244,6 +327,35 @@ enum RuntimeSourceProvenanceReport {
             "unsupported:\(counts[.unsupported] ?? 0)"
         ].joined(separator: "+")
         return "sourceAdapter=\(adapter.id) kind=\(adapter.kind) fields=\(countText)"
+    }
+
+    private static func sourceAdapterStatus(provenance: SourceProvenance?) throws -> String {
+        guard let adapter = provenance?.sourceAdapter else {
+            return "sourceAdapter=none"
+        }
+        return try validateSourceAdapterContract(provenance)
+            ?? "sourceAdapter=\(adapter.id) kind=\(adapter.kind) fields=none"
+    }
+
+    private static func sourceSummary(_ provenance: SourceProvenance?) -> String {
+        guard let provenance else {
+            return "source=unknown runtime=unspecified project=unspecified"
+        }
+        let sourceRuntime = provenance.sourceRuntime ?? "unspecified"
+        let projectType = provenance.projectType ?? "unspecified"
+        let descriptorCount = provenance.sourceDescriptors?.count ?? 0
+        return [
+            "source=\(provenance.sourceType.rawValue)",
+            "runtime=\(sourceRuntime)",
+            "project=\(projectType)",
+            "descriptors=\(descriptorCount)"
+        ].joined(separator: " ")
+    }
+
+    private static func invalidDiagnosticsDetails(_ diagnostics: [WallpaperBundleDiagnostic]) -> String {
+        diagnostics.map {
+            "- \($0.id): \($0.errorMessage ?? "invalid bundle") (\($0.root.path))"
+        }.joined(separator: "\n")
     }
 
     private static func validateDerivationMode(

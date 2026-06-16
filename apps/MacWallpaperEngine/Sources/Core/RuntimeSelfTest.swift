@@ -940,6 +940,21 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("unsupportedFields:"),
             "source provenance report must expose descriptor consistency plus imported, calibrated, and unsupported fields so wallpaper-specific data stays out of runtime code"
         )
+        let sourceAdapterAudit = try RuntimeSourceProvenanceReport.makeLibraryReport(
+            projectRoot: runtime.config.projectRoot,
+            includeInvalid: false
+        )
+        check(
+            sourceAdapterAudit.contains("source adapter audit OK")
+                && sourceAdapterAudit.contains("validBundles: 9")
+                && sourceAdapterAudit.contains("columns: status\tid\tsource\tadapter\tderivation\tconsistency")
+                && sourceAdapterAudit.contains("sample_imported")
+                && sourceAdapterAudit.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:14+calibrated:10+platform-policy:4+unsupported:1")
+                && sourceAdapterAudit.contains("sample_effect")
+                && sourceAdapterAudit.contains("sourceAdapter=none")
+                && sourceAdapterAudit.contains("sourceDerivation: source-derived"),
+            "source adapter audit must cover the whole wallpaper library so adapter-owned fields do not remain a single-bundle diagnostic"
+        )
         check(
             doctorControlPanelSummary.contains("doctor: OK")
                 && doctorControlPanelSummary.contains("quality:")
@@ -2507,6 +2522,10 @@ enum RuntimeSelfTest {
         check(
             EngineConfig.help.contains("--source-provenance"),
             "EngineConfig help must document source provenance diagnostics"
+        )
+        check(
+            EngineConfig.help.contains("--source-adapter-audit"),
+            "EngineConfig help must document library-wide source adapter diagnostics"
         )
         let manifestSchemaText = try ManifestSchemaResource.loadText(projectRoot: runtime.config.projectRoot)
         let manifestSchemaJSON = try JSONSerialization.jsonObject(

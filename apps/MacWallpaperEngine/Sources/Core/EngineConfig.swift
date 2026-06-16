@@ -829,7 +829,7 @@ struct EngineConfig {
       --include-invalid        With --list-bundles, include invalid bundle diagnostics.
       --include-capabilities   With --list-bundles, include asset/layer/native fallback capability summary.
       --validate-bundles       Validate every discovered bundle through manifest, capability, render-plan, and native preflight gates.
-      --bundle-library <path>  With --list-bundles/--validate-bundles, scan this library instead of default locations.
+      --bundle-library <path>  With bundle-library diagnostics, scan this library instead of default locations.
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
       --print-manifest-schema   Print the wallpaper.native.json JSON Schema for bundle authoring, then exit.
@@ -837,6 +837,7 @@ struct EngineConfig {
       --completion-audit       Print objective-level automated evidence and remaining manual completion evidence.
       --manual-smoke-evidence <json>
                               With --completion-audit, read user-recorded packaged launch, live click, and physical display smoke evidence.
+      --source-adapter-audit   Print source adapter and derivation consistency for every discovered bundle, then exit.
       --write-manual-smoke-template <json>
                               Write a fill-in JSON template for the manual smoke evidence file, then exit.
       --record-manual-smoke-evidence <json>

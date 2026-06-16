@@ -114,6 +114,17 @@ do {
         exit(EXIT_SUCCESS)
     }
 
+    if arguments.contains("--source-adapter-audit") {
+        print(try RuntimeSourceProvenanceReport.makeLibraryReport(
+            projectRoot: ProjectPaths.findCatalogProjectRoot(),
+            includeInvalid: arguments.contains("--include-invalid"),
+            bundleDirectories: value(after: "--bundle-library", in: arguments).map {
+                [URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL]
+            }
+        ))
+        exit(EXIT_SUCCESS)
+    }
+
     if arguments.contains("--recovery-plan") {
         let recoveryURL = value(after: "--recovery-store", in: arguments).map {
             URL(fileURLWithPath: $0, relativeTo: nil).standardizedFileURL
