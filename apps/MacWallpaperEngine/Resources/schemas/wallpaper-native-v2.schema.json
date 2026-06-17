@@ -564,7 +564,7 @@
     "effect": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "type"],
+      "required": ["id", "type", "budget", "fallback"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "type": {
@@ -577,7 +577,28 @@
             "pixelate"
           ]
         },
+        "budget": { "$ref": "#/$defs/effectBudget" },
+        "fallback": { "$ref": "#/$defs/effectFallback" },
         "properties": { "type": "object" }
+      }
+    },
+    "effectBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["costClass"],
+      "properties": {
+        "costClass": { "enum": ["free", "low", "medium", "high"] },
+        "maxPasses": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "maxAnimatedProperties": { "type": "integer", "minimum": 0, "maximum": 16 }
+      }
+    },
+    "effectFallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy"],
+      "properties": {
+        "policy": { "enum": ["disable", "static-value", "reduce-quality"] },
+        "reason": { "type": "string", "minLength": 1 }
       }
     },
     "point": {

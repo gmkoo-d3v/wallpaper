@@ -394,7 +394,23 @@ enum BindingSpringIntegrator: String, Decodable {
 struct EffectConfig: Decodable {
     let id: String
     let type: EffectType
+    let budget: EffectBudgetConfig?
+    let fallback: EffectFallbackConfig?
     let properties: [String: EffectPropertyValue]?
+
+    init(
+        id: String,
+        type: EffectType,
+        budget: EffectBudgetConfig? = nil,
+        fallback: EffectFallbackConfig? = nil,
+        properties: [String: EffectPropertyValue]?
+    ) {
+        self.id = id
+        self.type = type
+        self.budget = budget
+        self.fallback = fallback
+        self.properties = properties
+    }
 }
 
 enum EffectType: String, Decodable {
@@ -404,6 +420,30 @@ enum EffectType: String, Decodable {
     case chromaticAberration
     case vignette
     case pixelate
+}
+
+struct EffectBudgetConfig: Decodable {
+    let costClass: EffectBudgetCostClass
+    let maxPasses: Int?
+    let maxAnimatedProperties: Int?
+}
+
+enum EffectBudgetCostClass: String, Decodable {
+    case free
+    case low
+    case medium
+    case high
+}
+
+struct EffectFallbackConfig: Decodable {
+    let policy: EffectFallbackPolicy
+    let reason: String?
+}
+
+enum EffectFallbackPolicy: String, Decodable {
+    case disable
+    case staticValue = "static-value"
+    case reduceQuality = "reduce-quality"
 }
 
 enum EffectPropertyValue: Decodable {

@@ -151,6 +151,9 @@ struct DeclarativeEffectPlanEntry {
     let properties: [String: EffectPropertyValue]
     let propertyCount: Int
     let runtimeStatus: DeclarativePlanRuntimeStatus
+    let budget: EffectBudgetConfig?
+    let fallback: EffectFallbackConfig?
+    let hasBudgetAndFallback: Bool
 
     init(effect: EffectConfig) {
         self.id = effect.id
@@ -158,10 +161,29 @@ struct DeclarativeEffectPlanEntry {
         self.properties = effect.properties ?? [:]
         self.propertyCount = properties.count
         self.runtimeStatus = .runtimeRendered
+        self.budget = effect.budget
+        self.fallback = effect.fallback
+        self.hasBudgetAndFallback = effect.budget != nil && effect.fallback != nil
     }
 
     var summary: String {
         "\(id):\(effectKind) properties=\(propertyCount) \(runtimeStatus.rawValue)"
+    }
+
+    var contractSummary: String {
+        "\(summary) budget=\(budgetSummary) fallback=\(fallbackSummary)"
+    }
+
+    private var budgetSummary: String {
+        guard let budget else { return "missing" }
+        let maxPasses = budget.maxPasses.map(String.init) ?? "unspecified"
+        let maxAnimatedProperties = budget.maxAnimatedProperties.map(String.init) ?? "unspecified"
+        return "\(budget.costClass.rawValue):passes<=\(maxPasses):animated<=\(maxAnimatedProperties)"
+    }
+
+    private var fallbackSummary: String {
+        guard let fallback else { return "missing" }
+        return fallback.policy.rawValue
     }
 }
 

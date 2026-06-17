@@ -145,6 +145,10 @@ enum ManifestLoader {
             effects: manifest.effects ?? [],
             hasSpine: manifest.assets.spine != nil
         )
+        try validateEffectBudgets(
+            effects: manifest.effects ?? [],
+            bindings: manifest.bindings ?? []
+        )
 
         if let staticImage = manifest.assets.staticImage {
             let imageURL = try validateRelativePath(staticImage.path, bundleRoot: bundleRoot)
@@ -495,6 +499,14 @@ enum ManifestLoader {
             guard properties.count <= 64 else {
                 throw EngineError.manifest("effect \(effect.id) properties must contain at most 64 entries")
             }
+            guard let budget = effect.budget else {
+                throw EngineError.manifest("effect \(effect.id) must declare a runtime budget")
+            }
+            try validateEffectBudget(budget, effectID: effect.id)
+            guard let fallback = effect.fallback else {
+                throw EngineError.manifest("effect \(effect.id) must declare a fallback policy")
+            }
+            try validateEffectFallback(fallback, effectID: effect.id)
             for (key, value) in properties {
                 try validateDeclarativeIdentifier(key, label: "effect \(effect.id) property")
                 guard supportedEffectProperties(effect.type).contains(key) else {
@@ -504,6 +516,54 @@ enum ManifestLoader {
                 guard case .number = value else {
                     throw EngineError.manifest("effect \(effect.id).\(key) must be a number")
                 }
+            }
+        }
+    }
+
+    private static func validateEffectBudget(_ budget: EffectBudgetConfig, effectID: String) throws {
+        if let maxPasses = budget.maxPasses {
+            guard (0...8).contains(maxPasses) else {
+                throw EngineError.manifest("effect \(effectID) budget.maxPasses must satisfy 0...8")
+            }
+        }
+        if let maxAnimatedProperties = budget.maxAnimatedProperties {
+            guard (0...16).contains(maxAnimatedProperties) else {
+                throw EngineError.manifest("effect \(effectID) budget.maxAnimatedProperties must satisfy 0...16")
+            }
+        }
+    }
+
+    private static func validateEffectFallback(_ fallback: EffectFallbackConfig, effectID: String) throws {
+        if let reason = fallback.reason {
+            let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false, trimmed.count <= 256 else {
+                throw EngineError.manifest("effect \(effectID) fallback.reason must be non-empty and at most 256 characters")
+            }
+        }
+    }
+
+    private static func validateEffectBudgets(
+        effects: [EffectConfig],
+        bindings: [DeclarativeBinding]
+    ) throws {
+        let effectByID = Dictionary(uniqueKeysWithValues: effects.map { ($0.id, $0) })
+        var animatedPropertiesByEffect: [String: Set<String>] = [:]
+        for binding in bindings {
+            let target = try parseBindingTarget(binding.target, bindingID: binding.id)
+            if case .effect(let effectID, let propertyPath) = target {
+                animatedPropertiesByEffect[effectID, default: []].insert(propertyPath)
+            }
+        }
+
+        for (effectID, animatedProperties) in animatedPropertiesByEffect {
+            guard let effect = effectByID[effectID] else { continue }
+            guard let maxAnimatedProperties = effect.budget?.maxAnimatedProperties else {
+                continue
+            }
+            guard animatedProperties.count <= maxAnimatedProperties else {
+                throw EngineError.manifest(
+                    "effect \(effectID) animates \(animatedProperties.count) propert\(animatedProperties.count == 1 ? "y" : "ies") but budget.maxAnimatedProperties is \(maxAnimatedProperties)"
+                )
             }
         }
     }

@@ -930,6 +930,7 @@ enum RuntimeCompletionAudit {
         let effectKinds = Set(bundles.flatMap(\.capabilities.effectKinds))
         let requiredEffects = requiredRuntimeRenderedEffectTypes
         var runtimeRenderedEffects = Set<String>()
+        var effectContractsComplete = true
         var bundleEvidenceParts: [String] = []
         for bundle in bundles {
             let effectSummary: String
@@ -938,10 +939,14 @@ enum RuntimeCompletionAudit {
                 let plan = DeclarativeBindingPlan(manifest: manifest)
                 for entry in plan.effectEntries where entry.runtimeStatus == .runtimeRendered {
                     runtimeRenderedEffects.insert(entry.effectKind)
+                    if entry.hasBudgetAndFallback == false {
+                        effectContractsComplete = false
+                    }
                 }
-                let entries = plan.effectEntries.map(\.summary)
+                let entries = plan.effectEntries.map(\.contractSummary)
                 effectSummary = entries.isEmpty ? "none" : entries.joined(separator: ",")
             } catch {
+                effectContractsComplete = false
                 effectSummary = "invalid(\(oneLine(String(describing: error))))"
             }
             bundleEvidenceParts.append(
@@ -953,8 +958,8 @@ enum RuntimeCompletionAudit {
             runtimeRenderedEffects.contains($0) ? "\($0):ok" : "\($0):missing"
         }.joined(separator: "+")
         return (
-            schemaOK && missingRequiredEffects.isEmpty,
-            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered)+pixelate(runtime-rendered) requiredWhitelistEffects=\(requiredEffectStatus) dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidenceParts.joined(separator: "; ")); discovered=\(effectKinds.sorted().joined(separator: "+"))"
+            schemaOK && missingRequiredEffects.isEmpty && effectContractsComplete,
+            "schema=\(schemaOK ? "declared" : "missing") whitelist=blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered)+pixelate(runtime-rendered) requiredWhitelistEffects=\(requiredEffectStatus) effectContracts=\(effectContractsComplete ? "budget+fallback" : "missing") dynamicShaderLoading=forbidden arbitraryExecution=forbidden; \(bundleEvidenceParts.joined(separator: "; ")); discovered=\(effectKinds.sorted().joined(separator: "+"))"
         )
     }
 

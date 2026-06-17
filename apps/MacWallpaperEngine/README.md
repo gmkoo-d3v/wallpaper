@@ -211,6 +211,10 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   `golden/wallpaper.golden.json` fixtures, renders each snapshot through the
   same full wallpaper diagnostic path, including fixture-declared input state,
   and fails when configured pixel thresholds are exceeded.
+- Whitelisted declarative effects are closed descriptors, not dynamic shaders:
+  each effect declares an engine-validated `budget` and `fallback`, and
+  manifest validation rejects bindings that animate more properties than the
+  effect budget allows.
 - `--interaction-plan` probes pointer-move commands, hit-zone/default-action
   resolution, and click command hold/tap state for every declared pointerDown
   path.

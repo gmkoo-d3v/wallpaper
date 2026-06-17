@@ -3065,6 +3065,7 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\twhitelist-effect-contract")
                 && completionAudit.contains("blur(runtime-rendered)+colorMatrix(runtime-rendered)+scroll(runtime-rendered)+chromaticAberration(runtime-rendered)+vignette(runtime-rendered)+pixelate(runtime-rendered)")
                 && completionAudit.contains("requiredWhitelistEffects=blur:ok+chromaticAberration:ok+colorMatrix:ok+pixelate:ok+scroll:ok+vignette:ok")
+                && completionAudit.contains("effectContracts=budget+fallback")
                 && completionAudit.contains("sample_effect=effects(scroll+colorMatrix+blur+chromaticAberration+vignette+pixelate)")
                 && completionAudit.contains("loopPan:scroll properties=1 runtime-rendered")
                 && completionAudit.contains("tone:colorMatrix properties=3 runtime-rendered")
@@ -5195,6 +5196,15 @@ enum RuntimeSelfTest {
             {
               "id": "softBlur",
               "type": "blur",
+              "budget": {
+                "costClass": "medium",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "disable",
+                "reason": "Disable fixture blur if effect budget is exceeded."
+              },
               "properties": {
                 "radius": 0
               }
@@ -5259,7 +5269,16 @@ enum RuntimeSelfTest {
           "effects": [
             {
               "id": "loopPan",
-              "type": "scroll"
+              "type": "scroll",
+              "budget": {
+                "costClass": "low",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "static-value",
+                "reason": "Freeze fixture scroll offset if effect budget is exceeded."
+              }
             }
           ],
           "bindings": [
@@ -5306,7 +5325,16 @@ enum RuntimeSelfTest {
           "effects": [
             {
               "id": "softBlur",
-              "type": "blur"
+              "type": "blur",
+              "budget": {
+                "costClass": "medium",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "disable",
+                "reason": "Disable fixture blur if effect budget is exceeded."
+              }
             }
           ],
           "bindings": [
@@ -5396,7 +5424,16 @@ enum RuntimeSelfTest {
           "effects": [
             {
               "id": "softBlur",
-              "type": "blur"
+              "type": "blur",
+              "budget": {
+                "costClass": "medium",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "disable",
+                "reason": "Disable fixture blur if effect budget is exceeded."
+              }
             }
           ],
           "bindings": [
@@ -5436,7 +5473,16 @@ enum RuntimeSelfTest {
           "effects": [
             {
               "id": "loopBlur",
-              "type": "blur"
+              "type": "blur",
+              "budget": {
+                "costClass": "medium",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "disable",
+                "reason": "Disable fixture blur if effect budget is exceeded."
+              }
             }
           ],
           "bindings": [
@@ -5480,7 +5526,16 @@ enum RuntimeSelfTest {
           "effects": [
             {
               "id": "softBlur",
-              "type": "blur"
+              "type": "blur",
+              "budget": {
+                "costClass": "medium",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "disable",
+                "reason": "Disable fixture blur if effect budget is exceeded."
+              }
             }
           ],
           "bindings": [
@@ -5575,7 +5630,16 @@ enum RuntimeSelfTest {
           "effects": [
             {
               "id": "softBlur",
-              "type": "blur"
+              "type": "blur",
+              "budget": {
+                "costClass": "medium",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "disable",
+                "reason": "Disable fixture blur if effect budget is exceeded."
+              }
             }
           ],
           "bindings": [
@@ -5612,6 +5676,15 @@ enum RuntimeSelfTest {
             {
               "id": "tone",
               "type": "colorMatrix",
+              "budget": {
+                "costClass": "low",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 0
+              },
+              "fallback": {
+                "policy": "static-value",
+                "reason": "Keep fixture color values if effect budget is exceeded."
+              },
               "properties": {
                 "radius": 1
               }
@@ -5628,6 +5701,65 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        let effectBudgetOverflowRoot = fixtureParent.appendingPathComponent("effect_budget_overflow_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: effectBudgetOverflowRoot,
+            imageSource: sourceImage,
+            id: "effect_budget_overflow_bundle",
+            title: "Effect Budget Overflow Bundle",
+            manifestExtraJSON: """
+          "effects": [
+            {
+              "id": "tone",
+              "type": "colorMatrix",
+              "budget": {
+                "costClass": "low",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "static-value",
+                "reason": "Keep fixture color values if too many animated properties are requested."
+              },
+              "properties": {
+                "brightness": 0,
+                "opacity": 1
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "id": "brightness",
+              "source": "pointer.down",
+              "target": "effect.tone.brightness",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [0, 1],
+                "outputRange": [0, 1]
+              }
+            },
+            {
+              "id": "opacity",
+              "source": "pointer.speed",
+              "target": "effect.tone.opacity",
+              "adapter": {
+                "type": "map-range",
+                "inputRange": [0, 1],
+                "outputRange": [1, 0.5]
+              }
+            }
+          ],
+"""
+        )
+        let effectBudgetOverflowDiagnostic = WallpaperBundleCatalog.diagnoseBundle(effectBudgetOverflowRoot)
+        check(
+            effectBudgetOverflowDiagnostic.status == .invalid
+                && (effectBudgetOverflowDiagnostic.errorMessage?.contains("effect tone animates 2 properties but budget.maxAnimatedProperties is 1") == true),
+            "bundle diagnostics must reject whitelist effects whose animated property count exceeds the declared effect budget",
+            failures: &failures,
+            checks: &checks
+        )
+
         let unsafeShaderEffectRoot = fixtureParent.appendingPathComponent("unsafe_shader_effect_bundle", isDirectory: true)
         _ = try writeStaticImageBundleFixture(
             root: unsafeShaderEffectRoot,
@@ -5639,6 +5771,15 @@ enum RuntimeSelfTest {
             {
               "id": "dynamicShader",
               "type": "shader",
+              "budget": {
+                "costClass": "high",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 0
+              },
+              "fallback": {
+                "policy": "disable",
+                "reason": "Dynamic shader fixtures must be rejected before fallback is used."
+              },
               "properties": {
                 "source": "kernel.metal"
               }
@@ -5665,7 +5806,16 @@ enum RuntimeSelfTest {
           "effects": [
             {
               "id": "loopPan",
-              "type": "scroll"
+              "type": "scroll",
+              "budget": {
+                "costClass": "low",
+                "maxPasses": 1,
+                "maxAnimatedProperties": 1
+              },
+              "fallback": {
+                "policy": "static-value",
+                "reason": "Freeze fixture scroll offset if effect budget is exceeded."
+              }
             }
           ],
           "bindings": [
