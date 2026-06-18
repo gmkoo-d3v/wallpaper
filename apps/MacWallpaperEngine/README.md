@@ -533,7 +533,7 @@ swift run MacWallpaperEngine --simulated-render-plan --display-mode allFull
 swift run MacWallpaperEngine --validate-bundles
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality
 swift run MacWallpaperEngine --write-manual-smoke-template /path/to/manual-smoke-evidence.json
-swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --live-click-actions-note "Observed head tap, stationary hold, held rub, empty click no-action, and gaze directions." --confirm-physical-display-hotplug --physical-display-hotplug-event wake --physical-display-hotplug-note "Observed display wake; selectedOnly, selectedPolicy, and allFull restored on AOC and LG." --confirm-black-frame-flicker
+swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --live-click-actions-note "Observed head tap, stationary hold, held rub, empty click no-action, and gaze directions." --confirm-physical-display-hotplug --physical-display-hotplug-event wake --physical-display-hotplug-note "Observed display wake; selectedOnly, selectedPolicy, and allFull restored on external secondary displays AOC and LG; Displays have separate Spaces enabled." --confirm-black-frame-flicker
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json

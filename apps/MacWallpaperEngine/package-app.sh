@@ -225,7 +225,7 @@ write_package_smoke_evidence() {
   "physicalDisplayHotplugSmoke": {
     "passed": false,
     "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-    "evidence": "Current packaged physical display count: $physical_display_count. Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
+    "evidence": "Current packaged physical display count: $physical_display_count. Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays on multiple physical displays; reconnect or wake displays; record whether macOS Displays have separate Spaces is enabled or disabled; confirm wallpaper windows restore on target displays.",
     "operatorNote": "Required before physical-display-hotplug-smoke can pass."
   },
   "blackFrameFlickerSmoke": {

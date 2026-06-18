@@ -853,7 +853,7 @@ struct EngineConfig {
       --physical-display-hotplug-event <wake|reconnect>
                               Required with --confirm-physical-display-hotplug; selects the observed lifecycle event.
       --physical-display-hotplug-note <text>
-                              Required with --confirm-physical-display-hotplug; describes the wake/reconnect event, selectedOnly/selectedPolicy/allFull checks, and restored displays.
+                              Required with --confirm-physical-display-hotplug; describes the wake/reconnect event, selectedOnly/selectedPolicy/allFull checks, external/secondary/multiple displays, restored displays, and Displays have separate Spaces enabled/disabled.
       --confirm-black-frame-flicker
                               With --record-manual-smoke-evidence, confirm packaged start/rebuild no-black-frame/no-flicker smoke.
       --recovery-plan          Print persisted renderer safe-mode recovery/quarantine state, then exit.

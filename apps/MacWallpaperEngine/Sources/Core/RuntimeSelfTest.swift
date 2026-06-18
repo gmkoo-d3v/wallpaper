@@ -3154,7 +3154,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays. Protocol: \(currentPhysicalDisplayProtocolJSON)",
-            "operatorNote": "self-test observed reconnect event restored target displays",
+            "operatorNote": "self-test observed reconnect event restored external secondary target displays; Displays have separate Spaces enabled",
             "protocolText": "\(currentPhysicalDisplayProtocolJSON)"
           },
           "blackFrameFlickerSmoke": {
@@ -3207,7 +3207,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays",
-            "operatorNote": "self-test observed reconnect event restored target displays"
+            "operatorNote": "self-test observed reconnect event restored external secondary target displays; Displays have separate Spaces enabled"
           },
           "blackFrameFlickerSmoke": {
             "passed": true,
@@ -3242,7 +3242,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, wake restored wallpaper windows on target displays. Protocol: \(currentPhysicalDisplayProtocolJSON)",
-            "operatorNote": "self-test observed display wake restored target displays",
+            "operatorNote": "self-test observed display wake restored external secondary target displays; Displays have separate Spaces enabled",
             "protocolText": "\(currentPhysicalDisplayProtocolJSON)"
           }
         }
@@ -3288,7 +3288,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays",
-            "operatorNote": "self-test observed reconnect event restored target displays",
+            "operatorNote": "self-test observed reconnect event restored external secondary target displays; Displays have separate Spaces enabled",
             "protocolText": "old-physical-display-protocol"
           },
           "blackFrameFlickerSmoke": {
@@ -3340,7 +3340,7 @@ enum RuntimeSelfTest {
             "passed": true,
             "recordedAt": "self-test",
             "evidence": "selectedOnly primary-only, selectedPolicy secondary-passive, allFull all-displays, reconnect restored wallpaper windows on target displays. Protocol: \(currentPhysicalDisplayProtocolJSON)",
-            "operatorNote": "self-test observed reconnect event restored target displays",
+            "operatorNote": "self-test observed reconnect event restored external secondary target displays; Displays have separate Spaces enabled",
             "protocolText": "\(currentPhysicalDisplayProtocolJSON)"
           },
           "blackFrameFlickerSmoke": {
@@ -3390,7 +3390,7 @@ enum RuntimeSelfTest {
           "physicalDisplayHotplugSmoke": {
             "passed": false,
             "recordedAt": "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays."
+            "evidence": "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays on multiple physical displays; reconnect or wake displays; record whether macOS Displays have separate Spaces is enabled or disabled; confirm wallpaper windows restore on target displays."
           },
           "blackFrameFlickerSmoke": {
             "passed": false,
@@ -3509,6 +3509,44 @@ enum RuntimeSelfTest {
             rejectedPhysicalHotplugUnderspecifiedNote,
             "manual smoke recorder must reject physical display hotplug notes that omit selectedOnly/selectedPolicy/allFull observations"
         )
+        var rejectedPhysicalHotplugSingleDisplayNote = false
+        do {
+            _ = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+                to: packageOnlySmokeEvidenceURL,
+                packagedLaunchPassed: false,
+                liveClickActionsPassed: false,
+                physicalDisplayHotplugPassed: true,
+                blackFrameFlickerPassed: false,
+                physicalDisplayHotplugEvent: "wake",
+                physicalDisplayHotplugNote: "self-test wake restored selectedOnly selectedPolicy allFull on built-in display windows"
+            )
+        } catch {
+            rejectedPhysicalHotplugSingleDisplayNote = String(describing: error)
+                .contains("multiple physical displays")
+        }
+        check(
+            rejectedPhysicalHotplugSingleDisplayNote,
+            "manual smoke recorder must reject physical display hotplug notes that do not mention multiple physical displays"
+        )
+        var rejectedPhysicalHotplugWithoutSpacesSetting = false
+        do {
+            _ = try RuntimeCompletionAudit.recordManualSmokeEvidence(
+                to: packageOnlySmokeEvidenceURL,
+                packagedLaunchPassed: false,
+                liveClickActionsPassed: false,
+                physicalDisplayHotplugPassed: true,
+                blackFrameFlickerPassed: false,
+                physicalDisplayHotplugEvent: "wake",
+                physicalDisplayHotplugNote: "self-test wake restored selectedOnly selectedPolicy allFull on external secondary display windows"
+            )
+        } catch {
+            rejectedPhysicalHotplugWithoutSpacesSetting = String(describing: error)
+                .contains("separate Spaces")
+        }
+        check(
+            rejectedPhysicalHotplugWithoutSpacesSetting,
+            "manual smoke recorder must reject physical display hotplug notes that omit the Displays have separate Spaces setting"
+        )
         let koreanPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWallpaperEngineKoreanPhysicalSmoke-\(UUID().uuidString).json")
         let koreanPhysicalHotplugRecordReport = try RuntimeCompletionAudit.recordManualSmokeEvidence(
@@ -3518,7 +3556,7 @@ enum RuntimeSelfTest {
             physicalDisplayHotplugPassed: true,
             blackFrameFlickerPassed: false,
             physicalDisplayHotplugEvent: "reconnect",
-            physicalDisplayHotplugNote: "재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인"
+            physicalDisplayHotplugNote: "재연결 후 AOC LG 외부 보조 디스플레이에서 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인; Displays have separate Spaces enabled"
         )
         defer {
             try? FileManager.default.removeItem(at: koreanPhysicalHotplugEvidenceURL)
@@ -3533,7 +3571,7 @@ enum RuntimeSelfTest {
         check(
             koreanPhysicalHotplugRecordReport.contains("physical-display-hotplug-smoke")
                 && completionAuditWithKoreanPhysicalHotplugEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
-                && completionAuditWithKoreanPhysicalHotplugEvidence.contains("note=재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인"),
+                && completionAuditWithKoreanPhysicalHotplugEvidence.contains("note=재연결 후 AOC LG 외부 보조 디스플레이에서 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인; Displays have separate Spaces enabled"),
             "manual smoke recorder must accept Korean physical display reconnect/restored wording while preserving selectedOnly/selectedPolicy/allFull evidence tokens"
         )
         let genericPhysicalHotplugEvidenceURL = FileManager.default.temporaryDirectory
@@ -3620,7 +3658,7 @@ enum RuntimeSelfTest {
             blackFrameFlickerPassed: true,
             liveClickActionsNote: liveClickObservationNote,
             physicalDisplayHotplugEvent: "reconnect",
-            physicalDisplayHotplugNote: "self-test reconnect restored selectedOnly selectedPolicy allFull display windows"
+            physicalDisplayHotplugNote: "self-test reconnect restored selectedOnly selectedPolicy allFull on external secondary display windows; Displays have separate Spaces enabled"
         )
         let completionAuditWithRecordedManualEvidence = try RuntimeCompletionAudit.make(
             projectRoot: runtime.config.projectRoot,
@@ -3640,7 +3678,7 @@ enum RuntimeSelfTest {
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tlive-desktop-click-actions")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tphysical-display-hotplug-smoke")
                 && completionAuditWithRecordedManualEvidence.contains("manual\tpass\tblack-frame-flicker-smoke")
-                && completionAuditWithRecordedManualEvidence.contains("note=self-test reconnect restored selectedOnly selectedPolicy allFull display windows"),
+                && completionAuditWithRecordedManualEvidence.contains("note=self-test reconnect restored selectedOnly selectedPolicy allFull on external secondary display windows; Displays have separate Spaces enabled"),
             "manual smoke recorder must merge operator-confirmed live click and physical display evidence without losing package launch evidence"
         )
         let manualSmokeTemplateURL = FileManager.default.temporaryDirectory

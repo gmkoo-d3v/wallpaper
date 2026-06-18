@@ -410,7 +410,7 @@ enum RuntimeCompletionAudit {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if physicalDisplayHotplugPassed && (normalizedPhysicalDisplayHotplugNote?.isEmpty ?? true) {
             throw EngineError.invalidArgument(
-                "--confirm-physical-display-hotplug requires --physical-display-hotplug-note <observed wake/reconnect, selectedOnly/selectedPolicy/allFull, and restored displays>; example: \"재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인\""
+                "--confirm-physical-display-hotplug requires --physical-display-hotplug-note <observed wake/reconnect, selectedOnly/selectedPolicy/allFull, external/secondary/multiple displays, restored displays, and Displays have separate Spaces enabled/disabled>; example: \"재연결 후 AOC LG 외부 보조 디스플레이에서 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인; Displays have separate Spaces enabled\""
             )
         }
         let normalizedPhysicalDisplayHotplugEvent = try normalizePhysicalDisplayHotplugEvent(
@@ -527,7 +527,64 @@ enum RuntimeCompletionAudit {
                 "--physical-display-hotplug-note must mention restored wallpaper windows after \(normalized); accepted restore words include restore, restored, 복원, 복구, 정상"
             )
         }
+        try validatePhysicalDisplayHotplugNoteDetails(
+            foldedNote,
+            errorPrefix: "--physical-display-hotplug-note"
+        )
         return normalized
+    }
+
+    private static let physicalDisplayHotplugMultiDisplayTokens = [
+        "external",
+        "secondary",
+        "multiple",
+        "multi-display",
+        "multi display",
+        "2 displays",
+        "two displays",
+        "display 2",
+        "aoc",
+        "lg",
+        "외부",
+        "보조",
+        "다중",
+        "복수",
+        "2대",
+        "두 대"
+    ]
+
+    private static let physicalDisplayHotplugSpacesSettingSubjectTokens = [
+        "spaces",
+        "space",
+        "스페이스"
+    ]
+
+    private static let physicalDisplayHotplugSpacesSettingStateTokens = [
+        "enabled",
+        "disabled",
+        "on",
+        "off",
+        "켜짐",
+        "꺼짐",
+        "활성",
+        "비활성"
+    ]
+
+    private static func validatePhysicalDisplayHotplugNoteDetails(
+        _ foldedNote: String,
+        errorPrefix: String
+    ) throws {
+        guard containsAnyToken(physicalDisplayHotplugMultiDisplayTokens, in: foldedNote) else {
+            throw EngineError.invalidArgument(
+                "\(errorPrefix) must mention multiple physical displays; accepted words include external, secondary, multiple, AOC, LG, 외부, 보조, 다중"
+            )
+        }
+        guard containsAnyToken(physicalDisplayHotplugSpacesSettingSubjectTokens, in: foldedNote),
+              containsAnyToken(physicalDisplayHotplugSpacesSettingStateTokens, in: foldedNote) else {
+            throw EngineError.invalidArgument(
+                "\(errorPrefix) must mention the macOS 'Displays have separate Spaces' setting as enabled/disabled"
+            )
+        }
     }
 
     private static func containsAnyToken(_ tokens: [String], in text: String) -> Bool {
@@ -1331,7 +1388,7 @@ enum RuntimeCompletionAudit {
     }
 
     static func physicalDisplayHotplugProtocolText() -> String {
-        "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays; reconnect or wake displays; expected restored wallpaper windows on target displays; evidence note must mention wake/reconnect, selectedOnly selectedPolicy allFull, and restored/복원"
+        "test selectedOnly=primary-only selectedPolicy=primary-full-secondary-passive allFull=all-displays on multiple physical displays; reconnect or wake displays; expected restored wallpaper windows on target displays; evidence note must mention wake/reconnect, selectedOnly selectedPolicy allFull, restored/복원, external/secondary/multiple display observation, and Displays have separate Spaces enabled/disabled"
     }
 
     static func currentBlackFrameFlickerProtocolText() -> String {
@@ -1419,8 +1476,19 @@ enum RuntimeCompletionAudit {
             requiredPassTokens: ["selectedonly", "selectedpolicy", "allfull"],
             requiredAnyPassTokens: ["reconnect", "wake"],
             requireOperatorNoteOnPass: true,
-            operatorNoteSubject: "the observed physical display event"
+            operatorNoteSubject: "the observed physical display event and multiple-display restoration",
+            requiredOperatorNoteAnyTokens: physicalDisplayHotplugMultiDisplayTokens
         )
+        if let physicalDisplayHotplugSmoke = evidence.physicalDisplayHotplugSmoke,
+           physicalDisplayHotplugSmoke.passed {
+            let foldedNote = physicalDisplayHotplugSmoke.operatorNote?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? ""
+            try validatePhysicalDisplayHotplugNoteDetails(
+                foldedNote,
+                errorPrefix: "Manual smoke evidence physicalDisplayHotplugSmoke pass operatorNote"
+            )
+        }
         try validateManualEvidenceEntry(
             evidence.blackFrameFlickerSmoke,
             label: "blackFrameFlickerSmoke",
@@ -1472,9 +1540,9 @@ enum RuntimeCompletionAudit {
     private static func templatePhysicalDisplayEntry(protocolText: String? = nil) -> ManualSmokeEvidenceEntry {
         ManualSmokeEvidenceEntry(
             passed: false,
-            evidence: "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays; reconnect or wake displays and confirm wallpaper windows restore on target displays.",
+            evidence: "Verify selectedOnly=primary-only, selectedPolicy=primary-full-secondary-passive, allFull=all-displays on multiple physical displays; reconnect or wake displays; record whether macOS Displays have separate Spaces is enabled or disabled; confirm wallpaper windows restore on target displays.",
             recordedAt: "REPLACE_WITH_ISO8601_LOCAL_TIME",
-            operatorNote: "Required before physical-display-hotplug-smoke can pass: mention wake/reconnect, selectedOnly selectedPolicy allFull, and restored/복원. Example: 재연결 후 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인.",
+            operatorNote: "Required before physical-display-hotplug-smoke can pass: mention wake/reconnect, selectedOnly selectedPolicy allFull, external/secondary/multiple display observation, restored/복원, and Displays have separate Spaces enabled/disabled. Example: 재연결 후 AOC LG 외부 보조 디스플레이에서 selectedOnly selectedPolicy allFull wallpaper windows 복원 확인; Displays have separate Spaces enabled.",
             protocolText: protocolText
         )
     }
@@ -1495,7 +1563,8 @@ enum RuntimeCompletionAudit {
         requiredPassTokens: [String],
         requiredAnyPassTokens: [String] = [],
         requireOperatorNoteOnPass: Bool = false,
-        operatorNoteSubject: String = "the observed smoke"
+        operatorNoteSubject: String = "the observed smoke",
+        requiredOperatorNoteAnyTokens: [String] = []
     ) throws {
         guard let entry else { return }
         let normalizedEvidence = entry.normalizedEvidence.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1531,6 +1600,12 @@ enum RuntimeCompletionAudit {
             }) {
                 throw EngineError.invalidArgument(
                     "Manual smoke evidence \(label) pass still contains incomplete-evidence marker: \(marker)"
+                )
+            }
+            if requiredOperatorNoteAnyTokens.isEmpty == false,
+               containsAnyToken(requiredOperatorNoteAnyTokens, in: foldedNote) == false {
+                throw EngineError.invalidArgument(
+                    "Manual smoke evidence \(label) pass operatorNote must mention multiple physical displays"
                 )
             }
         }
