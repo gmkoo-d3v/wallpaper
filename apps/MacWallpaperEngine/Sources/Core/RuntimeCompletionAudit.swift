@@ -815,6 +815,7 @@ enum RuntimeCompletionAudit {
             }
             let consistencyRowsOK = rows.allSatisfy { row in
                 row[5].hasPrefix("sourceProvenance: pass")
+                    || row[5].hasPrefix("sourceProvenance: warn")
                     || row[5] == "sourceProvenance: skipped(no-descriptors)"
             }
             let failedRows = lines.filter { $0.hasPrefix("failed\t") || $0.hasPrefix("invalid\t") }

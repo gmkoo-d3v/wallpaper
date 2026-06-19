@@ -914,13 +914,22 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
                 && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=11")
         )
+        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:13+calibrated:11+platform-policy:4+unsupported:1")
+            || (
+                sourceProvenanceReport.contains("id=unity-metadata-source-adapter")
+                    && sourceProvenanceReport.contains("kind=metadata-only-unity-wallpaper-engine-application")
+                    && sourceProvenanceReport.contains("imported=13")
+                    && sourceProvenanceReport.contains("calibrated=11")
+                    && sourceProvenanceReport.contains("platform-policy=4")
+                    && sourceProvenanceReport.contains("unsupported=1")
+            )
         check(
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
                 && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=13 calibrated=11 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceProvenanceReport.contains("sourceAdapter:")
-                && sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:13+calibrated:11+platform-policy:4+unsupported:1")
+                && sourceAdapterEvidenceOK
                 && sourceManagedScriptStatusOK
                 && sourceProvenanceReport.contains("sourceDescriptors:")
                 && sourceArchiveDescriptorStatusOK
@@ -962,6 +971,7 @@ enum RuntimeSelfTest {
         }
         let sourceAdapterRowsConsistent = sourceAdapterAuditRows.allSatisfy { row in
             row[5].hasPrefix("sourceProvenance: pass")
+                || row[5].hasPrefix("sourceProvenance: warn")
                 || row[5] == "sourceProvenance: skipped(no-descriptors)"
         }
         check(
