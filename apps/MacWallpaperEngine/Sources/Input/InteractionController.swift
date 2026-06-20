@@ -230,17 +230,12 @@ final class InteractionController {
         resetPointerSpeedSampleLocked(to: pointer, now: now)
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
-        updatePressDragDistanceLocked(to: pointer)
-        updatePressDisplacementLocked(to: pointer, now: now)
-        activateRubIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }
 
     func pointerUp(button: PointerButton = .left) {
-        let now = clock()
         lock.lock()
-        activateRubIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }

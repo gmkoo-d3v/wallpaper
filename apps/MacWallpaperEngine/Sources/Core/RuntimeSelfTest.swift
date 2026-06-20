@@ -2392,6 +2392,20 @@ enum RuntimeSelfTest {
                             rubReleaseController.snapshot().command == earlyRubReleaseAction,
                             "interaction controller must not resolve pre-rubStart drag release for hit zone \(hitZone.id) to rubAction \(rubAction)"
                         )
+                        let releaseOnlyRubController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        gestureClock = 0
+                        releaseOnlyRubController.pointerDown(at: center, button: acceptedButton)
+                        gestureClock += max(hitZone.rubStartSeconds + 0.05, 0.10)
+                        releaseOnlyRubController.pointerUp(at: rubPoint, button: acceptedButton)
+                        check(
+                            releaseOnlyRubController.snapshot().command == (hitZone.tapAction ?? hitZone.action),
+                            "interaction controller must not treat pointerUp position drift as held rub for hit zone \(hitZone.id)"
+                        )
                     }
                 }
                 let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
