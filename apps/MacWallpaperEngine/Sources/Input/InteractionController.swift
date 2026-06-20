@@ -232,7 +232,6 @@ final class InteractionController {
         markPointerInputActiveLocked(now: now)
         updatePressDragDistanceLocked(to: pointer)
         updatePressDisplacementLocked(to: pointer, now: now)
-        activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
@@ -241,7 +240,6 @@ final class InteractionController {
     func pointerUp(button: PointerButton = .left) {
         let now = clock()
         lock.lock()
-        activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()

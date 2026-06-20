@@ -2245,12 +2245,13 @@ enum RuntimeSelfTest {
                 }
                 if runtime.manifest.metadata?.id == "sample_imported", hitZone.id == "head" {
                     check(
-                        hitZone.tapAction == "act"
+                        hitZone.tapAction == "boll"
                             && hitZone.action == "eye"
                             && hitZone.rubAction == "act"
                             && hitZone.trigger == .hold
-                            && hitZone.holdStartSeconds <= 0.08,
-                        "Imported head interaction must map short head click to act, near-immediate stationary hold to eye, and held rub to act without using gaze direction semantics"
+                            && hitZone.holdStartSeconds >= 0.12
+                            && hitZone.holdStartSeconds <= 0.25,
+                        "Imported head interaction must map short head click to boll, quick stationary hold to eye, and held rub to act without using gaze direction semantics"
                     )
                 }
                 let clickController = InteractionController(
@@ -2324,8 +2325,8 @@ enum RuntimeSelfTest {
                     gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
                     holdReleaseController.pointerUp(at: center, button: acceptedButton)
                     check(
-                        holdReleaseController.snapshot().command == hitZone.action,
-                        "interaction controller must resolve stationary left-click hold \(hitZone.id) to hold action \(hitZone.action) even when release is the next sampled event"
+                        holdReleaseController.snapshot().command == shortTouchAction,
+                        "interaction controller must not synthesize stationary hold \(hitZone.action) during pointerUp when no held snapshot was sampled for hit zone \(hitZone.id)"
                     )
                     if let rubAction = hitZone.rubAction {
                         gestureClock = 0
