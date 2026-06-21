@@ -2325,8 +2325,8 @@ enum RuntimeSelfTest {
                     gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
                     holdReleaseController.pointerUp(at: center, button: acceptedButton)
                     check(
-                        holdReleaseController.snapshot().command == shortTouchAction,
-                        "interaction controller must not synthesize stationary hold \(hitZone.action) during pointerUp when no held snapshot was sampled for hit zone \(hitZone.id)"
+                        holdReleaseController.snapshot().command == hitZone.action,
+                        "interaction controller must resolve long stationary press to hold action \(hitZone.action) during pointerUp even when no held snapshot was sampled for hit zone \(hitZone.id)"
                     )
                     if let rubAction = hitZone.rubAction {
                         gestureClock = 0
@@ -2359,6 +2359,34 @@ enum RuntimeSelfTest {
                         check(
                             rubController.snapshot().command == rubAction,
                             "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) only after rubStartSeconds and pointer displacement exceeds rubStartDistance"
+                        )
+                        let singlePostWindowDragController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        gestureClock = 0
+                        singlePostWindowDragController.pointerDown(at: center, button: acceptedButton)
+                        gestureClock += max(hitZone.rubStartSeconds + 0.05, 0.10)
+                        singlePostWindowDragController.pointerDragged(to: rubPoint, button: acceptedButton)
+                        check(
+                            singlePostWindowDragController.snapshot().command == rubAction,
+                            "interaction controller must promote hit zone \(hitZone.id) to rubAction \(rubAction) on a single qualifying pointerDragged event after rubStartSeconds"
+                        )
+                        let preWindowDragThenStillController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        gestureClock = 0
+                        preWindowDragThenStillController.pointerDown(at: center, button: acceptedButton)
+                        preWindowDragThenStillController.pointerDragged(to: rubPoint, button: acceptedButton)
+                        gestureClock += max(hitZone.holdStartSeconds + 0.05, hitZone.rubStartSeconds + 0.05, 0.10)
+                        check(
+                            preWindowDragThenStillController.snapshot().command == hitZone.action,
+                            "interaction controller must not promote pre-rubStart drag to rubAction \(rubAction) without a post-window pointerDragged event"
                         )
                         let holdThenRubController = InteractionController(
                             interactions: manifest.interactions,
@@ -2405,6 +2433,20 @@ enum RuntimeSelfTest {
                         check(
                             releaseOnlyRubController.snapshot().command == (hitZone.tapAction ?? hitZone.action),
                             "interaction controller must not treat pointerUp position drift as held rub for hit zone \(hitZone.id)"
+                        )
+                        let longReleaseOnlyRubController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        gestureClock = 0
+                        longReleaseOnlyRubController.pointerDown(at: center, button: acceptedButton)
+                        gestureClock += max(hitZone.holdStartSeconds + 0.05, hitZone.rubStartSeconds + 0.05, 0.10)
+                        longReleaseOnlyRubController.pointerUp(at: rubPoint, button: acceptedButton)
+                        check(
+                            longReleaseOnlyRubController.snapshot().command == hitZone.action,
+                            "interaction controller must resolve long press with pointerUp drift to hold action \(hitZone.action), not rubAction \(rubAction), for hit zone \(hitZone.id)"
                         )
                     }
                 }

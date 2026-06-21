@@ -13,6 +13,13 @@ struct InteractionSnapshot {
     let isInputActive: Bool
 }
 
+private enum PressGesturePhase {
+    case inactive
+    case pendingTap
+    case holding
+    case rubbing
+}
+
 final class InteractionController {
     private let defaultClickTailDuration: CFTimeInterval
     private let releaseFadeDuration: CFTimeInterval
@@ -40,13 +47,12 @@ final class InteractionController {
     private var pressedHitHoldStartSeconds: CFTimeInterval = 0
     private var pressedHitRubStartSeconds: CFTimeInterval = 0
     private var pressedHitRubStartDistance: CGFloat = 0.035
-    private var pressedHitHoldActivated = false
-    private var pressedHitRubActivated = false
+    private var pressGesturePhase: PressGesturePhase = .inactive
     private var pressedButton: PointerButton?
     private var pressStartedAt: CFTimeInterval = 0
     private var pressStartPoint = CGPoint(x: 0.5, y: 0.5)
     private var pressRubStartPoint = CGPoint(x: 0.5, y: 0.5)
-    private var pressRubWindowActivated = false
+    private var pressRubWindowOpened = false
     private var pressMaxDragDistance: CGFloat = 0
     private var pressMaxDisplacement: CGFloat = 0
     private let plan: InteractionPlan
@@ -89,11 +95,10 @@ final class InteractionController {
         advanceSmoothedPointerLocked()
         let now = clock()
         activateDelayedHoldIfNeededLocked(now: now)
-        activateRubIfNeededLocked(now: now)
         if let pressedHitAction,
            pressedHitTrigger == .hold,
-           pressedHitTapAction == nil || pressedHitHoldActivated || pressedHitRubActivated {
-            clickCommandState = pressedHitRubActivated ? (pressedHitRubAction ?? pressedHitAction) : pressedHitAction
+           pressedHitTapAction == nil || pressGesturePhase == .holding || pressGesturePhase == .rubbing {
+            clickCommandState = pressGesturePhase == .rubbing ? (pressedHitRubAction ?? pressedHitAction) : pressedHitAction
             clickCommandHeld = true
             clickCommandExpiresAt = now + releaseFadeDuration
         }
@@ -155,6 +160,7 @@ final class InteractionController {
 
         lock.lock()
         let now = clock()
+        let previousPointer = pointerState
         if plan.allowsPointerMove(button: button) {
             updatePointerSpeedLocked(to: pointer, now: now)
             pointerState = pointer
@@ -165,7 +171,7 @@ final class InteractionController {
             pointerInputActiveUntil = 0
         }
         updatePressDragDistanceLocked(to: pointer)
-        updatePressDisplacementLocked(to: pointer, now: now)
+        updatePressDisplacementLocked(to: pointer, previousPoint: previousPointer, now: now, countAsDrag: true)
         activateDelayedHoldIfNeededLocked(now: now)
         activateRubIfNeededLocked(now: now)
         lock.unlock()
@@ -196,9 +202,8 @@ final class InteractionController {
         pressedHitHoldStartSeconds = hitResult?.holdStartSeconds ?? 0
         pressedHitRubStartSeconds = hitResult?.rubStartSeconds ?? 0
         pressedHitRubStartDistance = hitResult?.rubStartDistance ?? 0.035
-        pressedHitHoldActivated = false
-        pressedHitRubActivated = false
-        pressRubWindowActivated = pressedHitRubStartSeconds <= 0
+        pressGesturePhase = .inactive
+        pressRubWindowOpened = pressedHitRubStartSeconds <= 0
         clickCommandState = nil
         clickCommandHeld = false
         clickCommandExpiresAt = 0
@@ -206,6 +211,7 @@ final class InteractionController {
         if let hitResult {
             let trigger = hitResult.trigger
             if trigger == .hold, hitResult.tapAction != nil {
+                pressGesturePhase = .pendingTap
                 clickCommandState = nil
                 clickCommandHeld = false
                 activeClickTailDuration = hitResult.tapTailSeconds
@@ -215,7 +221,7 @@ final class InteractionController {
                 clickCommandState = hitAction
                 clickCommandHeld = trigger == .hold
                 clickCommandExpiresAt = now + (trigger == .hold ? releaseFadeDuration : pressedHitTailDuration)
-                pressedHitHoldActivated = trigger == .hold
+                pressGesturePhase = trigger == .hold ? .holding : .inactive
             }
         } else {
             moveCommandState = plan.command(for: pointer, previousCommand: moveCommandState)
@@ -230,12 +236,23 @@ final class InteractionController {
         resetPointerSpeedSampleLocked(to: pointer, now: now)
         pointerState = pointer
         markPointerInputActiveLocked(now: now)
+        guard pressedButton == nil || pressedButton == button else {
+            lock.unlock()
+            return
+        }
+        activateDelayedHoldIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }
 
     func pointerUp(button: PointerButton = .left) {
+        let now = clock()
         lock.lock()
+        guard pressedButton == nil || pressedButton == button else {
+            lock.unlock()
+            return
+        }
+        activateDelayedHoldIfNeededLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }
@@ -261,9 +278,8 @@ final class InteractionController {
         pressedHitHoldStartSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
-        pressedHitHoldActivated = false
-        pressedHitRubActivated = false
-        pressRubWindowActivated = false
+        pressGesturePhase = .inactive
+        pressRubWindowOpened = false
         pressedButton = nil
         pressMaxDragDistance = 0
         pressMaxDisplacement = 0
@@ -295,9 +311,8 @@ final class InteractionController {
         pressedHitHoldStartSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
-        pressedHitHoldActivated = false
-        pressedHitRubActivated = false
-        pressRubWindowActivated = false
+        pressGesturePhase = .inactive
+        pressRubWindowOpened = false
         pressedButton = nil
         pressMaxDragDistance = 0
         pressMaxDisplacement = 0
@@ -326,9 +341,8 @@ final class InteractionController {
         pressedHitHoldStartSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
-        pressedHitHoldActivated = false
-        pressedHitRubActivated = false
-        pressRubWindowActivated = false
+        pressGesturePhase = .inactive
+        pressRubWindowOpened = false
         pressedButton = nil
         pressMaxDragDistance = 0
         pressMaxDisplacement = 0
@@ -399,8 +413,7 @@ final class InteractionController {
     private func activateDelayedHoldIfNeededLocked(now: CFTimeInterval) {
         guard pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
-              pressedHitRubActivated == false,
-              pressedHitHoldActivated == false,
+              pressGesturePhase == .pendingTap,
               now - pressStartedAt >= pressedHitHoldStartSeconds else {
             return
         }
@@ -411,29 +424,33 @@ final class InteractionController {
         guard let pressedHitAction,
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
-              pressedHitRubActivated == false,
-              pressedHitHoldActivated == false else {
+              pressGesturePhase == .pendingTap else {
             return
         }
-        pressedHitHoldActivated = true
+        pressGesturePhase = .holding
         clickCommandState = pressedHitAction
         clickCommandHeld = true
         activeClickTailDuration = pressedHitTailDuration
         clickCommandExpiresAt = now + releaseFadeDuration
     }
 
-    private func updatePressDisplacementLocked(to point: CGPoint, now: CFTimeInterval) {
+    private func updatePressDisplacementLocked(
+        to point: CGPoint,
+        previousPoint: CGPoint,
+        now: CFTimeInterval,
+        countAsDrag: Bool
+    ) {
         guard pressedButton != nil else { return }
-        if pressRubWindowActivated == false {
+        if pressRubWindowOpened == false {
             guard now - pressStartedAt >= pressedHitRubStartSeconds else {
                 return
             }
-            pressRubWindowActivated = true
-            pressRubStartPoint = pressedHitRubStartSeconds > 0 ? point : pressStartPoint
+            pressRubWindowOpened = true
+            pressRubStartPoint = pressedHitRubStartSeconds > 0 ? previousPoint : pressStartPoint
             pressMaxDisplacement = 0
-            if pressedHitRubStartSeconds > 0 {
-                return
-            }
+        }
+        guard countAsDrag else {
+            return
         }
         let dx = point.x - pressRubStartPoint.x
         let dy = point.y - pressRubStartPoint.y
@@ -448,16 +465,15 @@ final class InteractionController {
     }
 
     private func activateRubIfNeededLocked(now: CFTimeInterval) {
-        updatePressDisplacementLocked(to: pointerState, now: now)
         guard let pressedHitRubAction,
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
-              pressedHitRubActivated == false,
+              pressGesturePhase != .rubbing,
+              pressRubWindowOpened,
               pressMaxDisplacement >= pressedHitRubStartDistance else {
             return
         }
-        pressedHitRubActivated = true
-        pressedHitHoldActivated = false
+        pressGesturePhase = .rubbing
         clickCommandState = pressedHitRubAction
         clickCommandHeld = true
         activeClickTailDuration = pressedHitRubTailDuration
@@ -477,10 +493,10 @@ final class InteractionController {
         } else if let pressedHitAction, pressedHitTrigger == .hold {
             let releasedAction: String
             let releasedTail: CFTimeInterval
-            if let pressedHitRubAction, pressedHitRubActivated {
+            if let pressedHitRubAction, pressGesturePhase == .rubbing {
                 releasedAction = pressedHitRubAction
                 releasedTail = pressedHitRubTailDuration
-            } else if let pressedHitTapAction, pressedHitHoldActivated == false {
+            } else if let pressedHitTapAction, pressGesturePhase == .pendingTap {
                 releasedAction = pressedHitTapAction
                 releasedTail = pressedHitTapTailDuration
             } else {
@@ -502,9 +518,8 @@ final class InteractionController {
         pressedHitHoldStartSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
-        pressedHitHoldActivated = false
-        pressedHitRubActivated = false
-        pressRubWindowActivated = false
+        pressGesturePhase = .inactive
+        pressRubWindowOpened = false
         pressedButton = nil
         pressMaxDragDistance = 0
         pressMaxDisplacement = 0
