@@ -602,7 +602,10 @@ final class DesktopMouseInteractionMonitor {
 
         let accessibilityTrusted = policy.blockDesktopItems == false || DesktopInteractionGate.hasAccessibilityTrust()
         let coveredByApplicationWindow = policy.blockApplicationWindows
-            && DesktopInteractionGate.isCoveredByApplicationWindow(screenPoint: screenPoint)
+            && DesktopInteractionGate.isCoveredByApplicationWindow(
+                screenPoint: screenPoint,
+                ignoredWindowNumbers: currentWallpaperWindowNumbers()
+            )
         let likelyDesktopItem = policy.blockDesktopItems
             && accessibilityTrusted
             && (
@@ -685,6 +688,11 @@ final class DesktopMouseInteractionMonitor {
         lastDiscreteEventAt = 0
         lastDiscreteEventLabel = nil
         lastDiscreteEventPoint = nil
+    }
+
+    private func currentWallpaperWindowNumbers() -> Set<Int> {
+        guard let window else { return [] }
+        return [window.windowNumber]
     }
 
     private func recordDelivered(source: String, kind: EventKind, normalized: CGPoint) {
@@ -795,7 +803,10 @@ enum DesktopInteractionGate {
         false
     }
 
-    static func isCoveredByApplicationWindow(screenPoint: CGPoint) -> Bool {
+    static func isCoveredByApplicationWindow(
+        screenPoint: CGPoint,
+        ignoredWindowNumbers: Set<Int> = []
+    ) -> Bool {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
             return true
         }
@@ -808,10 +819,13 @@ enum DesktopInteractionGate {
             let ownerPID = window[kCGWindowOwnerPID as String] as? pid_t ?? -1
             let ownerName = window[kCGWindowOwnerName as String] as? String ?? ""
             let windowName = window[kCGWindowName as String] as? String ?? ""
+            let windowNumber = window[kCGWindowNumber as String] as? Int ?? -1
             if shouldIgnoreApplicationWindowForInteraction(
                 ownerPID: ownerPID,
+                windowNumber: windowNumber,
                 windowName: windowName,
-                currentPID: currentPID
+                currentPID: currentPID,
+                ignoredWindowNumbers: ignoredWindowNumbers
             ) {
                 continue
             }
@@ -839,9 +853,14 @@ enum DesktopInteractionGate {
 
     static func shouldIgnoreApplicationWindowForInteraction(
         ownerPID: pid_t,
+        windowNumber: Int,
         windowName: String,
-        currentPID: pid_t
+        currentPID: pid_t,
+        ignoredWindowNumbers: Set<Int> = []
     ) -> Bool {
+        if ignoredWindowNumbers.contains(windowNumber) {
+            return true
+        }
         guard ownerPID == currentPID else { return false }
         return windowName == "Mac Wallpaper Engine Diagnostic"
     }

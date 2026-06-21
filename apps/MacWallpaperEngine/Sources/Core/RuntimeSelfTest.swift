@@ -4673,8 +4673,10 @@ enum RuntimeSelfTest {
         check(
             DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
                 ownerPID: currentPID,
+                windowNumber: 1001,
                 windowName: "Mac Wallpaper Engine Diagnostic",
-                currentPID: currentPID
+                currentPID: currentPID,
+                ignoredWindowNumbers: []
             ),
             "desktop interaction gate must ignore the wallpaper host window itself when scanning covering app windows",
             failures: &failures,
@@ -4683,8 +4685,10 @@ enum RuntimeSelfTest {
         check(
             DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
                 ownerPID: currentPID,
+                windowNumber: 1002,
                 windowName: "Mac Wallpaper Engine",
-                currentPID: currentPID
+                currentPID: currentPID,
+                ignoredWindowNumbers: [1001]
             ) == false,
             "desktop interaction gate must treat the control panel as a covering app window, not as empty desktop",
             failures: &failures,
@@ -4693,10 +4697,36 @@ enum RuntimeSelfTest {
         check(
             DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
                 ownerPID: currentPID + 1,
+                windowNumber: 1003,
                 windowName: "Other App",
-                currentPID: currentPID
+                currentPID: currentPID,
+                ignoredWindowNumbers: [1001]
             ) == false,
             "desktop interaction gate must not ignore other app windows during empty-desktop checks",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
+                ownerPID: currentPID,
+                windowNumber: 4242,
+                windowName: "",
+                currentPID: currentPID,
+                ignoredWindowNumbers: [4242]
+            ),
+            "desktop interaction gate must ignore the active wallpaper window by window number even when the window server omits its name",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopInteractionGate.shouldIgnoreApplicationWindowForInteraction(
+                ownerPID: currentPID,
+                windowNumber: 4243,
+                windowName: "",
+                currentPID: currentPID,
+                ignoredWindowNumbers: [4242]
+            ) == false,
+            "desktop interaction gate must not ignore same-process windows that are not the active wallpaper window",
             failures: &failures,
             checks: &checks
         )
