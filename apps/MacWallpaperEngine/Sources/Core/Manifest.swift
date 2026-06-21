@@ -110,6 +110,7 @@ struct RuntimeConfig: Decodable {
     let nativeSpinePoseFps: Int?
     let nativeSpineIdlePoseFps: Int?
     let nativeSpineTransitionSeconds: Double?
+    let nativeSpineTransitionPolicy: NativeSpineTransitionPolicyConfig?
     let physicsIdlePolicy: PhysicsIdlePolicy?
     let audioPolicy: AudioPolicy?
     let performanceTiers: [PerformanceTier]?
@@ -122,6 +123,13 @@ struct RuntimeConfig: Decodable {
     var effectivePhysicsIdlePolicy: PhysicsIdlePolicy {
         physicsIdlePolicy ?? .dynamic
     }
+}
+
+struct NativeSpineTransitionPolicyConfig: Decodable {
+    let defaultSeconds: Double?
+    let lookSeconds: Double?
+    let actionSeconds: Double?
+    let releaseSeconds: Double?
 }
 
 enum PhysicsIdlePolicy: String, Decodable {

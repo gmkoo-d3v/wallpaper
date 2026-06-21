@@ -42,6 +42,7 @@
         "nativeSpinePoseFps": { "type": "integer", "minimum": 1, "maximum": 240 },
         "nativeSpineIdlePoseFps": { "type": "integer", "minimum": 1, "maximum": 240 },
         "nativeSpineTransitionSeconds": { "type": "number", "minimum": 0, "maximum": 10 },
+        "nativeSpineTransitionPolicy": { "$ref": "#/$defs/nativeSpineTransitionPolicy" },
         "physicsIdlePolicy": { "enum": ["dynamic", "sleep-when-idle"] },
         "audioPolicy": { "enum": ["muted", "userControlled", "disabled"] },
         "performanceTiers": {
@@ -255,6 +256,16 @@
         "maxInFlightCommandBuffers": { "type": "integer", "minimum": 1, "maximum": 3 },
         "lateFramePolicy": { "enum": ["drop"] },
         "catchUp": { "type": "boolean" }
+      }
+    },
+    "nativeSpineTransitionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultSeconds": { "type": "number", "minimum": 0, "maximum": 10 },
+        "lookSeconds": { "type": "number", "minimum": 0, "maximum": 10 },
+        "actionSeconds": { "type": "number", "minimum": 0, "maximum": 10 },
+        "releaseSeconds": { "type": "number", "minimum": 0, "maximum": 10 }
       }
     },
     "displayPolicy": {

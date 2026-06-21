@@ -72,6 +72,20 @@ enum ManifestLoader {
                 throw EngineError.manifest("runtime.nativeSpineTransitionSeconds must satisfy 0 <= value <= 10")
             }
         }
+        if let policy = manifest.runtime.nativeSpineTransitionPolicy {
+            if let defaultSeconds = policy.defaultSeconds {
+                try validateInteractionDuration(defaultSeconds, label: "runtime.nativeSpineTransitionPolicy.defaultSeconds")
+            }
+            if let lookSeconds = policy.lookSeconds {
+                try validateInteractionDuration(lookSeconds, label: "runtime.nativeSpineTransitionPolicy.lookSeconds")
+            }
+            if let actionSeconds = policy.actionSeconds {
+                try validateInteractionDuration(actionSeconds, label: "runtime.nativeSpineTransitionPolicy.actionSeconds")
+            }
+            if let releaseSeconds = policy.releaseSeconds {
+                try validateInteractionDuration(releaseSeconds, label: "runtime.nativeSpineTransitionPolicy.releaseSeconds")
+            }
+        }
         try validatePerformanceTiers(manifest.runtime.performanceTiers, maxFps: manifest.runtime.maxFps)
         guard (1...3).contains(manifest.runtime.scheduler.maxInFlightCommandBuffers) else {
             throw EngineError.manifest("maxInFlightCommandBuffers must satisfy 1...3")

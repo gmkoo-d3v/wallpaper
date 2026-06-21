@@ -658,6 +658,12 @@ enum RuntimeSelfTest {
             runtime.validationSummary().contains("composite quality: \(compositeQualityReport.summaryLine)"),
             "validation summary must surface composite fallback quality"
         )
+        check(
+            runtime.validationSummary().contains("nativeSpineTransitionPolicy: default=")
+                && runtime.validationSummary().contains(" action=")
+                && runtime.validationSummary().contains(" release="),
+            "validation summary must expose role-based native Spine transition policy"
+        )
         if let compositeVideo = runtime.assetCatalog.compositeVideoAsset,
            let backgroundVideo = runtime.assetCatalog.videoAsset,
            let compositeMetadata = try? VideoMetadataInspector.inspect(url: compositeVideo.url),
@@ -2628,6 +2634,9 @@ enum RuntimeSelfTest {
                 && manifestSchemaText.contains("\"platformPolicyFields\"")
                 && manifestSchemaText.contains("\"pointerSampleFps\"")
                 && manifestSchemaText.contains("\"nativeSpineTransitionSeconds\"")
+                && manifestSchemaText.contains("\"nativeSpineTransitionPolicy\"")
+                && manifestSchemaText.contains("\"actionSeconds\"")
+                && manifestSchemaText.contains("\"releaseSeconds\"")
                 && manifestSchemaText.contains("\"physicsIdlePolicy\"")
                 && manifestSchemaText.contains("\"tapAction\"")
                 && manifestSchemaText.contains("\"rubAction\"")
@@ -2639,6 +2648,39 @@ enum RuntimeSelfTest {
         check(
             manifestSchemaJSON != nil,
             "manifest schema resource must decode into a JSON object before supported-subset validation"
+        )
+        let transitionPolicy = SpineSetupPoseRenderer.AnimationTransitionPolicy(
+            defaultSeconds: 0.30,
+            lookSeconds: 0.30,
+            actionSeconds: 0.05,
+            releaseSeconds: 0.15
+        )
+        check(
+            abs(transitionPolicy.duration(
+                from: "idle",
+                to: "Left",
+                idleAnimationName: "idle",
+                lookAnimationNames: ["Left", "Right", "Up", "Down"]
+            ) - 0.30) < 0.001,
+            "native Spine transition policy must keep look-direction animations smooth"
+        )
+        check(
+            abs(transitionPolicy.duration(
+                from: "idle",
+                to: "boll",
+                idleAnimationName: "idle",
+                lookAnimationNames: ["Left", "Right", "Up", "Down"]
+            ) - 0.05) < 0.001,
+            "native Spine transition policy must make tap/hold/rub actions visually responsive"
+        )
+        check(
+            abs(transitionPolicy.duration(
+                from: "eye",
+                to: "idle",
+                idleAnimationName: "idle",
+                lookAnimationNames: ["Left", "Right", "Up", "Down"]
+            ) - 0.15) < 0.001,
+            "native Spine transition policy must use release timing when an action returns to idle"
         )
         if let manifestSchemaJSON {
             try ManifestSchemaResource.validateSupportedSchemaSubset(manifestSchemaJSON)

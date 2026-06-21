@@ -528,7 +528,8 @@ final class SpineSetupPoseRenderer {
     private let declarativePlan: DeclarativeBindingPlan
     private let physicsConstraintsEnabled: Bool
     private let rendererStartedAt: CFTimeInterval
-    private let animationTransitionDuration: CFTimeInterval
+    private let animationTransitionPolicy: AnimationTransitionPolicy
+    private var activeAnimationTransitionDuration: CFTimeInterval
     private var declarativeBindingState = DeclarativeBindingEvaluationState()
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
     private var cachedBatches: [Batch]
@@ -554,6 +555,78 @@ final class SpineSetupPoseRenderer {
     static let maxGeometryDiagnosticSamplesPerAction = 96
     static let timelineSamplingPolicy = "parse-sorted/no-per-sample-sort"
 
+    struct AnimationTransitionPolicy {
+        let defaultSeconds: CFTimeInterval
+        let lookSeconds: CFTimeInterval
+        let actionSeconds: CFTimeInterval
+        let releaseSeconds: CFTimeInterval
+
+        init(
+            defaultSeconds: Double,
+            lookSeconds: Double? = nil,
+            actionSeconds: Double? = nil,
+            releaseSeconds: Double? = nil
+        ) {
+            let defaultSeconds = Self.clamp(defaultSeconds)
+            self.defaultSeconds = defaultSeconds
+            self.lookSeconds = Self.clamp(lookSeconds ?? defaultSeconds)
+            self.actionSeconds = Self.clamp(actionSeconds ?? defaultSeconds)
+            self.releaseSeconds = Self.clamp(releaseSeconds ?? defaultSeconds)
+        }
+
+        func duration(
+            from previousAnimation: String,
+            to nextAnimation: String,
+            idleAnimationName: String,
+            lookAnimationNames: Set<String>
+        ) -> CFTimeInterval {
+            let previousRole = role(
+                for: previousAnimation,
+                idleAnimationName: idleAnimationName,
+                lookAnimationNames: lookAnimationNames
+            )
+            let nextRole = role(
+                for: nextAnimation,
+                idleAnimationName: idleAnimationName,
+                lookAnimationNames: lookAnimationNames
+            )
+            if nextRole == .idle, previousRole == .action {
+                return releaseSeconds
+            }
+            if nextRole == .action || previousRole == .action {
+                return actionSeconds
+            }
+            if nextRole == .look || previousRole == .look {
+                return lookSeconds
+            }
+            return defaultSeconds
+        }
+
+        private enum Role {
+            case idle
+            case look
+            case action
+        }
+
+        private static func clamp(_ seconds: Double) -> CFTimeInterval {
+            max(0, min(seconds, 10))
+        }
+
+        private func role(
+            for animation: String,
+            idleAnimationName: String,
+            lookAnimationNames: Set<String>
+        ) -> Role {
+            if animation == idleAnimationName {
+                return .idle
+            }
+            if lookAnimationNames.contains(animation) {
+                return .look
+            }
+            return .action
+        }
+    }
+
     init(
         spineAsset: SpineAsset,
         device: MTLDevice,
@@ -569,6 +642,7 @@ final class SpineSetupPoseRenderer {
         loopingAnimationNames: Set<String> = ["idle"],
         oneShotAnimationNames: Set<String> = [],
         animationTransitionSeconds: Double = 0.30,
+        animationTransitionPolicy: AnimationTransitionPolicy? = nil,
         declarativePlan: DeclarativeBindingPlan = DeclarativeBindingPlan(bindings: [], effects: [])
     ) throws {
         let textureLoader = MTKTextureLoader(device: device)
@@ -659,7 +733,11 @@ final class SpineSetupPoseRenderer {
         let resolvedLoopingAnimationNames = loopingAnimationNames.union([resolvedIdleAnimationName])
         self.loopingAnimationNames = resolvedLoopingAnimationNames
         self.oneShotAnimationNames = oneShotAnimationNames.subtracting(resolvedLoopingAnimationNames)
-        self.animationTransitionDuration = max(0, min(animationTransitionSeconds, 10))
+        let resolvedTransitionPolicy = animationTransitionPolicy ?? AnimationTransitionPolicy(
+            defaultSeconds: animationTransitionSeconds
+        )
+        self.animationTransitionPolicy = resolvedTransitionPolicy
+        self.activeAnimationTransitionDuration = resolvedTransitionPolicy.defaultSeconds
         self.declarativePlan = declarativePlan
         self.referenceScale = referenceScale
         self.rendererStartedAt = CACurrentMediaTime()
@@ -1138,18 +1216,25 @@ final class SpineSetupPoseRenderer {
         }
 
         if requested != activeAnimationName {
-            previousOverlayAnimationName = activeAnimationName == idleAnimationName ? nil : activeAnimationName
+            let previousAnimationName = activeAnimationName
+            previousOverlayAnimationName = previousAnimationName == idleAnimationName ? nil : previousAnimationName
             previousOverlayAnimationStartedAt = activeAnimationStartedAt
             activeAnimationName = requested
             activeAnimationStartedAt = now
+            activeAnimationTransitionDuration = animationTransitionPolicy.duration(
+                from: previousAnimationName,
+                to: requested,
+                idleAnimationName: idleAnimationName,
+                lookAnimationNames: lookAnimationNames
+            )
         }
         return activeAnimationName
     }
 
     private func animationTransitionMix(now: CFTimeInterval) -> Double {
-        guard animationTransitionDuration > 0 else { return 1 }
+        guard activeAnimationTransitionDuration > 0 else { return 1 }
         let elapsed = max(0, now - activeAnimationStartedAt)
-        let linear = min(max(elapsed / animationTransitionDuration, 0), 1)
+        let linear = min(max(elapsed / activeAnimationTransitionDuration, 0), 1)
         return linear * linear * (3 - (2 * linear))
     }
 

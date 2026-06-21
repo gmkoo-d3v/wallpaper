@@ -77,6 +77,7 @@ final class NativeRuntimeCore {
         nativeSpinePoseFps: \(nativeSpinePoseSampleFps(displayRefreshFps: nil))
         nativeSpineIdlePoseFps: \(nativeSpineIdlePoseSampleFps(displayRefreshFps: nil))
         nativeSpineTransitionSeconds: \(String(format: "%.2f", manifest.runtime.nativeSpineTransitionSeconds ?? 0.30))
+        nativeSpineTransitionPolicy: \(nativeSpineTransitionPolicySummary())
         audioPolicy: \(manifest.runtime.effectiveAudioPolicy.rawValue) (output=\(audioOutputSummary), userOptIn=\(config.audioEnabled))
         cpuBudget: target \(manifest.layerBudgets.primaryCpuTargetPercent)% downgrade \(manifest.layerBudgets.cpuDowngradePercent)% / \(manifest.layerBudgets.cpuDowngradeWindowSeconds)s
         rssBudget: target \(manifest.layerBudgets.rssTargetMb)MB hard \(manifest.layerBudgets.rssHardMb)MB
@@ -93,6 +94,22 @@ final class NativeRuntimeCore {
 
     func performanceSummary() -> String {
         performancePlan.summary()
+    }
+
+    private func nativeSpineTransitionPolicySummary() -> String {
+        let defaultSeconds = manifest.runtime.nativeSpineTransitionPolicy?.defaultSeconds
+            ?? manifest.runtime.nativeSpineTransitionSeconds
+            ?? 0.30
+        let lookSeconds = manifest.runtime.nativeSpineTransitionPolicy?.lookSeconds ?? defaultSeconds
+        let actionSeconds = manifest.runtime.nativeSpineTransitionPolicy?.actionSeconds ?? defaultSeconds
+        let releaseSeconds = manifest.runtime.nativeSpineTransitionPolicy?.releaseSeconds ?? defaultSeconds
+        return String(
+            format: "default=%.2f look=%.2f action=%.2f release=%.2f",
+            defaultSeconds,
+            lookSeconds,
+            actionSeconds,
+            releaseSeconds
+        )
     }
 
     func performancePlan(displayRefreshFps: Int?) -> PerformancePlan {

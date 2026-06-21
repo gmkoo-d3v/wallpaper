@@ -198,6 +198,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: runtime.manifest),
                 oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
                 animationTransitionSeconds: runtime.manifest.runtime.nativeSpineTransitionSeconds ?? 0.30,
+                animationTransitionPolicy: Self.spineTransitionPolicy(from: runtime.manifest.runtime),
                 declarativePlan: declarativePlan
             )
             if let spineRenderer {
@@ -207,6 +208,20 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+
+    private static func spineTransitionPolicy(
+        from runtime: RuntimeConfig
+    ) -> SpineSetupPoseRenderer.AnimationTransitionPolicy {
+        let defaultSeconds = runtime.nativeSpineTransitionPolicy?.defaultSeconds
+            ?? runtime.nativeSpineTransitionSeconds
+            ?? 0.30
+        return SpineSetupPoseRenderer.AnimationTransitionPolicy(
+            defaultSeconds: defaultSeconds,
+            lookSeconds: runtime.nativeSpineTransitionPolicy?.lookSeconds,
+            actionSeconds: runtime.nativeSpineTransitionPolicy?.actionSeconds,
+            releaseSeconds: runtime.nativeSpineTransitionPolicy?.releaseSeconds
+        )
+    }
 
     func setPausedByHost(_ paused: Bool) {
         isPausedByHost = paused
