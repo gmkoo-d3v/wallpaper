@@ -446,7 +446,7 @@ final class InteractionController {
                 return
             }
             pressRubWindowOpened = true
-            pressRubStartPoint = pressedHitRubStartSeconds > 0 ? previousPoint : pressStartPoint
+            pressRubStartPoint = pressStartPoint
             pressMaxDisplacement = 0
         }
         guard countAsDrag else {

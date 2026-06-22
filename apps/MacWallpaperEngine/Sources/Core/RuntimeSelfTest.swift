@@ -2255,8 +2255,8 @@ enum RuntimeSelfTest {
                             && hitZone.action == "eye"
                             && hitZone.rubAction == "act"
                             && hitZone.trigger == .hold
-                            && hitZone.holdStartSeconds >= 0.12
-                            && hitZone.holdStartSeconds <= 0.25,
+                            && hitZone.holdStartSeconds >= 0.03
+                            && hitZone.holdStartSeconds <= 0.10,
                         "Imported head interaction must map short head click to boll, quick stationary hold to eye, and held rub to act without using gaze direction semantics"
                     )
                 }
@@ -2394,6 +2394,26 @@ enum RuntimeSelfTest {
                             preWindowDragThenStillController.snapshot().command == hitZone.action,
                             "interaction controller must not promote pre-rubStart drag to rubAction \(rubAction) without a post-window pointerDragged event"
                         )
+                        let preWindowDragThenSmallPostWindowDragController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { gestureClock }
+                        )
+                        let smallRubDelta = max(min(hitZone.rubStartDistance * 0.25, 0.01), 0.001)
+                        let smallPostWindowRubPoint = CGPoint(
+                            x: rubPoint.x + smallRubDelta <= 1.0 ? rubPoint.x + smallRubDelta : max(rubPoint.x - smallRubDelta, 0.0),
+                            y: center.y
+                        )
+                        gestureClock = 0
+                        preWindowDragThenSmallPostWindowDragController.pointerDown(at: center, button: acceptedButton)
+                        preWindowDragThenSmallPostWindowDragController.pointerDragged(to: rubPoint, button: acceptedButton)
+                        gestureClock += max(hitZone.rubStartSeconds + 0.05, 0.10)
+                        preWindowDragThenSmallPostWindowDragController.pointerDragged(to: smallPostWindowRubPoint, button: acceptedButton)
+                        check(
+                            preWindowDragThenSmallPostWindowDragController.snapshot().command == rubAction,
+                            "interaction controller must preserve pre-rubStart displacement when a post-window pointerDragged event confirms hit zone \(hitZone.id) rub intent"
+                        )
                         let holdThenRubController = InteractionController(
                             interactions: manifest.interactions,
                             policy: manifest.interactionPolicy,
@@ -2434,10 +2454,14 @@ enum RuntimeSelfTest {
                         )
                         gestureClock = 0
                         releaseOnlyRubController.pointerDown(at: center, button: acceptedButton)
-                        gestureClock += max(hitZone.rubStartSeconds + 0.05, 0.10)
+                        let releaseOnlySampleTime = max(hitZone.rubStartSeconds + 0.05, 0.10)
+                        gestureClock += releaseOnlySampleTime
                         releaseOnlyRubController.pointerUp(at: rubPoint, button: acceptedButton)
+                        let releaseOnlyExpectedAction = releaseOnlySampleTime >= hitZone.holdStartSeconds
+                            ? hitZone.action
+                            : (hitZone.tapAction ?? hitZone.action)
                         check(
-                            releaseOnlyRubController.snapshot().command == (hitZone.tapAction ?? hitZone.action),
+                            releaseOnlyRubController.snapshot().command == releaseOnlyExpectedAction,
                             "interaction controller must not treat pointerUp position drift as held rub for hit zone \(hitZone.id)"
                         )
                         let longReleaseOnlyRubController = InteractionController(
