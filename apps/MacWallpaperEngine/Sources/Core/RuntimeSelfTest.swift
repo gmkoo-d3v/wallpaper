@@ -2285,6 +2285,48 @@ enum RuntimeSelfTest {
                     upSnapshot.command == shortTouchAction && upSnapshot.clickPulse > 0,
                     "interaction controller must keep initial click action \(shortTouchAction) visible after pointerUp for hit zone \(hitZone.id)"
                 )
+                if hasLookDirection {
+                    let lookNeutral = SpineInteractionAnimationRoles.lookNeutralPoint(from: manifest)
+                    let lookProbe = CGPoint(
+                        x: lookNeutral.x > 0.5 ? 0.10 : 0.90,
+                        y: lookNeutral.y
+                    )
+                    let expectedLookAction = interactionPlan.command(
+                        for: lookProbe,
+                        previousCommand: interactionPlan.idleCommand()
+                    )
+                    if expectedLookAction != interactionPlan.idleCommand() {
+                        var smokeClock: CFTimeInterval = 0
+                        let tailMaskController = InteractionController(
+                            interactions: manifest.interactions,
+                            policy: manifest.interactionPolicy,
+                            actionTailDurations: tapActionDurations,
+                            clock: { smokeClock }
+                        )
+                        tailMaskController.pointerDown(at: center, button: acceptedButton)
+                        smokeClock += 0.016
+                        tailMaskController.pointerUp(at: center, button: acceptedButton)
+                        sendLookMove(tailMaskController, to: lookProbe)
+                        for _ in 0..<20 {
+                            smokeClock += 1.0 / 60.0
+                            _ = tailMaskController.snapshot()
+                        }
+                        check(
+                            tailMaskController.snapshot().command != expectedLookAction,
+                            "click tail must be treated as stateful enough to mask an immediate independent gaze smoke for hit zone \(hitZone.id)"
+                        )
+                        tailMaskController.resetPointerTracking()
+                        sendLookMove(tailMaskController, to: lookProbe)
+                        for _ in 0..<20 {
+                            smokeClock += 1.0 / 60.0
+                            _ = tailMaskController.snapshot()
+                        }
+                        check(
+                            tailMaskController.snapshot().command == expectedLookAction,
+                            "runtime smoke must clear click tail state before independent gaze smoke for hit zone \(hitZone.id)"
+                        )
+                    }
+                }
                 if defersShortTouchUntilRelease, hitZone.holdCommitSeconds > hitZone.holdStartSeconds + 0.02 {
                     var boundaryClock: CFTimeInterval = 0
                     let preCommitReleaseController = InteractionController(

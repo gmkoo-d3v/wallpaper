@@ -407,16 +407,6 @@ final class WallpaperMetalView: MTKView {
         )
         var delay: TimeInterval = 0.0
 
-        for point in smokeGazePoints(plan: plan) {
-            for _ in 0..<12 {
-                scheduleInteractionSmokeStep(after: delay) { view in
-                    view.interaction.pointerDragged(to: point, button: .left)
-                    view.recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
-                }
-                delay += 0.08
-            }
-        }
-
         for zone in plan.hitZoneSummaries() where zone.buttons.contains(.left) {
             let point = center(of: zone.rect)
             if zone.tapAction != nil {
@@ -436,7 +426,18 @@ final class WallpaperMetalView: MTKView {
                 view.interaction.pointerDown(at: point, button: .left)
                 view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
             }
-            delay += max(0.05, zone.trigger == .hold ? zone.holdCommitSeconds + 0.05 : 0.05)
+            if zone.trigger == .hold {
+                let holdPreviewDelay = max(0.05, zone.holdStartSeconds + 0.05)
+                delay += holdPreviewDelay
+                scheduleInteractionSmokeStep(after: delay) { view in
+                    view.interaction.pointerDragged(to: point, button: .left)
+                    view.recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
+                }
+                let commitDelay = max(0.05, zone.holdCommitSeconds + 0.05 - holdPreviewDelay)
+                delay += commitDelay
+            } else {
+                delay += 0.05
+            }
             scheduleInteractionSmokeStep(after: delay) { view in
                 view.interaction.pointerDragged(to: point, button: .left)
                 view.recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
@@ -492,6 +493,22 @@ final class WallpaperMetalView: MTKView {
             scheduleInteractionSmokeStep(after: delay) { view in
                 view.interaction.pointerUp(at: emptyPoint, button: .left)
                 view.recordDirectInteraction(event: "leftUp", decision: "delivered", point: emptyPoint, delivered: true)
+            }
+        }
+
+        delay += 0.20
+        scheduleInteractionSmokeStep(after: delay) { view in
+            view.interaction.resetPointerTracking()
+            view.recordDirectInteraction(event: "reset", decision: "delivered", point: nil, delivered: true)
+        }
+        delay += 0.05
+        for point in smokeGazePoints(plan: plan) {
+            for _ in 0..<12 {
+                scheduleInteractionSmokeStep(after: delay) { view in
+                    view.interaction.pointerDragged(to: point, button: .left)
+                    view.recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
+                }
+                delay += 0.08
             }
         }
     }
