@@ -46,7 +46,7 @@ struct DisplayLifecycleTelemetryEntry {
 
 final class RuntimeTelemetryStore {
     private static let maxLifecycleEntries = 5
-    private static let maxInteractionObservations = 120
+    private static let maxInteractionObservations = 300
 
     private let lock = NSLock()
     private var entriesByDisplay: [String: RuntimeTelemetryEntry] = [:]

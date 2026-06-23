@@ -435,6 +435,7 @@
         "tapTailSeconds": { "type": "number", "minimum": 0 },
         "rubTailSeconds": { "type": "number", "minimum": 0 },
         "holdStartSeconds": { "type": "number", "minimum": 0 },
+        "holdCommitSeconds": { "type": "number", "minimum": 0 },
         "rubStartSeconds": { "type": "number", "minimum": 0 },
         "rubStartDistance": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
         "buttons": {

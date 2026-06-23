@@ -424,7 +424,7 @@ final class WallpaperMetalView: MTKView {
                     view.interaction.pointerDown(at: point, button: .left)
                     view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
                 }
-                delay += 0.05
+                delay += shortTapSmokeDelay(for: zone)
                 scheduleInteractionSmokeStep(after: delay) { view in
                     view.interaction.pointerUp(at: point, button: .left)
                     view.recordDirectInteraction(event: "leftUp", decision: "delivered", point: point, delivered: true)
@@ -436,7 +436,7 @@ final class WallpaperMetalView: MTKView {
                 view.interaction.pointerDown(at: point, button: .left)
                 view.recordDirectInteraction(event: "leftDown", decision: "delivered", point: point, delivered: true)
             }
-            delay += max(0.05, zone.trigger == .hold ? zone.holdStartSeconds + 0.12 : 0.05)
+            delay += max(0.05, zone.trigger == .hold ? zone.holdCommitSeconds + 0.05 : 0.05)
             scheduleInteractionSmokeStep(after: delay) { view in
                 view.interaction.pointerDragged(to: point, button: .left)
                 view.recordDirectInteraction(event: "drag", decision: "delivered", point: point, delivered: true)
@@ -525,6 +525,12 @@ final class WallpaperMetalView: MTKView {
             plan.lookNeutralPoint()
         ]
         return candidates.first { plan.hitTest(point: $0, button: .left) == nil }
+    }
+
+    private func shortTapSmokeDelay(for zone: InteractionHitZoneSummary) -> TimeInterval {
+        let commit = zone.holdCommitSeconds > 0 ? zone.holdCommitSeconds : zone.holdStartSeconds
+        guard commit > 0 else { return 0.03 }
+        return max(0.016, min(0.03, commit * 0.45))
     }
 
     private func center(of bounds: [Double]) -> CGPoint {

@@ -854,7 +854,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=13 calibrated=11 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=13 calibrated=12 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         check(
@@ -913,19 +913,19 @@ enum RuntimeSelfTest {
         let sourceManagedScriptStatusOK = (
             sourceProvenanceReport.contains("behaviorScripts=Assembly-CSharp:4")
                 && sourceProvenanceReport.contains("interactionOwner=SpineFaceTracker")
-                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=11")
+                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineFaceTracker=12")
         ) || (
             sourceProvenanceReport.contains("scripts=Assembly-CSharp=4")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=11")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=12")
         )
-        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:13+calibrated:11+platform-policy:4+unsupported:1")
+        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:13+calibrated:12+platform-policy:4+unsupported:1")
             || (
                 sourceProvenanceReport.contains("id=unity-metadata-source-adapter")
                     && sourceProvenanceReport.contains("kind=metadata-only-unity-wallpaper-engine-application")
                     && sourceProvenanceReport.contains("imported=13")
-                    && sourceProvenanceReport.contains("calibrated=11")
+                    && sourceProvenanceReport.contains("calibrated=12")
                     && sourceProvenanceReport.contains("platform-policy=4")
                     && sourceProvenanceReport.contains("unsupported=1")
             )
@@ -933,7 +933,7 @@ enum RuntimeSelfTest {
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=13 calibrated=11 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=13 calibrated=12 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceProvenanceReport.contains("sourceAdapter:")
                 && sourceAdapterEvidenceOK
                 && sourceManagedScriptStatusOK
@@ -943,8 +943,8 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("converter=unitypy-monoscript-index-v1")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("blockedFields=11")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=11")
+                && sourceProvenanceReport.contains("blockedFields=12")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineFaceTracker=12")
                 && sourceProvenanceReport.contains("requiredCapabilities=unity-managed-method-behavior-import")
                 && sourceProvenanceReport.contains("methodBodyStatus=not-read")
                 && sourceProvenanceReport.contains("methodBodyRead=forbidden")
@@ -2256,8 +2256,10 @@ enum RuntimeSelfTest {
                             && hitZone.rubAction == "act"
                             && hitZone.trigger == .hold
                             && hitZone.holdStartSeconds >= 0.03
-                            && hitZone.holdStartSeconds <= 0.10,
-                        "Imported head interaction must map short head click to boll, quick stationary hold to eye, and held rub to act without using gaze direction semantics"
+                            && hitZone.holdStartSeconds <= 0.10
+                            && hitZone.holdCommitSeconds >= 0.12
+                            && hitZone.holdCommitSeconds <= 0.35,
+                        "Imported head interaction must map short head click to boll, quick stationary hold preview to eye, committed long press to eye, and held rub to act without using gaze direction semantics"
                     )
                 }
                 let clickController = InteractionController(
@@ -2283,6 +2285,26 @@ enum RuntimeSelfTest {
                     upSnapshot.command == shortTouchAction && upSnapshot.clickPulse > 0,
                     "interaction controller must keep initial click action \(shortTouchAction) visible after pointerUp for hit zone \(hitZone.id)"
                 )
+                if defersShortTouchUntilRelease, hitZone.holdCommitSeconds > hitZone.holdStartSeconds + 0.02 {
+                    var boundaryClock: CFTimeInterval = 0
+                    let preCommitReleaseController = InteractionController(
+                        interactions: manifest.interactions,
+                        policy: manifest.interactionPolicy,
+                        actionTailDurations: tapActionDurations,
+                        clock: { boundaryClock }
+                    )
+                    preCommitReleaseController.pointerDown(at: center, button: acceptedButton)
+                    boundaryClock = max(hitZone.holdStartSeconds + 0.01, hitZone.holdCommitSeconds - 0.01)
+                    check(
+                        preCommitReleaseController.snapshot().command == hitZone.action,
+                        "interaction controller must show hold preview action \(hitZone.action) after holdStartSeconds before hold commit for hit zone \(hitZone.id)"
+                    )
+                    preCommitReleaseController.pointerUp(at: center, button: acceptedButton)
+                    check(
+                        preCommitReleaseController.snapshot().command == shortTouchAction,
+                        "interaction controller must still resolve pre-commit release to short-touch action \(shortTouchAction) for hit zone \(hitZone.id)"
+                    )
+                }
                 let stoppedController = InteractionController(
                     interactions: manifest.interactions,
                     policy: manifest.interactionPolicy,
@@ -2328,11 +2350,11 @@ enum RuntimeSelfTest {
                     )
                     gestureClock = 0
                     holdReleaseController.pointerDown(at: center, button: acceptedButton)
-                    gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
+                    gestureClock += max(hitZone.holdCommitSeconds + 0.05, 0.10)
                     holdReleaseController.pointerUp(at: center, button: acceptedButton)
                     check(
                         holdReleaseController.snapshot().command == hitZone.action,
-                        "interaction controller must resolve long stationary press to hold action \(hitZone.action) during pointerUp even when no held snapshot was sampled for hit zone \(hitZone.id)"
+                        "interaction controller must resolve committed long stationary press to hold action \(hitZone.action) during pointerUp even when no held snapshot was sampled for hit zone \(hitZone.id)"
                     )
                     if let rubAction = hitZone.rubAction {
                         gestureClock = 0
@@ -2457,7 +2479,7 @@ enum RuntimeSelfTest {
                         let releaseOnlySampleTime = max(hitZone.rubStartSeconds + 0.05, 0.10)
                         gestureClock += releaseOnlySampleTime
                         releaseOnlyRubController.pointerUp(at: rubPoint, button: acceptedButton)
-                        let releaseOnlyExpectedAction = releaseOnlySampleTime >= hitZone.holdStartSeconds
+                        let releaseOnlyExpectedAction = releaseOnlySampleTime >= hitZone.holdCommitSeconds
                             ? hitZone.action
                             : (hitZone.tapAction ?? hitZone.action)
                         check(
@@ -2472,7 +2494,7 @@ enum RuntimeSelfTest {
                         )
                         gestureClock = 0
                         longReleaseOnlyRubController.pointerDown(at: center, button: acceptedButton)
-                        gestureClock += max(hitZone.holdStartSeconds + 0.05, hitZone.rubStartSeconds + 0.05, 0.10)
+                        gestureClock += max(hitZone.holdCommitSeconds + 0.05, hitZone.rubStartSeconds + 0.05, 0.10)
                         longReleaseOnlyRubController.pointerUp(at: rubPoint, button: acceptedButton)
                         check(
                             longReleaseOnlyRubController.snapshot().command == hitZone.action,
@@ -3106,9 +3128,9 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=11 platformPolicy=4 unsupported=1")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=12 platformPolicy=4 unsupported=1")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=13 calibrated=11 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=13 calibrated=12 platformPolicy=4 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=5 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=3 calibrated=0 platformPolicy=0 unsupported=0")
@@ -3218,7 +3240,7 @@ enum RuntimeSelfTest {
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("sample_imported=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=11 platformPolicy=4 unsupported=1); derivation(partial imported=13 calibrated=11 platformPolicy=4 unsupported=1")
+                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=13 calibrated=12 platformPolicy=4 unsupported=1); derivation(partial imported=13 calibrated=12 platformPolicy=4 unsupported=1")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+pixelate+scroll+vignette")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
@@ -5321,6 +5343,7 @@ enum RuntimeSelfTest {
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
                             holdStartSeconds: nil,
+                            holdCommitSeconds: nil,
                             rubStartSeconds: nil,
                             rubStartDistance: nil,
                             buttons: [.left],
@@ -5338,6 +5361,7 @@ enum RuntimeSelfTest {
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
                             holdStartSeconds: nil,
+                            holdCommitSeconds: nil,
                             rubStartSeconds: nil,
                             rubStartDistance: nil,
                             buttons: [.left],

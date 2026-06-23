@@ -1359,7 +1359,10 @@ enum RuntimeCompletionAudit {
                     let rubText = zone.rubAction.map {
                         ",rub=\($0)@\(String(format: "%.2fs", zone.rubStartSeconds))+distance\(String(format: "%.3f", Double(zone.rubStartDistance)))"
                     } ?? ""
-                    return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))\(rubText)"
+                    let holdCommitText = zone.holdCommitSeconds > zone.holdStartSeconds + 0.005
+                        ? ",holdCommit=\(String(format: "%.2fs", zone.holdCommitSeconds))"
+                        : ""
+                    return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))\(holdCommitText)\(rubText)"
                 }
                 return "\(zone.id):\(zone.trigger.rawValue)=\(zone.action)"
             }.joined(separator: ",")

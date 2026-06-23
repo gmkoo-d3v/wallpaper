@@ -45,6 +45,7 @@ final class InteractionController {
     private var pressedHitTapTailDuration: CFTimeInterval = 0
     private var pressedHitRubTailDuration: CFTimeInterval = 0
     private var pressedHitHoldStartSeconds: CFTimeInterval = 0
+    private var pressedHitHoldCommitSeconds: CFTimeInterval = 0
     private var pressedHitRubStartSeconds: CFTimeInterval = 0
     private var pressedHitRubStartDistance: CGFloat = 0.035
     private var pressGesturePhase: PressGesturePhase = .inactive
@@ -200,6 +201,7 @@ final class InteractionController {
         pressedHitTapTailDuration = hitResult?.tapTailSeconds ?? defaultClickTailDuration
         pressedHitRubTailDuration = hitResult?.rubTailSeconds ?? defaultClickTailDuration
         pressedHitHoldStartSeconds = hitResult?.holdStartSeconds ?? 0
+        pressedHitHoldCommitSeconds = hitResult?.holdCommitSeconds ?? pressedHitHoldStartSeconds
         pressedHitRubStartSeconds = hitResult?.rubStartSeconds ?? 0
         pressedHitRubStartDistance = hitResult?.rubStartDistance ?? 0.035
         pressGesturePhase = .inactive
@@ -276,6 +278,7 @@ final class InteractionController {
         pressedHitTapTailDuration = 0
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitHoldCommitSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive
@@ -309,6 +312,7 @@ final class InteractionController {
         pressedHitTapTailDuration = 0
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitHoldCommitSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive
@@ -339,6 +343,7 @@ final class InteractionController {
         pressedHitTapTailDuration = 0
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitHoldCommitSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive
@@ -493,10 +498,11 @@ final class InteractionController {
         } else if let pressedHitAction, pressedHitTrigger == .hold {
             let releasedAction: String
             let releasedTail: CFTimeInterval
+            let pressDuration = now - pressStartedAt
             if let pressedHitRubAction, pressGesturePhase == .rubbing {
                 releasedAction = pressedHitRubAction
                 releasedTail = pressedHitRubTailDuration
-            } else if let pressedHitTapAction, pressGesturePhase == .pendingTap {
+            } else if let pressedHitTapAction, pressDuration < pressedHitHoldCommitSeconds {
                 releasedAction = pressedHitTapAction
                 releasedTail = pressedHitTapTailDuration
             } else {
@@ -516,6 +522,7 @@ final class InteractionController {
         pressedHitTapTailDuration = 0
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
+        pressedHitHoldCommitSeconds = 0
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive

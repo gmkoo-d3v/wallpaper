@@ -162,6 +162,16 @@ final class WallpaperHost: NSObject {
             status: "committed",
             detail: "windows=\(replacementWindows.count) retired=\(oldWindows.count)"
         )
+        if isInitialBuild == false, runtime.config.runtimeInteractionSmoke {
+            scheduleInteractionSmokeAfterDisplayRebuild()
+        }
+    }
+
+    private func scheduleInteractionSmokeAfterDisplayRebuild() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self, self.isRunning else { return }
+            self.runRuntimeInteractionSmoke()
+        }
     }
 
     private func close(windows targetWindows: [NSWindow]) {

@@ -971,6 +971,13 @@ enum ManifestLoader {
         if let holdStartSeconds = hitZone.holdStartSeconds {
             try validateInteractionDuration(holdStartSeconds, label: "hitZone \(hitZone.id) holdStartSeconds")
         }
+        if let holdCommitSeconds = hitZone.holdCommitSeconds {
+            try validateInteractionDuration(holdCommitSeconds, label: "hitZone \(hitZone.id) holdCommitSeconds")
+            let holdStartSeconds = hitZone.holdStartSeconds ?? 0
+            guard holdCommitSeconds >= holdStartSeconds else {
+                throw EngineError.manifest("hitZone \(hitZone.id) holdCommitSeconds must be >= holdStartSeconds")
+            }
+        }
         if let rubStartSeconds = hitZone.rubStartSeconds {
             try validateInteractionDuration(rubStartSeconds, label: "hitZone \(hitZone.id) rubStartSeconds")
         }
