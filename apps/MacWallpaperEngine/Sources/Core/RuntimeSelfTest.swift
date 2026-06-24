@@ -505,8 +505,15 @@ enum RuntimeSelfTest {
         checkRole(primaryRole, policy: manifest.displayPolicy.primary, kind: "primary", failures: &failures, checks: &checks)
         if let primaryRole {
             check(
-                WallpaperHost.shouldIgnoreMouseEvents(runtime: runtime, role: primaryRole),
-                "desktop wallpaper host windows must ignore mouse events so Finder and other desktop targets keep click ownership"
+                WallpaperHost.shouldIgnoreMouseEvents(runtime: runtime, role: primaryRole) == false,
+                "interactive primary wallpaper host windows must receive stable local click events by default"
+            )
+            let passiveRuntime = try NativeRuntimeCore(
+                config: runtime.config.replacing(captureDesktopInput: false)
+            )
+            check(
+                WallpaperHost.shouldIgnoreMouseEvents(runtime: passiveRuntime, role: primaryRole),
+                "explicit no-capture mode must keep primary wallpaper windows mouse-passive for Finder desktop click priority"
             )
             let plainRuntime = try NativeRuntimeCore(
                 config: runtime.config.replacing(plainWindowStyle: true)
@@ -4279,10 +4286,10 @@ enum RuntimeSelfTest {
             ) == DesktopMouseInteractionMonitor.InputSources(
                 useEventTap: false,
                 useLocalMonitor: true,
-                useGlobalMoveMonitor: false,
-                useGlobalClickMonitors: false
+                useGlobalMoveMonitor: true,
+                useGlobalClickMonitors: true
             ),
-            "active diagnostic windows must use local mouse monitoring without global duplicate sources",
+            "active desktop wallpaper windows must use local monitoring plus global fallback so below-desktop-window routing still receives click actions",
             failures: &failures,
             checks: &checks
         )
@@ -4397,6 +4404,46 @@ enum RuntimeSelfTest {
                 hasPresentedVisibleWindow: true
             ) == false,
             "previously visible wallpaper windows may pause when later hidden or fully occluded",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.effectiveInteractionMonitorVisibility(
+                windowIsVisible: true,
+                hasPresentedVisibleWindow: true,
+                startsHidden: false
+            ),
+            "visible wallpaper windows must keep desktop interaction monitor active even when renderer occlusion can pause drawing",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.effectiveInteractionMonitorVisibility(
+                windowIsVisible: false,
+                hasPresentedVisibleWindow: false,
+                startsHidden: false
+            ),
+            "pre-show wallpaper windows may prepare the desktop interaction monitor during normal startup",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.effectiveInteractionMonitorVisibility(
+                windowIsVisible: false,
+                hasPresentedVisibleWindow: false,
+                startsHidden: true
+            ) == false,
+            "start-hidden wallpaper windows must not activate desktop interaction monitor before being shown",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.effectiveInteractionMonitorVisibility(
+                windowIsVisible: false,
+                hasPresentedVisibleWindow: true,
+                startsHidden: false
+            ) == false,
+            "hidden wallpaper windows must stop desktop interaction monitor after they have already been presented",
             failures: &failures,
             checks: &checks
         )
@@ -4612,9 +4659,11 @@ enum RuntimeSelfTest {
                 runtimeInteractive: true,
                 displayRole: primaryRole,
                 interactionPolicy: noDesktopItemBlockPolicy,
-                plainWindowStyle: false
-            ) == false,
-            "desktop wallpaper windows must stay mouse-passive and rely on passive monitors for click delivery",
+                plainWindowStyle: false,
+                captureDesktopInput: true,
+                hasDeclaredInteractions: true
+            ),
+            "interactive desktop wallpaper windows must accept local mouse events by default so packaged launches respond without Accessibility event taps",
             failures: &failures,
             checks: &checks
         )
@@ -4623,7 +4672,22 @@ enum RuntimeSelfTest {
                 runtimeInteractive: true,
                 displayRole: primaryRole,
                 interactionPolicy: noDesktopItemBlockPolicy,
-                plainWindowStyle: true
+                plainWindowStyle: false,
+                captureDesktopInput: true,
+                hasDeclaredInteractions: true
+            ),
+            "explicit desktop input capture may use local mouse events when passive monitors do not deliver input",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+                runtimeInteractive: true,
+                displayRole: primaryRole,
+                interactionPolicy: noDesktopItemBlockPolicy,
+                plainWindowStyle: true,
+                captureDesktopInput: false,
+                hasDeclaredInteractions: true
             ),
             "plain diagnostic wallpaper windows may accept local mouse events for direct delivery debugging",
             failures: &failures,
@@ -4634,9 +4698,11 @@ enum RuntimeSelfTest {
                 runtimeInteractive: true,
                 displayRole: primaryRole,
                 interactionPolicy: interactivePolicy,
-                plainWindowStyle: false
+                plainWindowStyle: false,
+                captureDesktopInput: false,
+                hasDeclaredInteractions: true
             ) == false,
-            "desktop-item blocking bundles must keep wallpaper windows mouse-passive for Finder icon safety",
+            "desktop-item blocking bundles must remain mouse-passive when capture is explicitly disabled",
             failures: &failures,
             checks: &checks
         )
@@ -4665,11 +4731,31 @@ enum RuntimeSelfTest {
             checks: &checks
         )
         check(
+            RuntimeLifecyclePolicy.shouldHandleDirectWallpaperMouseEvents(
+                interactionPolicy: alwaysPolicy,
+                monitorDeliversLocalEvents: true
+            ) == false,
+            "direct NSResponder clicks must be disabled when the local mouse monitor already delivers the same events",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldHandleDirectWallpaperMouseEvents(
+                interactionPolicy: alwaysPolicy,
+                monitorDeliversLocalEvents: false
+            ),
+            "direct NSResponder clicks may handle always-mode events only when no local monitor is delivering them",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
             RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
                 runtimeInteractive: true,
                 displayRole: secondaryRole,
                 interactionPolicy: noDesktopItemBlockPolicy,
-                plainWindowStyle: true
+                plainWindowStyle: true,
+                captureDesktopInput: true,
+                hasDeclaredInteractions: true
             ) == false,
             "secondary wallpaper windows must stay mouse-passive",
             failures: &failures,
@@ -4680,9 +4766,24 @@ enum RuntimeSelfTest {
                 runtimeInteractive: false,
                 displayRole: primaryRole,
                 interactionPolicy: noDesktopItemBlockPolicy,
-                plainWindowStyle: false
+                plainWindowStyle: false,
+                captureDesktopInput: true,
+                hasDeclaredInteractions: true
             ) == false,
             "pass-through mode must keep wallpaper windows mouse-passive",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
+                runtimeInteractive: true,
+                displayRole: primaryRole,
+                interactionPolicy: noDesktopItemBlockPolicy,
+                plainWindowStyle: false,
+                captureDesktopInput: true,
+                hasDeclaredInteractions: false
+            ) == false,
+            "desktop input capture must not make no-interaction wallpaper bundles mouse-active",
             failures: &failures,
             checks: &checks
         )

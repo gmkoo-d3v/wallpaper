@@ -274,6 +274,11 @@ final class WallpaperMetalView: MTKView {
             occlusionVisible: occlusionVisible,
             hasPresentedVisibleWindow: hasPresentedVisibleWindow
         )
+        let isInteractionMonitorVisible = RuntimeLifecyclePolicy.effectiveInteractionMonitorVisibility(
+            windowIsVisible: windowIsVisible,
+            hasPresentedVisibleWindow: hasPresentedVisibleWindow,
+            startsHidden: runtime.config.startHidden
+        )
         if windowIsVisible && occlusionVisible {
             hasPresentedVisibleWindow = true
         }
@@ -283,7 +288,7 @@ final class WallpaperMetalView: MTKView {
         )
         let accessibilityTrusted = accessibilityTrustForInteraction()
         let shouldEnableInteraction = RuntimeLifecyclePolicy.shouldEnableDesktopInteraction(
-            isVisible: isVisible,
+            isVisible: isInteractionMonitorVisible,
             displayRole: displayRole,
             interactionPolicy: interactionPolicy,
             accessibilityTrusted: accessibilityTrusted
@@ -561,8 +566,9 @@ final class WallpaperMetalView: MTKView {
     }
 
     private var shouldHandleDirectMouseEvents: Bool {
-        RuntimeLifecyclePolicy.shouldRouteDirectWallpaperMouseEvents(
-            interactionPolicy: interactionPolicy
+        RuntimeLifecyclePolicy.shouldHandleDirectWallpaperMouseEvents(
+            interactionPolicy: interactionPolicy,
+            monitorDeliversLocalEvents: mouseMonitor?.isDeliveringLocalEvents == true
         )
     }
 

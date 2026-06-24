@@ -5,6 +5,7 @@ struct ControlPanelState {
     let displayMode: DisplayMode
     let primaryDisplaySelector: String?
     let interactive: Bool
+    let captureDesktopInput: Bool
     let renderFps: Int
     let matchDisplayRefresh: Bool
     let playbackRate: Float
@@ -34,6 +35,7 @@ protocol ControlPanelDelegate: AnyObject {
         displayMode: DisplayMode,
         primaryDisplaySelector: String?,
         interactive: Bool,
+        captureDesktopInput: Bool,
         renderFps: Int,
         matchDisplayRefresh: Bool,
         playbackRate: Float,
@@ -119,6 +121,7 @@ final class ControlPanelWindowController: NSWindowController {
     )
     private let primaryDisplayPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interactionToggle = NSButton(checkboxWithTitle: "Desktop interaction", target: nil, action: nil)
+    private let captureDesktopInputToggle = NSButton(checkboxWithTitle: "Capture input", target: nil, action: nil)
     private let interactionDebugOverlayToggle = NSButton(checkboxWithTitle: "Hit-zone overlay", target: nil, action: nil)
     private let fpsControl = NSSegmentedControl(
         labels: ControlPanelWindowController.fpsLabels,
@@ -216,6 +219,7 @@ final class ControlPanelWindowController: NSWindowController {
         reloadPrimaryDisplayPopup(selector: state.primaryDisplaySelector)
         displayModeControl.selectedSegment = segment(for: state.displayMode)
         interactionToggle.state = state.interactive ? .on : .off
+        captureDesktopInputToggle.state = state.captureDesktopInput ? .on : .off
         fpsControl.selectedSegment = segment(forFps: state.renderFps, matchDisplayRefresh: state.matchDisplayRefresh)
         speedControl.selectedSegment = segment(forPlaybackRate: state.playbackRate)
         fitModeControl.selectedSegment = segment(forFitMode: state.fitMode)
@@ -549,6 +553,8 @@ final class ControlPanelWindowController: NSWindowController {
         caption.textColor = NSColor(red: 0.42, green: 0.42, blue: 0.42, alpha: 1)
 
         interactionToggle.font = .systemFont(ofSize: 13, weight: .regular)
+        captureDesktopInputToggle.font = .systemFont(ofSize: 13, weight: .regular)
+        captureDesktopInputToggle.toolTip = "Use direct desktop-window input when passive macOS monitors do not deliver clicks. This can intercept Finder desktop icon clicks while enabled."
         displayModeControl.segmentStyle = .texturedSquare
         for (index, tooltip) in Self.displayModeTooltips.enumerated() {
             displayModeControl.setToolTip(tooltip, forSegment: index)
@@ -562,6 +568,7 @@ final class ControlPanelWindowController: NSWindowController {
         row.addArrangedSubview(primaryCaption)
         row.addArrangedSubview(primaryDisplayPopup)
         row.addArrangedSubview(interactionToggle)
+        row.addArrangedSubview(captureDesktopInputToggle)
         return row
     }
 
@@ -883,6 +890,7 @@ final class ControlPanelWindowController: NSWindowController {
             displayMode: selectedDisplayMode(),
             primaryDisplaySelector: selectedPrimaryDisplaySelector(),
             interactive: interactionToggle.state == .on,
+            captureDesktopInput: captureDesktopInputToggle.state == .on,
             renderFps: selectedFps(),
             matchDisplayRefresh: selectedMatchDisplayRefresh(),
             playbackRate: selectedPlaybackRate(),

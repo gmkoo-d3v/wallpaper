@@ -334,11 +334,16 @@ final class WallpaperHost: NSObject {
             defaultClickTailSeconds: nil,
             releaseFadeSeconds: nil
         )
+        let declarativePlan = DeclarativeBindingPlan(manifest: runtime.manifest)
+        let hasDeclaredInteractions = runtime.manifest.interactions.isEmpty == false
+            || declarativePlan.hasPointerInputBindings
         let acceptsLocalMouseEvents = RuntimeLifecyclePolicy.shouldAcceptLocalWallpaperMouseEvents(
             runtimeInteractive: runtime.config.interactive,
             displayRole: role,
             interactionPolicy: manifestInteractionPolicy,
-            plainWindowStyle: runtime.config.plainWindowStyle
+            plainWindowStyle: runtime.config.plainWindowStyle,
+            captureDesktopInput: runtime.config.captureDesktopInput,
+            hasDeclaredInteractions: hasDeclaredInteractions
         )
         return acceptsLocalMouseEvents == false
     }

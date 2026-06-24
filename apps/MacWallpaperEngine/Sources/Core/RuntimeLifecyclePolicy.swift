@@ -79,6 +79,17 @@ enum RuntimeLifecyclePolicy {
         return false
     }
 
+    static func effectiveInteractionMonitorVisibility(
+        windowIsVisible: Bool,
+        hasPresentedVisibleWindow: Bool,
+        startsHidden: Bool
+    ) -> Bool {
+        if windowIsVisible {
+            return true
+        }
+        return hasPresentedVisibleWindow == false && startsHidden == false
+    }
+
     static func windowWarmupMoments(startHidden: Bool) -> [WindowWarmupMoment] {
         startHidden ? [] : [.beforeOrderFront, .afterOrderFront]
     }
@@ -99,15 +110,20 @@ enum RuntimeLifecyclePolicy {
         runtimeInteractive: Bool,
         displayRole: RenderDisplayRole,
         interactionPolicy: InteractionPolicy,
-        plainWindowStyle: Bool
+        plainWindowStyle: Bool,
+        captureDesktopInput: Bool,
+        hasDeclaredInteractions: Bool
     ) -> Bool {
-        guard plainWindowStyle,
-              runtimeInteractive,
+        guard runtimeInteractive,
               displayRole.allowsInteraction,
-              interactionPolicy.mode != .disabled else {
+              interactionPolicy.mode != .disabled,
+              hasDeclaredInteractions else {
             return false
         }
-        return shouldRouteDirectWallpaperMouseEvents(interactionPolicy: interactionPolicy)
+        if plainWindowStyle {
+            return shouldRouteDirectWallpaperMouseEvents(interactionPolicy: interactionPolicy)
+        }
+        return captureDesktopInput
     }
 
     static func shouldRouteDirectWallpaperMouseEvents(
@@ -121,6 +137,16 @@ enum RuntimeLifecyclePolicy {
         case .disabled:
             return false
         }
+    }
+
+    static func shouldHandleDirectWallpaperMouseEvents(
+        interactionPolicy: InteractionPolicy,
+        monitorDeliversLocalEvents: Bool
+    ) -> Bool {
+        guard monitorDeliversLocalEvents == false else {
+            return false
+        }
+        return shouldRouteDirectWallpaperMouseEvents(interactionPolicy: interactionPolicy)
     }
 
     static func requiresAccessibilityTrustForDesktopItems(_ interactionPolicy: InteractionPolicy) -> Bool {

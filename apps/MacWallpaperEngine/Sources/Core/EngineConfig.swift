@@ -128,6 +128,7 @@ struct EngineConfig {
     let selfTestOnly: Bool
     let startHidden: Bool
     let interactive: Bool
+    let captureDesktopInput: Bool
     let launchControlPanel: Bool
     let launchWallpaper: Bool
     let launchAtLogin: Bool
@@ -141,6 +142,7 @@ struct EngineConfig {
         displayMode: DisplayMode? = nil,
         primaryDisplaySelector: String? = nil,
         interactive: Bool? = nil,
+        captureDesktopInput: Bool? = nil,
         renderFps: Int? = nil,
         matchDisplayRefresh: Bool? = nil,
         playbackRateOverride: Float? = nil,
@@ -242,6 +244,7 @@ struct EngineConfig {
             selfTestOnly: selfTestOnly ?? self.selfTestOnly,
             startHidden: startHidden ?? self.startHidden,
             interactive: interactive ?? self.interactive,
+            captureDesktopInput: captureDesktopInput ?? self.captureDesktopInput,
             launchControlPanel: launchControlPanel ?? self.launchControlPanel,
             launchWallpaper: launchWallpaper ?? self.launchWallpaper,
             launchAtLogin: false,
@@ -270,6 +273,7 @@ struct EngineConfig {
         var explicitDisplayMode = false
         var explicitPrimaryDisplaySelector = false
         var explicitInteractive = false
+        var explicitCaptureDesktopInput = false
         var explicitRenderFps = false
         var explicitPlaybackRateOverride = false
         var explicitFitMode = false
@@ -310,6 +314,7 @@ struct EngineConfig {
         var selfTestOnly = false
         var startHidden = false
         var interactive = true
+        var captureDesktopInput = true
         var launchControlPanel = true
         var launchWallpaper = true
         var launchAtLogin = false
@@ -582,6 +587,12 @@ struct EngineConfig {
             case "--pass-through":
                 interactive = false
                 explicitInteractive = true
+            case "--capture-desktop-input":
+                captureDesktopInput = true
+                explicitCaptureDesktopInput = true
+            case "--no-capture-desktop-input":
+                captureDesktopInput = false
+                explicitCaptureDesktopInput = true
             case "--no-control-panel":
                 launchControlPanel = false
             case "--control-panel-only":
@@ -641,6 +652,9 @@ struct EngineConfig {
             }
             if !explicitInteractive, let persisted = persistedSettings.interactive {
                 interactive = persisted
+            }
+            if !explicitCaptureDesktopInput, let persisted = persistedSettings.captureDesktopInput {
+                captureDesktopInput = persisted
             }
             if !explicitRenderFps, let persisted = persistedSettings.renderFps {
                 renderFps = persisted
@@ -741,6 +755,7 @@ struct EngineConfig {
             selfTestOnly: selfTestOnly,
             startHidden: startHidden,
             interactive: interactive,
+            captureDesktopInput: captureDesktopInput,
             launchControlPanel: launchControlPanel,
             launchWallpaper: launchWallpaper,
             launchAtLogin: launchAtLogin,
@@ -921,6 +936,9 @@ struct EngineConfig {
       --validate-only           Validate manifest and assets without opening windows.
       --hidden                  Build host but keep windows hidden.
       --pass-through            Ignore mouse events and let desktop clicks pass through.
+      --capture-desktop-input   Capture desktop clicks directly so wallpaper interactions work without Accessibility event taps. Default.
+      --no-capture-desktop-input
+                               Keep wallpaper windows mouse-passive and rely on passive input monitors. Finder desktop icons keep click priority, but wallpaper clicks may not work without Accessibility.
       --no-control-panel        Do not show the native control panel.
       --control-panel-only      Show only the control panel; do not start wallpaper windows.
       --wallpaper-only          Start wallpaper windows without the control panel.

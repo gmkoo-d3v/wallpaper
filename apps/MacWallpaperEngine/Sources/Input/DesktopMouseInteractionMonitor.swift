@@ -95,6 +95,10 @@ final class DesktopMouseInteractionMonitor {
         stop()
     }
 
+    var isDeliveringLocalEvents: Bool {
+        isActive && localMonitor != nil
+    }
+
     func start() {
         guard policy.mode != .disabled else {
             isActive = false
@@ -302,8 +306,8 @@ final class DesktopMouseInteractionMonitor {
         return InputSources(
             useEventTap: false,
             useLocalMonitor: true,
-            useGlobalMoveMonitor: false,
-            useGlobalClickMonitors: false
+            useGlobalMoveMonitor: usesPointerMoveMonitoring,
+            useGlobalClickMonitors: true
         )
     }
 
@@ -356,6 +360,9 @@ final class DesktopMouseInteractionMonitor {
     private func startDecision(inputSources: InputSources) -> String {
         if inputSources.useEventTap {
             return "activeEventTap"
+        }
+        if inputSources.useLocalMonitor && inputSources.useGlobalMonitors {
+            return "activeLocalMouse+globalFallback"
         }
         if inputSources.useLocalMonitor {
             return "activeLocalMouse"
