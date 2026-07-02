@@ -13,7 +13,18 @@ enum WallpaperBundleInstaller {
         try WallpaperBundleFilesystemGuard.rejectSymlinkEntries(in: requestedSourceRoot)
 
         let resolvedSourceRoot = requestedSourceRoot.resolvingSymlinksInPath()
-        let sourceBundle = try WallpaperBundleCatalog.requireValidBundle(requestedSourceRoot)
+        let sourceBundle: WallpaperBundleSummary
+        do {
+            sourceBundle = try WallpaperBundleCatalog.requireValidBundle(requestedSourceRoot)
+        } catch {
+            if let importedBundle = try WallpaperEngineApplicationSourceImporter.install(
+                sourceRoot: requestedSourceRoot,
+                libraryDirectory: resolvedLibraryDirectory
+            ) {
+                return importedBundle
+            }
+            throw error
+        }
 
         let libraryDirectory = resolvedLibraryDirectory.standardizedFileURL
         try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
