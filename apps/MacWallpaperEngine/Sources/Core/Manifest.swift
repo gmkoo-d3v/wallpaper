@@ -76,6 +76,7 @@ enum SourceDescriptorKind: String, Decodable {
 
 enum SourceProvenanceType: String, Decodable {
     case wallpaperEngineApplication = "wallpaper-engine-application"
+    case wallpaperEngineVideo = "wallpaper-engine-video"
     case wallpaperEngineScene = "wallpaper-engine-scene"
     case wallpaperEngineWeb = "wallpaper-engine-web"
     case native

@@ -114,10 +114,7 @@ enum WallpaperBundleCatalog {
         guard ProjectPaths.directoryExists(root) else {
             throw EngineError.invalidArgument("Wallpaper bundle is not a directory: \(root.path)")
         }
-        let manifestURL = root.appendingPathComponent("wallpaper.native.json")
-        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
-            throw EngineError.manifest("Wallpaper bundle does not contain wallpaper.native.json: \(root.path)")
-        }
+        let manifestURL = try ManifestLoader.manifestURL(forBundleRoot: root)
 
         let manifest = try ManifestLoader.load(url: manifestURL, bundleRoot: root)
         return WallpaperBundleSummary(
@@ -193,6 +190,10 @@ enum WallpaperBundleCatalog {
         let preview = root.appendingPathComponent("preview.jpg").standardizedFileURL
         if FileManager.default.fileExists(atPath: preview.path) {
             return preview
+        }
+
+        if let wallpaperEnginePreview = ManifestLoader.wallpaperEnginePreviewURL(forBundleRoot: root) {
+            return wallpaperEnginePreview
         }
 
         guard let staticImagePath = manifest.assets.staticImage?.path else {

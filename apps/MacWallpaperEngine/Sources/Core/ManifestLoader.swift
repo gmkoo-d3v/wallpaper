@@ -1,6 +1,15 @@
 import Foundation
 import ImageIO
 
+private struct WallpaperEngineProjectJSON: Decodable {
+    let title: String?
+    let description: String?
+    let type: String
+    let file: String
+    let preview: String?
+    let version: Int?
+}
+
 enum ManifestLoader {
     static func load(url: URL, bundleRoot: URL) throws -> WallpaperNativeManifest {
         let requestedManifestURL = url.standardizedFileURL
@@ -16,12 +25,359 @@ enum ManifestLoader {
             throw EngineError.manifest("manifest must stay inside wallpaper bundle root after resolving symlinks")
         }
 
+        if let adaptedManifest = try loadWallpaperEngineVideoProjectIfNeeded(
+            requestedManifestURL: requestedManifestURL,
+            requestedBundleRoot: requestedRoot,
+            resolvedBundleRoot: root
+        ) {
+            try validate(adaptedManifest, bundleRoot: root, requestedBundleRoot: requestedRoot)
+            return adaptedManifest
+        }
+
         let data = try Data(contentsOf: requestedManifestURL)
         try ManifestSchemaResource.validateManifestData(data)
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(WallpaperNativeManifest.self, from: data)
         try validate(manifest, bundleRoot: root, requestedBundleRoot: requestedRoot)
         return manifest
+    }
+
+    static func manifestURL(forBundleRoot root: URL) throws -> URL {
+        let bundleRoot = root.standardizedFileURL
+        let nativeManifestURL = bundleRoot.appendingPathComponent("wallpaper.native.json")
+        if FileManager.default.fileExists(atPath: nativeManifestURL.path) {
+            return nativeManifestURL
+        }
+        if let projectURL = try findWallpaperEngineProjectJSON(in: bundleRoot) {
+            return projectURL
+        }
+        throw EngineError.manifest("Wallpaper bundle does not contain wallpaper.native.json or a Wallpaper Engine video project.json: \(bundleRoot.path)")
+    }
+
+    static func wallpaperEnginePreviewURL(forBundleRoot root: URL) -> URL? {
+        let bundleRoot = root.standardizedFileURL
+        guard let projectURL = try? findWallpaperEngineProjectJSON(in: bundleRoot),
+              let data = try? Data(contentsOf: projectURL),
+              let project = try? JSONDecoder().decode(WallpaperEngineProjectJSON.self, from: data),
+              let preview = project.preview?.trimmingCharacters(in: .whitespacesAndNewlines),
+              preview.isEmpty == false,
+              let previewURL = try? resolveWallpaperEngineProjectAsset(
+                preview,
+                projectURL: projectURL,
+                requestedBundleRoot: bundleRoot
+              ),
+              FileManager.default.fileExists(atPath: previewURL.path) else {
+            return nil
+        }
+        return previewURL
+    }
+
+    private static func loadWallpaperEngineVideoProjectIfNeeded(
+        requestedManifestURL: URL,
+        requestedBundleRoot: URL,
+        resolvedBundleRoot: URL
+    ) throws -> WallpaperNativeManifest? {
+        let fileManager = FileManager.default
+        let requestedName = requestedManifestURL.lastPathComponent
+        let projectURL: URL?
+
+        if requestedName == "project.json" {
+            projectURL = requestedManifestURL
+        } else if requestedName == "wallpaper.native.json",
+                  fileManager.fileExists(atPath: requestedManifestURL.path) == false {
+            projectURL = try findWallpaperEngineProjectJSON(in: requestedBundleRoot)
+        } else {
+            projectURL = nil
+        }
+
+        guard let projectURL else { return nil }
+        let resolvedProjectURL = projectURL.standardizedFileURL.resolvingSymlinksInPath()
+        guard resolvedProjectURL.path.hasPrefix(resolvedBundleRoot.path + "/") || resolvedProjectURL.path == resolvedBundleRoot.path else {
+            throw EngineError.manifest("Wallpaper Engine project.json must stay inside wallpaper bundle root after resolving symlinks")
+        }
+
+        let data = try Data(contentsOf: projectURL)
+        let project = try JSONDecoder().decode(WallpaperEngineProjectJSON.self, from: data)
+        return try makeWallpaperEngineVideoManifest(
+            project: project,
+            projectURL: projectURL,
+            requestedBundleRoot: requestedBundleRoot
+        )
+    }
+
+    private static func makeWallpaperEngineVideoManifest(
+        project: WallpaperEngineProjectJSON,
+        projectURL: URL,
+        requestedBundleRoot: URL
+    ) throws -> WallpaperNativeManifest {
+        guard project.type == "video" else {
+            throw EngineError.manifest("Wallpaper Engine project.json type must be video, got \(project.type)")
+        }
+
+        let videoURL = try resolveWallpaperEngineProjectAsset(
+            project.file,
+            projectURL: projectURL,
+            requestedBundleRoot: requestedBundleRoot
+        )
+        let videoPath = try relativePath(from: requestedBundleRoot, to: videoURL)
+        let projectPath = try relativePath(from: requestedBundleRoot, to: projectURL)
+        let bundleID = sanitizedBundleID(requestedBundleRoot.lastPathComponent)
+
+        return WallpaperNativeManifest(
+            schemaVersion: "macos-wallpaper-native.v2",
+            metadata: WallpaperMetadata(
+                id: bundleID,
+                title: trimmedNonEmpty(project.title),
+                author: nil,
+                version: project.version.map(String.init),
+                description: trimmedNonEmpty(project.description)
+            ),
+            sourceProvenance: SourceProvenance(
+                sourceType: .wallpaperEngineVideo,
+                sourceRuntime: "wallpaper-engine",
+                projectType: "video",
+                sourceDescriptors: [
+                    SourceDescriptor(kind: .wallpaperEngineProjectJSON, path: projectPath)
+                ],
+                sourceAdapter: SourceAdapterContract(
+                    id: "wallpaper-engine-video-project-adapter",
+                    version: "1",
+                    kind: "project-json-video",
+                    fieldDerivations: [
+                        SourceAdapterFieldDerivation(
+                            field: "assets.video.path",
+                            mode: .imported,
+                            source: "project.json:file",
+                            owner: nil,
+                            requiredCapability: nil,
+                            reason: nil
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "metadata.title",
+                            mode: .imported,
+                            source: "project.json:title",
+                            owner: nil,
+                            requiredCapability: nil,
+                            reason: nil
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "metadata.description",
+                            mode: .imported,
+                            source: "project.json:description",
+                            owner: nil,
+                            requiredCapability: nil,
+                            reason: nil
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "layers",
+                            mode: .imported,
+                            source: "project.json:type",
+                            owner: nil,
+                            requiredCapability: nil,
+                            reason: "A Wallpaper Engine video project maps to one native video layer."
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "runtime",
+                            mode: .platformPolicy,
+                            source: nil,
+                            owner: "mac-wallpaper-engine",
+                            requiredCapability: nil,
+                            reason: "The native runtime owns scheduling, FPS, and audio policy for imported video projects."
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "displayPolicy",
+                            mode: .platformPolicy,
+                            source: nil,
+                            owner: "mac-wallpaper-engine",
+                            requiredCapability: nil,
+                            reason: "Display roles are mapped to the macOS wallpaper host policy."
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "thermalPolicy",
+                            mode: .platformPolicy,
+                            source: nil,
+                            owner: "mac-wallpaper-engine",
+                            requiredCapability: nil,
+                            reason: "Thermal behavior is controlled by the macOS runtime."
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "layerBudgets",
+                            mode: .platformPolicy,
+                            source: nil,
+                            owner: "mac-wallpaper-engine",
+                            requiredCapability: nil,
+                            reason: "Resource budgets are runtime safety limits, not Wallpaper Engine project fields."
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "general.properties",
+                            mode: .unsupported,
+                            source: "project.json:general.properties",
+                            owner: "mac-wallpaper-engine",
+                            requiredCapability: "declarative-properties",
+                            reason: "Generic Wallpaper Engine properties are not executed by the safe video adapter."
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "script",
+                            mode: .unsupported,
+                            source: nil,
+                            owner: "mac-wallpaper-engine",
+                            requiredCapability: "safe-script-runtime",
+                            reason: "Arbitrary Wallpaper Engine scripts are not executed."
+                        ),
+                        SourceAdapterFieldDerivation(
+                            field: "effects",
+                            mode: .unsupported,
+                            source: nil,
+                            owner: "mac-wallpaper-engine",
+                            requiredCapability: "effect-whitelist",
+                            reason: "Wallpaper Engine shader/effect import is not part of the video adapter."
+                        )
+                    ],
+                    capabilities: ["video-layer", "project-json-import"],
+                    limitations: [
+                        "Wallpaper Engine script execution is not imported by the video adapter.",
+                        "Wallpaper Engine effect/shader settings are not imported by the video adapter."
+                    ]
+                ),
+                importedFields: ["metadata.title", "metadata.description", "assets.video.path", "layers"],
+                calibratedFields: nil,
+                platformPolicyFields: ["runtime", "displayPolicy", "thermalPolicy", "layerBudgets"],
+                unsupportedFields: ["general.properties", "script", "effects"],
+                notes: ["Synthesized from Wallpaper Engine project.json because no wallpaper.native.json was present."]
+            ),
+            runtime: RuntimeConfig(
+                kind: "native-metal",
+                targetFps: 60,
+                maxFps: 120,
+                fallbackFps: 30,
+                idleRenderFps: nil,
+                nativeSpinePoseFps: nil,
+                nativeSpineIdlePoseFps: nil,
+                nativeSpineTransitionSeconds: nil,
+                nativeSpineTransitionPolicy: nil,
+                physicsIdlePolicy: nil,
+                audioPolicy: .muted,
+                performanceTiers: nil,
+                scheduler: SchedulerConfig(
+                    maxInFlightCommandBuffers: 1,
+                    lateFramePolicy: "drop",
+                    catchUp: false
+                )
+            ),
+            displayPolicy: DisplayPolicy(
+                primary: .full,
+                secondary: .full,
+                fullscreenObscured: .pause,
+                occluded: .pause
+            ),
+            thermalPolicy: ThermalPolicy(
+                nominal: "60fps",
+                serious: "30fps",
+                critical: "pause"
+            ),
+            layerBudgets: LayerBudgets(
+                maxTexturePages: 1,
+                maxTextureDimension: 8192,
+                rssTargetMb: 180,
+                rssHardMb: 360,
+                primaryCpuTargetPercent: 8,
+                cpuDowngradePercent: 16,
+                cpuDowngradeWindowSeconds: 10
+            ),
+            interactionPolicy: nil,
+            assets: AssetManifest(
+                staticImage: nil,
+                video: VideoAssetConfig(id: "backgroundVideo", path: videoPath, playbackRate: 1.0),
+                compositeVideo: nil,
+                spine: nil
+            ),
+            layers: [
+                LayerConfig(
+                    id: "background",
+                    type: .video,
+                    asset: "backgroundVideo",
+                    renderingMode: nil,
+                    foregroundOcclusion: nil
+                )
+            ],
+            interactions: [],
+            bindings: nil,
+            effects: nil,
+            validation: ValidationConfig(
+                bundleRootOnly: true,
+                requirePremultipliedAlpha: false,
+                requireSpineVersion: "4.2.x",
+                rejectUnknownLayerTypes: true
+            )
+        )
+    }
+
+    private static func findWallpaperEngineProjectJSON(in root: URL) throws -> URL? {
+        let bundleRoot = root.standardizedFileURL
+        let rootProjectURL = bundleRoot.appendingPathComponent("project.json")
+        if FileManager.default.fileExists(atPath: rootProjectURL.path) {
+            return rootProjectURL
+        }
+
+        let children = try FileManager.default.contentsOfDirectory(
+            at: bundleRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
+        let projectURLs = children
+            .filter(ProjectPaths.directoryExists)
+            .map { $0.appendingPathComponent("project.json") }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+
+        guard projectURLs.count <= 1 else {
+            throw EngineError.manifest("Wallpaper bundle contains multiple Wallpaper Engine project.json files; select a specific project directory")
+        }
+        return projectURLs.first
+    }
+
+    private static func resolveWallpaperEngineProjectAsset(
+        _ path: String,
+        projectURL: URL,
+        requestedBundleRoot: URL
+    ) throws -> URL {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            throw EngineError.manifest("Wallpaper Engine project.json file path must not be empty")
+        }
+        guard trimmed.hasPrefix("/") == false,
+              trimmed.contains("\\") == false,
+              trimmed.split(separator: "/").contains("..") == false else {
+            throw EngineError.manifest("Wallpaper Engine project.json asset path must be relative and must not escape the project")
+        }
+        let assetURL = projectURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(trimmed)
+            .standardizedFileURL
+        _ = try relativePath(from: requestedBundleRoot, to: assetURL)
+        return assetURL
+    }
+
+    private static func relativePath(from root: URL, to url: URL) throws -> String {
+        let rootPath = root.standardizedFileURL.path
+        let urlPath = url.standardizedFileURL.path
+        guard urlPath.hasPrefix(rootPath + "/") else {
+            throw EngineError.manifest("Wallpaper Engine project asset must stay inside wallpaper bundle root")
+        }
+        return String(urlPath.dropFirst(rootPath.count + 1))
+    }
+
+    private static func sanitizedBundleID(_ value: String) -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+        let scalars = value.unicodeScalars.map { allowed.contains($0) ? Character($0) : "_" }
+        let id = String(scalars).trimmingCharacters(in: CharacterSet(charactersIn: "._-"))
+        return id.isEmpty ? "wallpaper_engine_video" : id
+    }
+
+    private static func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func validate(
