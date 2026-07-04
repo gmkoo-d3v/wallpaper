@@ -359,8 +359,8 @@ enum ManifestLoader {
     }
 
     private static func relativePath(from root: URL, to url: URL) throws -> String {
-        let rootPath = root.standardizedFileURL.path
-        let urlPath = url.standardizedFileURL.path
+        let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
+        let urlPath = url.standardizedFileURL.resolvingSymlinksInPath().path
         guard urlPath.hasPrefix(rootPath + "/") else {
             throw EngineError.manifest("Wallpaper Engine project asset must stay inside wallpaper bundle root")
         }
@@ -672,8 +672,8 @@ enum ManifestLoader {
     }
 
     private static func validateLayerBudgets(_ budgets: LayerBudgets) throws {
-        guard budgets.maxTextureDimension > 0 else {
-            throw EngineError.manifest("layerBudgets.maxTextureDimension must be positive")
+        guard budgets.maxTextureDimension > 0, budgets.maxTextureDimension <= 16384 else {
+            throw EngineError.manifest("layerBudgets.maxTextureDimension must satisfy 0 < value <= 16384")
         }
         guard budgets.rssTargetMb > 0, budgets.rssHardMb >= budgets.rssTargetMb else {
             throw EngineError.manifest("layerBudgets RSS values must satisfy 0 < rssTargetMb <= rssHardMb")
@@ -1062,6 +1062,9 @@ enum ManifestLoader {
             }
             guard case .spineBone = target else {
                 throw EngineError.manifest("binding \(bindingID) smooth-lookat adapter requires a spine.bone target")
+            }
+            if let factor = adapter.factor, factor.count < 2 {
+                throw EngineError.manifest("binding \(bindingID) smooth-lookat adapter.factor must declare both x and y factors")
             }
         case .triggerPlay:
             guard source == .pointerDown else {
@@ -1466,8 +1469,7 @@ enum ManifestLoader {
     }
 
     @discardableResult
-    private static func validateRelativePath(_ path: String?, bundleRoot: URL) throws -> URL {
-        guard let path else { return bundleRoot }
+    private static func validateRelativePath(_ path: String, bundleRoot: URL) throws -> URL {
         guard path.hasPrefix("/") == false else {
             throw EngineError.manifest("asset path must be relative: \(path)")
         }
@@ -1513,8 +1515,7 @@ enum ManifestLoader {
             throw EngineError.asset("Spine JSON missing skeleton.spine")
         }
 
-        let requiredPrefix = requiredVersion.replacingOccurrences(of: "x", with: "")
-        guard actualVersion.hasPrefix(requiredPrefix) else {
+        guard spineVersionMatches(actual: actualVersion, required: requiredVersion) else {
             throw EngineError.asset("Spine JSON version \(actualVersion) does not match \(requiredVersion)")
         }
 
@@ -1524,6 +1525,20 @@ enum ManifestLoader {
         for action in referencedActions where animations[action] == nil {
             throw EngineError.asset("interaction references missing Spine animation: \(action)")
         }
+    }
+
+    private static func spineVersionMatches(actual: String, required: String) -> Bool {
+        let requiredComponents = required.split(separator: ".", omittingEmptySubsequences: false)
+        let actualComponents = actual.split(separator: ".", omittingEmptySubsequences: false)
+        for (index, requiredComponent) in requiredComponents.enumerated() {
+            if requiredComponent == "x" {
+                return true
+            }
+            guard index < actualComponents.count, actualComponents[index] == requiredComponent else {
+                return false
+            }
+        }
+        return true
     }
 
     private static func referencedAnimationActions(

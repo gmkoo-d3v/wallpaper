@@ -6,12 +6,13 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     static let pausedFirstFramePolicy = "draw-static-fallback-before-pausing"
     static let telemetryPublishIntervalSeconds: CFTimeInterval = 0.5
 
-    private static let fallbackClearColor = MTLClearColor(
+    static let fallbackClearColor = MTLClearColor(
         red: 0.95,
         green: 0.95,
         blue: 0.965,
         alpha: 1.0
     )
+    private static let staleVideoFrameWarningThreshold = 60
 
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
@@ -39,6 +40,8 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
     private var solidOverlayTexture: MTLTexture?
     private var usingCompositeVideo = false
     private var fallbackBackground: MTLTexture?
+    private var didLogMissingBackgroundTexture = false
+    private var consecutiveStalePrimaryVideoFrames = 0
     private var lastPrimaryVideoTexture: MTLTexture?
     private var lastResourceFallbackVideoTexture: MTLTexture?
     private var lastDeskOcclusionTexture: MTLTexture?
@@ -171,10 +174,18 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
 
         let fallbackImageURL = runtime.assetCatalog.staticImageAssetURL
             ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
-        self.fallbackBackground = (try? textureLoader.newTexture(
-            URL: fallbackImageURL,
-            options: [.SRGB: false]
-        )) ?? Self.makeSolidBackgroundTexture(device: device)
+        do {
+            self.fallbackBackground = try textureLoader.newTexture(
+                URL: fallbackImageURL,
+                options: [.SRGB: false]
+            )
+        } catch {
+            fputs(
+                "Failed to load fallback background texture at \(fallbackImageURL.path): \(error)\n",
+                stderr
+            )
+            self.fallbackBackground = Self.makeSolidBackgroundTexture(device: device)
+        }
 
         if foregroundPlan.usesNativeSpine,
            usingCompositeVideo == false,
@@ -334,9 +345,21 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             }
             baseVideoTexture = freshTexture ?? lastResourceFallbackVideoTexture
         } else {
-            let freshTexture = videoSource?.copyTextureForCurrentTime()
+            let frameResult = videoSource?.copyTextureForCurrentTimeReportingFreshness()
+            let freshTexture = frameResult?.texture
             if let freshTexture {
                 lastPrimaryVideoTexture = freshTexture
+            }
+            if frameResult?.isNewFrame == true {
+                if consecutiveStalePrimaryVideoFrames >= Self.staleVideoFrameWarningThreshold {
+                    fputs("Primary video frame source recovered after \(consecutiveStalePrimaryVideoFrames) stale frames\n", stderr)
+                }
+                consecutiveStalePrimaryVideoFrames = 0
+            } else {
+                consecutiveStalePrimaryVideoFrames += 1
+                if consecutiveStalePrimaryVideoFrames == Self.staleVideoFrameWarningThreshold {
+                    fputs("Primary video frame source has not produced a fresh frame in \(consecutiveStalePrimaryVideoFrames) draw calls; reusing last texture\n", stderr)
+                }
             }
             baseVideoTexture = freshTexture ?? lastPrimaryVideoTexture
         }
@@ -363,6 +386,10 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             )
         } else {
             foregroundContentRect = CGRect(x: -1, y: -1, width: 2, height: 2)
+            if didLogMissingBackgroundTexture == false {
+                didLogMissingBackgroundTexture = true
+                fputs("No background texture available (video and fallback both nil); rendering degenerate content rect\n", stderr)
+            }
         }
 
         if shouldPause == false, isUsingResourceFallbackVideo == false {

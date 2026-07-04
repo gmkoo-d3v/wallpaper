@@ -81,7 +81,14 @@ enum CompositeVideoExporter {
             height: options.height
         )
         for frameIndex in 0..<frameCount {
+            let readinessDeadline = Date().addingTimeInterval(10)
             while input.isReadyForMoreMediaData == false {
+                if let writerError = writer.error {
+                    throw writerError
+                }
+                guard Date() < readinessDeadline else {
+                    throw EngineError.renderer("Composite export writer stalled waiting for input readiness at frame \(frameIndex)")
+                }
                 Thread.sleep(forTimeInterval: 0.001)
             }
 

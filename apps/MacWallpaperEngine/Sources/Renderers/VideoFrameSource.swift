@@ -83,21 +83,25 @@ final class VideoFrameSource: NSObject {
     }
 
     func copyTextureForCurrentTime() -> MTLTexture? {
+        copyTextureForCurrentTimeReportingFreshness().texture
+    }
+
+    func copyTextureForCurrentTimeReportingFreshness() -> (texture: MTLTexture?, isNewFrame: Bool) {
         lock.lock()
         defer { lock.unlock() }
 
         let hostTime = CACurrentMediaTime()
         guard item.status == .readyToPlay else {
-            return lastTexture.flatMap(CVMetalTextureGetTexture)
+            return (lastTexture.flatMap(CVMetalTextureGetTexture), false)
         }
 
         let itemTime = output.itemTime(forHostTime: hostTime)
         guard output.hasNewPixelBuffer(forItemTime: itemTime) else {
-            return lastTexture.flatMap(CVMetalTextureGetTexture)
+            return (lastTexture.flatMap(CVMetalTextureGetTexture), false)
         }
         guard let pixelBuffer = output.copyPixelBuffer(forItemTime: itemTime, itemTimeForDisplay: nil),
               let textureCache else {
-            return lastTexture.flatMap(CVMetalTextureGetTexture)
+            return (lastTexture.flatMap(CVMetalTextureGetTexture), false)
         }
 
         let width = CVPixelBufferGetWidth(pixelBuffer)
@@ -115,14 +119,14 @@ final class VideoFrameSource: NSObject {
             &cvTexture
         )
         guard status == kCVReturnSuccess, let cvTexture else {
-            return lastTexture.flatMap(CVMetalTextureGetTexture)
+            return (lastTexture.flatMap(CVMetalTextureGetTexture), false)
         }
         lastTexture = cvTexture
         frameCounter += 1
         if frameCounter % 120 == 0 {
             CVMetalTextureCacheFlush(textureCache, 0)
         }
-        return CVMetalTextureGetTexture(cvTexture)
+        return (CVMetalTextureGetTexture(cvTexture), true)
     }
 
     @objc private func loopVideo() {

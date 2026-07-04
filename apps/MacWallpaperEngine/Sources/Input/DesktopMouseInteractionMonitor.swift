@@ -899,12 +899,15 @@ enum DesktopInteractionGate {
             return true
         }
 
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(appKitPoint) }) else {
+        // AppKit's global screen space and Quartz's global window space share the same
+        // origin display (the primary/menu-bar screen), so the flip must always be anchored
+        // to that screen's frame, not the frame of whichever screen the point happens to fall in.
+        guard let primaryScreen = NSScreen.screens.first else {
             return false
         }
         let flipped = CGPoint(
             x: appKitPoint.x,
-            y: screen.frame.maxY - (appKitPoint.y - screen.frame.minY)
+            y: primaryScreen.frame.maxY - appKitPoint.y
         )
         return bounds.contains(flipped)
     }

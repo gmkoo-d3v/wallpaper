@@ -341,8 +341,8 @@ enum RuntimeSourceProvenanceReport {
         guard let provenance else {
             return "source=unknown runtime=unspecified project=unspecified"
         }
-        let sourceRuntime = provenance.sourceRuntime ?? "unspecified"
-        let projectType = provenance.projectType ?? "unspecified"
+        let sourceRuntime = sanitizedTabularField(provenance.sourceRuntime ?? "unspecified")
+        let projectType = sanitizedTabularField(provenance.projectType ?? "unspecified")
         let descriptorCount = provenance.sourceDescriptors?.count ?? 0
         return [
             "source=\(provenance.sourceType.rawValue)",
@@ -350,6 +350,13 @@ enum RuntimeSourceProvenanceReport {
             "project=\(projectType)",
             "descriptors=\(descriptorCount)"
         ].joined(separator: " ")
+    }
+
+    private static func sanitizedTabularField(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
     }
 
     private static func invalidDiagnosticsDetails(_ diagnostics: [WallpaperBundleDiagnostic]) -> String {

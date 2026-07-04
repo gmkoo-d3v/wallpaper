@@ -44,7 +44,9 @@ enum WallpaperBundleInstaller {
             safeDirectoryName(for: sourceBundle.id),
             isDirectory: true
         )
-        if FileManager.default.fileExists(atPath: destination.path) {
+        do {
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        } catch let error as CocoaError where error.code == .fileWriteFileExists {
             throw EngineError.invalidArgument("Wallpaper library destination already exists: \(destination.path)")
         }
 
@@ -59,7 +61,6 @@ enum WallpaperBundleInstaller {
 
     private static func copyBundle(from source: URL, to destination: URL) throws {
         let fileManager = FileManager.default
-        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
 
         guard let enumerator = fileManager.enumerator(
             at: source,

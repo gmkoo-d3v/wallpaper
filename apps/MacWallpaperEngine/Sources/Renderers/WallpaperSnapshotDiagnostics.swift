@@ -106,7 +106,7 @@ struct WallpaperSnapshotDiagnostics {
             let passDescriptor = MTLRenderPassDescriptor()
             passDescriptor.colorAttachments[0].texture = renderTexture
             passDescriptor.colorAttachments[0].loadAction = .clear
-            passDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(1, 1, 1, 1)
+            passDescriptor.colorAttachments[0].clearColor = MetalCompositor.fallbackClearColor
             passDescriptor.colorAttachments[0].storeAction = .store
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor) else {
                 throw EngineError.renderer("Could not create Metal render encoder for wallpaper snapshot")

@@ -1653,6 +1653,12 @@ private struct SpineFeatureScan {
             if key == "damping", value < 0 {
                 return "physics/\(name):invalid-range=damping"
             }
+            if key == "mass", value <= 0 {
+                return "physics/\(name):invalid-range=mass"
+            }
+            if key == "fps", value <= 0 {
+                return "physics/\(name):invalid-range=fps"
+            }
         }
         return nil
     }

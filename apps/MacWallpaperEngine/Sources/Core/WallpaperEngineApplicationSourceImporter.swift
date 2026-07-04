@@ -83,7 +83,8 @@ enum WallpaperEngineApplicationSourceImporter {
                 continue
             }
             let bundleKeys = matchKeys(for: manifest, summary: bundle)
-            if targetKeys.isDisjoint(with: bundleKeys) == false {
+            let requiredMatches = min(targetKeys.count, 2)
+            if targetKeys.intersection(bundleKeys).count >= requiredMatches {
                 return bundle
             }
         }
