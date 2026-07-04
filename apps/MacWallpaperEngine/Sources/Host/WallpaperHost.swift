@@ -13,6 +13,7 @@ final class WallpaperHost: NSObject {
     private var retiringWindows: [NSWindow] = []
     private var pendingDisplayRebuild: DispatchWorkItem?
     private var isRunning = false
+    private var lastKnownScreenConfigurationSignature: String?
 
     init(runtime: NativeRuntimeCore) throws {
         self.runtime = runtime
@@ -90,6 +91,15 @@ final class WallpaperHost: NSObject {
     private func performDisplayRebuild() {
         pendingDisplayRebuild = nil
         guard isRunning else { return }
+        let currentSignature = Self.screenConfigurationSignature(NSScreen.screens)
+        guard currentSignature != lastKnownScreenConfigurationSignature else {
+            runtime.telemetry.recordDisplayLifecycle(
+                event: "display-rebuild",
+                status: "skipped",
+                detail: "screen configuration unchanged; ignoring spurious screen-parameter notification (e.g. an unrelated window minimizing/restoring) to avoid an unnecessary window/renderer rebuild"
+            )
+            return
+        }
         do {
             try rebuildWindows()
         } catch {
@@ -102,10 +112,18 @@ final class WallpaperHost: NSObject {
         }
     }
 
+    private static func screenConfigurationSignature(_ screens: [NSScreen]) -> String {
+        screens.map { screen in
+            let frame = screen.frame
+            return "\(screen.displayID ?? 0):\(Int(frame.origin.x)),\(Int(frame.origin.y)),\(Int(frame.width)),\(Int(frame.height)):\(screen.backingScaleFactor)"
+        }.joined(separator: "|")
+    }
+
     private func rebuildWindows() throws {
         let isInitialBuild = isRunning == false
         let replacementWindows = try makeReplacementWindows()
         try replaceWindows(with: replacementWindows, isInitialBuild: isInitialBuild)
+        lastKnownScreenConfigurationSignature = Self.screenConfigurationSignature(NSScreen.screens)
     }
 
     private func makeReplacementWindows() throws -> [NSWindow] {

@@ -136,12 +136,14 @@ final class VideoFrameSource: NSObject {
             return
         }
         isLooping = true
-        let cache = textureCache
         lock.unlock()
 
-        if let cache {
-            CVMetalTextureCacheFlush(cache, 0)
-        }
+        // Do not flush the texture cache here: the render loop may still have
+        // GPU work in flight against the last-produced texture (command buffers
+        // are submitted asynchronously), and flushing right at the loop boundary
+        // raced with that in-flight read and produced a visible flash. The
+        // periodic flush in copyTextureForCurrentTimeReportingFreshness already
+        // reclaims cache resources on its own cadence, independent of looping.
         item.seek(to: .zero) { [weak self] _ in
             guard let self else { return }
             self.lock.lock()
