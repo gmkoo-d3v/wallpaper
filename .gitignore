@@ -64,5 +64,5 @@ converted/
 preview_intermediate/
 preview_assets/
 
-# Large working wallpaper source archives (raw downloads, not bundle content)
-wallpapers/*.zip
+# Wallpaper assets (copyright / sensitive content — never committed)
+wallpapers/
