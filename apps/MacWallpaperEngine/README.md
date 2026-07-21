@@ -502,7 +502,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 
 ## Renderer Parity Priority
 
-- Treat `~/project/wall-paper/archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported` as the original Unity package source of truth.
+- Treat `archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported` (relative to the repository root) as the original Unity package source of truth.
 - Importing that source package through `--install-bundle` is supported through
   a safe native source adapter: the app reads `project.json`, validates the
   relative application file path, and maps the known source to
@@ -522,7 +522,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 ## Run
 
 ```bash
-cd ~/project/wall-paper/apps/MacWallpaperEngine
+cd apps/MacWallpaperEngine  # run from the repository root after cloning
 swift run MacWallpaperEngine --validate-only
 swift run MacWallpaperEngine --runtime-capabilities
 swift run MacWallpaperEngine --composite-quality-plan
@@ -542,7 +542,7 @@ swift run MacWallpaperEngine --write-manual-smoke-template /path/to/manual-smoke
 swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --live-click-actions-note "Observed head tap, stationary hold, held rub, empty click no-action, and gaze directions." --confirm-physical-display-hotplug --physical-display-hotplug-event wake --physical-display-hotplug-note "Observed display wake; selectedOnly, selectedPolicy, and allFull restored on external secondary displays AOC and LG; Displays have separate Spaces enabled." --confirm-black-frame-flicker
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
-swift run MacWallpaperEngine --install-bundle ~/project/wall-paper/archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported --install-library /tmp/mac-wallpaper-library
+swift run MacWallpaperEngine --install-bundle ../../archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported --install-library /tmp/mac-wallpaper-library
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
 swift run MacWallpaperEngine --doctor
 swift run MacWallpaperEngine --source-provenance
@@ -603,7 +603,7 @@ behavior.
 Packaged app:
 
 ```bash
-~/project/wall-paper/dist/MacWallpaperEngine.app
+dist/MacWallpaperEngine.app  # relative to the repository root
 ```
 
 Input and package note:
