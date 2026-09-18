@@ -1,3 +1,10 @@
+# By default ignore everything; keep only apps/ (negate pattern)
+/*
+!/.gitignore
+!/.gitattributes
+!apps/
+
+
 # macOS metadata
 .DS_Store
 **/.DS_Store
