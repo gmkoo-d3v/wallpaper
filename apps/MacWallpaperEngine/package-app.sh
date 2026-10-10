@@ -14,6 +14,18 @@ WALLPAPER_SOURCE="$PROJECT_ROOT/wallpapers"
 WALLPAPER_DEST="$RESOURCES_DIR/wallpapers"
 SCHEMA_SOURCE="$SCRIPT_DIR/Resources/schemas/wallpaper-native-v2.schema.json"
 SCHEMA_DEST="$RESOURCES_DIR/schemas"
+# Inert Windows originals (Wallpaper Engine application sources) stay in the repo
+# wallpapers/ tree for provenance but are excluded from packaged bundles to keep
+# the .app slim. The runtime reads only wallpaper.native.json plus bundle assets,
+# and source descriptors (project.json, source/*.json) still resolve in the
+# packaged copy. No-ops for bundles without these files (e.g. sample_imported).
+PACKAGE_COPY_EXCLUDES=(
+  --exclude "Synthetic_Imported_Data/"
+  --exclude "MonoBleedingEdge/"
+  --exclude "D3D12/"
+  --exclude "*.exe"
+  --exclude "*.dll"
+)
 STRICT_COMPOSITE_QUALITY="${STRICT_COMPOSITE_QUALITY:-0}"
 PACKAGE_VALIDATE_ONLY="${PACKAGE_VALIDATE_ONLY:-0}"
 PACKAGE_SMOKE_TEST="${PACKAGE_SMOKE_TEST:-0}"
@@ -358,6 +370,7 @@ for bundle_dir in "$WALLPAPER_SOURCE"/*; do
     --exclude ".Spotlight-V100/" \
     --exclude ".Trashes/" \
     --exclude "__MACOSX/" \
+    "${PACKAGE_COPY_EXCLUDES[@]}" \
     "$bundle_dir/" "$WALLPAPER_DEST/$bundle_name/"
 
   validate_wallpaper_bundle "$WALLPAPER_DEST/$bundle_name" "$bundle_name" "Packaged"
@@ -407,12 +420,14 @@ printf "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
 write_package_runtime_metadata
 
-if ! "$MACOS_DIR/$APP_NAME" --self-test >/dev/null; then
+# Scope self-test bundle discovery to the packaged fixture instead of the real
+# user library, so the gate is deterministic and machine-state independent.
+if ! "$MACOS_DIR/$APP_NAME" --self-test --bundle-library "$WALLPAPER_DEST" >/dev/null; then
   echo "Packaged app self-test failed: $APP_DIR" >&2
   exit 1
 fi
 
-if ! "$MACOS_DIR/$APP_NAME" --validate-bundles --strict-composite-quality >/dev/null; then
+if ! "$MACOS_DIR/$APP_NAME" --validate-bundles --strict-composite-quality --bundle-library "$WALLPAPER_DEST" >/dev/null; then
   echo "Packaged app bundle validation matrix failed: $APP_DIR" >&2
   exit 1
 fi

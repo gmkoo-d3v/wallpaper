@@ -284,18 +284,20 @@ struct SpineGeometryDiagnostics {
     private static func manifestActionNames(_ manifest: WallpaperNativeManifest) -> [String] {
         var names = Set<String>()
         for interaction in manifest.interactions {
-            interaction.actions?.values.forEach { names.insert($0) }
+            interaction.actions?.values.forEach { value in
+                SpineInteractionAnimationRoles.components(of: value).forEach { names.insert($0) }
+            }
             interaction.hitZones?.forEach {
-                names.insert($0.action)
+                SpineInteractionAnimationRoles.components(of: $0.action).forEach { names.insert($0) }
                 if let tapAction = $0.tapAction {
-                    names.insert(tapAction)
+                    SpineInteractionAnimationRoles.components(of: tapAction).forEach { names.insert($0) }
                 }
                 if let rubAction = $0.rubAction {
-                    names.insert(rubAction)
+                    SpineInteractionAnimationRoles.components(of: rubAction).forEach { names.insert($0) }
                 }
             }
             if let defaultAction = interaction.defaultAction {
-                names.insert(defaultAction.action)
+                SpineInteractionAnimationRoles.components(of: defaultAction.action).forEach { names.insert($0) }
             }
         }
         if names.isEmpty {

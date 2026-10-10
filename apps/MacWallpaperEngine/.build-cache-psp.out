@@ -1,0 +1,62 @@
+source provenance OK
+bundle: /Users/gm/project/wall-paper/wallpapers/sample_imported
+manifest: /Users/gm/project/wall-paper/wallpapers/sample_imported/wallpaper.native.json
+sourceType: wallpaper-engine-application
+sourceRuntime: Unity
+projectType: application
+boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter
+policy: wallpaper-specific placement, hit zones, action names, timing, and neutral points must stay in the manifest or importer output.
+consistency: sourceProvenance: pass behaviorScripts=Assembly-CSharp:4 calibratedBlockers=Assembly-CSharp.FaceTrackerBindingCalibration=2,Assembly-CSharp.SpineFaceTracker=1 interactionOwner=SpineFaceTracker managedScripts=metadata-only safety=windows-exe-forbidden serializedFields=Assembly-CSharp.SpineFaceTracker=15 sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:21+calibrated:3+platform-policy:4+unsupported:2 spine=TextAsset:4+Texture2D:66 video=VideoClip:1
+derivation: sourceDerivation: partial imported=21 calibrated=3 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior
+sourceAdapter:
+  - id=unity-metadata-source-adapter version=1.0 kind=metadata-only-unity-wallpaper-engine-application imported=21 calibrated=3 platform-policy=4 unsupported=2
+  - capabilities=asset-reference-import,safe-declarative-binding-export,serialized-behaviour-field-import,spine-asset-import,unity-orthographic-placement-import
+  - limitations=interaction-semantics-require-calibration,unity-managed-method-body-not-read,windows-executable-execution-forbidden
+sourceDescriptors:
+  - wallpaper-engine-project-json path=archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported/project.json status=read type=application title=Sample_Imported file=Sample_Imported.exe preview=preview.jpg version=0
+  - unity-asset-extraction-manifest path=archive/sample_imported_cleanup_2026-05-13/converted/sample_imported_assets/manifest.json status=read converter=extract_unity_assets.py counts=RawFile=2,Sprite=8,TextAsset=4,Texture2D=66,VideoClip=1 security=windowsExecutableExecution=forbidden,windowsExecutableDisassembly=forbidden,inputScope=Unity_asset_containers_and_raw_media_files_only
+  - unity-managed-script-index path=wallpapers/sample_imported/source/unity-managed-script-index.json status=read converter=unitypy-monoscript-index-v1 scripts=Assembly-CSharp=4 interactionCandidates=SpineFaceTracker serializedFields=Assembly-CSharp.SpineFaceTracker=15 blockedFields=15 blockedFieldOwners=Assembly-CSharp.FaceTrackerBindingCalibration=2,Assembly-CSharp.SpineFaceTracker=13 requiredCapabilities=manual-calibration,unity-managed-method-behavior-import methodBodyStatus=not-read security=windowsExecutableExecution=forbidden,windowsExecutableDisassembly=forbidden,methodBodyRead=forbidden,inputScope=Unity_MonoScript_metadata_only
+importedFields:
+  - assets.spine.atlas
+  - assets.spine.json
+  - assets.spine.placement
+  - assets.spine.textures
+  - assets.video.path
+  - interactions.pointerDown.hitZones[hand].action.semantic
+  - interactions.pointerDown.hitZones[hand].action.value
+  - interactions.pointerDown.hitZones[hand].ellipse
+  - interactions.pointerDown.hitZones[hand].holdCommitSeconds
+  - interactions.pointerDown.hitZones[hand].holdStartSeconds
+  - interactions.pointerDown.hitZones[hand].rubAction.semantic
+  - interactions.pointerDown.hitZones[hand].rubStartDistance
+  - interactions.pointerDown.hitZones[hand].rubStartSeconds
+  - interactions.pointerDown.hitZones[hand].rubTailSeconds
+  - interactions.pointerDown.hitZones[hand].tailSeconds
+  - interactions.pointerDown.hitZones[hand].tapAction.semantic
+  - interactions.pointerDown.hitZones[hand].tapTailSeconds
+  - interactions.pointerDown.hitZones[hand].trigger.semantic
+  - interactions.pointerMove.actions
+  - interactions.pointerMove.deadZone
+  - interactions.pointerMove.neutralPoint
+calibratedFields:
+  - bindings.pointerPosition[faceTrackerBone71].adapter.factor[0]
+  - bindings.pointerPosition[faceTrackerBone71].target
+  - interactions.pointerDown.hitZones[hand].hitZoneId
+platformPolicyFields:
+  - interactionPolicy
+  - layers[background].foregroundOcclusion
+  - runtime.idleRenderFps
+  - runtime.physicsIdlePolicy
+unsupportedFields:
+  - Assembly-CSharp.SpineFaceTracker method body is not imported by the current source adapter
+  - interactions.pointerDown.hitZones[hand].rubAction.value
+notes:
+  - CIL-grounded behavior (SpineFaceTracker): a press inside handCollider (CircleCollider2D PID18, isTrigger, hit-tested by Physics2D.GetRayIntersection collider equality in HandleClickStart 0x26f4) sets isPressingHand; releasing before longPressThreshold=1.5 s plays 'act' on track 3 (PlayActAnimation 0x27c4, mix 0.1, then AddEmptyAnimation(3, 0.2, 0)); holding past 1.5 s arms looping 'boll' on track 3 (Update 008a-0092) and enters the bone71 SmoothDamp drag; on release the empty tail brings back the track-0 idle loop.
+  - Camera orthographicSize is 14.100000381469727 (level0 byte at offset 0xc04; the float 5.0 occurs zero times in level0): the previous index's ortho-5.0 assumption is corrected, and the shipped ellipse geometry — cx 0.54867, rx 0.14609, ry 0.25971 — is CONFIRMED byte-exact under the 14.1 normalization, with cy 0.36631 standing under the flip-Y convention. CameraCropManager only rewrites orthoSize at off-design window ratios, so the 14.1-rest normalization holds at 16:9.
+  - Hit zone id renamed head → hand: CIL (§3 HandleClickStart) proves the only hit-tested collider is handCollider (field 0x040000015 → PPtr PID18); the zone is named after the collider it imports from, not the body region its normalized ellipse visually covers.
+  - Previously calibrated fiction replaced by CIL truth: hold='eye' with 0.05/0.18 timing, tap='boll', rub='act', and 1.15 s tails are all contradicted — 'eye' does not exist in the assembly string heap, 'boll' is the hold loop and never plays on tap, drag plays no clip, and the only timing thresholds in IL are longPressThreshold=1.5 and the 0.2 s AddEmptyAnimation tail. The two fields that were still unread (rubStartSeconds/rubStartDistance) are contradicted by absence (no 0.05/0.025 constants anywhere) and disappear with the rub mechanism removal.
+  - Schema-reachable approximation: the looping 'boll' hold preview and the bone71 drag follow (SmoothDamp 0.1, MaxRadius 10, ClickOffset 0.15) cannot be expressed — the schema has no loop action and no bone-follow drag (same class of limitation as the synthetic head/face zones), so the hold zone declares the CIL-grounded release action 'act' with commit 1.5 s and a 4.5 s tail; the looping hold animation is therefore absent from the preview, which is flagged as the residual gap.
+  - The CIL method-body analysis recorded in .build-cache/codex_imported_cil_report.md was produced by external static disassembly (read-only); the unity-managed-script-index now references it under cil_method_analysis while retaining the metadata-only converter scope for the converter itself.
+  - The hand collider is large (world radius 7.3239288 centered at offset (2.44, 20.47), camera position (0, 16.7), ortho 14.1): it covers the full upper body, so the single hit zone 'hand' approximates what was one collider in the original — no per-region split is possible or faithful.
+  - Wallpaper Engine project.json declares type=application; native manifest stores extracted assets plus source-adapter values; interaction semantics are now CIL-derived; the hit-zone naming decision (head → hand) stays a documented authoring calibration.
+  - pointerMove: the lookDirection actions (Left/Right/Up/Down/idle) are confirmed present in the managed field map and imported; neutral is computed at runtime as (viewport − 0.5) × 2 (Update 0116-0133) with no serialized neutral or dead zone, so neutralPoint imports the computed (0.5, 0.5) and deadZone keeps a minimal epsilon documented as absent in IL. The gaze blending itself runs on tracks 10-13 with sensitivity 1.2 and is a bonus finding with no shipped-manifest counterpart.

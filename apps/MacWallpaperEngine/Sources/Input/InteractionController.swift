@@ -46,6 +46,16 @@ final class InteractionController {
     private var pressedHitRubTailDuration: CFTimeInterval = 0
     private var pressedHitHoldStartSeconds: CFTimeInterval = 0
     private var pressedHitHoldCommitSeconds: CFTimeInterval = 0
+    /// True when the press must not release through the tap branch: only an explicitly
+    /// declared holdCommitSeconds = 0 declares a no-effect hold zone with no tap window.
+    /// Absent commit timing (or a positive commit) keeps the tap-below-commit behavior,
+    /// with the commit threshold falling back to holdStart per the hit-result value — and
+    /// to the policy default click tail duration when both holdStart and holdCommit are
+    /// omitted (the default short-touch tap window).
+    /// When true (or when the press started holding directly), the snapshot hold preview
+    /// may promote a pending press; an alive tap window keeps snapshot promotion at the
+    /// positive commit threshold so the preview never steals the tap decision.
+    private var pressedHitTapBranchDisabled = false
     private var pressedHitRubStartSeconds: CFTimeInterval = 0
     private var pressedHitRubStartDistance: CGFloat = 0.035
     private var pressGesturePhase: PressGesturePhase = .inactive
@@ -95,6 +105,12 @@ final class InteractionController {
 
         advanceSmoothedPointerLocked()
         let now = clock()
+        // Snapshot hold preview runs at the bare holdStart threshold (pre-existing
+        // behavior). The preview never steals the tap decision: with an alive tap window
+        // (tapAction present, no explicit 0 commit, positive commit threshold) and the
+        // press still pending below the commit threshold, pointer-up re-evaluates the
+        // gesture and resolves the release through the tap action (see
+        // activateHoldForReleaseLocked); otherwise the preview promotion is final.
         activateDelayedHoldIfNeededLocked(now: now)
         if let pressedHitAction,
            pressedHitTrigger == .hold,
@@ -201,7 +217,27 @@ final class InteractionController {
         pressedHitTapTailDuration = hitResult?.tapTailSeconds ?? defaultClickTailDuration
         pressedHitRubTailDuration = hitResult?.rubTailSeconds ?? defaultClickTailDuration
         pressedHitHoldStartSeconds = hitResult?.holdStartSeconds ?? 0
-        pressedHitHoldCommitSeconds = hitResult?.holdCommitSeconds ?? pressedHitHoldStartSeconds
+        // Commit threshold collapse: an explicitly declared commit wins; an absent commit
+        // collapses to holdStart, except that when BOTH the effective start and commit are
+        // omitted the zone is a short-touch gesture with the default tap-detection window
+        // (the policy's default click tail duration), so an undeclared hold zone's tapAction
+        // stays reachable. The threshold also equals the effective holdStart in that case,
+        // so the snapshot promotion stays at the bare holdStart semantics (a declared start
+        // keeps promoting at its own threshold); with both omitted, preview and commit both
+        // happen at the default window.
+        // "Both omitted" is about the effective timing values: a declared commit (without a
+        // declared start) collapses into the effective start, so the pair is not omitted.
+        let defaultsBothOmitted = hitResult?.holdEffectiveStartDeclared == false
+        pressedHitHoldCommitSeconds = defaultsBothOmitted
+            ? defaultClickTailDuration
+            : hitResult?.holdCommitSeconds ?? pressedHitHoldStartSeconds
+        if defaultsBothOmitted {
+            pressedHitHoldStartSeconds = defaultClickTailDuration
+        }
+        // Explicit 0 commit disables the tap branch; absent declaration keeps it alive even
+        // when the collapsed commit value is 0 (the plan collapses nil to holdStart/0).
+        pressedHitTapBranchDisabled = hitResult?.holdCommitSecondsDeclared == true
+            && hitResult?.holdCommitSeconds == 0
         pressedHitRubStartSeconds = hitResult?.rubStartSeconds ?? 0
         pressedHitRubStartDistance = hitResult?.rubStartDistance ?? 0.035
         pressGesturePhase = .inactive
@@ -242,7 +278,7 @@ final class InteractionController {
             lock.unlock()
             return
         }
-        activateDelayedHoldIfNeededLocked(now: now)
+        activateHoldForReleaseLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }
@@ -254,7 +290,7 @@ final class InteractionController {
             lock.unlock()
             return
         }
-        activateDelayedHoldIfNeededLocked(now: now)
+        activateHoldForReleaseLocked(now: now)
         finishPointerUpLocked(button: button)
         lock.unlock()
     }
@@ -279,6 +315,7 @@ final class InteractionController {
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
         pressedHitHoldCommitSeconds = 0
+        pressedHitTapBranchDisabled = false
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive
@@ -313,6 +350,7 @@ final class InteractionController {
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
         pressedHitHoldCommitSeconds = 0
+        pressedHitTapBranchDisabled = false
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive
@@ -344,6 +382,7 @@ final class InteractionController {
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
         pressedHitHoldCommitSeconds = 0
+        pressedHitTapBranchDisabled = false
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive
@@ -420,6 +459,33 @@ final class InteractionController {
               pressedHitTapAction != nil,
               pressGesturePhase == .pendingTap,
               now - pressStartedAt >= pressedHitHoldStartSeconds else {
+            return
+        }
+        activateDelayedHoldLocked(now: now)
+    }
+
+    /// Hold promotion at pointer-up: a press still pending is committed at release once
+    /// `pressDuration >= holdCommit`; below the commit threshold the release goes through
+    /// the tap action. A press already promoted to holding during the press is re-evaluated
+    /// here: with an alive tap window (no explicit 0 commit and a positive commit threshold)
+    /// a below-commit release is treated as a tap release, so the snapshot hold preview
+    /// never steals the tap decision. With commit collapsed to holdStart == 0 (absent or
+    /// disabled tap window) every release passes the threshold and stays committed, matching
+    /// the pre-existing behavior.
+    private func activateHoldForReleaseLocked(now: CFTimeInterval) {
+        let tapWindowAlive = pressedHitTapAction != nil
+            && !pressedHitTapBranchDisabled
+            && pressedHitHoldCommitSeconds > 0
+        guard pressedHitTrigger == .hold,
+              pressedHitTapAction != nil,
+              pressGesturePhase == .pendingTap || (pressGesturePhase == .holding && tapWindowAlive),
+              now - pressStartedAt >= pressedHitHoldStartSeconds else {
+            return
+        }
+        if tapWindowAlive, pressGesturePhase == .holding, now - pressStartedAt < pressedHitHoldCommitSeconds {
+            // The snapshot hold preview promoted this press below the commit threshold;
+            // a pre-commit release is a tap, not a committed hold.
+            pressGesturePhase = .pendingTap
             return
         }
         activateDelayedHoldLocked(now: now)
@@ -502,13 +568,31 @@ final class InteractionController {
             if let pressedHitRubAction, pressGesturePhase == .rubbing {
                 releasedAction = pressedHitRubAction
                 releasedTail = pressedHitRubTailDuration
-            } else if let pressedHitTapAction, pressDuration < pressedHitHoldCommitSeconds {
-                releasedAction = pressedHitTapAction
-                releasedTail = pressedHitTapTailDuration
             } else {
-                releasedAction = pressedHitAction
-                releasedTail = pressedHitTailDuration
+                // (rub and tap/hold branches share the release finalization below)
+                // Tap-versus-hold decision at release (short-touch gesture semantics): the
+                // tap window is alive for a live tapAction unless an explicit 0 commit
+                // disables it (or an absent commit falls back to holdStart > 0); a release
+                // strictly below the commit threshold releases the tap action, everything
+                // else — including commit == holdStart == 0, whose threshold every release
+                // passes — is the committed hold.
+                let tapWindowAlive = pressedHitTapAction != nil
+                    && !pressedHitTapBranchDisabled
+                    && pressedHitHoldCommitSeconds > 0
+                if let pressedHitTapAction, tapWindowAlive, pressDuration < pressedHitHoldCommitSeconds {
+                    releasedAction = pressedHitTapAction
+                    releasedTail = pressedHitTapTailDuration
+                } else {
+                    releasedAction = pressedHitAction
+                    // For hold zones, committed and pre-commit releases are two branches of one
+                    // hold gesture; the release tail must cover the longer of the two payloads so
+                    // the committed hold replay is not cut short by the tap branch's shorter tail.
+                    releasedTail = max(pressedHitTailDuration, pressedHitTapTailDuration)
+                }
             }
+            // Release finalization applies to every hold branch outcome (rub, tap, committed
+            // hold): the released command plays its tail and the press-held state clears, so
+            // a rubbing press is not stuck held after pointer-up.
             clickCommandState = releasedAction
             clickCommandHeld = false
             activeClickTailDuration = max(releasedTail, releaseFadeDuration)
@@ -523,6 +607,7 @@ final class InteractionController {
         pressedHitRubTailDuration = 0
         pressedHitHoldStartSeconds = 0
         pressedHitHoldCommitSeconds = 0
+        pressedHitTapBranchDisabled = false
         pressedHitRubStartSeconds = 0
         pressedHitRubStartDistance = 0.035
         pressGesturePhase = .inactive

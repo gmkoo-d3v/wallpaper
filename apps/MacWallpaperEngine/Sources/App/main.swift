@@ -45,7 +45,8 @@ do {
         }
         let installedBundle = try WallpaperBundleInstaller.install(
             sourceRoot: URL(fileURLWithPath: installBundlePath, relativeTo: nil),
-            libraryDirectory: installLibrary ?? ProjectPaths.userWallpapersDirectory()
+            libraryDirectory: installLibrary ?? ProjectPaths.userWallpapersDirectory(),
+            overwrite: arguments.contains("--overwrite")
         )
         print("""
         installed wallpaper bundle OK

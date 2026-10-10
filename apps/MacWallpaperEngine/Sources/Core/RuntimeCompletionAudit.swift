@@ -1188,6 +1188,13 @@ enum RuntimeCompletionAudit {
         let allowedFiles: Set<String> = [
             "RuntimeSelfTest.swift"
         ]
+        var tokenBoundaryPatterns: [String: NSRegularExpression] = [:]
+        for token in tokens {
+            tokenBoundaryPatterns[token] = try? NSRegularExpression(
+                pattern: "\\b\(NSRegularExpression.escapedPattern(for: token))\\b",
+                options: []
+            )
+        }
         var violations: [String] = []
         for case let sourceURL as URL in enumerator {
             guard sourceURL.pathExtension == "swift" else { continue }
@@ -1195,10 +1202,13 @@ enum RuntimeCompletionAudit {
             guard (try sourceURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
 
             let source = try String(contentsOf: sourceURL, encoding: .utf8)
-            for token in tokens where source.contains(token) {
-                let relativePath = sourceURL.path
-                    .replacingOccurrences(of: projectRoot.path + "/", with: "")
-                violations.append("\(relativePath):\(token)")
+            for token in tokens {
+                guard let pattern = tokenBoundaryPatterns[token] else { continue }
+                if pattern.firstMatch(in: source, range: NSRange(location: 0, length: source.utf16.count)) != nil {
+                    let relativePath = sourceURL.path
+                        .replacingOccurrences(of: projectRoot.path + "/", with: "")
+                    violations.append("\(relativePath):\(token)")
+                }
             }
         }
 

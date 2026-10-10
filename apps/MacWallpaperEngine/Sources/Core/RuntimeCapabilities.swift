@@ -1492,12 +1492,21 @@ private struct SpineFeatureScan {
     private mutating func collectConstraintKeys(root: [String: Any]) {
         let boneNames = boneNameSet(root: root)
         let slotNames = slotNameSet(root: root)
+        // Bone sets are trimmed whitespace (see boneNameSet), so constraint-side bone names must be
+        // trimmed the same way before membership tests; otherwise names whose Spine generator
+        // suffix contains Unicode whitespace (e.g. U+0085 NEL) can never match.
+        func trimmedConstraintBoneNames(_ constraint: [String: Any]) -> [String] {
+            ((constraint["bones"] as? [String] ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+        }
+        func trimmedTargetName(_ constraint: [String: Any]) -> String {
+            (constraint["target"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
 
         if let constraints = root["ik"] as? [[String: Any]] {
             constraintKeys.insert("ik")
             for constraint in constraints {
                 let name = namedConstraint(constraint)
-                let constraintBoneNames = constraint["bones"] as? [String] ?? []
+                let constraintBoneNames = trimmedConstraintBoneNames(constraint)
                 let boneCount = constraintBoneNames.count
                 if boneCount < 1 {
                     unsupportedConstraintUsages.insert("ik/\(name):missing-bones")
@@ -1507,7 +1516,7 @@ private struct SpineFeatureScan {
                 for boneName in constraintBoneNames where boneNames.contains(boneName) == false {
                     unsupportedConstraintUsages.insert("ik/\(name):unknown-bone=\(boneName)")
                 }
-                let targetName = (constraint["target"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let targetName = trimmedTargetName(constraint)
                 if targetName.isEmpty {
                     unsupportedConstraintUsages.insert("ik/\(name):missing-target")
                 } else if boneNames.contains(targetName) == false {
@@ -1520,7 +1529,7 @@ private struct SpineFeatureScan {
             constraintKeys.insert("transform")
             for constraint in constraints {
                 let name = namedConstraint(constraint)
-                let constraintBoneNames = constraint["bones"] as? [String] ?? []
+                let constraintBoneNames = trimmedConstraintBoneNames(constraint)
                 if constraintBoneNames.isEmpty {
                     unsupportedConstraintUsages.insert("transform/\(name):missing-bones")
                 }
@@ -1543,7 +1552,7 @@ private struct SpineFeatureScan {
             let supportedRotateModes: Set<String> = ["tangent", "chain", "chainscale"]
             for constraint in constraints {
                 let name = namedConstraint(constraint)
-                let constraintBoneNames = constraint["bones"] as? [String] ?? []
+                let constraintBoneNames = trimmedConstraintBoneNames(constraint)
                 if constraintBoneNames.isEmpty {
                     unsupportedConstraintUsages.insert("path/\(name):missing-bones")
                 }

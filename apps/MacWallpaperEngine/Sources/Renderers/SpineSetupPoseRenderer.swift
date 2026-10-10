@@ -16,7 +16,27 @@ final class SpineSetupPoseRenderer {
         let bounds: CGRect
         let offset: CGPoint
         let originalSize: CGSize
-        let rotated: Bool
+        // Spine 4.2 atlas rotate angle: 0, 90, 180, or 270 degrees. 90 and 270 store the
+        // region transposed in the page (stored cell width/height = swapped logical dims);
+        // 180 and the identity store keep natural orientation and rotate the UV sample
+        // point inside the stored region cell.
+        let rotationDegrees: Int
+
+        init(
+            name: String,
+            pageName: String,
+            bounds: CGRect,
+            offset: CGPoint,
+            originalSize: CGSize,
+            rotationDegrees: Int
+        ) {
+            self.name = name
+            self.pageName = pageName
+            self.bounds = bounds
+            self.offset = offset
+            self.originalSize = originalSize
+            self.rotationDegrees = rotationDegrees
+        }
     }
 
     private struct Bone {
@@ -546,6 +566,8 @@ final class SpineSetupPoseRenderer {
     private var activeAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
     private var previousOverlayAnimationName: String?
     private var previousOverlayAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
+    private var lastPairCommand: String?
+    private var lastPairPick: String?
     let batchCount: Int
     let triangleVertexCount: Int
     private static let enablePathConstraints = true
@@ -1075,6 +1097,39 @@ final class SpineSetupPoseRenderer {
         }
     }
 
+    /// Observes colon-pair command resolution without rendering: returns the animation name the
+    /// renderer would activate for `command` under `now`, with one trial per command transition.
+    func diagnosticAnimationNameProbe(command: String, now: CFTimeInterval = CACurrentMediaTime()) -> String {
+        resolvedAnimationName(command: command, now: now)
+    }
+
+    /// Observes only the colon-pair pick cache (no one-shot transition branch): returns the
+    /// pair component the renderer would activate for `command`, frozen while the command is
+    /// unchanged. Unlike `diagnosticAnimationNameProbe`, a pair command never echoes the
+    /// outgoing one-shot animation.
+    func diagnosticPairPickProbe(command: String) -> String {
+        resolvedPairCommandName(command)
+    }
+
+    /// Drops the cached pair pick so the next pair command starts a fresh transition.
+    func pairCommandProbeReset() {
+        lastPairCommand = nil
+        lastPairPick = nil
+    }
+
+    /// Drops the transient renderer state used only by diagnostics: the one-shot tail window
+    /// and the active pair pick, so a probe cannot echo a previously played one-shot. The
+    /// one-shot window must stay OPEN (started "now"): with an idle-valued active animation
+    /// the echo branch keeps the active one-shot until it completes, so a far-future start
+    /// time would make the still-playing one-shot stick instead of falling through to the
+    /// requested command.
+    func resetDiagnosticProbeState(at now: CFTimeInterval = CACurrentMediaTime()) {
+        activeAnimationName = idleAnimationName
+        activeAnimationStartedAt = now
+        lastPairCommand = nil
+        lastPairPick = nil
+    }
+
     func diagnosticPoseCacheProbe(command: String, pointer: CGPoint = CGPoint(x: 0.5, y: 0.5)) -> PoseCacheProbe {
         resetPoseCacheStats()
         let baseNow = max(CACurrentMediaTime(), rendererStartedAt) + 1.0
@@ -1204,8 +1259,32 @@ final class SpineSetupPoseRenderer {
         )
     }
 
+    /// Colon commands ("a:b") are random animation pairs: pick once per command transition and
+    /// keep the pick while the incoming command string is unchanged.
+    private func resolvedPairCommandName(_ command: String) -> String {
+        guard command.contains(":") else {
+            lastPairCommand = nil
+            lastPairPick = nil
+            return command
+        }
+        if command == lastPairCommand, let lastPairPick {
+            return lastPairPick
+        }
+        // Canonical pair parsing shared with roles/validation: per components(of:),
+        // "a:" yields ["a"] and ":b" yields ["b"] (not the raw string); only a colon-only
+        // value like ":" falls back to the raw action, which never matches a skeleton
+        // animation name.
+        let components = SpineInteractionAnimationRoles.components(of: command)
+        let candidates = components.filter { animations[$0] != nil }
+        let picked = candidates.isEmpty ? idleAnimationName : candidates[Int.random(in: 0..<candidates.count)]
+        lastPairCommand = command
+        lastPairPick = picked
+        return picked
+    }
+
     private func resolvedAnimationName(command: String, now: CFTimeInterval) -> String {
-        let requested = animations[command] == nil ? idleAnimationName : command
+        let requestedName = resolvedPairCommandName(command)
+        let requested = animations[requestedName] == nil ? idleAnimationName : requestedName
         let current = animations[activeAnimationName]
 
         if oneShotAnimationNames.contains(activeAnimationName),
@@ -2759,7 +2838,7 @@ final class SpineSetupPoseRenderer {
         var currentBounds = CGRect.zero
         var currentOffset = CGPoint.zero
         var currentOriginalSize = CGSize.zero
-        var currentRotated = false
+        var currentRotationDegrees = 0
 
         func flushRegion() {
             guard let pageName = currentPageName, let regionName = currentRegionName else { return }
@@ -2775,29 +2854,29 @@ final class SpineSetupPoseRenderer {
                 bounds: currentBounds,
                 offset: currentOffset,
                 originalSize: originalSize,
-                rotated: currentRotated
+                rotationDegrees: currentRotationDegrees
             )
+        }
+
+        func resetRegionState() {
+            currentRegionName = nil
+            currentRotationDegrees = 0
+            currentBounds = .zero
+            currentOffset = .zero
+            currentOriginalSize = .zero
         }
 
         for rawLine in lines {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.isEmpty {
                 flushRegion()
-                currentRegionName = nil
-                currentRotated = false
-                currentBounds = .zero
-                currentOffset = .zero
-                currentOriginalSize = .zero
+                resetRegionState()
                 continue
             }
 
             if line.hasSuffix(".png") {
                 flushRegion()
-                currentRegionName = nil
-                currentRotated = false
-                currentBounds = .zero
-                currentOffset = .zero
-                currentOriginalSize = .zero
+                resetRegionState()
                 currentPageName = line
                 currentPageSize = CGSize(width: 1, height: 1)
                 continue
@@ -2834,7 +2913,21 @@ final class SpineSetupPoseRenderer {
             }
 
             if line.hasPrefix("rotate:") {
-                currentRotated = line.lowercased().contains("90") || line.lowercased().contains("true")
+                // Spine 4.2 atlas rotate semantics: the value is an in-page rotation angle.
+                // rotate:true / yes / 90 store the region transposed in the page; 180 / 270
+                // store it at natural orientation with the UV sample point rotated inside the
+                // stored region cell; false / 0 / absent is identity.
+                let rotateValue = line.dropFirst("rotate:".count).trimmingCharacters(in: .whitespaces).lowercased()
+                switch rotateValue {
+                case "true", "yes", "90":
+                    currentRotationDegrees = 90
+                case "180":
+                    currentRotationDegrees = 180
+                case "270":
+                    currentRotationDegrees = 270
+                default:
+                    currentRotationDegrees = 0
+                }
                 continue
             }
 
@@ -2843,11 +2936,8 @@ final class SpineSetupPoseRenderer {
             }
 
             flushRegion()
+            resetRegionState()
             currentRegionName = line
-            currentRotated = false
-            currentBounds = .zero
-            currentOffset = .zero
-            currentOriginalSize = .zero
         }
 
         flushRegion()
@@ -5590,14 +5680,50 @@ final class SpineSetupPoseRenderer {
         let x: Double
         let y: Double
 
-        if region.rotated {
+        switch region.rotationDegrees {
+        case 90:
+            // rotate:90 / rotate:true stores the region transposed in the page: the region's u
+            // axis runs along page -y and its v axis along page +x.
             let originalWidth = max(region.originalSize.width, region.bounds.width)
             let originalHeight = max(region.originalSize.height, region.bounds.height)
             let baseX = region.bounds.minX - (originalHeight - region.offset.y - region.bounds.height)
             let baseY = region.bounds.minY - (originalWidth - region.offset.x - region.bounds.width)
             x = baseX + localV * originalHeight
             y = baseY + (1.0 - localU) * originalWidth
-        } else {
+        case 180:
+            // Spine 4.2 rotate:180 keeps the region stored at natural orientation inside the page,
+            // so the page footprint matches the stored cell; only the UV sample point rotates about
+            // the stored region cell (cell width/height = atlas bounds width/height; region bounds
+            // x/y stay identical to the identity branch).
+            if region.originalSize == .zero {
+                x = region.bounds.minX + (1.0 - localU) * region.bounds.width
+                y = region.bounds.minY + (1.0 - localV) * region.bounds.height
+            } else {
+                let originalWidth = max(region.originalSize.width, region.bounds.width)
+                let originalHeight = max(region.originalSize.height, region.bounds.height)
+                let baseX = region.bounds.minX - region.offset.x
+                let baseY = region.bounds.minY - (originalHeight - region.offset.y - region.bounds.height)
+                x = baseX + (1.0 - localU) * originalWidth
+                y = baseY + (1.0 - localV) * originalHeight
+            }
+        case 270:
+            // Spine 4.2 rotate:270 stores the region transposed in the page, exactly like rotate:90
+            // (spine-csharp AtlasSource: both 90 and 270 swap the stored width/height; 180 and the
+            // identity store do not). The only difference is the axis direction: 90 is a 90 CW
+            // transpose (u runs along page -y, v along page +x), 270 is its mirror, a 90 CCW
+            // transpose (u along page +y, v along page -x):
+            //   90 : x_page = cellX + v * h,       y_page = cellY + (1 - u) * w
+            //   270: x_page = cellX + (1 - v) * h, y_page = cellY + u * w
+            // with (w, h) the STORED transposed cell dims = atlas bounds width/height; the
+            // offset/originalSize accounting mirrors the rotate:90 branch with the axis directions
+            // swapped.
+            let originalWidth = max(region.originalSize.width, region.bounds.width)
+            let originalHeight = max(region.originalSize.height, region.bounds.height)
+            let baseX = region.bounds.minX - (originalHeight - region.offset.y - region.bounds.height)
+            let baseY = region.bounds.minY - (originalWidth - region.offset.x - region.bounds.width)
+            x = baseX + (1.0 - localV) * originalHeight
+            y = baseY + localU * originalWidth
+        default:
             let originalWidth = max(region.originalSize.width, region.bounds.width)
             let originalHeight = max(region.originalSize.height, region.bounds.height)
             let baseX = region.bounds.minX - region.offset.x

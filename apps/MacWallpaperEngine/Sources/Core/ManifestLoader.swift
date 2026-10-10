@@ -547,13 +547,15 @@ enum ManifestLoader {
                 let textureURL = try validateRelativePath(texture, bundleRoot: bundleRoot)
                 try validateTextureDimensions(textureURL, maxDimension: manifest.layerBudgets.maxTextureDimension)
             }
+            let referenced = referencedAnimationActions(
+                in: manifest.interactions,
+                bindings: manifest.bindings ?? []
+            )
             try validateSpineJSON(
                 spineJSON,
                 requiredVersion: manifest.validation.requireSpineVersion,
-                referencedActions: referencedAnimationActions(
-                    in: manifest.interactions,
-                    bindings: manifest.bindings ?? []
-                )
+                referencedActions: referenced.actions,
+                referencedPairs: referenced.pairs
             )
             try validateNativeSpineFallbackReadiness(manifest, bundleRoot: bundleRoot)
         } else if manifest.interactions.isEmpty == false {
@@ -1505,7 +1507,7 @@ enum ManifestLoader {
         }
     }
 
-    private static func validateSpineJSON(_ url: URL, requiredVersion: String, referencedActions: Set<String>) throws {
+    private static func validateSpineJSON(_ url: URL, requiredVersion: String, referencedActions: Set<String>, referencedPairs: [[String]]) throws {
         let data = try Data(contentsOf: url)
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw EngineError.asset("Spine JSON root is not an object")
@@ -1524,6 +1526,9 @@ enum ManifestLoader {
         }
         for action in referencedActions where animations[action] == nil {
             throw EngineError.asset("interaction references missing Spine animation: \(action)")
+        }
+        for pair in referencedPairs where pair.allSatisfy { animations[$0] == nil } {
+            throw EngineError.asset("interaction references Spine animation pair with no existing component: \(pair.joined(separator: ":"))")
         }
     }
 
@@ -1544,21 +1549,32 @@ enum ManifestLoader {
     private static func referencedAnimationActions(
         in interactions: [InteractionConfig],
         bindings: [DeclarativeBinding]
-    ) -> Set<String> {
+    ) -> (actions: Set<String>, pairs: [[String]]) {
         var actions = Set<String>()
+        var pairs = [[String]]()
+        func collect(_ action: String) {
+            // Colon values are random pairs: a pair only needs at least one existing component.
+            if action.contains(":") {
+                // Canonical pair parsing via SpineInteractionAnimationRoles: malformed
+                // values like "a:" or ":b" yield the single nonempty component.
+                pairs.append(SpineInteractionAnimationRoles.components(of: action))
+                return
+            }
+            actions.insert(action)
+        }
         for interaction in interactions {
-            interaction.actions?.values.forEach { actions.insert($0) }
+            interaction.actions?.values.forEach(collect)
             interaction.hitZones?.forEach {
-                actions.insert($0.action)
+                collect($0.action)
                 if let tapAction = $0.tapAction {
-                    actions.insert(tapAction)
+                    collect(tapAction)
                 }
                 if let rubAction = $0.rubAction {
-                    actions.insert(rubAction)
+                    collect(rubAction)
                 }
             }
             if let defaultAction = interaction.defaultAction {
-                actions.insert(defaultAction.action)
+                collect(defaultAction.action)
             }
         }
         for binding in bindings {
@@ -1566,7 +1582,7 @@ enum ManifestLoader {
                 actions.insert(animation)
             }
         }
-        return actions
+        return (actions, pairs)
     }
 }
 

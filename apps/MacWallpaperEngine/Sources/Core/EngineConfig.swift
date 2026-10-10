@@ -582,6 +582,12 @@ struct EngineConfig {
                 runtimeDisplayRebuildSmoke = true
             case "--self-test":
                 selfTestOnly = true
+            case "--bundle-library":
+                // Pre-parse batch commands (e.g. --list-bundles) consume this flag in main.swift;
+                // accept it here so combined flags like "--self-test --bundle-library <path>"
+                // do not trip the unknown-argument check.
+                index += 1
+                _ = try value(arguments, index, option: argument)
             case "--hidden":
                 startHidden = true
             case "--pass-through":
@@ -847,6 +853,7 @@ struct EngineConfig {
       --bundle-library <path>  With bundle-library diagnostics, scan this library instead of default locations.
       --install-bundle <path>   Validate and copy a bundle into the user wallpaper library, then exit.
       --install-library <path>  Destination library for --install-bundle. Defaults to Application Support.
+      --overwrite               With --install-bundle, replace an existing same-id bundle in the library.
       --print-manifest-schema   Print the wallpaper.native.json JSON Schema for bundle authoring, then exit.
       --input-status            Print no-prompt input diagnostics for this exact binary, then exit.
       --completion-audit       Print objective-level automated evidence and remaining manual completion evidence.

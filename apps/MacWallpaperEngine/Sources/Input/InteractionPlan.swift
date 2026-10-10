@@ -13,8 +13,21 @@ struct InteractionHitResult {
     let rubTailSeconds: CFTimeInterval
     let holdStartSeconds: CFTimeInterval
     let holdCommitSeconds: CFTimeInterval
+    /// True when the hit zone declared holdCommitSeconds explicitly (any value). The value
+    /// semantics collapse nil to holdStart/0, so the controller cannot distinguish an
+    /// explicit 0 (no tap window) from absent commit timing without this flag.
+    let holdCommitSecondsDeclared: Bool
+    /// True when the hit zone declared holdStartSeconds explicitly. With both start and
+    /// commit omitted, the controller applies the default short-touch tap window instead of
+    /// collapsing the commit to 0.
+    let holdStartSecondsDeclared: Bool
     let rubStartSeconds: CFTimeInterval
     let rubStartDistance: CGFloat
+
+    /// True when the zone's effective holdStart value carries an explicit declaration:
+    /// declared start, or declared commit (whose value collapses into the effective start
+    /// when start is absent). Used for the both-omitted default tap-window rule.
+    var holdEffectiveStartDeclared: Bool { holdStartSecondsDeclared || holdCommitSecondsDeclared }
 }
 
 struct InteractionHitZoneSummary {
@@ -150,6 +163,18 @@ struct InteractionPlan {
         self.triggerPlayBindings = declarativePlan?.triggerPlayBindings ?? []
     }
 
+    /// Tail duration for an action value. Colon values are random animation pairs, so the
+    /// effective tail is the maximum tail over the components that have a known duration.
+    private func tailDuration(for action: String) -> CFTimeInterval? {
+        if let duration = actionTailDurations[action] {
+            return duration
+        }
+        guard action.contains(":") else { return nil }
+        let componentDurations = SpineInteractionAnimationRoles.components(of: action)
+            .compactMap { actionTailDurations[$0] }
+        return componentDurations.max()
+    }
+
     func smooth(
         current: CGPoint,
         target: CGPoint,
@@ -244,11 +269,13 @@ struct InteractionPlan {
             tapAction: nil,
             rubAction: nil,
             trigger: .tap,
-            tailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
-            tapTailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
-            rubTailSeconds: actionTailDurations[action] ?? defaultClickTailDuration,
+            tailSeconds: tailDuration(for: action) ?? defaultClickTailDuration,
+            tapTailSeconds: tailDuration(for: action) ?? defaultClickTailDuration,
+            rubTailSeconds: tailDuration(for: action) ?? defaultClickTailDuration,
             holdStartSeconds: 0,
             holdCommitSeconds: 0,
+            holdCommitSecondsDeclared: false,
+            holdStartSecondsDeclared: false,
             rubStartSeconds: 0,
             rubStartDistance: 0.035
         )
@@ -315,6 +342,8 @@ struct InteractionPlan {
                 rubTailSeconds: resolvedRubTailSeconds(for: selected),
                 holdStartSeconds: selected.holdStartSeconds ?? 0,
                 holdCommitSeconds: selected.holdCommitSeconds ?? selected.holdStartSeconds ?? 0,
+                holdCommitSecondsDeclared: selected.holdCommitSeconds != nil,
+                holdStartSecondsDeclared: selected.holdStartSeconds != nil,
                 rubStartSeconds: selected.rubStartSeconds ?? 0,
                 rubStartDistance: CGFloat(selected.rubStartDistance ?? 0.035)
             )
@@ -333,6 +362,8 @@ struct InteractionPlan {
                 rubTailSeconds: resolvedTailSeconds(for: defaultAction),
                 holdStartSeconds: 0,
                 holdCommitSeconds: 0,
+                holdCommitSecondsDeclared: false,
+                holdStartSecondsDeclared: false,
                 rubStartSeconds: 0,
                 rubStartDistance: 0.035
             )
@@ -1112,7 +1143,7 @@ struct InteractionPlan {
     private func resolvedTailSeconds(for hitZone: HitZone) -> CFTimeInterval {
         let declaredTail = declaredTailSeconds(for: hitZone)
         guard (hitZone.trigger ?? .tap) == .tap,
-              let animationTail = actionTailDurations[hitZone.action],
+              let animationTail = tailDuration(for: hitZone.action),
               animationTail.isFinite,
               animationTail > 0 else {
             return declaredTail
@@ -1120,10 +1151,14 @@ struct InteractionPlan {
         return max(declaredTail, animationTail)
     }
 
+    /// Effective tap tail: the animation-duration floor over the tap action's tail, for
+    /// single actions (direct duration lookup) and colon pairs (the component max lives
+    /// inside tailDuration) alike — a single tapAction whose animation runs longer than its
+    /// declared tap tail must not get cut short.
     private func resolvedTapTailSeconds(for hitZone: HitZone) -> CFTimeInterval {
         let declaredTail = declaredTapTailSeconds(for: hitZone)
         guard let tapAction = hitZone.tapAction,
-              let animationTail = actionTailDurations[tapAction],
+              let animationTail = tailDuration(for: tapAction),
               animationTail.isFinite,
               animationTail > 0 else {
             return declaredTail
@@ -1134,7 +1169,7 @@ struct InteractionPlan {
     private func resolvedRubTailSeconds(for hitZone: HitZone) -> CFTimeInterval {
         let declaredTail = declaredRubTailSeconds(for: hitZone)
         guard let rubAction = hitZone.rubAction,
-              let animationTail = actionTailDurations[rubAction],
+              let animationTail = tailDuration(for: rubAction),
               animationTail.isFinite,
               animationTail > 0 else {
             return declaredTail
@@ -1157,7 +1192,7 @@ struct InteractionPlan {
     private func resolvedTailSeconds(for defaultAction: PointerDownDefaultAction) -> CFTimeInterval {
         let declaredTail = defaultAction.tailSeconds ?? defaultClickTailDuration
         guard (defaultAction.trigger ?? .tap) == .tap,
-              let animationTail = actionTailDurations[defaultAction.action],
+              let animationTail = tailDuration(for: defaultAction.action),
               animationTail.isFinite,
               animationTail > 0 else {
             return declaredTail
