@@ -847,24 +847,25 @@ final class SpineSetupPoseRenderer {
             }
 
             let sampleTimes = Self.geometrySampleTimes(animation: animation, poseSampleFps: sampleFps(for: actionName))
-            // Deterministic diagnostics physics: a fresh local states map per action, advanced
-            // by monotonic deltas from the sorted candidate set — physics(t) becomes a pure
-            // function of the candidate timeline, never of the walk order or live runtime
-            // state. The map is nil for physics-off walkers, so their samples evaluate the pure
-            // pose exactly (every t equals the setup pose on an event-only timeline), while a
-            // physics-enabled walk accumulates the constraint displacement over the sorted
-            // timeline — the physics-vs-stripped fingerprint divergence the diagnostics
-            // contract requires, identical across repeated walks.
-            var walkPhysicsStates: [String: PhysicsRuntimeState]? = physicsConstraintsEnabled ? [:] : nil
-            for (index, time) in sampleTimes.enumerated() {
-                let previousTime = index == 0 ? 0 : sampleTimes[index - 1]
-                let monotonicDelta = min(max(time - previousTime, 0), 0.25)
+            // Deterministic diagnostics physics: every physics sample is an INDEPENDENT
+            // evaluation of physics at its own time — a fresh states map, and the physics
+            // substep accumulator is a pure function of the absolute skeleton time (see the
+            // walk branch in applyPhysicsConstraint). physics(t) therefore depends only on t:
+            // identical (action, time) pairs fingerprint identically regardless of walk order
+            // or position, and each sample costs at most the fixed per-call substep budget, so
+            // the walk never multiplies long durations by large sample counts. The map is nil
+            // for physics-off walkers, so their samples evaluate the pure pose exactly (every
+            // t equals the setup pose on an event-only timeline), while a physics-enabled walk
+            // accumulates the constraint displacement by absolute time — the physics-vs-
+            // stripped fingerprint divergence the diagnostics contract requires, identical
+            // across repeated walks.
+            var walkPhysicsMode: SpineDiagnosticsPhysicsMode? = .walk
+            for time in sampleTimes {
                 samples.append(diagnosticGeometrySample(
                     actionName: actionName,
                     animation: animation,
                     time: time,
-                    physicsDelta: physicsConstraintsEnabled ? monotonicDelta : nil,
-                    physicsStateOverride: &walkPhysicsStates
+                    diagnosticsPhysicsMode: &walkPhysicsMode
                 ))
             }
             if lookAnimationNames.contains(actionName) {
@@ -873,16 +874,14 @@ final class SpineSetupPoseRenderer {
                     animation: animation,
                     time: 0,
                     overlayMix: 0,
-                    physicsDelta: physicsConstraintsEnabled ? 0 : nil,
-                    physicsStateOverride: &walkPhysicsStates
+                    diagnosticsPhysicsMode: &walkPhysicsMode
                 ))
                 samples.append(diagnosticGeometrySample(
                     actionName: "\(actionName)#lookMix=0.50",
                     animation: animation,
                     time: 0,
                     overlayMix: 0.5,
-                    physicsDelta: physicsConstraintsEnabled ? 0 : nil,
-                    physicsStateOverride: &walkPhysicsStates
+                    diagnosticsPhysicsMode: &walkPhysicsMode
                 ))
             }
         }
@@ -902,12 +901,12 @@ final class SpineSetupPoseRenderer {
         guard let animation = animations[actionName] else {
             throw EngineError.renderer("Missing Spine animation for snapshot action: \(actionName)")
         }
-        var noWalkPhysicsStates: [String: PhysicsRuntimeState]? = nil
+        var noWalkPhysicsMode: SpineDiagnosticsPhysicsMode?
         let vertexBatches = try diagnosticVertexBatches(
             animation: animation,
             time: time,
             bindingInput: bindingInput,
-            physicsStateOverride: &noWalkPhysicsStates
+            diagnosticsPhysicsMode: &noWalkPhysicsMode
         )
         return try Self.snapshotImage(
             vertexBatches: vertexBatches,
@@ -930,12 +929,12 @@ final class SpineSetupPoseRenderer {
         guard let animation = animations[actionName] else {
             throw EngineError.renderer("Missing Spine animation for snapshot action: \(actionName)")
         }
-        var noWalkPhysicsStates: [String: PhysicsRuntimeState]? = nil
+        var noWalkPhysicsMode: SpineDiagnosticsPhysicsMode?
         let vertexBatches = try diagnosticVertexBatches(
             animation: animation,
             time: time,
             bindingInput: bindingInput,
-            physicsStateOverride: &noWalkPhysicsStates
+            diagnosticsPhysicsMode: &noWalkPhysicsMode
         )
         try Self.encodeVertexBatches(
             vertexBatches,
@@ -1229,16 +1228,14 @@ final class SpineSetupPoseRenderer {
         animation: SpineAnimation,
         time: Double,
         overlayMix: Double? = nil,
-        physicsDelta: Double? = nil,
-        physicsStateOverride: inout [String: PhysicsRuntimeState]?
+        diagnosticsPhysicsMode: inout SpineDiagnosticsPhysicsMode?
     ) -> GeometrySample {
         do {
             let vertexBatches = try diagnosticVertexBatches(
                 animation: animation,
                 time: time,
                 overlayMix: overlayMix,
-                physicsDelta: physicsDelta,
-                physicsStateOverride: &physicsStateOverride
+                diagnosticsPhysicsMode: &diagnosticsPhysicsMode
             )
             return Self.geometrySample(
                 actionName: actionName,
@@ -1263,21 +1260,27 @@ final class SpineSetupPoseRenderer {
         }
     }
 
+    /// Diagnostics-walk physics evaluation mode. The geometry-samples walk passes .walk;
+    /// every other diagnostic path passes nil and keeps the exact live-path stateful physics.
+    enum SpineDiagnosticsPhysicsMode {
+        case walk
+    }
+
     private func diagnosticVertexBatches(
         animation: SpineAnimation,
         time: Double,
         overlayMix: Double? = nil,
         bindingInput: DeclarativeBindingEvaluationInput? = nil,
-        physicsDelta: Double? = nil,
-        physicsStateOverride: inout [String: PhysicsRuntimeState]?
+        diagnosticsPhysicsMode: inout SpineDiagnosticsPhysicsMode?
     ) throws -> [VertexBatch] {
-        // The geometry-samples walk supplies physicsDelta + physicsStateOverride (its fresh
-        // per-action states map) so the physics constraint integrates deterministically over
-        // the walk's sorted candidate timeline instead of the live stateful integration.
-        // Snapshot/golden paths pass nil for both and keep the exact live-path parity. In
-        // physics-off walkers the map is nil, so the deterministic branch is inert and the
-        // stateful branch evaluates with a zero delta — a pure pose evaluation, byte-identical
-        // to the pre-physics walk (every event-only timeline sample equals its setup pose).
+        // The geometry-samples walk supplies .walk, which evaluates physics INDEPENDENTLY
+        // per sample: a fresh states map and the absolute-time substep accumulator in
+        // applyPhysicsConstraint's walk branch, so physics(t) is a pure function of t —
+        // never of the walk order or position — and one pose evaluation per sample bounds
+        // the cost. Physics-off walkers (no constraints) use a frozen zero physics time —
+        // the pure-pose evaluation identical to the pre-physics walk (every event-only
+        // timeline sample equals its setup pose). Snapshot/golden paths pass nil and keep
+        // the exact live-path parity.
         let overlayAnimation = animation.name == idleAnimationName ? nil : animation
         let effectiveOverlayMix = overlayAnimation == nil ? 0 : min(max(overlayMix ?? 1, 0), 1)
         var bindingOffsets: [String: Double] = [:]
@@ -1291,7 +1294,8 @@ final class SpineSetupPoseRenderer {
             bindingOffsets = bindingSnapshot.spineBoneRotationOffsets
         }
         let pose: (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]])
-        if physicsDelta != nil || physicsStateOverride != nil {
+        if diagnosticsPhysicsMode != nil {
+            var walkPhysicsStates: [String: PhysicsRuntimeState]? = physicsConstraintsEnabled ? [:] : nil
             pose = evaluate(
                 baseAnimation: animations[idleAnimationName],
                 baseTime: time,
@@ -1301,10 +1305,10 @@ final class SpineSetupPoseRenderer {
                 overlayAnimation: overlayAnimation,
                 overlayTime: time,
                 overlayMix: effectiveOverlayMix,
-                physicsTime: physicsDelta != nil ? time : 0,
+                physicsTime: walkPhysicsStates != nil ? time : 0,
                 boneRotationOffsets: bindingOffsets,
-                physicsStateOverride: &physicsStateOverride,
-                physicsDeltaOverride: physicsDelta
+                physicsStateOverride: &walkPhysicsStates,
+                deterministicWalkPhysics: true
             )
         } else {
             pose = evaluate(
@@ -1438,7 +1442,7 @@ final class SpineSetupPoseRenderer {
             physicsTime: physicsTime,
             boneRotationOffsets: boneRotationOffsets,
             physicsStateOverride: &unusedPhysicsStateOverride,
-            physicsDeltaOverride: nil
+            deterministicWalkPhysics: false
         )
     }
 
@@ -1454,7 +1458,7 @@ final class SpineSetupPoseRenderer {
         physicsTime: Double?,
         boneRotationOffsets: [String: Double],
         physicsStateOverride: inout [String: PhysicsRuntimeState]?,
-        physicsDeltaOverride: Double?
+        deterministicWalkPhysics: Bool
     ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
         var posedBones = bones
         var posedSlots = slots
@@ -1511,10 +1515,10 @@ final class SpineSetupPoseRenderer {
         )
         applyDeclarativeBoneRotationOffsets(boneRotationOffsets, to: &posedBones)
 
-        // Diagnostics-walk mode: physics integrates exactly once over the walk's states map —
-        // deterministically when the walker supplies a forced delta, or inert (zero delta, pure
-        // pose) for physics-off walkers passing a nil map with a frozen skeleton time.
-        if var walkPhysicsStates = physicsStateOverride, let physicsDeltaOverride {
+        // Diagnostics-walk mode: physics integrates once over a fresh, independent states map
+        // with the absolute-time substep accumulator (deterministic physics(t)), or inertly
+        // (zero delta, pure pose) for physics-off walkers with a frozen skeleton time.
+        if var walkPhysicsStates = physicsStateOverride, deterministicWalkPhysics {
             let boneWorld = Self.computeBoneWorld(
                 posedBones,
                 constraints: posedConstraints,
@@ -1526,12 +1530,8 @@ final class SpineSetupPoseRenderer {
                 skeletonTime: physicsTime,
                 enablePhysicsConstraints: physicsConstraintsEnabled,
                 referenceScale: referenceScale,
-                forceDeterministicDelta: physicsDeltaOverride
+                deterministicWalkSubsteps: true
             )
-            // Write the advanced walk states back so the next sample on the same action
-            // continues the deterministic integration — physics(t) stays a pure function of
-            // the sorted candidate timeline.
-            physicsStateOverride = walkPhysicsStates
             return (boneWorld, posedSlots, deforms, sequenceIndices)
         }
         if physicsStateOverride == nil, physicsTime == 0 {
@@ -3304,7 +3304,7 @@ final class SpineSetupPoseRenderer {
         skeletonTime: Double?,
         enablePhysicsConstraints: Bool,
         referenceScale: Double,
-        forceDeterministicDelta: Double? = nil
+        deterministicWalkSubsteps: Bool = false
     ) -> [BoneWorld] {
         var states = bones.map { bone in
             BonePoseState(
@@ -3348,7 +3348,7 @@ final class SpineSetupPoseRenderer {
                         stateByName: &physicsStateByName,
                         skeletonTime: skeletonTime,
                         referenceScale: referenceScale,
-                        forceDeterministicDelta: forceDeterministicDelta
+                        deterministicWalkSubsteps: deterministicWalkSubsteps
                     )
                 }
             }
@@ -3954,7 +3954,7 @@ final class SpineSetupPoseRenderer {
         stateByName: inout [String: PhysicsRuntimeState],
         skeletonTime: Double,
         referenceScale: Double,
-        forceDeterministicDelta: Double? = nil
+        deterministicWalkSubsteps: Bool = false
     ) {
         guard constraint.boneIndex < states.count, constraint.mix != 0 else { return }
 
@@ -3970,17 +3970,33 @@ final class SpineSetupPoseRenderer {
         }
 
         let step = max(constraint.step, 1.0 / 240.0)
-        // Diagnostics-walk mode: the caller supplies a monotonic per-sample delta recomputed
-        // from the sorted candidate set, so the integration is a function of (time, delta)
-        // alone — independent of the walk order or live runtime physics state. The live path
-        // keeps the wall-clock delta exactly as before.
+        // Diagnostics-walk mode: the substep accumulator is a pure function of the absolute
+        // skeleton time — round(elapsed/step) full steps, capped, plus the elapsed residual
+        // folded into the accumulator once — so physics(t) is independent of the walk order,
+        // the walk position, and the sample spacing. The live path keeps the wall-clock delta
+        // exactly as before.
         let delta: Double
-        if let forceDeterministicDelta {
-            delta = min(max(forceDeterministicDelta, 0), 0.25)
+        if deterministicWalkSubsteps {
+            let elapsed = max(skeletonTime, 0)
+            let substeps = min((elapsed / step).rounded(), 64)
+            delta = substeps * step
+            // The fresh per-sample runtime starts already past its reset: a map created per
+            // sample would otherwise spend its only call seeding accelerators and never
+            // integrate, so every sample would collapse onto the setup pose. Seeding to the
+            // pre-reset accelerators below is the state a fresh live runtime has after its
+            // first call, and at t = 0 it still yields exactly the setup pose.
+            runtime.needsReset = false
+            runtime.ux = states[constraint.boneIndex].tx
+            runtime.uy = states[constraint.boneIndex].ty
+            runtime.cx = states[constraint.boneIndex].tx
+            runtime.cy = states[constraint.boneIndex].ty
+            // The residual remainder of the elapsed time joins the accumulator exactly once, so
+            // the sample integrates round(elapsed/step) full steps plus that partial step.
+            runtime.remaining = delta + (elapsed - substeps * step)
         } else {
             delta = min(max(skeletonTime - runtime.lastTime, 0), 0.25)
+            runtime.remaining = min(runtime.remaining + delta, 0.5)
         }
-        runtime.remaining = min(runtime.remaining + delta, 0.5)
         runtime.lastTime = skeletonTime
 
         let boneIndex = constraint.boneIndex

@@ -11459,6 +11459,10 @@ enum RuntimeSelfTest {
         let bareShort = controller(zone: bareZone, clock: { bareShortClock })
         bareShort.pointerDown(at: center, button: .left)
         bareShortClock = 0.1
+        // No snapshot before the release: the press never saw a promotion, so the pending
+        // window runs its course untouched. (A promoted-then-released press is a different
+        // case: the release re-decision demotes the holdStart preview into this same
+        // pending-window tap decision — see the tapAfterPreview scenario above.)
         bareShort.pointerUp(at: center, button: .left)
         let bareShortRelease = bareShort.snapshot()
         check(
