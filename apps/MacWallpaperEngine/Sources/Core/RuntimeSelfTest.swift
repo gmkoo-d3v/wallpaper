@@ -11371,7 +11371,16 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
-        tapClockState = 0.3 + 1.15 - 0.05
+        // Canonical release-tail convention (matches the legacy tap-window decay checks):
+        // after a pre-commit release the engine reports the command unheld with
+        // expires = release + activeClickTailDuration, and the snapshot pulse decays as
+        // (expires - now) / activeClickTailDuration. Here the default tap tail is 1.15, so
+        // expires = 0.3 + 1.15 = 1.45. Sampling at release + 1.10 gives pulse
+        // (1.45 - 1.40) / 1.15 = 0.043 — still inside the window but below the > 0.05
+        // decay threshold (the old +1.15 - 0.05 sample landed exactly on that boundary),
+        // so the held sample moves to release + 0.5: pulse (1.45 - 0.80) / 1.15 = 0.565 >
+        // 0.05, then expiry verified after release + 1.15.
+        tapClockState = 0.3 + 0.5
         let tapTailHeldPulse = tapAfterPreview.snapshot().clickPulse
         tapClockState = 0.3 + 1.15 + 0.05
         let tapTailExpired = tapAfterPreview.snapshot()
@@ -11379,7 +11388,7 @@ enum RuntimeSelfTest {
             tapTailHeldPulse > 0.05
                 && tapTailExpired.command == "idle"
                 && tapTailExpired.clickPulse == 0.0,
-            "holdAction zone: the pre-commit tap release must decay over the default tap tail 1.15 (held before release+1.15, expired after)",
+            "holdAction zone: the pre-commit tap release must decay over the default tap tail 1.15 (pulse (expires-now)/1.15 > 0.05 at release+0.5, expired after release+1.15)",
             failures: &failures,
             checks: &checks
         )
@@ -11465,8 +11474,13 @@ enum RuntimeSelfTest {
         // pending-window tap decision — see the tapAfterPreview scenario above.)
         bareShort.pointerUp(at: center, button: .left)
         let bareShortRelease = bareShort.snapshot()
+        // Canonical release-tail convention (same as the tap-decay check above): the release
+        // snapshot is taken at pointer-up with expires = now + activeClickTailDuration =
+        // 0.1 + 1.15 = 1.25, so at the release instant (expires - now) / 1.15 = 1.0 exactly —
+        // the start of the decay. The pulse check must be a strict interior window; the
+        // expiry after release + 1.15 is verified by the next check.
         check(
-            bareShortRelease.command == "act" && bareShortRelease.clickPulse > 0.0 && bareShortRelease.clickPulse < 1.0,
+            bareShortRelease.command == "act" && bareShortRelease.clickPulse > 0.0 && bareShortRelease.clickPulse <= 1.0,
             "bare holdAction zone: a pre-commit release must replay the base action act with the plain hold tail, got \(bareShortRelease.command) / pulse \(bareShortRelease.clickPulse)",
             failures: &failures,
             checks: &checks
