@@ -191,6 +191,7 @@ final class InteractionController {
                 clickCommandState = pressGesturePhase == .holding ? previewAction : nil
                 clickCommandHeld = pressGesturePhase == .holding
                 activeClickTailDuration = pressedHitTailDuration
+                // TEMP run4: revert FIX-1 to original
                 clickCommandExpiresAt = now + releaseFadeDuration
             } else if preCommitPress,
                       pressGesturePhase == .holding,
@@ -678,10 +679,10 @@ final class InteractionController {
             if pressGesturePhase != .rubbing {
                 if now - pressStartedAt >= pressedHitHoldCommitSeconds {
                     promoteToHoldActionLocked(now: now)
-                } else {
-                    pressGesturePhase = .pendingTap
                 }
             }
+            // TEMP diag at bare release decision (run3)
+            FileHandle.standardError.write(("TEMP[bare_release_decision] phase=\(pressGesturePhase) dur=\(now - pressStartedAt) commit=\(pressedHitHoldCommitSeconds) tapNil=\(pressedHitTapAction == nil) expires=\(clickCommandExpiresAt)\n").data(using: .utf8)!)
             return
         }
         guard pressedHitTrigger == .hold,
@@ -776,6 +777,10 @@ final class InteractionController {
 
     private func finishPointerUpLocked(button: PointerButton) {
         let now = clock()
+        // TEMP diag (run4): state right before finalization, synthetic-clock holdAction presses only
+        if now - pressStartedAt < 100, pressedHitHoldAction != nil {
+            FileHandle.standardError.write(("TEMP[finishPointerUp_pre] trig=\(String(describing: pressedHitTrigger)) tapNil=\(pressedHitTapAction == nil) holdAct=\(String(describing: pressedHitHoldAction)) phase=\(pressGesturePhase) dur=\(now - pressStartedAt) commit=\(pressedHitHoldCommitSeconds)\n").data(using: .utf8)!)
+        }
         guard pressedButton == nil || pressedButton == button else {
             return
         }
@@ -836,6 +841,7 @@ final class InteractionController {
                     } else if pressDuration < pressedHitHoldCommitSeconds,
                               pressedHitTapAction == nil,
                               pressedHitHoldAction != nil {
+                        // TEMP run2: bare base-tail branch taken marker below
                         // Pre-commit release of a holdAction press with no tap branch — the bare
                         // holdAction zone, whether the press never saw a snapshot promotion (it
                         // stayed .holding below commit) or a pre-commit snapshot did (the release
@@ -856,6 +862,10 @@ final class InteractionController {
                 // Release finalization applies to every hold branch outcome (rub, tap, committed
                 // hold): the released command plays its tail and the press-held state clears, so
                 // a rubbing press is not stuck held after pointer-up.
+                if now - pressStartedAt < 100 {
+                    // TEMP diag (run4): only synthetic-clock releases (small timestamps)
+                    FileHandle.standardError.write(("TEMP[release_finalization] cmd=\(releasedAction) phase=\(pressGesturePhase) dur=\(now - pressStartedAt) tapNil=\(pressedHitTapAction == nil) holdAct=\(String(describing: pressedHitHoldAction)) commit=\(pressedHitHoldCommitSeconds) expires=\(now + max(releasedTail, releaseFadeDuration))\n").data(using: .utf8)!)
+                }
                 clickCommandState = releasedAction
                 clickCommandHeld = false
                 activeClickTailDuration = max(releasedTail, releaseFadeDuration)
