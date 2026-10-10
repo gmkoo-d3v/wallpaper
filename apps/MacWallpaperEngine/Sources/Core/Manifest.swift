@@ -286,6 +286,7 @@ struct HitZone: Decodable {
     let ellipse: HitZoneEllipse?
     let action: String
     let tapAction: String?
+    let holdAction: String?
     let rubAction: String?
     let trigger: HitZoneTrigger?
     let tailSeconds: Double?

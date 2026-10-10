@@ -429,6 +429,7 @@
         "ellipse": { "$ref": "#/$defs/hitZoneEllipse" },
         "action": { "type": "string", "minLength": 1 },
         "tapAction": { "type": "string", "minLength": 1 },
+        "holdAction": { "type": "string", "minLength": 1 },
         "rubAction": { "type": "string", "minLength": 1 },
         "trigger": { "enum": ["tap", "hold"] },
         "tailSeconds": { "type": "number", "minimum": 0 },

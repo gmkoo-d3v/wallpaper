@@ -440,6 +440,11 @@ final class WallpaperMetalView: MTKView {
                 }
                 let commitDelay = max(0.05, zone.holdCommitSeconds + 0.05 - holdPreviewDelay)
                 delay += commitDelay
+                if zone.holdAction != nil {
+                    // Committed-hold sample: an extra drag past the commit threshold so the
+                    // smoke timeline dwells on the holdAction loop before the release stops it.
+                    delay += 0.05
+                }
             } else {
                 delay += 0.05
             }

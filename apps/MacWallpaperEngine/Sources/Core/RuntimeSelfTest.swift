@@ -4022,6 +4022,7 @@ enum RuntimeSelfTest {
         try checkUnsupportedSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
         try checkSpineAnimationPairSyntax(from: runtime, failures: &failures, checks: &checks)
         try checkHoldCommitTapBranchSemantics(from: runtime, failures: &failures, checks: &checks)
+        try checkCommittedHoldActionSemantics(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
             let details = failures.map { "- \($0)" }.joined(separator: "\n")
@@ -5493,6 +5494,7 @@ enum RuntimeSelfTest {
                             ellipse: nil,
                             action: "boll",
                             tapAction: nil,
+                            holdAction: nil,
                             rubAction: nil,
                             trigger: .tap,
                             tailSeconds: 0.5,
@@ -5511,6 +5513,7 @@ enum RuntimeSelfTest {
                             ellipse: nil,
                             action: "act",
                             tapAction: nil,
+                            holdAction: nil,
                             rubAction: nil,
                             trigger: .hold,
                             tailSeconds: 1.15,
@@ -10988,6 +10991,7 @@ enum RuntimeSelfTest {
                 ellipse: nil,
                 action: "idle",
                 tapAction: "a:b",
+                holdAction: nil,
                 rubAction: rubAction,
                 trigger: .hold,
                 tailSeconds: tailSeconds,
@@ -11227,6 +11231,298 @@ enum RuntimeSelfTest {
                 && rubExpiredSnapshot.command == "idle"
                 && rubExpiredSnapshot.clickPulse == 0.0,
             "rub release: pointer-up must finalize the rub command unheld with the effective rub tail max(rubTail 0.4, \"b\" animation tail 1.5) (decaying pulse at up+0.1) and expire seam-free to the fallthrough idle command at pulse 0 (observed at up+1.7), got release pulse \(rubReleaseSnapshot.clickPulse) / expired command \(rubExpiredSnapshot.command) @ \(rubExpiredSnapshot.clickPulse)",
+            failures: &failures,
+            checks: &checks
+        )
+    }
+
+    /// Committed-hold `holdAction` semantics with an injected clock. Implemented rules:
+    /// a zone with action + tapAction + holdAction (explicit positive holdCommit) runs the
+    /// legacy pre-commit tap window: down is pending, a pre-commit snapshot keeps the legacy
+    /// base-action hold preview, a pre-commit release demotes the preview and emits the
+    /// tapAction with the tap tail, and only the commit crossing promotes to the held loop
+    /// action. A committed release stops the loop: the command falls to the move/idle family
+    /// with the release fade only (no committed-action tail replay). A bare holdAction zone
+    /// (no tapAction) starts neutral-pending — the base action is never held — commits to the
+    /// loop exactly at holdCommit, and a pre-commit release replays the base action with the
+    /// plain hold tail. Manifest validation rejects a holdAction without an explicit positive
+    /// holdCommitSeconds.
+    private static func checkCommittedHoldActionSemantics(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        func holdActionZone(
+            id: String,
+            action: String,
+            tapAction: String?,
+            holdAction: String,
+            holdStartSeconds: Double?,
+            holdCommitSeconds: Double?
+        ) -> HitZone {
+            HitZone(
+                id: id,
+                rect: [0.0, 0.0, 1.0, 1.0],
+                ellipse: nil,
+                action: action,
+                tapAction: tapAction,
+                holdAction: holdAction,
+                rubAction: nil,
+                trigger: .hold,
+                tailSeconds: nil,
+                tapTailSeconds: nil,
+                rubTailSeconds: nil,
+                holdStartSeconds: holdStartSeconds,
+                holdCommitSeconds: holdCommitSeconds,
+                rubStartSeconds: nil,
+                rubStartDistance: nil,
+                buttons: [.left],
+                priority: nil
+            )
+        }
+        let lookInteraction = InteractionConfig(
+            event: .pointerMove,
+            mapping: "lookDirection",
+            actions: ["left": "idle", "right": "idle", "up": "idle", "down": "idle", "idle": "idle"],
+            neutralPoint: nil,
+            deadZone: nil,
+            hitZones: nil,
+            defaultAction: nil,
+            buttons: nil
+        )
+        func controller(
+            zone: HitZone,
+            clock: @escaping () -> CFTimeInterval
+        ) -> InteractionController {
+            InteractionController(
+                interactions: [
+                    InteractionConfig(
+                        event: .pointerDown,
+                        mapping: nil,
+                        actions: nil,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        hitZones: [zone],
+                        defaultAction: nil,
+                        buttons: [.left]
+                    ),
+                    lookInteraction
+                ],
+                policy: nil,
+                actionTailDurations: [:],
+                clock: clock
+            )
+        }
+        let center = CGPoint(x: 0.5, y: 0.5)
+        let releaseFade: CFTimeInterval = 0.20
+
+        // Scenario 1: action + tapAction + holdAction (0.2 start / 0.4 commit). The pointer
+        // down is pending; the pre-commit snapshot keeps the legacy base-action hold preview
+        // (holdStart semantics preserved); crossing holdCommit promotes the held loop action
+        // at pulse 1; the pre-commit release — even after the preview promoted — is demoted
+        // and emitted as the tapAction with the tap tail; a post-commit release stops the
+        // loop with the release fade only.
+        var liveClock: CFTimeInterval = 0
+        let liveZone = holdActionZone(
+            id: "live_zone",
+            action: "act",
+            tapAction: "tapX",
+            holdAction: "loopY",
+            holdStartSeconds: 0.2,
+            holdCommitSeconds: 0.4
+        )
+        let liveController = controller(zone: liveZone, clock: { liveClock })
+        liveController.pointerDown(at: center, button: .left)
+        let liveDown = liveController.snapshot()
+        check(
+            liveDown.command == "idle" && liveDown.clickPulse == 0.0 && liveDown.isPointerDown,
+            "holdAction zone: pointer down must be a pending press with the neutral command before holdStart",
+            failures: &failures,
+            checks: &checks
+        )
+        liveClock = 0.25
+        let livePreCommit = liveController.snapshot()
+        check(
+            livePreCommit.command == "act" && livePreCommit.clickPulse == 1.0,
+            "holdAction zone: the pre-commit snapshot must keep the legacy base-action hold preview at holdStart (act held at pulse 1 before commit 0.4)",
+            failures: &failures,
+            checks: &checks
+        )
+        liveClock = 0.45
+        let liveCommitted = liveController.snapshot()
+        check(
+            liveCommitted.command == "loopY" && liveCommitted.clickPulse == 1.0,
+            "holdAction zone: crossing holdCommit must promote the held committed loop action (loopY at pulse 1), got \(liveCommitted.command) / pulse \(liveCommitted.clickPulse)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        var tapClockState: CFTimeInterval = 0
+        let tapAfterPreview = controller(zone: liveZone, clock: { tapClockState })
+        tapAfterPreview.pointerDown(at: center, button: .left)
+        tapClockState = 0.25
+        _ = tapAfterPreview.snapshot()
+        tapClockState = 0.3
+        tapAfterPreview.pointerUp(at: center, button: .left)
+        let tapReleased = tapAfterPreview.snapshot()
+        check(
+            tapReleased.command == "tapX" && tapReleased.clickPulse > 0.9,
+            "holdAction zone: a pre-commit release after the base-action preview must demote the preview and emit the tapAction with the tap tail (legacy preview must not steal the tap decision)",
+            failures: &failures,
+            checks: &checks
+        )
+        tapClockState = 0.3 + 1.15 - 0.05
+        let tapTailHeldPulse = tapAfterPreview.snapshot().clickPulse
+        tapClockState = 0.3 + 1.15 + 0.05
+        let tapTailExpired = tapAfterPreview.snapshot()
+        check(
+            tapTailHeldPulse > 0.05
+                && tapTailExpired.command == "idle"
+                && tapTailExpired.clickPulse == 0.0,
+            "holdAction zone: the pre-commit tap release must decay over the default tap tail 1.15 (held before release+1.15, expired after)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        var commitClock: CFTimeInterval = 0
+        let commitController = controller(zone: liveZone, clock: { commitClock })
+        commitController.pointerDown(at: center, button: .left)
+        commitClock = 0.25
+        _ = commitController.snapshot()
+        commitClock = 0.45
+        _ = commitController.snapshot()
+        commitClock = 0.5
+        commitController.pointerUp(at: center, button: .left)
+        let commitRelease = commitController.snapshot()
+        check(
+            commitRelease.command == "idle" && commitRelease.clickPulse > 0.0 && commitRelease.clickPulse < 1.0,
+            "holdAction zone: the post-commit release must stop the loop with the release fade only (move/idle command with a decaying fade pulse at release), got \(commitRelease.command) / pulse \(commitRelease.clickPulse)",
+            failures: &failures,
+            checks: &checks
+        )
+        commitClock = 0.5 + 0.25
+        let commitExpired = commitController.snapshot()
+        check(
+            commitExpired.command == "idle" && commitExpired.clickPulse == 0.0,
+            "holdAction zone: at release + 0.25 (past the releaseFade 0.2 only, no committed-action tail replay) the command must be idle/move at pulse 0 — expiry must not extend to the base/tap tails",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // Scenario 2: bare holdAction zone (no tapAction, commit 0.4). The press starts
+        // neutral-pending — the base action act must never appear — the loop commits exactly
+        // at holdCommit, the committed release fades out only, and a pre-commit release
+        // replays the base action with the plain hold tail.
+        var bareClock: CFTimeInterval = 0
+        let bareZone = holdActionZone(
+            id: "bare_zone",
+            action: "act",
+            tapAction: nil,
+            holdAction: "loopY",
+            holdStartSeconds: nil,
+            holdCommitSeconds: 0.4
+        )
+        let bareController = controller(zone: bareZone, clock: { bareClock })
+        bareController.pointerDown(at: center, button: .left)
+        bareClock = 0.2
+        let barePreCommit = bareController.snapshot()
+        check(
+            barePreCommit.command == "idle" && barePreCommit.clickPulse == 0.0,
+            "bare holdAction zone: the press must stay neutral-pending below commit — never the base action act, got \(barePreCommit.command) / pulse \(barePreCommit.clickPulse)",
+            failures: &failures,
+            checks: &checks
+        )
+        bareClock = 0.45
+        let bareCommitted = bareController.snapshot()
+        check(
+            bareCommitted.command == "loopY" && bareCommitted.clickPulse == 1.0,
+            "bare holdAction zone: crossing holdCommit must commit to the held loop action loopY at pulse 1, got \(bareCommitted.command) / pulse \(bareCommitted.clickPulse)",
+            failures: &failures,
+            checks: &checks
+        )
+        bareClock = 0.5
+        bareController.pointerUp(at: center, button: .left)
+        let bareRelease = bareController.snapshot()
+        check(
+            bareRelease.command == "idle" && bareRelease.clickPulse > 0.0 && bareRelease.clickPulse < 1.0,
+            "bare holdAction zone: the committed release must end with the release fade only (idle command, decaying fade pulse at release)",
+            failures: &failures,
+            checks: &checks
+        )
+        bareClock = 0.5 + releaseFade + 0.05
+        let bareExpired = bareController.snapshot()
+        check(
+            bareExpired.command == "idle" && bareExpired.clickPulse == 0.0,
+            "bare holdAction zone: the committed release must expire at release + releaseFade 0.2 (idle at pulse 0 by release + 0.25, fade-only)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        var bareShortClock: CFTimeInterval = 0
+        let bareShort = controller(zone: bareZone, clock: { bareShortClock })
+        bareShort.pointerDown(at: center, button: .left)
+        bareShortClock = 0.1
+        bareShort.pointerUp(at: center, button: .left)
+        let bareShortRelease = bareShort.snapshot()
+        check(
+            bareShortRelease.command == "act" && bareShortRelease.clickPulse > 0.0 && bareShortRelease.clickPulse < 1.0,
+            "bare holdAction zone: a pre-commit release must replay the base action act with the plain hold tail, got \(bareShortRelease.command) / pulse \(bareShortRelease.clickPulse)",
+            failures: &failures,
+            checks: &checks
+        )
+        bareShortClock = 0.1 + 1.15 + 0.05
+        let bareShortExpired = bareShort.snapshot()
+        check(
+            bareShortExpired.command == "idle" && bareShortExpired.clickPulse == 0.0,
+            "bare holdAction zone: the pre-commit base-action release must expire at release + the default 1.15 hold tail",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // Manifest validation fixture: a declared holdAction without an explicit positive
+        // holdCommitSeconds is rejected before runtime (diagnoseBundle pattern).
+        let fixtureParent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineHoldActionValidationSelfTest-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: fixtureParent) }
+        try FileManager.default.createDirectory(at: fixtureParent, withIntermediateDirectories: true)
+        let activeBundle = try WallpaperBundleCatalog.requireValidBundle(runtime.config.wallpaperRoot)
+        let sourceImage = activeBundle.previewURL
+            ?? runtime.assetCatalog.staticImageAssetURL
+            ?? runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        guard FileManager.default.fileExists(atPath: sourceImage.path) else {
+            failures.append("holdAction validation fixture requires active bundle preview or staticImage asset")
+            return
+        }
+        let missingCommitRoot = fixtureParent.appendingPathComponent("hold_action_missing_commit_bundle", isDirectory: true)
+        _ = try writeStaticImageBundleFixture(
+            root: missingCommitRoot,
+            imageSource: sourceImage,
+            id: "hold_action_missing_commit_bundle",
+            title: "Hold Action Missing Commit Bundle",
+            interactionsJSON: """
+            [
+              {
+                "event": "pointerDown",
+                "hitZones": [
+                  {
+                    "id": "body",
+                    "rect": [0.20, 0.20, 0.80, 0.80],
+                    "action": "act",
+                    "holdAction": "loopY",
+                    "trigger": "hold",
+                    "tailSeconds": 0.5,
+                    "buttons": ["left"]
+                  }
+                ]
+              }
+            ]
+            """
+        )
+        let missingCommitDiagnostic = WallpaperBundleCatalog.diagnoseBundle(missingCommitRoot)
+        check(
+            missingCommitDiagnostic.status == .invalid
+                && (missingCommitDiagnostic.errorMessage?.contains("holdAction requires explicit holdCommitSeconds > 0") == true),
+            "bundle diagnostics must reject a hit zone declaring holdAction without an explicit positive holdCommitSeconds",
             failures: &failures,
             checks: &checks
         )
@@ -11642,6 +11938,7 @@ enum RuntimeSelfTest {
                             ellipse: nil,
                             action: "idle",
                             tapAction: "a:b",
+                            holdAction: nil,
                             rubAction: nil,
                             trigger: .tap,
                             tailSeconds: nil,
@@ -11660,6 +11957,7 @@ enum RuntimeSelfTest {
                             ellipse: nil,
                             action: "idle",
                             tapAction: "a:b",
+                            holdAction: nil,
                             rubAction: nil,
                             trigger: .hold,
                             tailSeconds: nil,
@@ -11724,6 +12022,7 @@ enum RuntimeSelfTest {
                             ellipse: nil,
                             action: "idle",
                             tapAction: "a",
+                            holdAction: nil,
                             rubAction: nil,
                             trigger: .hold,
                             tailSeconds: nil,
@@ -11777,6 +12076,7 @@ enum RuntimeSelfTest {
                         ellipse: nil,
                         action: "idle",
                         tapAction: "a:b",
+                        holdAction: nil,
                         rubAction: nil,
                         trigger: .tap,
                         tailSeconds: nil,
@@ -11795,6 +12095,7 @@ enum RuntimeSelfTest {
                         ellipse: nil,
                         action: "idle",
                         tapAction: "a:b",
+                        holdAction: nil,
                         rubAction: nil,
                         trigger: .hold,
                         tailSeconds: nil,

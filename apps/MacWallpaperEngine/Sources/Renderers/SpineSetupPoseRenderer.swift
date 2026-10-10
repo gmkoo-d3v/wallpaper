@@ -814,7 +814,17 @@ final class SpineSetupPoseRenderer {
 
     func diagnosticGeometrySamples(actionNames: [String]) -> [GeometrySample] {
         let uniqueActionNames = Array(Set(actionNames.isEmpty ? [idleAnimationName] : actionNames)).sorted()
+        // Diagnostics walks sample candidate times non-monotonically (per-animation sort, then
+        // the full-action loop). The live physics integration is a velocity-accumulator model
+        // whose substep loop diverges for negative or repeated time deltas, so the walk runs
+        // the physics constraint over a deterministic forward-only resampled timeline instead
+        // of the live state: diagnosticPhysicsStates is swapped in for the walk (restored on
+        // exit so the walk never reads or leaks live runtime physics state) and advanced by
+        // monotonic per-sample deltas with the substep cap in applyPhysicsConstraint. With
+        // physicsConstraintsEnabled the walk consumes it; with physics disabled or an empty
+        // constraint set the swap stays byte-identical to the pre-physics walk.
         let originalPhysicsStates = physicsStates
+        physicsStates = [:]
         defer { physicsStates = originalPhysicsStates }
 
         var samples: [GeometrySample] = []
@@ -836,8 +846,22 @@ final class SpineSetupPoseRenderer {
                 continue
             }
 
-            for time in Self.geometrySampleTimes(animation: animation, poseSampleFps: sampleFps(for: actionName)) {
-                samples.append(diagnosticGeometrySample(actionName: actionName, animation: animation, time: time))
+            let sampleTimes = Self.geometrySampleTimes(animation: animation, poseSampleFps: sampleFps(for: actionName))
+            for (index, time) in sampleTimes.enumerated() {
+                // Deterministic forward-only resampling for the walk: a repeated timestamp
+                // advances nothing; a timestamp that jumps ahead (including a backwards jump,
+                // whose elapsed physics still happened on the live path) advances by the gap
+                // with the per-call substep cap in applyPhysicsConstraint. Every candidate is
+                // a function of the sorted candidate set alone, so a sample's fingerprint is
+                // stable regardless of the walk order.
+                let previousTime = index == 0 ? 0 : sampleTimes[index - 1]
+                let monotonicDelta = max(0, time - previousTime)
+                samples.append(diagnosticGeometrySample(
+                    actionName: actionName,
+                    animation: animation,
+                    time: time,
+                    physicsDelta: physicsConstraintsEnabled ? monotonicDelta : 0
+                ))
             }
             if lookAnimationNames.contains(actionName) {
                 samples.append(diagnosticGeometrySample(
@@ -1184,13 +1208,15 @@ final class SpineSetupPoseRenderer {
         actionName: String,
         animation: SpineAnimation,
         time: Double,
-        overlayMix: Double? = nil
+        overlayMix: Double? = nil,
+        physicsDelta: Double = 0
     ) -> GeometrySample {
         do {
             let vertexBatches = try diagnosticVertexBatches(
                 animation: animation,
                 time: time,
-                overlayMix: overlayMix
+                overlayMix: overlayMix,
+                physicsDelta: physicsDelta
             )
             return Self.geometrySample(
                 actionName: actionName,
@@ -1219,8 +1245,16 @@ final class SpineSetupPoseRenderer {
         animation: SpineAnimation,
         time: Double,
         overlayMix: Double? = nil,
-        bindingInput: DeclarativeBindingEvaluationInput? = nil
+        bindingInput: DeclarativeBindingEvaluationInput? = nil,
+        physicsDelta: Double? = nil
     ) throws -> [VertexBatch] {
+        // physicsDelta (set only by the geometry-samples walk) evaluates the physics constraint
+        // as a pure pose-space function of (time, delta) over the walk's deterministic states
+        // map instead of the live stateful integration: snapshot/golden paths keep the exact
+        // live-path parity (stateful integration at time), while the walk becomes a stable
+        // function of its own sorted candidate set — a physics-enabled sample at time t shows
+        // accumulated physics displacement, a physics-stripped one stays static, and identical
+        // (action, time) pairs fingerprint identically across walks.
         let overlayAnimation = animation.name == idleAnimationName ? nil : animation
         let effectiveOverlayMix = overlayAnimation == nil ? 0 : min(max(overlayMix ?? 1, 0), 1)
         var bindingOffsets: [String: Double] = [:]
@@ -1233,18 +1267,37 @@ final class SpineSetupPoseRenderer {
             )
             bindingOffsets = bindingSnapshot.spineBoneRotationOffsets
         }
-        let pose = evaluate(
-            baseAnimation: animations[idleAnimationName],
-            baseTime: time,
-            previousOverlayAnimation: nil,
-            previousOverlayTime: 0,
-            previousOverlayMix: 0,
-            overlayAnimation: overlayAnimation,
-            overlayTime: time,
-            overlayMix: effectiveOverlayMix,
-            physicsTime: time,
-            boneRotationOffsets: bindingOffsets
-        )
+        let pose: (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]])
+        if let physicsDelta {
+            var walkPhysicsStates: [String: PhysicsRuntimeState]? = [:]
+            pose = evaluate(
+                baseAnimation: animations[idleAnimationName],
+                baseTime: time,
+                previousOverlayAnimation: nil,
+                previousOverlayTime: 0,
+                previousOverlayMix: 0,
+                overlayAnimation: overlayAnimation,
+                overlayTime: time,
+                overlayMix: effectiveOverlayMix,
+                physicsTime: time,
+                boneRotationOffsets: bindingOffsets,
+                physicsStateOverride: &walkPhysicsStates,
+                physicsDeltaOverride: physicsDelta
+            )
+        } else {
+            pose = evaluate(
+                baseAnimation: animations[idleAnimationName],
+                baseTime: time,
+                previousOverlayAnimation: nil,
+                previousOverlayTime: 0,
+                previousOverlayMix: 0,
+                overlayAnimation: overlayAnimation,
+                overlayTime: time,
+                overlayMix: effectiveOverlayMix,
+                physicsTime: time,
+                boneRotationOffsets: bindingOffsets
+            )
+        }
         return try Self.buildVertexBatches(
             slots: pose.slots,
             attachments: attachments,
@@ -1347,8 +1400,39 @@ final class SpineSetupPoseRenderer {
         overlayAnimation: SpineAnimation?,
         overlayTime: Double,
         overlayMix: Double,
-        physicsTime: Double,
+        physicsTime: Double?,
         boneRotationOffsets: [String: Double] = [:]
+    ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
+        var unusedPhysicsStateOverride: [String: PhysicsRuntimeState]? = nil
+        return evaluate(
+            baseAnimation: baseAnimation,
+            baseTime: baseTime,
+            previousOverlayAnimation: previousOverlayAnimation,
+            previousOverlayTime: previousOverlayTime,
+            previousOverlayMix: previousOverlayMix,
+            overlayAnimation: overlayAnimation,
+            overlayTime: overlayTime,
+            overlayMix: overlayMix,
+            physicsTime: physicsTime,
+            boneRotationOffsets: boneRotationOffsets,
+            physicsStateOverride: &unusedPhysicsStateOverride,
+            physicsDeltaOverride: nil
+        )
+    }
+
+    private func evaluate(
+        baseAnimation: SpineAnimation?,
+        baseTime: Double,
+        previousOverlayAnimation: SpineAnimation?,
+        previousOverlayTime: Double,
+        previousOverlayMix: Double,
+        overlayAnimation: SpineAnimation?,
+        overlayTime: Double,
+        overlayMix: Double,
+        physicsTime: Double?,
+        boneRotationOffsets: [String: Double],
+        physicsStateOverride: inout [String: PhysicsRuntimeState]?,
+        physicsDeltaOverride: Double?
     ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
         var posedBones = bones
         var posedSlots = slots
@@ -1405,6 +1489,21 @@ final class SpineSetupPoseRenderer {
         )
         applyDeclarativeBoneRotationOffsets(boneRotationOffsets, to: &posedBones)
 
+        if var physicsStateOverride, let physicsDeltaOverride {
+            return (Self.computeBoneWorld(
+                posedBones,
+                constraints: posedConstraints,
+                slots: posedSlots,
+                pathAttachments: pathAttachments,
+                deforms: deforms,
+                boneIndexByName: boneIndexByName,
+                physicsStateByName: &physicsStateOverride,
+                skeletonTime: physicsTime,
+                enablePhysicsConstraints: physicsConstraintsEnabled,
+                referenceScale: referenceScale,
+                forceDeterministicDelta: physicsDeltaOverride
+            ), posedSlots, deforms, sequenceIndices)
+        }
         return (Self.computeBoneWorld(
             posedBones,
             constraints: posedConstraints,
@@ -3157,7 +3256,8 @@ final class SpineSetupPoseRenderer {
         physicsStateByName: inout [String: PhysicsRuntimeState],
         skeletonTime: Double?,
         enablePhysicsConstraints: Bool,
-        referenceScale: Double
+        referenceScale: Double,
+        forceDeterministicDelta: Double? = nil
     ) -> [BoneWorld] {
         var states = bones.map { bone in
             BonePoseState(
@@ -3200,7 +3300,8 @@ final class SpineSetupPoseRenderer {
                         to: &states,
                         stateByName: &physicsStateByName,
                         skeletonTime: skeletonTime,
-                        referenceScale: referenceScale
+                        referenceScale: referenceScale,
+                        forceDeterministicDelta: forceDeterministicDelta
                     )
                 }
             }

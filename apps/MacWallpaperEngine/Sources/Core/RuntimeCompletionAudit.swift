@@ -1258,7 +1258,7 @@ enum RuntimeCompletionAudit {
                     }
                 }
                 for zone in interaction.hitZones ?? [] {
-                    for token in [zone.id, zone.action, zone.tapAction, zone.rubAction].compactMap({ $0 }) where token.count >= 4 {
+                    for token in [zone.id, zone.action, zone.tapAction, zone.holdAction, zone.rubAction].compactMap({ $0 }) where token.count >= 4 {
                         if genericInteractionTokens.contains(token) == false {
                             tokens.insert(token)
                         }
@@ -1291,6 +1291,9 @@ enum RuntimeCompletionAudit {
                 actions.insert($0.action)
                 if let tapAction = $0.tapAction {
                     actions.insert(tapAction)
+                }
+                if let holdAction = $0.holdAction {
+                    actions.insert(holdAction)
                 }
                 if let rubAction = $0.rubAction {
                     actions.insert(rubAction)
@@ -1365,6 +1368,7 @@ enum RuntimeCompletionAudit {
                 .map { "\($0.key)=\($0.value)" }
                 .joined(separator: ",") ?? "none"
             let zoneText = plan.hitZoneSummaries().map { zone in
+                let holdActionText = zone.holdAction.map { ",holdAction=\($0)" } ?? ""
                 if let tapAction = zone.tapAction {
                     let rubText = zone.rubAction.map {
                         ",rub=\($0)@\(String(format: "%.2fs", zone.rubStartSeconds))+distance\(String(format: "%.3f", Double(zone.rubStartDistance)))"
@@ -1372,9 +1376,9 @@ enum RuntimeCompletionAudit {
                     let holdCommitText = zone.holdCommitSeconds > zone.holdStartSeconds + 0.005
                         ? ",holdCommit=\(String(format: "%.2fs", zone.holdCommitSeconds))"
                         : ""
-                    return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))\(holdCommitText)\(rubText)"
+                    return "\(zone.id):tap=\(tapAction),hold=\(zone.action)@\(String(format: "%.2fs", zone.holdStartSeconds))\(holdCommitText)\(holdActionText)\(rubText)"
                 }
-                return "\(zone.id):\(zone.trigger.rawValue)=\(zone.action)"
+                return "\(zone.id):\(zone.trigger.rawValue)=\(zone.action)\(holdActionText)"
             }.joined(separator: ",")
             let defaultText = plan.defaultActionSummary().map { "default:\($0.trigger.rawValue)=\($0.action)" } ?? "empty=no-action"
             return "\(bundle.id){move:\(moveText); click:\(zoneText.isEmpty ? defaultText : zoneText + "," + defaultText)}"

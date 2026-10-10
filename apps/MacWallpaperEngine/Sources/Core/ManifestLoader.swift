@@ -1277,6 +1277,9 @@ enum ManifestLoader {
         if let tapAction = hitZone.tapAction, tapAction.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) tapAction must not be empty")
         }
+        if let holdAction = hitZone.holdAction, holdAction.isEmpty {
+            throw EngineError.manifest("hitZone \(hitZone.id) holdAction must not be empty")
+        }
         if let rubAction = hitZone.rubAction, rubAction.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) rubAction must not be empty")
         }
@@ -1353,6 +1356,17 @@ enum ManifestLoader {
         }
         if hitZone.tapAction != nil, (hitZone.trigger ?? .tap) != .hold {
             throw EngineError.manifest("hitZone \(hitZone.id) tapAction requires trigger=hold")
+        }
+        if hitZone.holdAction != nil, (hitZone.trigger ?? .tap) != .hold {
+            throw EngineError.manifest("hitZone \(hitZone.id) holdAction requires trigger=hold")
+        }
+        // A declared holdAction is the committed-hold loop action: the promotion moment must
+        // be explicit, so a positive holdCommitSeconds declaration is mandatory (no collapse
+        // to holdStart or the default tap window).
+        if hitZone.holdAction != nil {
+            guard let holdCommitSeconds = hitZone.holdCommitSeconds, holdCommitSeconds > 0 else {
+                throw EngineError.manifest("hitZone \(hitZone.id) holdAction requires explicit holdCommitSeconds > 0")
+            }
         }
         if hitZone.rubAction != nil, (hitZone.trigger ?? .tap) != .hold {
             throw EngineError.manifest("hitZone \(hitZone.id) rubAction requires trigger=hold")
@@ -1568,6 +1582,9 @@ enum ManifestLoader {
                 collect($0.action)
                 if let tapAction = $0.tapAction {
                     collect(tapAction)
+                }
+                if let holdAction = $0.holdAction {
+                    collect(holdAction)
                 }
                 if let rubAction = $0.rubAction {
                     collect(rubAction)

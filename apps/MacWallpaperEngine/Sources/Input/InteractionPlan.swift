@@ -6,6 +6,11 @@ struct InteractionHitResult {
     let zoneID: String
     let action: String
     let tapAction: String?
+    /// Committed-hold loop action: once the press crosses holdCommitSeconds this action is
+    /// held (looped) until release, and the release falls to move/idle with releaseFade only
+    /// (no committed-action tail replay). Validated together with an explicit positive
+    /// holdCommitSeconds.
+    let holdAction: String?
     let rubAction: String?
     let trigger: HitZoneTrigger
     let tailSeconds: CFTimeInterval
@@ -34,6 +39,7 @@ struct InteractionHitZoneSummary {
     let id: String
     let action: String
     let tapAction: String?
+    let holdAction: String?
     let rubAction: String?
     let trigger: HitZoneTrigger
     let declaredTailSeconds: CFTimeInterval
@@ -69,8 +75,15 @@ struct InteractionHitZoneSummary {
             let holdCommitText = holdCommitSeconds > holdStartSeconds + 0.005
                 ? " holdCommit=\(String(format: "%.2fs", holdCommitSeconds))"
                 : ""
-            return " tapAction=\($0) tapTail=\(String(format: "%.2fs", declaredTapTailSeconds))\(effectiveTapTail) holdStart=\(String(format: "%.2fs", holdStartSeconds))\(holdCommitText)"
+            let holdActionText = holdAction.map { " holdAction=\($0)" } ?? ""
+            return " tapAction=\($0) tapTail=\(String(format: "%.2fs", declaredTapTailSeconds))\(effectiveTapTail) holdStart=\(String(format: "%.2fs", holdStartSeconds))\(holdCommitText)\(holdActionText)"
         } ?? ""
+        // Zones without a declared tapAction render with a bare hold-action annotation so
+        // the committed-hold loop stays visible; zones without holdAction keep the exact
+        // pre-holdAction byte layout.
+        let bareHoldActionText = tapAction == nil
+            ? (holdAction.map { " holdAction=\($0)" } ?? "")
+            : ""
         let rubText = rubAction.map {
             let effectiveRubTail = effectiveTailText(
                 label: "effectiveRubTail",
@@ -79,7 +92,7 @@ struct InteractionHitZoneSummary {
             )
             return " rubAction=\($0) rubTail=\(String(format: "%.2fs", declaredRubTailSeconds))\(effectiveRubTail) rubStart=\(String(format: "%.2fs", rubStartSeconds)) rubDistance=\(String(format: "%.3f", Double(rubStartDistance)))"
         } ?? ""
-        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText)\(rubText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)\(effectiveTail)"
+        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText)\(bareHoldActionText)\(rubText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)\(effectiveTail)"
     }
 
     private func effectiveTailText(label: String, declared: CFTimeInterval, effective: CFTimeInterval) -> String {
@@ -267,6 +280,7 @@ struct InteractionPlan {
             zoneID: "binding:\(binding.id)",
             action: action,
             tapAction: nil,
+            holdAction: nil,
             rubAction: nil,
             trigger: .tap,
             tailSeconds: tailDuration(for: action) ?? defaultClickTailDuration,
@@ -335,6 +349,7 @@ struct InteractionPlan {
                 zoneID: selected.id,
                 action: selected.action,
                 tapAction: selected.tapAction,
+                holdAction: selected.holdAction,
                 rubAction: selected.rubAction,
                 trigger: selected.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: selected),
@@ -355,6 +370,7 @@ struct InteractionPlan {
                 zoneID: "default",
                 action: defaultAction.action,
                 tapAction: nil,
+                holdAction: nil,
                 rubAction: nil,
                 trigger: defaultAction.trigger ?? .tap,
                 tailSeconds: resolvedTailSeconds(for: defaultAction),
@@ -382,6 +398,7 @@ struct InteractionPlan {
                 id: hitZone.id,
                 action: hitZone.action,
                 tapAction: hitZone.tapAction,
+                holdAction: hitZone.holdAction,
                 rubAction: hitZone.rubAction,
                 trigger: hitZone.trigger ?? .tap,
                 declaredTailSeconds: declaredTailSeconds(for: hitZone),
@@ -567,7 +584,7 @@ struct InteractionPlan {
                     actionTailDurations: actionTailDurations,
                     declarativePlan: declarativePlan
                 ))
-                if zone.tapAction != nil || zone.rubAction != nil {
+                if zone.tapAction != nil || zone.rubAction != nil || zone.holdAction != nil {
                     lines.append(Self.gestureProbeText(
                         zone: zone,
                         point: center,
@@ -926,7 +943,11 @@ struct InteractionPlan {
         )
         tapController.pointerDown(at: point, button: button)
         let tapDown = tapController.snapshot()
-        tapClock.time = 0.016
+        // A positive commit threshold makes the probe release a pre-commit tap release: the
+        // tap sample uses the commit-relative window, not a bare 16 ms touch, so zones with a
+        // short commit still show the tap branch.
+        let tapReleaseTime = zone.holdCommitSeconds > 0 ? min(0.016, zone.holdCommitSeconds * 0.25) : 0.016
+        tapClock.time = tapReleaseTime
         tapController.pointerUp(at: point, button: button)
         let tapUp = tapController.snapshot()
 
@@ -947,6 +968,29 @@ struct InteractionPlan {
         let held = holdController.snapshot()
         holdController.pointerUp(at: point, button: button)
         let holdUp = holdController.snapshot()
+
+        // Committed-hold probe (holdAction zones only, so the output for zones without
+        // holdAction stays byte-identical): after the commit crossing the loop action is
+        // held at pulse 1, and releasing stops the loop with the release fade only — the
+        // command falls to the move/idle family with no committed-action tail replay.
+        var committedHoldParts: [String] = []
+        let releaseFade = policy?.releaseFadeSeconds ?? 0.20
+        if let holdAction = zone.holdAction {
+            let committedHoldTime = max(zone.holdCommitSeconds + 0.05, holdSampleTime + 0.05)
+            holdClock.time = committedHoldTime
+            let committedHeld = holdController.snapshot()
+            holdClock.time = committedHoldTime + 0.01
+            holdController.pointerUp(at: point, button: button)
+            let committedUp = holdController.snapshot()
+            holdClock.time = committedHoldTime + 0.01 + releaseFade + 0.05
+            let committedExpired = holdController.snapshot()
+            committedHoldParts = [
+                "holdAction=\(holdAction)@commit\(formatInteractionNumber(zone.holdCommitSeconds))s",
+                "committedHold@\(formatInteractionNumber(committedHoldTime))=\(snapshotText(committedHeld))",
+                "committedUp@\(formatInteractionNumber(committedHoldTime + 0.01))=\(snapshotText(committedUp))",
+                "committedExpired@\(formatInteractionNumber(committedHoldTime + 0.01 + releaseFade + 0.05))=\(snapshotText(committedExpired))"
+            ]
+        }
 
         let rubDelta = max(zone.rubStartDistance + 0.02, 0.02)
         let rubPoint = CGPoint(
@@ -977,7 +1021,7 @@ struct InteractionPlan {
         rubController.pointerUp(at: zone.rubStartSeconds > 0 ? rubPoint2 : rubPoint, button: button)
         let rubUp = rubController.snapshot()
 
-        return [
+        var probeParts = [
             "gestureProbe: \(zone.id)",
             "button=\(button.rawValue)",
             "tap=\(zone.tapAction ?? "none")",
@@ -985,14 +1029,16 @@ struct InteractionPlan {
             "holdCommit=\(formatInteractionNumber(zone.holdCommitSeconds))s",
             "rub=\(zone.rubAction ?? "none")@\(formatInteractionNumber(zone.rubStartSeconds))s+distance\(formatInteractionNumber(Double(zone.rubStartDistance)))",
             "tapDown@0.000=\(snapshotText(tapDown))",
-            "tapUp@0.016=\(snapshotText(tapUp))",
+            "tapUp@\(formatInteractionNumber(tapReleaseTime))=\(snapshotText(tapUp))",
             "preHold@\(formatInteractionNumber(preHoldSampleTime))=\(snapshotText(preHold))",
             "held@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(held))",
             "holdUp@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(holdUp))",
             "preRub@distance\(formatInteractionNumber(Double(rubDelta)))=\(snapshotText(preRub))",
             "rubDrag@distance\(formatInteractionNumber(Double(rubDelta)))=\(snapshotText(rubDragged))",
             "rubUp=\(snapshotText(rubUp))"
-        ].joined(separator: " ")
+        ]
+        probeParts.append(contentsOf: committedHoldParts)
+        return probeParts.joined(separator: " ")
     }
 
     private static func coordinateProbeLines(
@@ -1091,7 +1137,10 @@ struct InteractionPlan {
         let rubText = hit.rubAction.map {
             " rubAction=\($0) rubTail=\(formatInteractionNumber(hit.rubTailSeconds)) rubStart=\(formatInteractionNumber(hit.rubStartSeconds)) rubDistance=\(formatInteractionNumber(Double(hit.rubStartDistance)))"
         } ?? ""
-        return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText)\(rubText) tail=\(formatInteractionNumber(hit.tailSeconds))"
+        // Appended after the tap/rub annotations so zones without holdAction stay
+        // byte-identical.
+        let holdActionText = hit.holdAction.map { " holdAction=\($0)" } ?? ""
+        return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText)\(holdActionText)\(rubText) tail=\(formatInteractionNumber(hit.tailSeconds))"
     }
 
     func clamp(_ point: CGPoint) -> CGPoint {
