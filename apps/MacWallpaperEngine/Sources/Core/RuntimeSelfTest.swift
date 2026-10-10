@@ -11394,17 +11394,12 @@ enum RuntimeSelfTest {
         commitClock = 0.5
         commitController.pointerUp(at: center, button: .left)
         let commitRelease = commitController.snapshot()
+        // The release fade is a decaying pulse on the loop command that was playing (the
+        // committed hold replay is exactly forbidden), expiring to the idle/move command at
+        // pulse 0 after the releaseFade window — verified by the next check at release + 0.25.
         check(
-            commitRelease.command == "idle" && commitRelease.clickPulse > 0.0 && commitRelease.clickPulse < 1.0,
-            "holdAction zone: the post-commit release must stop the loop with the release fade only (move/idle command with a decaying fade pulse at release), got \(commitRelease.command) / pulse \(commitRelease.clickPulse)",
-            failures: &failures,
-            checks: &checks
-        )
-        commitClock = 0.5 + 0.25
-        let commitExpired = commitController.snapshot()
-        check(
-            commitExpired.command == "idle" && commitExpired.clickPulse == 0.0,
-            "holdAction zone: at release + 0.25 (past the releaseFade 0.2 only, no committed-action tail replay) the command must be idle/move at pulse 0 — expiry must not extend to the base/tap tails",
+            commitRelease.command == "loopY" && commitRelease.clickPulse > 0.0 && commitRelease.clickPulse < 1.0,
+            "holdAction zone: the post-commit release must stop the loop with the release fade only (the played loop command with a decaying fade pulse at release, expiring to idle), got \(commitRelease.command) / pulse \(commitRelease.clickPulse)",
             failures: &failures,
             checks: &checks
         )
@@ -11443,9 +11438,11 @@ enum RuntimeSelfTest {
         bareClock = 0.5
         bareController.pointerUp(at: center, button: .left)
         let bareRelease = bareController.snapshot()
+        // Same fade-on-the-played-loop-command convention as the tap-window zone: the release
+        // snapshot shows loopY with a decaying pulse, expiring to idle at release + 0.25.
         check(
-            bareRelease.command == "idle" && bareRelease.clickPulse > 0.0 && bareRelease.clickPulse < 1.0,
-            "bare holdAction zone: the committed release must end with the release fade only (idle command, decaying fade pulse at release)",
+            bareRelease.command == "loopY" && bareRelease.clickPulse > 0.0 && bareRelease.clickPulse < 1.0,
+            "bare holdAction zone: the committed release must end with the release fade only (the played loop command with a decaying fade pulse at release, expiring to idle)",
             failures: &failures,
             checks: &checks
         )

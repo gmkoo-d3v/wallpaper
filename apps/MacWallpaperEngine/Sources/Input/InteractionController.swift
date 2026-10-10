@@ -178,22 +178,20 @@ final class InteractionController {
                       pressGesturePhase == .pendingTap,
                       pressedHitTapAction != nil,
                       let previewAction = pressedHitAction {
-                // Live pendingTap press (the tap-window pre-commit phase): previews the base
-                // action while the press is live, so no elapsed command can blank it while the
-                // finger is down. At/after holdStart the holdStart preview above promoted the
-                // press to the held base action (pulse 1) — that promotion stays authoritative;
-                // before any promotion the preview pulses with the tap tail. Pointer-up
-                // re-decides a below-commit release through the tap action (see
+                // Live pendingTap press (the tap-window pre-commit phase): keeps the press
+                // input-active — an elapsed tap tail must never blank a live finger-down press
+                // to an idle/pulse-0 snapshot. A snapshot before holdStart shows the neutral
+                // command at pulse 0 (the pending press itself carries no click pulse); at/
+                // after holdStart the holdStart preview above promoted the press to the held
+                // base action (pulse 1) and that promotion stays authoritative. The tap-tail
+                // clock is NOT started here — for a holdAction zone it starts at pointer-up,
+                // so a pre-commit release decays over the full tap tail from the release.
+                // Pointer-up re-decides a below-commit release through the tap action (see
                 // activateHoldForReleaseLocked), so this never steals the tap decision.
-                clickCommandState = previewAction
+                clickCommandState = pressGesturePhase == .holding ? previewAction : nil
                 clickCommandHeld = pressGesturePhase == .holding
-                if clickCommandHeld {
-                    activeClickTailDuration = pressedHitTailDuration
-                    clickCommandExpiresAt = now + releaseFadeDuration
-                } else {
-                    activeClickTailDuration = max(pressedHitTapTailDuration, releaseFadeDuration)
-                    clickCommandExpiresAt = now + activeClickTailDuration
-                }
+                activeClickTailDuration = pressedHitTailDuration
+                clickCommandExpiresAt = now + releaseFadeDuration
             } else if preCommitPress,
                       pressGesturePhase == .holding,
                       tapWindowAlive,
@@ -674,9 +672,15 @@ final class InteractionController {
            pressedHitTapAction == nil,
            pressedHitHoldAction != nil {
             // Bare holdAction zone: commit at release when the press reached holdCommit; a
-            // below-commit release stays uncommitted (base-action hold release below).
-            if pressGesturePhase != .rubbing, now - pressStartedAt >= pressedHitHoldCommitSeconds {
-                promoteToHoldActionLocked(now: now)
+            // below-commit release stays uncommitted (base-action hold release below) and
+            // returns to the pending phase, so the release finalization replays the base
+            // action with the plain hold tail instead of treating the press as committed.
+            if pressGesturePhase != .rubbing {
+                if now - pressStartedAt >= pressedHitHoldCommitSeconds {
+                    promoteToHoldActionLocked(now: now)
+                } else {
+                    pressGesturePhase = .pendingTap
+                }
             }
             return
         }
@@ -694,8 +698,15 @@ final class InteractionController {
         }
         if pressedHitHoldAction != nil, pressGesturePhase != .rubbing {
             // Declared holdAction: the commit at release goes to the loop action, not the
-            // base action (base-action promotion would replay the committed tail).
-            promoteToHoldActionLocked(now: now)
+            // base action (base-action promotion would replay the committed tail). The
+            // threshold is the commit window: a pending press still below commit stays in the
+            // pending phase so the release finalization emits the tap action — the holdStart
+            // preview never steals the tap decision.
+            if now - pressStartedAt >= pressedHitHoldCommitSeconds {
+                promoteToHoldActionLocked(now: now)
+                return
+            }
+            pressGesturePhase = .pendingTap
             return
         }
         activateDelayedHoldLocked(now: now)
@@ -787,12 +798,16 @@ final class InteractionController {
                 && pressDuration >= pressedHitHoldCommitSeconds
             if commitsToHoldAction {
                 // Committed holdAction release: the loop was playing (or commits at this
-                // very release), so release must STOP it — the command falls to move/idle
-                // with the release fade only, no committed-action tail replay.
-                clickCommandState = nil
+                // very release), so release must STOP it — the command falls to the move/idle
+                // family with the release fade only, no committed-action tail replay. The
+                // The command stays the last loop action, unheld, with the release-fade
+                // window starting at the release, so the snapshot right at release shows a
+                // decaying pulse; by release + releaseFade it expires to the move/idle
+                // command at pulse 0 — expiry never extends to the base/tap tails.
+                clickCommandState = pressedHitHoldAction
                 clickCommandHeld = false
                 activeClickTailDuration = releaseFadeDuration
-                clickCommandExpiresAt = 0
+                clickCommandExpiresAt = now + releaseFadeDuration
             } else {
                 let releasedAction: String
                 let releasedTail: CFTimeInterval
@@ -807,9 +822,25 @@ final class InteractionController {
                     // strictly below the commit threshold releases the tap action, everything
                     // else — including commit == holdStart == 0, whose threshold every release
                     // passes — is the committed hold.
-                    if let pressedHitTapAction, tapWindowAlive, pressDuration < pressedHitHoldCommitSeconds {
+                    if pressDuration < pressedHitHoldCommitSeconds,
+                       pressGesturePhase == .pendingTap,
+                       let pressedHitTapAction,
+                       tapWindowAlive {
+                        // Pending press released below the commit threshold: the tap decision
+                        // (a live tap branch wins; a bare holdAction zone has none, so its
+                        // short pre-commit press replays the base action). The tap-tail clock
+                        // for holdAction zones starts here at the release, so the tap decays
+                        // over the full tap tail from pointer-up.
                         releasedAction = pressedHitTapAction
                         releasedTail = pressedHitTapTailDuration
+                    } else if pressDuration < pressedHitHoldCommitSeconds {
+                        // Pre-commit release of a promoted (direct-hold or commit-collapse)
+                        // press, including a bare holdAction zone whose short press never
+                        // reached the commit window: replays the base action with the plain
+                        // hold tail only — never max(tap) — with the tail clock starting at
+                        // the release.
+                        releasedAction = pressedHitAction
+                        releasedTail = pressedHitTailDuration
                     } else {
                         releasedAction = pressedHitAction
                         // For hold zones, committed and pre-commit releases are two branches of one
