@@ -121,6 +121,25 @@ final class InteractionController {
         // press still pending below the commit threshold, pointer-up re-evaluates the
         // gesture and resolves the release through the tap action (see
         // activateHoldForReleaseLocked); otherwise the preview promotion is final.
+        // Preview-gate exception: a zone that declares a holdAction shows NEUTRAL pending
+        // below the commit — the holdStart base-action preview promotion is skipped.
+        // Source IL (the hold zone): the press itself has no visual; 'act' plays only at
+        // click-end (PlayActAnimation at HandleClickEnd 0x275c IL 001c) and the holdAction
+        // loop (the hold loop clip) arms only after the commit crossing (Update 007f–0092), so an
+        // act-preview during the pending window would be a fiction. Zones WITHOUT holdAction
+        // keep the pre-existing snapshot hold-start preview byte-identically; the commit
+        // crossing still promotes to the loop via activateDelayedHoldIfNeededLocked below,
+        // and pointer-up still re-decides the tap below commit, so the tap decision is
+        // untouched. For committed-holdAction zones (no tapAction) the snapshot keeps the
+        // existing promotion path (the neutral-pending live rule below handles the pre-commit
+        // phase; the loop must still arm at the crossing without an intervening snapshot).
+        // The call stays UNCONDITIONAL for holdAction zones: skipping it below the preview
+        // window would also skip the commit-crossing arming, which would make the loop depend
+        // on a snapshot tick landing between the commit and the next sampling (a probe or a
+        // low-cadence frame can miss that window and keep showing stale pending residue);
+        // the gate itself lives in the tap-window holdAction branch of
+        // activateDelayedHoldIfNeededLocked (neutral below commit, loop arms exactly at the
+        // crossing, with or without an intervening snapshot).
         activateDelayedHoldIfNeededLocked(now: now)
         // Generic live-press rule: while a press is live (pressedButton set) on a zone that
         // declares a holdAction, the press must stay INPUT-ACTIVE regardless of any elapsed
@@ -176,38 +195,55 @@ final class InteractionController {
                 )
             } else if preCommitPress,
                       pressGesturePhase == .pendingTap,
-                      pressedHitTapAction != nil,
-                      let previewAction = pressedHitAction {
-                // Live pendingTap press (the tap-window pre-commit phase): keeps the press
-                // input-active — an elapsed tap tail must never blank a live finger-down press
-                // to an idle/pulse-0 snapshot. A snapshot before holdStart shows the neutral
-                // command at pulse 0 (the pending press itself carries no click pulse); at/
-                // after holdStart the holdStart preview above promoted the press to the held
-                // base action (pulse 1) and that promotion stays authoritative. The tap-tail
-                // clock is NOT started here — for a holdAction zone it starts at pointer-up,
-                // so a pre-commit release decays over the full tap tail from the release.
-                // Pointer-up re-decides a below-commit release through the tap action (see
-                // activateHoldForReleaseLocked), so this never steals the tap decision.
-                clickCommandState = pressGesturePhase == .holding ? previewAction : nil
-                clickCommandHeld = pressGesturePhase == .holding
-                activeClickTailDuration = pressedHitTailDuration
-                // FIX1: the live pendingTap preview on a holdAction zone must NOT own the
-                // tail clock — pointer-up owns it, so a pre-commit release decays over the
-                // full tap tail from the release. Non-holdAction zones keep the original
-                // `now + releaseFadeDuration` stamp byte-identically.
-                clickCommandExpiresAt = now + (pressedHitHoldAction != nil ? 0 : releaseFadeDuration)
-            } else if preCommitPress,
-                      pressGesturePhase == .holding,
-                      tapWindowAlive,
-                      let previewAction = pressedHitAction {
-                // Live .holding press with an alive tap window kept promoted below commit:
-                // the base-action preview stays held at pulse 1 regardless of any elapsed
-                // tap tail; pointer-up re-decides below the commit threshold, so the kept
-                // promotion never steals the tap decision.
-                clickCommandState = previewAction
-                clickCommandHeld = true
-                activeClickTailDuration = pressedHitTailDuration
-                clickCommandExpiresAt = now + releaseFadeDuration
+                      pressedHitTapAction != nil {
+                // Live pendingTap press on a holdAction zone (the tap-window pre-commit
+                // phase): neutral pending — returned directly with inputActive true, so an
+                // elapsed tap tail can never blank the live press to an idle/pulse-0 move
+                // snapshot while the finger is down. The preview gate keeps this press
+                // un-promoted below the commit (IL: press has no visual; the release action
+                // plays at click-end, the loop arms only past holdCommit). The pending press
+                // carries no click command of its own, so the pending state owns the state
+                // machine here: clear any elapsed tail window (pointer-up owns the tail clock
+                // for a holdAction zone — the release decays over the full tap tail from the
+                // release) so no stale pending-tail residue can render under the press or
+                // bleed into the committed-loop sample after the crossing. Pointer-up
+                // re-decides a below-commit release through the tap action (see
+                // activateHoldForReleaseLocked), so the neutral pending never steals the tap
+                // decision.
+                clickCommandState = nil
+                clickCommandHeld = false
+                clickCommandExpiresAt = 0
+                activeClickTailDuration = pressedHitTapTailDuration
+                let pressDuration = pointerPressDurationLocked(now: now)
+                let dragDistance = pointerDragDistanceLocked()
+                liveHoldActionReturn = InteractionSnapshot(
+                    pointer: smoothedPointerState,
+                    command: moveCommandState,
+                    isPointerDown: true,
+                    pointerSpeed: pointerSpeed,
+                    pointerPressDuration: pressDuration,
+                    pointerDragDistance: dragDistance,
+                    clickPulse: 0.0,
+                    isInputActive: true
+                )
+            } else if preCommitPress, pressGesturePhase == .holding, tapWindowAlive {
+                // Live press below commit on a tap-window holdAction zone kept promoted by a
+                // drag: with the preview gate the promotion never arms the base action, so
+                // this is neutral pending too — returned directly with inputActive true (the
+                // blanking fallthrough must not blank the live press; same rule as the
+                // pendingTap branch above). Pointer-up re-decides below commit.
+                let pressDuration = pointerPressDurationLocked(now: now)
+                let dragDistance = pointerDragDistanceLocked()
+                liveHoldActionReturn = InteractionSnapshot(
+                    pointer: smoothedPointerState,
+                    command: moveCommandState,
+                    isPointerDown: true,
+                    pointerSpeed: pointerSpeed,
+                    pointerPressDuration: pressDuration,
+                    pointerDragDistance: dragDistance,
+                    clickPulse: 0.0,
+                    isInputActive: true
+                )
             } else if preCommitPress, pressGesturePhase == .holding, pressedHitTapAction == nil {
                 // Live .holding press kept promoted below commit on a bare holdAction zone:
                 // neutral pending, returned directly with inputActive true (rule comment).
@@ -634,6 +670,19 @@ final class InteractionController {
             // holdCommit (the base action is never held); the committed loop begins exactly
             // at the commit threshold, on snapshot or drag promotion.
             if pressGesturePhase == .holding, now - pressStartedAt >= pressedHitHoldCommitSeconds {
+                promoteToHoldActionLocked(now: now)
+            }
+            return
+        }
+        // Tap-window holdAction zones (tapAction + holdAction): the pending press stays
+        // NEUTRAL below the commit — the holdStart base-action preview promotion is skipped
+        // (see the snapshot preview-gate rationale; IL press has no visual) — and the commit
+        // crossing arms the loop exactly at holdCommit, on the snapshot or drag promotion.
+        // Zones without holdAction are untouched: the guard below matches them unchanged.
+        if pressedHitTrigger == .hold,
+           pressedHitTapAction != nil,
+           pressedHitHoldAction != nil {
+            if pressGesturePhase == .pendingTap, now - pressStartedAt >= pressedHitHoldCommitSeconds {
                 promoteToHoldActionLocked(now: now)
             }
             return

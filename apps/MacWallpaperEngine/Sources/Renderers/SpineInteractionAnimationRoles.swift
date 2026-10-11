@@ -53,7 +53,7 @@ enum SpineInteractionAnimationRoles {
                 .forEach { hitZone in
                     components(of: hitZone.action).forEach { names.insert($0) }
                     // The committed-hold loop plays while held, so it carries the looping
-                    // (boll-like) role, never the one-shot role.
+                    // (hold-loop-clip) role, never the one-shot role.
                     if let holdAction = hitZone.holdAction {
                         components(of: holdAction).forEach { names.insert($0) }
                     }

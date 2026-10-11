@@ -862,7 +862,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=21 calibrated=3 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=23 calibrated=3 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         check(
@@ -928,11 +928,11 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
                 && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.FaceTrackerBindingCalibration=2,Assembly-CSharp.SpineFaceTracker=13")
         )
-        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:21+calibrated:3+platform-policy:4+unsupported:2")
+        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:23+calibrated:3+platform-policy:4+unsupported:2")
             || (
                 sourceProvenanceReport.contains("id=unity-metadata-source-adapter")
                     && sourceProvenanceReport.contains("kind=metadata-only-unity-wallpaper-engine-application")
-                    && sourceProvenanceReport.contains("imported=21")
+                    && sourceProvenanceReport.contains("imported=23")
                     && sourceProvenanceReport.contains("calibrated=3")
                     && sourceProvenanceReport.contains("platform-policy=4")
                     && sourceProvenanceReport.contains("unsupported=2")
@@ -941,7 +941,7 @@ enum RuntimeSelfTest {
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=21 calibrated=3 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=23 calibrated=3 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceProvenanceReport.contains("sourceAdapter:")
                 && sourceAdapterEvidenceOK
                 && sourceManagedScriptStatusOK
@@ -2037,9 +2037,9 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("appWindow=blockedApplicationWindow")
                 && interactionSummary.contains("desktopItem=blockedDesktopItem")
                 && interactionSummary.contains("clickTimeline:")
-                && interactionSummary.contains("clickTimeline: hand button=left trigger=hold down@0.000=act")
-                && interactionSummary.contains("gestureProbe") == false
-                && interactionSummary.contains("rubDrag@distance") == false
+                && interactionSummary.contains("clickTimeline: hand button=left trigger=hold down@0.000=idle/0")
+                && interactionSummary.contains("gestureProbe: hand")
+                && interactionSummary.contains("holdAction=boll@commit1.500s")
                 && interactionSummary.contains("pointerSmoothingCadence: time-based")
                 && interactionSummary.contains("pointerSampleFps:")
                 && interactionSummary.contains("pointerMoveButtons:")
@@ -2266,12 +2266,13 @@ enum RuntimeSelfTest {
                 }
                 if runtime.manifest.metadata?.id == "sample_imported", hitZone.id == "hand" {
                     check(
-                        hitZone.tapAction == nil
-                            && hitZone.action == "act"
+                        hitZone.action == "act"
+                            && hitZone.tapAction == "act"
+                            && hitZone.holdAction == "boll"
                             && hitZone.rubAction == nil
                             && hitZone.trigger == .hold
                             && abs(hitZone.holdCommitSeconds - 1.5) < 0.001,
-                        "Imported hand interaction must follow CIL: a press inside handCollider releases to 'act' (longPressThreshold=1.5 s), with no tap/rub actions because the looping 'boll' hold preview and the bone71 drag follow are inexpressible in the shipped schema"
+                        "Imported hand interaction must follow CIL (.build-cache/codex_imported_cil_report.md §3): a tap/release before 1.5 s plays 'act' (PlayActAnimation at HandleClickEnd 0x275c IL 001c → tapAction act), a press held past longPressThreshold=1.5 s loops 'boll' on track 3 (Update 007f–0092 → holdAction boll, commit 1.5), the press itself stays neutral (no press visual in IL), and drag plays no clip (bone71 SmoothDamp follow → rubAction nil)"
                     )
                 }
                 let clickController = InteractionController(
@@ -2349,9 +2350,15 @@ enum RuntimeSelfTest {
                     )
                     preCommitReleaseController.pointerDown(at: center, button: acceptedButton)
                     boundaryClock = max(hitZone.holdStartSeconds + 0.01, hitZone.holdCommitSeconds - 0.01)
+                    // holdAction zones preview NEUTRAL pending below the commit (the engine
+                    // gate skips the holdStart base-action promotion — source IL shows press
+                    // has no visual); zones without holdAction keep the holdStart preview.
+                    let preCommitPendingExpectation = hitZone.holdAction == nil
+                        ? hitZone.action
+                        : interactionPlan.idleCommand()
                     check(
-                        preCommitReleaseController.snapshot().command == hitZone.action,
-                        "interaction controller must show hold preview action \(hitZone.action) after holdStartSeconds before hold commit for hit zone \(hitZone.id)"
+                        preCommitReleaseController.snapshot().command == preCommitPendingExpectation,
+                        "interaction controller must keep holdAction hit zone \(hitZone.id) neutral pending before hold commit and show hold preview action \(hitZone.action) after holdStartSeconds for zones without holdAction"
                     )
                     preCommitReleaseController.pointerUp(at: center, button: acceptedButton)
                     check(
@@ -2392,9 +2399,15 @@ enum RuntimeSelfTest {
                         "interaction controller must keep hold/rub hit zone \(hitZone.id) pending for small pointer jitter before hold/rub thresholds"
                     )
                     gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
+                    // holdAction zones stay neutral pending at holdStart (pre-commit) — the
+                    // gate suppresses the base-action preview promotion; non-holdAction zones
+                    // promote from tapAction to the hold action at holdStartSeconds unchanged.
+                    let holdStartExpectation = hitZone.holdAction == nil
+                        ? hitZone.action
+                        : interactionPlan.idleCommand()
                     check(
-                        holdController.snapshot().command == hitZone.action,
-                        "interaction controller must promote hit zone \(hitZone.id) from tapAction to hold action \(hitZone.action) after holdStartSeconds without letting accumulated jitter become rub"
+                        holdController.snapshot().command == holdStartExpectation,
+                        "interaction controller must keep holdAction hit zone \(hitZone.id) neutral pending at holdStartSeconds without letting accumulated jitter become rub, and promote zones without holdAction from tapAction to hold action \(hitZone.action) after holdStartSeconds"
                     )
                     let holdReleaseController = InteractionController(
                         interactions: manifest.interactions,
@@ -2406,9 +2419,14 @@ enum RuntimeSelfTest {
                     holdReleaseController.pointerDown(at: center, button: acceptedButton)
                     gestureClock += max(hitZone.holdCommitSeconds + 0.05, 0.10)
                     holdReleaseController.pointerUp(at: center, button: acceptedButton)
+                    // A committed long press releases to the loop action for holdAction zones
+                    // (the loop stops with the release fade — IL: the committed release ends
+                    // the boll loop with the empty tail); zones without holdAction commit to
+                    // the base hold action unchanged.
+                    let committedReleaseExpectation = hitZone.holdAction ?? hitZone.action
                     check(
-                        holdReleaseController.snapshot().command == hitZone.action,
-                        "interaction controller must resolve committed long stationary press to hold action \(hitZone.action) during pointerUp even when no held snapshot was sampled for hit zone \(hitZone.id)"
+                        holdReleaseController.snapshot().command == committedReleaseExpectation,
+                        "interaction controller must resolve committed long stationary press to hold action \(committedReleaseExpectation) during pointerUp even when no held snapshot was sampled for hit zone \(hitZone.id)"
                     )
                     if let rubAction = hitZone.rubAction {
                         gestureClock = 0
@@ -3187,9 +3205,9 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=3 platformPolicy=4 unsupported=2")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=23 calibrated=3 platformPolicy=4 unsupported=2")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=21 calibrated=3 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=23 calibrated=3 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=5 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=3 calibrated=0 platformPolicy=0 unsupported=0")
@@ -3299,7 +3317,7 @@ enum RuntimeSelfTest {
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("sample_imported=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=3 platformPolicy=4 unsupported=2); derivation(partial imported=21 calibrated=3 platformPolicy=4 unsupported=2")
+                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=23 calibrated=3 platformPolicy=4 unsupported=2); derivation(partial imported=23 calibrated=3 platformPolicy=4 unsupported=2")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+pixelate+scroll+vignette")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
@@ -11317,11 +11335,13 @@ enum RuntimeSelfTest {
         let releaseFade: CFTimeInterval = 0.20
 
         // Scenario 1: action + tapAction + holdAction (0.2 start / 0.4 commit). The pointer
-        // down is pending; the pre-commit snapshot keeps the legacy base-action hold preview
-        // (holdStart semantics preserved); crossing holdCommit promotes the held loop action
-        // at pulse 1; the pre-commit release — even after the preview promoted — is demoted
-        // and emitted as the tapAction with the tap tail; a post-commit release stops the
-        // loop with the release fade only.
+        // down is pending and the pre-commit snapshot stays NEUTRAL pending (idle, pulse 0):
+        // the engine gate skips the holdStart base-action preview promotion for holdAction
+        // zones, matching source IL (press has no visual; the release action plays at
+        // click-end and the hold loop arms only after the commit crossing). Crossing
+        // holdCommit promotes the held loop action at pulse 1; the pre-commit release is
+        // emitted as the tapAction with the tap tail (the neutral pending never steals the
+        // tap decision); a post-commit release stops the loop with the release fade only.
         var liveClock: CFTimeInterval = 0
         let liveZone = holdActionZone(
             id: "live_zone",
@@ -11343,8 +11363,8 @@ enum RuntimeSelfTest {
         liveClock = 0.25
         let livePreCommit = liveController.snapshot()
         check(
-            livePreCommit.command == "act" && livePreCommit.clickPulse == 1.0,
-            "holdAction zone: the pre-commit snapshot must keep the legacy base-action hold preview at holdStart (act held at pulse 1 before commit 0.4)",
+            livePreCommit.command == "idle" && livePreCommit.clickPulse == 0.0 && livePreCommit.isPointerDown,
+            "holdAction zone: the pre-commit snapshot must stay neutral pending (idle at pulse 0 with the press live) — the holdStart base-action preview is suppressed for holdAction zones (IL: press has no visual) — got \(livePreCommit.command) / pulse \(livePreCommit.clickPulse)",
             failures: &failures,
             checks: &checks
         )

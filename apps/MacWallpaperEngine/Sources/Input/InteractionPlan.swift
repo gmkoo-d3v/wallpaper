@@ -966,8 +966,16 @@ struct InteractionPlan {
         let holdSampleTime = max(0.10, zone.holdStartSeconds + 0.05)
         holdClock.time = holdSampleTime
         let held = holdController.snapshot()
-        holdController.pointerUp(at: point, button: button)
-        let holdUp = holdController.snapshot()
+        // For holdAction zones the shared hold press stays HELD through the committed probe
+        // below: an early pointerUp would end the gesture, and the committed sample would
+        // then read a finished press's tap tail instead of the live commit crossing (the
+        // loop arms at holdCommit only while the press is live). Zones without holdAction
+        // release here exactly as before, keeping their output byte-identical.
+        var deferredHoldUp: InteractionSnapshot?
+        if zone.holdAction == nil {
+            holdController.pointerUp(at: point, button: button)
+            deferredHoldUp = holdController.snapshot()
+        }
 
         // Committed-hold probe (holdAction zones only, so the output for zones without
         // holdAction stays byte-identical): after the commit crossing the loop action is
@@ -976,14 +984,25 @@ struct InteractionPlan {
         var committedHoldParts: [String] = []
         let releaseFade = policy?.releaseFadeSeconds ?? 0.20
         if let holdAction = zone.holdAction {
+            // The press is still live: the first sample at/after the commit threshold arms
+            // the loop through the controller's commit-crossing promotion (snapshot cadence,
+            // never a release-replay shortcut).
             let committedHoldTime = max(zone.holdCommitSeconds + 0.05, holdSampleTime + 0.05)
             holdClock.time = committedHoldTime
             let committedHeld = holdController.snapshot()
+            // Crossing cadence: hold one frame past the promotion so the committed sample
+            // shows the loop held at pulse 1 (a snapshot exactly on the promotion tick still
+            // carries the held-frame semantics), then release into the fade window.
+            holdClock.time = committedHoldTime + 1.0 / 60.0
+            _ = holdController.snapshot()
             holdClock.time = committedHoldTime + 0.01
             holdController.pointerUp(at: point, button: button)
             let committedUp = holdController.snapshot()
             holdClock.time = committedHoldTime + 0.01 + releaseFade + 0.05
             let committedExpired = holdController.snapshot()
+            // The held hold press was consumed by the committed probe; the expired committed
+            // snapshot doubles as the holdUp sample for holdAction zones.
+            deferredHoldUp = committedExpired
             committedHoldParts = [
                 "holdAction=\(holdAction)@commit\(formatInteractionNumber(zone.holdCommitSeconds))s",
                 "committedHold@\(formatInteractionNumber(committedHoldTime))=\(snapshotText(committedHeld))",
@@ -1032,7 +1051,7 @@ struct InteractionPlan {
             "tapUp@\(formatInteractionNumber(tapReleaseTime))=\(snapshotText(tapUp))",
             "preHold@\(formatInteractionNumber(preHoldSampleTime))=\(snapshotText(preHold))",
             "held@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(held))",
-            "holdUp@\(formatInteractionNumber(holdSampleTime))=\(snapshotText(holdUp))",
+            "holdUp@\(formatInteractionNumber(holdSampleTime))=\(deferredHoldUp.map(snapshotText) ?? "held")",
             "preRub@distance\(formatInteractionNumber(Double(rubDelta)))=\(snapshotText(preRub))",
             "rubDrag@distance\(formatInteractionNumber(Double(rubDelta)))=\(snapshotText(rubDragged))",
             "rubUp=\(snapshotText(rubUp))"
