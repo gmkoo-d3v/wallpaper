@@ -963,15 +963,31 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("unsupportedFields:"),
             "source provenance report must expose descriptor consistency plus imported, calibrated, and unsupported fields so wallpaper-specific data stays out of runtime code"
         )
-        // Isolate the audit to the deterministic repo wallpapers/ fixture instead of
-        // diagnoseDefaultBundles, which would scan the real user library on this machine
-        // and make the self-test gate machine-state dependent (mirror sibling calls below).
-        // Note: repo wallpapers/ is gitignored, so on other dev boxes this fixture tree may
-        // carry local extra bundles; the repo tree IS the test fixture by convention here.
+        // Audit scope = the installed user library (the two converted wallpaper-engine
+        // bundles) plus the retired synthetic sample_* fixture tree kept under
+        // .build-cache/sample-fixtures-retired (gitignored). The user library is the
+        // reality the completion audit must summarize; the retired samples stay in scope
+        // only so the engine's capability-coverage rows (renderer families, whitelist
+        // effects, spring/trigger-play/map-range adapters, unsupported-Spine fallback)
+        // keep the fixtures they are computed from. The repo wallpapers/ tree is not
+        // scanned: it now carries the same two imported bundles and would only add
+        // duplicate-id invalid rows.
+        let retiredSampleFixturesDirectory = runtime.config.projectRoot
+            .appendingPathComponent(".build-cache/sample-fixtures-retired")
+        let bundleAuditDirectories = [
+            ProjectPaths.findUserWallpapersDirectory(),
+            retiredSampleFixturesDirectory
+        ].compactMap { directory -> URL? in
+            guard let directory else { return nil }
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else { return nil }
+            return directory
+        }
         let sourceAdapterAudit = try RuntimeSourceProvenanceReport.makeLibraryReport(
             projectRoot: runtime.config.projectRoot,
             includeInvalid: false,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")]
+            bundleDirectories: bundleAuditDirectories
         )
         let sourceAdapterAuditRows = sourceAdapterAudit
             .split(separator: "\n")
@@ -996,7 +1012,8 @@ enum RuntimeSelfTest {
         }
         check(
             sourceAdapterAudit.contains("source adapter audit OK")
-                // fixture: 2 imported bundles + 8 sample bundles
+                // fixture: the two converted wallpaper-engine bundles (yumeko + buburu)
+                // from the user library plus the eight retired sample_* fixtures
                 && sourceAdapterAudit.contains("validBundles: 10")
                 && sourceAdapterAudit.contains("columns: status\tid\tsource\tadapter\tderivation\tconsistency")
                 && sourceAdapterContractRows.isEmpty == false
@@ -3155,19 +3172,20 @@ enum RuntimeSelfTest {
                 "default bundle catalog must include the active wallpaper bundle identity"
             )
         }
-        // Isolate matrix discovery to the deterministic repo wallpapers/ fixture
-        // (same convention as the completion-audit calls) so the self-test gate
-        // does not depend on this machine's user library.
+        // Audit scope (declared above with the source-adapter audit): user library +
+        // retired sample_* fixture tree.
         let bundleMatrix = try BundleValidationMatrix.make(
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: false,
             includeInvalid: false,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")]
+            bundleDirectories: bundleAuditDirectories
         )
         let activeBundleID = runtime.manifest.metadata?.id ?? runtime.config.wallpaperRoot.lastPathComponent
         check(
             bundleMatrix.contains("bundle validation matrix OK")
                 && bundleMatrix.contains(activeBundleID)
+                && bundleMatrix.contains("buburu")
+                && bundleMatrix.contains("yumeko")
                 && bundleMatrix.contains("sample_video")
                 && bundleMatrix.contains("sample_static")
                 && bundleMatrix.contains("sample_effect")
@@ -3177,10 +3195,10 @@ enum RuntimeSelfTest {
                 && bundleMatrix.contains("sample_trigger_play_spine")
                 && bundleMatrix.contains("sample_spine_fallback")
                 && bundleMatrix.contains("displayModes: selectedOnly+selectedPolicy+allFull"),
-            "bundle validation matrix must cover native Spine/video, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, pointer spring Spine fixture, trigger-play Spine binding fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
+            "bundle validation matrix must cover the imported Unity wallpaper-engine bundles plus native Spine/video, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, pointer spring Spine fixture, trigger-play Spine binding fixture, unsupported Spine fallback fixture, and multi-display simulated render plans"
         )
         check(
-            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) >= 9,
+            occurrenceCount("displayRefreshFps: primary120+secondary60", in: bundleMatrix) >= 10,
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
@@ -3194,7 +3212,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate performance budget plans for native Spine, video-only, static-image, effect fixture, pointer-down binding fixture, pointer spring effect fixture, and unsupported Spine fallback bundles"
         )
         check(
-            occurrenceCount("doctor: pass", in: bundleMatrix) >= 9,
+            occurrenceCount("doctor: pass", in: bundleMatrix) >= 10,
             "bundle validation matrix must validate the combined runtime doctor report for every bundled renderer family"
         )
         let matrixLibraryRowCount = occurrenceCount("libraryReport: listed=", in: bundleMatrix)
@@ -3208,6 +3226,8 @@ enum RuntimeSelfTest {
             bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=2")
                 && bundleMatrixHasSourceProvenanceStatus
                 && bundleMatrix.contains("sourceDerivation: partial imported=21 calibrated=5 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=17 calibrated=5 platformPolicy=3 unsupported=2")
+                && bundleMatrix.contains("sourceDerivation: partial imported=17 calibrated=5 platformPolicy=3 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=5 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=3 calibrated=0 platformPolicy=0 unsupported=0")
@@ -3255,14 +3275,14 @@ enum RuntimeSelfTest {
             "bundle validation matrix must run bundle-local golden fixtures across native Spine, video-only, static-image, and effect samples"
         )
         check(
-            occurrenceCount("installer: importable", in: bundleMatrix) >= 9,
+            occurrenceCount("installer: importable", in: bundleMatrix) >= 10,
             "bundle validation matrix must prove every bundled renderer family can be imported into a user library"
         )
         let completionAudit = try RuntimeCompletionAudit.make(
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")]
+            bundleDirectories: bundleAuditDirectories
         )
         check(
             completionAudit.contains("wallpaper completion audit")
@@ -3275,6 +3295,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.x+pointer.y+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state")
+                && completionAudit.contains("yumeko=bindings(smooth-lookat)")
+                && completionAudit.contains("faceTrackerBone71:pointer.position->spine.bone.bone71 via smooth-lookat runtime-executable")
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("moveOpacity:pointer.speed->effect.tone.opacity via map-range runtime-executable")
@@ -3315,9 +3337,10 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("denied=script-layer+shader-effect+command-file-network-source")
                 && completionAudit.contains("automated\tpass\tgeneric-runtime-source-boundary")
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
-                && completionAudit.contains("sample_imported=manifest-owned")
+                && completionAudit.contains("yumeko=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("sample_imported=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=2); derivation(partial imported=21 calibrated=5 platformPolicy=4 unsupported=2")
+                && completionAudit.contains("yumeko=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=2); derivation(partial imported=21 calibrated=5 platformPolicy=4 unsupported=2")
+                && completionAudit.contains("buburu=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=17 calibrated=5 platformPolicy=3 unsupported=2)")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+pixelate+scroll+vignette")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
@@ -3335,7 +3358,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("manual\tmanual\tblack-frame-flicker-smoke")
                 && completionAudit.contains("protocol\tmanual\tlive-desktop-click-actions-protocol")
                 && completionAudit.contains("manifest-declared pointerMove/pointerDown")
-                && completionAudit.contains("sample_imported{move:")
+                && completionAudit.contains("yumeko{move:")
+                && completionAudit.contains("buburu{move:")
                 && completionAudit.contains("protocol\tmanual\tphysical-display-hotplug-smoke-protocol")
                 && completionAudit.contains("selectedOnly=primary-only")
                 && completionAudit.contains("protocol\tmanual\tblack-frame-flicker-smoke-protocol")
@@ -3347,7 +3371,7 @@ enum RuntimeSelfTest {
             .appendingPathComponent("MacWallpaperEngineManualSmoke-\(UUID().uuidString).json")
         let currentLiveClickProtocol = try RuntimeCompletionAudit.currentLiveClickProtocolText(
             projectRoot: runtime.config.projectRoot,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")]
+            bundleDirectories: bundleAuditDirectories
         )
         let liveClickObservationNote = "self-test observed tap hold rub empty click and gaze behavior"
         let currentLiveClickProtocolJSON = currentLiveClickProtocol
@@ -3405,7 +3429,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: manualSmokeEvidenceURL
         )
         check(
@@ -3456,7 +3480,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: staleLiveClickEvidenceURL
         )
         check(
@@ -3491,7 +3515,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: wakePhysicalHotplugEvidenceURL
         )
         check(
@@ -3542,7 +3566,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: stalePhysicalHotplugEvidenceURL
         )
         check(
@@ -3595,7 +3619,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: staleBlackFrameFlickerEvidenceURL
         )
         check(
@@ -3639,7 +3663,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: packageOnlySmokeEvidenceURL
         )
         check(
@@ -3797,7 +3821,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: koreanPhysicalHotplugEvidenceURL
         )
         check(
@@ -3833,7 +3857,7 @@ enum RuntimeSelfTest {
                 projectRoot: runtime.config.projectRoot,
                 strictCompositeQuality: true,
                 includeInvalid: true,
-                bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+                bundleDirectories: bundleAuditDirectories,
                 manualEvidenceURL: genericPhysicalHotplugEvidenceURL
             )
         } catch {
@@ -3871,7 +3895,7 @@ enum RuntimeSelfTest {
                 projectRoot: runtime.config.projectRoot,
                 strictCompositeQuality: true,
                 includeInvalid: true,
-                bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+                bundleDirectories: bundleAuditDirectories,
                 manualEvidenceURL: partialPhysicalHotplugEvidenceURL
             )
         } catch {
@@ -3896,7 +3920,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: packageOnlySmokeEvidenceURL
         )
         check(
@@ -3938,7 +3962,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: manualSmokeTemplateURL
         )
         check(
@@ -3983,7 +4007,7 @@ enum RuntimeSelfTest {
             projectRoot: runtime.config.projectRoot,
             strictCompositeQuality: true,
             includeInvalid: true,
-            bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+            bundleDirectories: bundleAuditDirectories,
             manualEvidenceURL: runtimeSmokeEvidenceURL
         )
         check(
@@ -4018,7 +4042,7 @@ enum RuntimeSelfTest {
                 projectRoot: runtime.config.projectRoot,
                 strictCompositeQuality: true,
                 includeInvalid: true,
-                bundleDirectories: [runtime.config.projectRoot.appendingPathComponent("wallpapers")],
+                bundleDirectories: bundleAuditDirectories,
                 manualEvidenceURL: invalidManualSmokeEvidenceURL
             )
             check(false, "passed=true manual smoke evidence with template placeholders must be rejected")
