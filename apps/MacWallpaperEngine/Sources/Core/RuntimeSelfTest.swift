@@ -996,7 +996,7 @@ enum RuntimeSelfTest {
         }
         check(
             sourceAdapterAudit.contains("source adapter audit OK")
-                // fixture: 2 imported + 8 sample bundles (was 9 pre-synthetic)
+                // fixture: 2 imported bundles + 8 sample bundles
                 && sourceAdapterAudit.contains("validBundles: 10")
                 && sourceAdapterAudit.contains("columns: status\tid\tsource\tadapter\tderivation\tconsistency")
                 && sourceAdapterContractRows.isEmpty == false
@@ -2272,7 +2272,7 @@ enum RuntimeSelfTest {
                             && hitZone.rubAction == nil
                             && hitZone.trigger == .hold
                             && abs(hitZone.holdCommitSeconds - 1.5) < 0.001,
-                        "Imported hand interaction must follow CIL (.build-cache/codex_imported_cil_report.md §3): a tap/release before 1.5 s plays 'act' (PlayActAnimation at HandleClickEnd 0x275c IL 001c → tapAction act), a press held past longPressThreshold=1.5 s loops 'boll' on track 3 (Update 007f–0092 → holdAction boll, commit 1.5), the press itself stays neutral (no press visual in IL), and drag plays no clip (bone71 SmoothDamp follow → rubAction nil)"
+                        "Imported hand interaction must follow CIL (.build-cache/codex_gimmick_final_report.md §3): a tap/release before 1.5 s plays 'act' (PlayActAnimation at HandleClickEnd 0x275c IL 001c → tapAction act), a press held past longPressThreshold=1.5 s loops 'boll' on track 3 (Update 007f–0092 → holdAction boll, commit 1.5), the press itself stays neutral (no press visual in IL), and drag plays no clip (bone71 SmoothDamp follow → rubAction nil)"
                     )
                 }
                 let clickController = InteractionController(
@@ -10984,7 +10984,7 @@ enum RuntimeSelfTest {
 
     /// Hold-commit tap-branch semantics with an injected clock: explicit holdCommitSeconds = 0
     /// disables the tap window, an absent declaration keeps it alive with the commit threshold
-    /// falling back to holdStart, and an explicit positive commit (imported 0.18) keeps the tap
+    /// falling back to holdStart, and an explicit positive commit (legacy 0.18) keeps the tap
     /// window with that threshold. The committed hold release replays the base hold action with
     /// the max(base, tap) tail; the pre-commit tap release plays the tapAction with the tap tail.
     private static func checkHoldCommitTapBranchSemantics(
@@ -11075,7 +11075,7 @@ enum RuntimeSelfTest {
         }
         let center = CGPoint(x: 0.5, y: 0.5)
 
-        // Scenario 1: synthetic-style hold zone with BOTH holdStart and holdCommit omitted:
+        // Scenario 1: imported-bundle-style hold zone with BOTH holdStart and holdCommit omitted:
         // the default tap-detection window (the policy default click tail duration, 1.15)
         // keeps the tapAction reachable; an intervening snapshot at t=0.1 must not promote
         // (0.1 < 1.15) nor steal the tap; the short release emits the pair command. A
@@ -11154,7 +11154,7 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
-        // Scenario 4: explicit positive commit with a declared start (imported's actual
+        // Scenario 4: explicit positive commit with a declared start (the source bundle's actual
         // 0.05/0.18 pair): a post-holdStart, pre-commit snapshot shows the hold preview; a
         // pre-commit release demotes the promoted preview and emits the tapAction; a release
         // at/after commit is committed to the base action.

@@ -18,9 +18,10 @@ SCHEMA_DEST="$RESOURCES_DIR/schemas"
 # wallpapers/ tree for provenance but are excluded from packaged bundles to keep
 # the .app slim. The runtime reads only wallpaper.native.json plus bundle assets,
 # and source descriptors (project.json, source/*.json) still resolve in the
-# packaged copy. No-ops for bundles without these files (e.g. sample_imported).
+# packaged copy. No-ops for bundles without these files (e.g. an imported bundle).
 PACKAGE_COPY_EXCLUDES=(
-  --exclude "Synthetic_Imported_Data/"
+  # functional exclude: Windows build payload of an imported bundle
+  --exclude "*_Data/"
   --exclude "MonoBleedingEdge/"
   --exclude "D3D12/"
   --exclude "*.exe"

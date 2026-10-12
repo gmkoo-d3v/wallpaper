@@ -40,6 +40,7 @@ temp/
 .build/
 **/.build/
 .build-cache/
+.build-cache-*.out
 DerivedData/
 *.xcuserstate
 *.xcworkspace/xcuserdata/
@@ -64,19 +65,4 @@ converted/
 preview_intermediate/
 preview_assets/
 
-# wallpapers/: only heavy assets ignored; manifests/indices tracked
-wallpapers/**/assets/
-wallpapers/**/*.mp4
-wallpapers/**/*.jpg
-wallpapers/**/*.png
-wallpapers/**/*.spine
-wallpapers/**/*.dll
-wallpapers/**/*.exe
-wallpapers/**/*.pdb
-wallpapers/**/MonoBleedingEdge/
-wallpapers/**/D3D12/
-wallpapers/**/*_Data/
-wallpapers/**/globalgamemanagers*
-wallpapers/**/level*
-wallpapers/**/resources.assets*
-wallpapers/**/sharedassets*
+wallpapers/

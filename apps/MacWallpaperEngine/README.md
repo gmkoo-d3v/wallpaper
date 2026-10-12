@@ -146,7 +146,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Control panel bundle selection uses the same catalog validation path as CLI
   discovery/import, so malformed folders are rejected before replacing a
   running wallpaper.
-- Packaged resources include the Imported native Spine/video sample, a minimal
+- Packaged resources include an imported native Spine/video sample, a minimal
   `sample_video` video-only bundle, and a minimal `sample_static` image-only
   bundle, so discovery, validation, and packaging exercise multiple wallpaper
   renderer families.
@@ -237,7 +237,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   candidates, blocked behavior fields, required importer capabilities, and
   extraction safety policy without adding wallpaper-specific runtime code.
 - Self-test scans the generic runtime source for bundled wallpaper ids/titles so
-  Imported/sample-specific behavior cannot accidentally move from manifests into
+  bundle/sample-specific behavior cannot accidentally move from manifests into
   the player implementation.
 - Manifest validation also rejects unsupported `lookDirection` action keys
   instead of silently ignoring directions the native interaction planner cannot
@@ -265,7 +265,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Bundle import and release packaging skip macOS archive metadata and VCS
   directories such as `.DS_Store`, AppleDouble `._*`, `__MACOSX`, and `.git`.
 - Video-only wallpaper bundles are covered by runtime self-test so the runtime
-  does not require a Imported-style Spine layer for every bundle.
+  does not require a Spine layer for every bundle.
 - Static image wallpaper bundles can declare a manifest `static_image` layer
   instead of relying on an implicit preview fallback.
 - Manifests that use a `static` display policy must include `preview.jpg` so
@@ -370,7 +370,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   can be regenerated at the display refresh rate instead of being mistaken for
   a renderer bug.
 - Composite fallback diagnostics also mark a fallback as degraded when its
-  resolution is lower than the source background video. The bundled Imported
+  resolution is lower than the source background video. The bundled sample
   fallback is intentionally treated as a failure fallback, while Native Spine
   remains the default high-quality path.
 - `--validate-only` runs native Spine geometry preflight for supported Spine
@@ -385,7 +385,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 - Composite fallback quality diagnostics also surface high-refresh and
   source-resolution recommendations when a fallback passes the manifest target
   FPS but remains below `maxFps` or below the source background resolution.
-- The bundled Imported composite fallback is generated at 120fps, matching its
+- The bundled sample composite fallback is generated at 120fps, matching its
   manifest `maxFps` so Composite mode remains smooth on high-refresh displays.
 - `--export-composite-video` renders a native/source composite MP4 fallback at
   a chosen FPS, duration, and snapshot size so low-FPS fallback debt can be
@@ -445,7 +445,7 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   `blockDesktopItems` is enabled for click/touch actions. Pointer-move and
   button-drag gaze tracking remain available when no application window covers
   the cursor.
-- The bundled Imported sample keeps `blockDesktopItems=true` so Finder desktop
+- The bundled sample keeps `blockDesktopItems=true` so Finder desktop
   icons use best-effort filtering; app-window blocking remains enabled, desktop
   wallpaper windows stay mouse-passive, passive monitors provide click delivery,
   pointer/drag tracking remains available, and passive secondary windows stay
@@ -455,9 +455,9 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
   wallpaper windows preserve pass-through click ownership.
 - Passive wallpaper click delivery deduplicates near-simultaneous event-tap and
   global-monitor clicks while honoring the manifest `pointerSampleFps` move cap
-  (30Hz default, 60Hz for the bundled Imported interaction profile).
+  (30Hz default, 60Hz for the bundled interaction profile).
 - Interaction manifests can gate look-direction movement by mouse button; the
-  bundled Imported profile keeps hover idle, uses left-drag for look direction,
+  bundled profile keeps hover idle, uses left-drag for look direction,
   maps a short head touch to `boll`, and promotes head rub/hold to `act`.
 - Desktop-item hit-testing never requests Accessibility permission. Click/touch
   actions use no-permission best-effort desktop-item filtering; pointer/drag
@@ -502,11 +502,11 @@ Native macOS runtime for Wallpaper Engine-like bundle playback.
 
 ## Renderer Parity Priority
 
-- Treat `archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported` (relative to the repository root) as the original Unity package source of truth.
+- Treat `archive/<import-cleanup>/source_package/<bundle-id>` (relative to the repository root) as the original Unity package source of truth.
 - Importing that source package through `--install-bundle` is supported through
   a safe native source adapter: the app reads `project.json`, validates the
   relative application file path, and maps the known source to
-  `wallpapers/sample_imported`.
+  `wallpapers/<bundle-id>`.
 - The source adapter does not run or disassemble EXE/DLL files, does not invoke
   Wine, and does not execute Unity managed code or arbitrary scripts.
 - Keep `Auto` as the default user-visible path: prefer native Spine when the
@@ -526,7 +526,7 @@ cd apps/MacWallpaperEngine  # run from the repository root after cloning
 swift run MacWallpaperEngine --validate-only
 swift run MacWallpaperEngine --runtime-capabilities
 swift run MacWallpaperEngine --composite-quality-plan
-swift run MacWallpaperEngine --export-composite-video /tmp/imported-composite-60fps.mp4 --export-composite-fps 60 --snapshot-size 1280x720
+swift run MacWallpaperEngine --export-composite-video /tmp/composite-60fps.mp4 --export-composite-fps 60 --snapshot-size 1280x720
 swift run MacWallpaperEngine --validate-only --strict-composite-quality
 swift run MacWallpaperEngine --render-plan --foreground-mode native --display-mode allFull
 swift run MacWallpaperEngine --render-plan --foreground-mode auto --display-mode selectedPolicy
@@ -542,7 +542,7 @@ swift run MacWallpaperEngine --write-manual-smoke-template /path/to/manual-smoke
 swift run MacWallpaperEngine --record-manual-smoke-evidence /path/to/manual-smoke-evidence.json --confirm-live-click-actions --live-click-actions-note "Observed head tap, stationary hold, held rub, empty click no-action, and gaze directions." --confirm-physical-display-hotplug --physical-display-hotplug-event wake --physical-display-hotplug-note "Observed display wake; selectedOnly, selectedPolicy, and allFull restored on external secondary displays AOC and LG; Displays have separate Spaces enabled." --confirm-black-frame-flicker
 swift run MacWallpaperEngine --completion-audit --strict-composite-quality --manual-smoke-evidence /path/to/manual-smoke-evidence.json
 swift run MacWallpaperEngine --validate-bundles --bundle-library /path/to/wallpapers
-swift run MacWallpaperEngine --install-bundle ../../archive/sample_imported_cleanup_2026-05-13/source_package/sample_imported --install-library /tmp/mac-wallpaper-library
+swift run MacWallpaperEngine --install-bundle ../../archive/<import-cleanup>/source_package/<bundle-id> --install-library /tmp/mac-wallpaper-library
 swift run MacWallpaperEngine --print-manifest-schema > /tmp/wallpaper-native-v2.schema.json
 swift run MacWallpaperEngine --doctor
 swift run MacWallpaperEngine --source-provenance
