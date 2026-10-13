@@ -421,9 +421,11 @@ printf "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
 write_package_runtime_metadata
 
-# Scope self-test bundle discovery to the packaged fixture instead of the real
-# user library, so the gate is deterministic and machine-state independent.
-if ! "$MACOS_DIR/$APP_NAME" --self-test --bundle-library "$WALLPAPER_DEST" >/dev/null; then
+# Anchor the packaged self-test to the repo root and point the active wallpaper
+# root into the dist bundle. A packaged binary resolves projectRoot to its own
+# bundle resources, so the retired fixture tree is handed over explicitly by
+# absolute path for the audit union.
+if ! (cd "$PROJECT_ROOT" && MAC_WALLPAPER_ENGINE_RETIRED_FIXTURES="$PROJECT_ROOT/.build-cache/sample-fixtures-retired" "$MACOS_DIR/$APP_NAME" --self-test --wallpaper-root "$WALLPAPER_DEST/yumeko" >/dev/null); then
   echo "Packaged app self-test failed: $APP_DIR" >&2
   exit 1
 fi

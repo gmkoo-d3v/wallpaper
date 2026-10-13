@@ -972,8 +972,13 @@ enum RuntimeSelfTest {
         // keep the fixtures they are computed from. The repo wallpapers/ tree is not
         // scanned: it now carries the same two imported bundles and would only add
         // duplicate-id invalid rows.
-        let retiredSampleFixturesDirectory = runtime.config.projectRoot
-            .appendingPathComponent(".build-cache/sample-fixtures-retired")
+        // A packaged .app resolves projectRoot to its own bundle resources, so the
+        // retired fixture tree under the repo cannot be derived from it. Let the
+        // caller point the fixture tree at an absolute path instead.
+        let retiredSampleFixturesDirectory = ProcessInfo.processInfo
+            .environment["MAC_WALLPAPER_ENGINE_RETIRED_FIXTURES"]
+            .map { URL(fileURLWithPath: $0) }
+            ?? runtime.config.projectRoot.appendingPathComponent(".build-cache/sample-fixtures-retired")
         let bundleAuditDirectories = [
             ProjectPaths.findUserWallpapersDirectory(),
             retiredSampleFixturesDirectory
