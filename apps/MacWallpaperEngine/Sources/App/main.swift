@@ -14,7 +14,8 @@ do {
     }
 
     if arguments.contains("--input-status") || arguments.contains("--accessibility-status") {
-        print(InputDiagnostics.statusText())
+        // CLI one-shot diagnostic: always the never prompt policy so it cannot prompt.
+        print(InputDiagnostics.statusText(promptPolicy: .never))
         exit(EXIT_SUCCESS)
     }
 

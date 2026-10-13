@@ -376,7 +376,7 @@ enum RuntimeSelfTest {
             DesktopInteractionGate.accessibilityTrustCheckPolicy == "ax-api-check;prompt-only-in-gui-session-once",
             "startup Accessibility trust checks must use the AX API and a once-per-GUI-session prompt policy"
         )
-        let accessibilityStatusText = InputDiagnostics.statusText()
+        let accessibilityStatusText = InputDiagnostics.statusText(promptPolicy: .never)
         check(
             accessibilityStatusText.contains("input permission diagnostics OK")
                 && accessibilityStatusText.contains("accessibilityStatus:")
@@ -5537,7 +5537,10 @@ enum RuntimeSelfTest {
             clearDuration: true,
             launchControlPanel: true,
             launchWallpaper: true,
-            launchAtLogin: true
+            launchAtLogin: true,
+            // the self-test process itself runs on the one-shot never policy;
+            // the persisted fixture must carry the GUI-launch default policy
+            accessibilityPromptPolicy: AccessibilityPromptPolicy.defaultPolicy
         )
 
         try RuntimeSettingsStore.save(config: tunedConfig, to: settingsURL)
@@ -5596,7 +5599,9 @@ enum RuntimeSelfTest {
             }
         }
 
-        let parsed = try EngineConfig.parse([])
+        // GUI-launch parse shape: no one-shot flag, so the persisted Accessibility
+        // prompt policy is restored and the GUI-session default applies.
+        let parsed = try EngineConfig.parse(["--wallpaper-root", runtime.config.wallpaperRoot.path])
         check(
             parsed.wallpaperRoot.standardizedFileURL.path == tunedConfig.wallpaperRoot.standardizedFileURL.path,
             "EngineConfig must restore persisted wallpaper root when no explicit root is passed",
@@ -5676,7 +5681,7 @@ enum RuntimeSelfTest {
             ),
             to: settingsURL
         )
-        let unknownPolicyParse = try EngineConfig.parse([])
+        let unknownPolicyParse = try EngineConfig.parse(["--wallpaper-root", runtime.config.wallpaperRoot.path])
         check(
             unknownPolicyParse.accessibilityPromptPolicy == .defaultPolicy,
             "EngineConfig must fall back to the GUI-session prompt default for an unknown persisted policy value",
@@ -5692,8 +5697,16 @@ enum RuntimeSelfTest {
         )
         let diagnosticPolicyParse = try EngineConfig.parse(["--validate-only"])
         check(
-            diagnosticPolicyParse.accessibilityPromptPolicy == .defaultPolicy,
-            "diagnostic validation must ignore a persisted Accessibility prompt policy and keep the default",
+            diagnosticPolicyParse.accessibilityPromptPolicy == .never,
+            "one-shot CLI validation must force the never Accessibility prompt policy so it cannot prompt",
+            failures: &failures,
+            checks: &checks
+        )
+        let guiPolicyParse = try EngineConfig.parse(["--wallpaper-root", runtime.config.wallpaperRoot.path])
+        check(
+            guiPolicyParse.accessibilityPromptPolicy == .defaultPolicy
+                && guiPolicyParse.accessibilityPromptPolicy == .uiSessionPromptOnce,
+            "GUI app launches must keep the ui-session-prompt-once Accessibility prompt policy default",
             failures: &failures,
             checks: &checks
         )

@@ -665,6 +665,11 @@ struct EngineConfig {
             || compositeExportURL != nil
             || selfTestOnly
         let persistedSettings = ignoresPersistedSettings ? nil : RuntimeSettingsStore.load()
+        // One-shot/CLI diagnostic modes must never raise the macOS Accessibility
+        // prompt, so they force the never policy unless the flag set it explicitly.
+        if ignoresPersistedSettings, explicitAccessibilityPromptPolicy == false {
+            accessibilityPromptPolicy = .never
+        }
         if let persistedSettings {
             if !explicitDisplayMode, let persisted = persistedSettings.displayMode {
                 displayMode = persisted

@@ -1,12 +1,6 @@
 import Foundation
 
 enum InputDiagnostics {
-    /// CLI/one-shot entry point: always uses the `.never` prompt policy so a
-    /// diagnostic run can never raise the macOS Accessibility prompt.
-    static func statusText() -> String {
-        statusText(promptPolicy: .never)
-    }
-
     static func statusText(promptPolicy: AccessibilityPromptPolicy) -> String {
         let packageRuntimeMetadata = packageRuntimeMetadataText()
         let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust(promptingPolicy: promptPolicy)

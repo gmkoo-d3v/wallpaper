@@ -185,7 +185,7 @@ metadataVersion: 1
 bundleID: $BUNDLE_ID
 packageMode: local-manual-start
 signaturePolicy: unsigned-no-certificate
-inputPermissionHint: no Accessibility prompt, AX API, microphone, camera, audio capture, login item, or certificate workflow is used; click/touch actions run with best-effort desktop-item filtering
+inputPermissionHint: Accessibility prompt once in GUI session; event tap when trusted; global monitors fallback otherwise
 EOF
 }
 
