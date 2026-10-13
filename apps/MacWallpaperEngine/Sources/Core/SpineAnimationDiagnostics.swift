@@ -364,27 +364,37 @@ struct SpineAnimationDiagnostics {
             case .pointerMove:
                 let sortedActions = interaction.actions?.sorted { $0.key < $1.key } ?? []
                 for (direction, action) in sortedActions {
-                    references.append(ActionReference(action: action, use: "pointerMove.\(direction)"))
+                    appendActionReferences(action, use: "pointerMove.\(direction)", to: &references)
                 }
             case .pointerDown:
                 if let defaultAction = interaction.defaultAction {
                     let trigger = defaultAction.trigger?.rawValue ?? HitZoneTrigger.tap.rawValue
-                    references.append(ActionReference(action: defaultAction.action, use: "pointerDown.default.\(trigger)"))
+                    appendActionReferences(defaultAction.action, use: "pointerDown.default.\(trigger)", to: &references)
                 }
                 let sortedZones = (interaction.hitZones ?? []).sorted { $0.id < $1.id }
                 for zone in sortedZones {
                     let trigger = zone.trigger?.rawValue ?? HitZoneTrigger.tap.rawValue
-                    references.append(ActionReference(action: zone.action, use: "pointerDown.\(zone.id).\(trigger)"))
+                    appendActionReferences(zone.action, use: "pointerDown.\(zone.id).\(trigger)", to: &references)
                     if let tapAction = zone.tapAction {
-                        references.append(ActionReference(action: tapAction, use: "pointerDown.\(zone.id).tapAction"))
+                        appendActionReferences(tapAction, use: "pointerDown.\(zone.id).tapAction", to: &references)
                     }
                     if let rubAction = zone.rubAction {
-                        references.append(ActionReference(action: rubAction, use: "pointerDown.\(zone.id).rubAction"))
+                        appendActionReferences(rubAction, use: "pointerDown.\(zone.id).rubAction", to: &references)
                     }
                 }
             }
         }
         return references
+    }
+
+    private static func appendActionReferences(
+        _ action: String,
+        use: String,
+        to references: inout [ActionReference]
+    ) {
+        for component in SpineInteractionAnimationRoles.components(of: action) {
+            references.append(ActionReference(action: component, use: use))
+        }
     }
 
     private static func uniqueSorted(_ values: [String]) -> [String] {
