@@ -31,10 +31,13 @@ enum BundleValidationMatrix {
 
         for bundle in bundles {
             do {
+                // One-shot matrix validation: the never-prompt policy keeps the AX trust
+                // read side-effect free for every bundle in the matrix.
                 let config = try EngineConfig.parse([
                     "--wallpaper-root", bundle.root.path,
                     "--manifest", bundle.manifestURL.path,
-                    "--validate-only"
+                    "--validate-only",
+                    "--accessibility-prompt-policy", "never"
                 ] + (strictCompositeQuality ? ["--strict-composite-quality"] : []))
                 let runtime = try NativeRuntimeCore(config: config)
                 _ = runtime.validationSummary()
@@ -404,15 +407,15 @@ enum BundleValidationMatrix {
                 contentAspect: CGFloat(runtime.assetCatalog.contentAspect),
                 accessibilityTrusted: false
             )
-            guard noPermissionSummary.contains("desktopMonitor: ready(desktop-empty-only,no-permission-best-effort)"),
+            guard noPermissionSummary.contains("desktopMonitor: ready(desktop-empty-only,global-monitors-best-effort)"),
                   noPermissionSummary.contains("emptyDesktopMove=eligible"),
                   noPermissionSummary.contains("emptyDesktop=eligible"),
                   noPermissionSummary.contains("eventGateNoPermissionProbes: desktopItemPrecision=best-effort") else {
                 throw EngineError.invalidArgument(
-                    "interaction diagnostics do not expose no-permission input behavior for \(runtime.config.wallpaperRoot.lastPathComponent)"
+                    "interaction diagnostics do not expose untrusted-input fallback behavior for \(runtime.config.wallpaperRoot.lastPathComponent)"
                 )
             }
-            return "interactionPlan: active(desktop-empty-only+no-permission-best-effort)\(pointerDownBindingStatus)"
+            return "interactionPlan: active(desktop-empty-only+global-monitors-best-effort)\(pointerDownBindingStatus)"
         }
 
         return "interactionPlan: active\(pointerDownBindingStatus)"

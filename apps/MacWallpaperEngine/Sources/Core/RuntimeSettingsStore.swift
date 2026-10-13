@@ -14,6 +14,7 @@ struct PersistedEngineSettings: Codable, Equatable {
     let fitMode: RenderFitMode?
     let foregroundMode: ForegroundRenderMode?
     let launchAtLogin: Bool?
+    let accessibilityPromptPolicy: String?
 
     static let currentSchemaVersion = 1
 
@@ -31,7 +32,8 @@ struct PersistedEngineSettings: Codable, Equatable {
             audioEnabled: false,
             fitMode: config.fitMode,
             foregroundMode: persistedForegroundMode(config.foregroundMode),
-            launchAtLogin: false
+            launchAtLogin: false,
+            accessibilityPromptPolicy: config.accessibilityPromptPolicy.rawValue
         )
     }
 
@@ -49,7 +51,8 @@ struct PersistedEngineSettings: Codable, Equatable {
             audioEnabled: false,
             fitMode: fitMode,
             foregroundMode: foregroundMode.map(Self.persistedForegroundMode),
-            launchAtLogin: false
+            launchAtLogin: false,
+            accessibilityPromptPolicy: AccessibilityPromptPolicy.parse(accessibilityPromptPolicy).rawValue
         )
     }
 

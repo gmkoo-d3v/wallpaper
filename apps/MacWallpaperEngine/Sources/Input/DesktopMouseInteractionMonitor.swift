@@ -1,9 +1,11 @@
 import AppKit
+import ApplicationServices
 import QuartzCore
 
 final class DesktopMouseInteractionMonitor {
     private weak var window: NSWindow?
     private let policy: InteractionPolicy
+    private let promptPolicy: AccessibilityPromptPolicy
     private let pointerMoveInputMask: PointerMoveInputMask
     private let onMove: (CGPoint, PointerButton?) -> Void
     private let onDown: (CGPoint, PointerButton) -> Void
@@ -68,6 +70,7 @@ final class DesktopMouseInteractionMonitor {
     init(
         window: NSWindow,
         policy: InteractionPolicy,
+        promptPolicy: AccessibilityPromptPolicy = .defaultPolicy,
         pointerMoveInputMask: PointerMoveInputMask,
         onMove: @escaping (CGPoint, PointerButton?) -> Void,
         onDown: @escaping (CGPoint, PointerButton) -> Void,
@@ -79,6 +82,7 @@ final class DesktopMouseInteractionMonitor {
     ) {
         self.window = window
         self.policy = policy
+        self.promptPolicy = promptPolicy
         self.pointerMoveInputMask = pointerMoveInputMask
         self.onMove = onMove
         self.onDown = onDown
@@ -106,7 +110,9 @@ final class DesktopMouseInteractionMonitor {
             return
         }
         let usesPassiveEventMonitoring = window?.ignoresMouseEvents ?? true
-        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust()
+        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust(
+            promptingPolicy: promptPolicy
+        )
         let eventTapStarted = Self.canStartEventTapWithoutPrompt(
             usesPassiveEventMonitoring: usesPassiveEventMonitoring,
             accessibilityTrusted: accessibilityTrusted
@@ -315,7 +321,10 @@ final class DesktopMouseInteractionMonitor {
         usesPassiveEventMonitoring: Bool,
         accessibilityTrusted: Bool
     ) -> Bool {
-        usesPassiveEventMonitoring && accessibilityTrusted
+        DesktopInteractionGate.shouldUseEventTap(
+            windowPassive: usesPassiveEventMonitoring,
+            accessibilityTrusted: accessibilityTrusted
+        )
     }
 
     static func localEventMask(pointerMoveInputMask: PointerMoveInputMask) -> NSEvent.EventTypeMask {
@@ -607,7 +616,9 @@ final class DesktopMouseInteractionMonitor {
             return .blockedDisabled
         }
 
-        let accessibilityTrusted = policy.blockDesktopItems == false || DesktopInteractionGate.hasAccessibilityTrust()
+        let accessibilityTrusted = policy.blockDesktopItems == false || DesktopInteractionGate.hasAccessibilityTrust(
+            promptingPolicy: promptPolicy
+        )
         let coveredByApplicationWindow = policy.blockApplicationWindows
             && DesktopInteractionGate.isCoveredByApplicationWindow(
                 screenPoint: screenPoint,
@@ -761,7 +772,11 @@ final class DesktopMouseInteractionMonitor {
 }
 
 enum DesktopInteractionGate {
-    static let accessibilityTrustCheckPolicy = "check-without-prompt"
+    static let accessibilityTrustCheckPolicy = "ax-api-check;prompt-only-in-gui-session-once"
+    static let accessibilitySettingsURL = "x-apple.systempreferences:com.apple.universalaccess"
+
+    private static let promptStateLock = NSLock()
+    private static var didRequestAccessibilityPrompt = false
 
     enum EligibilityDecision: String {
         case eligible
@@ -806,8 +821,65 @@ enum DesktopInteractionGate {
         )
     }
 
-    static func hasAccessibilityTrust() -> Bool {
-        false
+    /// Reads Accessibility trust through the AX API. The check itself never
+    /// prompts; a prompt happens at most once per process and only when the
+    /// prompt policy allows it (GUI login session, settings-enabled).
+    static func hasAccessibilityTrust(promptingPolicy policy: AccessibilityPromptPolicy = .never) -> Bool {
+        maybeRequestAccessibilityPrompt(policy: policy)
+        return AXIsProcessTrusted()
+    }
+
+    /// Pure tap-selection truth table:
+    /// - passive wallpaper window + Accessibility trust -> listen-only CGEventTap
+    /// - passive wallpaper window without trust -> no tap; global monitors fallback
+    /// - non-passive window -> local NSResponder/monitor path, never a tap
+    static func shouldUseEventTap(windowPassive: Bool, accessibilityTrusted: Bool) -> Bool {
+        windowPassive && accessibilityTrusted
+    }
+
+    static func shouldRequestAccessibilityPrompt(
+        policy: AccessibilityPromptPolicy,
+        isGUIMainSession: Bool,
+        alreadyPrompted: Bool
+    ) -> Bool {
+        AccessibilityPromptPolicy.shouldPrompt(
+            policy: policy,
+            isGUIMainSession: isGUIMainSession,
+            alreadyPrompted: alreadyPrompted
+        )
+    }
+
+    @discardableResult
+    static func maybeRequestAccessibilityPrompt(policy: AccessibilityPromptPolicy) -> Bool {
+        promptStateLock.lock()
+        let alreadyPrompted = didRequestAccessibilityPrompt
+        guard shouldRequestAccessibilityPrompt(
+            policy: policy,
+            isGUIMainSession: CurrentSessionIsGUI.isMainSession,
+            alreadyPrompted: alreadyPrompted
+        ) else {
+            promptStateLock.unlock()
+            return false
+        }
+        didRequestAccessibilityPrompt = true
+        promptStateLock.unlock()
+        return requestAccessibilityTrustPrompt()
+    }
+
+    static func resetAccessibilityPromptStateForTesting() {
+        promptStateLock.lock()
+        didRequestAccessibilityPrompt = false
+        promptStateLock.unlock()
+    }
+
+    static func requestAccessibilityTrustPrompt() -> Bool {
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        return AXIsProcessTrustedWithOptions([promptKey: kCFBooleanTrue as Any] as CFDictionary)
+    }
+
+    static func openAccessibilitySettings() -> Bool {
+        guard let url = URL(string: accessibilitySettingsURL) else { return false }
+        return NSWorkspace.shared.open(url)
     }
 
     static func isCoveredByApplicationWindow(

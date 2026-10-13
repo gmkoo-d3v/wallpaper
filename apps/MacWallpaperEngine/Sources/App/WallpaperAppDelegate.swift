@@ -587,7 +587,8 @@ extension WallpaperAppDelegate: ControlPanelDelegate {
             launchAtLogin: false,
             videoEnabled: true,
             metalEnabled: true,
-            plainWindowStyle: false
+            plainWindowStyle: false,
+            accessibilityPromptPolicy: .defaultPolicy
         )
     }
 

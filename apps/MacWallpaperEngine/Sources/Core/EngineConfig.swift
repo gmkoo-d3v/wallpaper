@@ -135,6 +135,7 @@ struct EngineConfig {
     let videoEnabled: Bool
     let metalEnabled: Bool
     let plainWindowStyle: Bool
+    let accessibilityPromptPolicy: AccessibilityPromptPolicy
 
     func replacing(
         wallpaperRoot: URL? = nil,
@@ -159,6 +160,7 @@ struct EngineConfig {
         videoEnabled: Bool? = nil,
         metalEnabled: Bool? = nil,
         plainWindowStyle: Bool? = nil,
+        accessibilityPromptPolicy: AccessibilityPromptPolicy? = nil,
         displayPlanOnly: Bool? = nil,
         physicalDisplayPlanOnly: Bool? = nil,
         renderPlanOnly: Bool? = nil,
@@ -191,7 +193,8 @@ struct EngineConfig {
         runtimeSmokeEvidenceURL: URL? = nil,
         runtimeInteractionSmoke: Bool? = nil,
         runtimeDisplayRebuildSmoke: Bool? = nil,
-        selfTestOnly: Bool? = nil
+        selfTestOnly: Bool? = nil,
+        validateOnly: Bool? = nil
     ) -> EngineConfig {
         EngineConfig(
             projectRoot: projectRoot,
@@ -208,7 +211,7 @@ struct EngineConfig {
             fitMode: fitMode ?? self.fitMode,
             foregroundMode: foregroundMode ?? self.foregroundMode,
             interactionDebugOverlay: interactionDebugOverlay ?? self.interactionDebugOverlay,
-            validateOnly: validateOnly,
+            validateOnly: validateOnly ?? self.validateOnly,
             displayPlanOnly: displayPlanOnly ?? self.displayPlanOnly,
             physicalDisplayPlanOnly: physicalDisplayPlanOnly ?? self.physicalDisplayPlanOnly,
             renderPlanOnly: renderPlanOnly ?? self.renderPlanOnly,
@@ -250,7 +253,8 @@ struct EngineConfig {
             launchAtLogin: false,
             videoEnabled: videoEnabled ?? self.videoEnabled,
             metalEnabled: metalEnabled ?? self.metalEnabled,
-            plainWindowStyle: plainWindowStyle ?? self.plainWindowStyle
+            plainWindowStyle: plainWindowStyle ?? self.plainWindowStyle,
+            accessibilityPromptPolicy: accessibilityPromptPolicy ?? self.accessibilityPromptPolicy
         )
     }
 
@@ -321,6 +325,8 @@ struct EngineConfig {
         var videoEnabled = true
         var metalEnabled = true
         var plainWindowStyle = false
+        var accessibilityPromptPolicy = AccessibilityPromptPolicy.defaultPolicy
+        var explicitAccessibilityPromptPolicy = false
 
         var index = 0
         while index < arguments.count {
@@ -619,6 +625,16 @@ struct EngineConfig {
                 metalEnabled = false
             case "--plain-window-style":
                 plainWindowStyle = true
+            case "--accessibility-prompt-policy":
+                index += 1
+                let raw = try value(arguments, index, option: argument)
+                guard let parsed = AccessibilityPromptPolicy(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                    throw EngineError.invalidArgument(
+                        "Unknown --accessibility-prompt-policy: \(raw). Supported values: \(AccessibilityPromptPolicy.allValuesText)"
+                    )
+                }
+                accessibilityPromptPolicy = parsed
+                explicitAccessibilityPromptPolicy = true
             case "--help", "-h":
                 print(Self.help)
                 exit(EXIT_SUCCESS)
@@ -676,6 +692,9 @@ struct EngineConfig {
             }
             if !explicitForegroundMode, let persisted = persistedSettings.foregroundMode {
                 foregroundMode = persisted
+            }
+            if !explicitAccessibilityPromptPolicy {
+                accessibilityPromptPolicy = AccessibilityPromptPolicy.parse(persistedSettings.accessibilityPromptPolicy)
             }
         }
 
@@ -767,7 +786,8 @@ struct EngineConfig {
             launchAtLogin: launchAtLogin,
             videoEnabled: videoEnabled,
             metalEnabled: metalEnabled,
-            plainWindowStyle: plainWindowStyle
+            plainWindowStyle: plainWindowStyle,
+            accessibilityPromptPolicy: accessibilityPromptPolicy
         )
     }
 
@@ -856,6 +876,9 @@ struct EngineConfig {
       --overwrite               With --install-bundle, replace an existing same-id bundle in the library.
       --print-manifest-schema   Print the wallpaper.native.json JSON Schema for bundle authoring, then exit.
       --input-status            Print no-prompt input diagnostics for this exact binary, then exit.
+      --accessibility-prompt-policy <policy>
+                              ui-session-prompt-once | never. Default: ui-session-prompt-once for GUI app launches;
+                              one-shot CLI diagnostics always use never so they cannot prompt.
       --completion-audit       Print objective-level automated evidence and remaining manual completion evidence.
       --manual-smoke-evidence <json>
                               With --completion-audit, read user-recorded packaged launch, live click, and physical display smoke evidence.

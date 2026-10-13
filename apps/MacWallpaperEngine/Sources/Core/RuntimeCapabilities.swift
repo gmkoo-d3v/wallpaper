@@ -837,8 +837,7 @@ enum RuntimeCapabilities {
         let mode = policy?.mode ?? .desktopEmptyOnly
         let blocksDesktopItems = policy?.blockDesktopItems ?? true
         guard mode == .desktopEmptyOnly, blocksDesktopItems else { return "not-required" }
-        _ = accessibilityTrusted
-        return "best-effort(current=no-permission,no-ax-api)"
+        return accessibilityTrusted ? "precise(ax-element-at-point)" : "best-effort(current=no-ax-trust)"
     }
 
     private static func spineRows(runtime: NativeRuntimeCore) -> [RuntimeCapabilityRow] {

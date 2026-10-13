@@ -79,7 +79,7 @@ enum RuntimeDoctorReport {
         var lines = [
             "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unavailable")",
             "bundlePath: \(Bundle.main.bundleURL.path)",
-            "accessibilityAPIUsed: false",
+            "accessibilityAPIUsed: true",
             "signaturePolicy: unsigned-no-certificate"
         ]
 
@@ -96,16 +96,16 @@ enum RuntimeDoctorReport {
 
     private static func packageRuntimeSummaryLine() -> String {
         guard let metadata = packageRuntimeMetadata() else {
-            return "package: source-or-unpackaged / input=permissionless accessibilityAPI=false signature=unsigned"
+            return "package: source-or-unpackaged / input=ax-event-tap accessibilityAPI=true signature=unsigned"
         }
 
         let mode = metadata["packageMode"] ?? "unknown"
         let signature = metadata["signaturePolicy"] ?? "unsigned-no-certificate"
-        return "package: \(mode) / input=permissionless accessibilityAPI=false signature=\(signature)"
+        return "package: \(mode) / input=ax-event-tap accessibilityAPI=true signature=\(signature)"
     }
 
     private static func clickActionNote() -> String {
-        "no Accessibility prompt or AX API is used; click/touch actions run with best-effort desktop-item filtering"
+        "click actions use a listen-only CGEventTap when Accessibility is trusted; global monitors remain the untrusted fallback"
     }
 
     private static func packageRuntimeMetadata() -> [String: String]? {

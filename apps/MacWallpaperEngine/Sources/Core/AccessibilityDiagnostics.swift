@@ -1,15 +1,23 @@
 import Foundation
 
 enum InputDiagnostics {
+    /// CLI/one-shot entry point: always uses the `.never` prompt policy so a
+    /// diagnostic run can never raise the macOS Accessibility prompt.
     static func statusText() -> String {
+        statusText(promptPolicy: .never)
+    }
+
+    static func statusText(promptPolicy: AccessibilityPromptPolicy) -> String {
         let packageRuntimeMetadata = packageRuntimeMetadataText()
+        let accessibilityTrusted = DesktopInteractionGate.hasAccessibilityTrust(promptingPolicy: promptPolicy)
 
         var lines = [
             "input permission diagnostics OK",
-            "accessibilityStatus: unsupported",
-            "accessibilityPromptSupported: false",
-            "accessibilityAPIUsed: false",
-            "inputPolicy: no-permission-best-effort",
+            "accessibilityStatus: \(accessibilityTrusted ? "trusted" : "untrusted")",
+            "accessibilityPromptSupported: true",
+            "accessibilityPromptPolicy: \(promptPolicy.rawValue)",
+            "accessibilityAPIUsed: true",
+            "inputPolicy: ax-event-tap-when-trusted;global-monitors-when-untrusted",
             "appPath: \(Bundle.main.bundlePath)",
             "executablePath: \(CommandLine.arguments.first ?? "unknown")",
             "bundleIdentifier: \(Bundle.main.bundleIdentifier ?? "unknown")"

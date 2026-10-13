@@ -286,7 +286,7 @@ enum RuntimeCompletionAudit {
                 ),
                 evidence: manualEvidenceText(
                     liveClickEvidence,
-                    fallback: "no-permission input policy; manual live smoke still required: \(liveInteractionProtocol)",
+                    fallback: "event-tap input policy requires Accessibility trust; manual live smoke still required: \(liveInteractionProtocol)",
                     requiredProtocolText: liveInteractionProtocol
                 )
             ),

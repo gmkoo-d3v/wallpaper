@@ -109,7 +109,7 @@ enum RuntimeSmokeEvidenceWriter {
         let liveProof = liveInteractionProof(runtime: runtime)
         let checklistText = liveProof.checklist.isEmpty ? "no manifest-declared click/gaze checklist" : liveProof.checklist
         let evidence = """
-        runtime telemetry captured; inputPolicy=no-permission-best-effort; accessibilityAPIUsed=false; permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); manifestChecklist=\(checklistText); \(liveProof.evidence); telemetry=\(telemetry); \(liveProof.passed ? "live checklist satisfied by packaged telemetry for manifest-declared interactions" : "manual checklist still required for manifest-declared interactions and application-window gating")
+        runtime telemetry captured; inputPolicy=ax-event-tap-when-trusted; accessibilityAPIUsed=true; permission=\(permission.text); policy=\(policy.mode.rawValue); blockApplicationWindows=\(policy.blockApplicationWindows); blockDesktopItems=\(policy.blockDesktopItems); manifestChecklist=\(checklistText); \(liveProof.evidence); telemetry=\(telemetry); \(liveProof.passed ? "live checklist satisfied by packaged telemetry for manifest-declared interactions" : "manual checklist still required for manifest-declared interactions and application-window gating")
         """
         let protocolText = try? RuntimeCompletionAudit.currentLiveClickProtocolText(
             projectRoot: runtime.config.projectRoot,
@@ -226,7 +226,7 @@ enum RuntimeSmokeEvidenceWriter {
         let evidence = [
             "live telemetry proof:",
             "packaged=\(packaged)",
-            "inputPolicy=no-permission-best-effort",
+            "inputPolicy=ax-event-tap-when-trusted",
             "expected=\(expectedLabels.joined(separator: ","))",
             "satisfied=\(satisfiedClickExpectations.sorted().joined(separator: ","))",
             "satisfiedGaze=\(satisfiedMoveCommands.sorted().joined(separator: "/"))",

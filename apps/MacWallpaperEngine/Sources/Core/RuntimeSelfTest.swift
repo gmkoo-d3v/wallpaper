@@ -275,8 +275,37 @@ enum RuntimeSelfTest {
             "window visibility pause policy must be explicit"
         )
         check(
-            RuntimeLifecyclePolicy.desktopItemTrustPolicy == "no-permission-best-effort-desktop-items",
-            "desktop item interaction policy must avoid mandatory Accessibility trust"
+            RuntimeLifecyclePolicy.desktopItemTrustPolicy == "precise-with-accessibility-trust-best-effort-without"
+                && RuntimeLifecyclePolicy.missingTrustInteractionDegradePolicy == "global-monitors-without-accessibility-trust",
+            "desktop item interaction policy must use precise AX gating when trusted and degrade to global monitors when untrusted"
+        )
+        check(
+            RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(InteractionPolicy(
+                mode: .desktopEmptyOnly,
+                blockApplicationWindows: true,
+                blockDesktopItems: true,
+                pointerSmoothing: nil,
+                pointerSampleFps: nil,
+                idleDeadZone: nil,
+                directionSwitchMargin: nil,
+                defaultClickTailSeconds: nil,
+                releaseFadeSeconds: nil
+            )),
+            "desktop-empty interaction with desktop item blocking must read real Accessibility trust"
+        )
+        check(
+            RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(InteractionPolicy(
+                mode: .disabled,
+                blockApplicationWindows: true,
+                blockDesktopItems: true,
+                pointerSmoothing: nil,
+                pointerSampleFps: nil,
+                idleDeadZone: nil,
+                directionSwitchMargin: nil,
+                defaultClickTailSeconds: nil,
+                releaseFadeSeconds: nil
+            )) == false,
+            "disabled interaction policy must not require an Accessibility trust read"
         )
         check(
             RuntimeLifecyclePolicy.outsideContentTrackingPolicy == "ignore-same-window-outside-content-without-idle-reset",
@@ -287,21 +316,75 @@ enum RuntimeSelfTest {
             "desktop-empty blocked events must not reset gaze while app-window and desktop-icon input is ignored"
         )
         check(
-            RuntimeLifecyclePolicy.accessibilityPromptPolicy == "never-request-accessibility",
-            "wallpaper startup and control panel refresh must not trigger macOS Accessibility prompts"
+            RuntimeLifecyclePolicy.accessibilityPromptPolicy == AccessibilityPromptPolicy.defaultPolicy.rawValue
+                && AccessibilityPromptPolicy.defaultPolicy == .uiSessionPromptOnce,
+            "Accessibility prompt policy must default to one GUI-session prompt so desktop click input can be restored"
         )
         check(
-            DesktopInteractionGate.accessibilityTrustCheckPolicy == "check-without-prompt",
-            "startup Accessibility trust checks must use no-prompt probes"
+            AccessibilityPromptPolicy.shouldPrompt(policy: .uiSessionPromptOnce, isGUIMainSession: true, alreadyPrompted: false),
+            "a GUI login session must be allowed exactly one Accessibility prompt when trust is missing"
+        )
+        check(
+            AccessibilityPromptPolicy.shouldPrompt(policy: .uiSessionPromptOnce, isGUIMainSession: true, alreadyPrompted: true) == false,
+            "the Accessibility prompt must never repeat within one process"
+        )
+        check(
+            AccessibilityPromptPolicy.shouldPrompt(policy: .uiSessionPromptOnce, isGUIMainSession: false, alreadyPrompted: false) == false,
+            "headless and CI sessions must never raise the Accessibility prompt"
+        )
+        check(
+            AccessibilityPromptPolicy.shouldPrompt(policy: .never, isGUIMainSession: true, alreadyPrompted: false) == false,
+            "the never policy must suppress the Accessibility prompt even in a GUI session"
+        )
+        check(
+            AccessibilityPromptPolicy.parse(nil) == .uiSessionPromptOnce
+                && AccessibilityPromptPolicy.parse("never") == .never
+                && AccessibilityPromptPolicy.parse("ui-session-prompt-once") == .uiSessionPromptOnce
+                && AccessibilityPromptPolicy.parse("not-a-policy") == .uiSessionPromptOnce,
+            "Accessibility prompt policy parsing must fall back to the GUI-session default for unknown values"
+        )
+        check(
+            DesktopInteractionGate.shouldRequestAccessibilityPrompt(
+                policy: .never,
+                isGUIMainSession: true,
+                alreadyPrompted: false
+            ) == false,
+            "CLI one-shot diagnostics must resolve to a no-prompt Accessibility check"
+        )
+        check(
+            DesktopInteractionGate.accessibilityTrustCheckPolicy.contains("ax-api-check")
+                && DesktopInteractionGate.accessibilitySettingsURL.contains("com.apple.universalaccess"),
+            "Accessibility trust must be read through the AX API with a documented settings deep link"
+        )
+        check(
+            DesktopInteractionGate.hasAccessibilityTrust() == DesktopInteractionGate.hasAccessibilityTrust(),
+            "Accessibility trust must be readable through the AX API without side effects; the result follows TCC state"
+        )
+        check(
+            DesktopInteractionGate.shouldUseEventTap(windowPassive: true, accessibilityTrusted: true),
+            "passive wallpaper windows with Accessibility trust must route clicks through the listen-only CGEventTap"
+        )
+        check(
+            DesktopInteractionGate.shouldUseEventTap(windowPassive: true, accessibilityTrusted: false) == false,
+            "passive wallpaper windows without Accessibility trust must not start a tap and must keep the global monitor fallback"
+        )
+        check(
+            DesktopInteractionGate.shouldUseEventTap(windowPassive: false, accessibilityTrusted: true) == false,
+            "non-passive wallpaper windows must keep the local mouse path instead of a CGEventTap"
+        )
+        check(
+            DesktopInteractionGate.accessibilityTrustCheckPolicy == "ax-api-check;prompt-only-in-gui-session-once",
+            "startup Accessibility trust checks must use the AX API and a once-per-GUI-session prompt policy"
         )
         let accessibilityStatusText = InputDiagnostics.statusText()
         check(
             accessibilityStatusText.contains("input permission diagnostics OK")
                 && accessibilityStatusText.contains("accessibilityStatus:")
-                && accessibilityStatusText.contains("accessibilityPromptSupported: false")
-                && accessibilityStatusText.contains("inputPolicy: no-permission-best-effort")
+                && accessibilityStatusText.contains("accessibilityPromptSupported: true")
+                && accessibilityStatusText.contains("accessibilityPromptPolicy: never")
+                && accessibilityStatusText.contains("accessibilityAPIUsed: true")
                 && accessibilityStatusText.contains("appPath:"),
-            "input diagnostics must expose current trust state without prompting"
+            "input diagnostics must expose the AX API trust state and must never prompt from a CLI one-shot path"
         )
         check(
             DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
@@ -875,12 +958,12 @@ enum RuntimeSelfTest {
                 RuntimeCapabilities.desktopItemGate(
                     policy: runtime.manifest.interactionPolicy,
                     accessibilityTrusted: false
-                ) == "best-effort(current=no-permission,no-ax-api)"
+                ) == "best-effort(current=no-ax-trust)"
                     && RuntimeCapabilities.desktopItemGate(
                         policy: runtime.manifest.interactionPolicy,
                         accessibilityTrusted: true
-                    ) == "best-effort(current=no-permission,no-ax-api)",
-                "runtime capabilities must expose no-permission desktop-item mode without AX API"
+                    ) == "precise(ax-element-at-point)",
+                "runtime capabilities must expose the desktop-item gate precision from the real Accessibility trust state"
             )
         }
         let doctorReport = try RuntimeDoctorReport.make(runtime: runtime, recoveryURL: nil)
@@ -1031,7 +1114,7 @@ enum RuntimeSelfTest {
                 && doctorControlPanelSummary.contains("quality:")
                 && doctorControlPanelSummary.contains("display:")
                 && doctorControlPanelSummary.contains("package:")
-                && doctorControlPanelSummary.contains("accessibilityAPI=false")
+                && doctorControlPanelSummary.contains("accessibilityAPI=true")
                 && doctorControlPanelSummary.contains("interaction:"),
             "runtime doctor control-panel summary must expose compact preflight, package, and interaction status"
         )
@@ -1040,7 +1123,7 @@ enum RuntimeSelfTest {
             check(
                 doctorControlPanelSummary.contains("package: local-manual-start")
                     && doctorControlPanelSummary.contains("signature=unsigned-no-certificate")
-                    && doctorControlPanelSummary.contains("input=permissionless"),
+                    && doctorControlPanelSummary.contains("input=ax-event-tap"),
                 "packaged local builds must surface unsigned manual-start input mode in the control-panel doctor summary"
             )
         }
@@ -2082,11 +2165,11 @@ enum RuntimeSelfTest {
             accessibilityTrusted: false
         )
         check(
-            missingPermissionInteractionSummary.contains("desktopMonitor: ready(desktop-empty-only,no-permission-best-effort)")
+            missingPermissionInteractionSummary.contains("desktopMonitor: ready(desktop-empty-only,global-monitors-best-effort)")
                 && missingPermissionInteractionSummary.contains("emptyDesktopMove=eligible")
                 && missingPermissionInteractionSummary.contains("emptyDesktop=eligible")
                 && missingPermissionInteractionSummary.contains("eventGateNoPermissionProbes: desktopItemPrecision=best-effort"),
-            "interaction diagnostics must explain no-permission best-effort click interaction"
+            "interaction diagnostics must explain the global-monitor best-effort fallback when Accessibility is untrusted"
         )
         let neutralProbeSummary = InteractionPlan.probeSummary(
             interactions: manifest.interactions,
@@ -2873,8 +2956,9 @@ enum RuntimeSelfTest {
         )
         check(
             EngineConfig.help.contains("--input-status")
+                && EngineConfig.help.contains("--accessibility-prompt-policy")
                 && EngineConfig.help.contains("--request-accessibility") == false,
-            "EngineConfig help must document no-prompt input diagnostics and omit Accessibility request flow"
+            "EngineConfig help must document no-prompt input diagnostics, the prompt policy switch, and omit a prompt-forcing CLI flag"
         )
         check(
             EngineConfig.help.contains("--completion-audit")
@@ -3207,7 +3291,7 @@ enum RuntimeSelfTest {
             "bundle validation matrix must validate display-refresh FPS matching for every bundled renderer family"
         )
         check(
-            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+no-permission-best-effort)")
+            bundleMatrix.contains("interactionPlan: active(desktop-empty-only+global-monitors-best-effort)")
                 && occurrenceCount("interactionPlan: passive(no-interactions)", in: bundleMatrix) >= 3,
             "bundle validation matrix must validate active no-permission desktop interactions and passive no-interaction bundles"
         )
@@ -4070,6 +4154,7 @@ enum RuntimeSelfTest {
         try checkSpineAnimationPairSyntax(from: runtime, failures: &failures, checks: &checks)
         try checkHoldCommitTapBranchSemantics(from: runtime, failures: &failures, checks: &checks)
         try checkCommittedHoldActionSemantics(from: runtime, failures: &failures, checks: &checks)
+        try checkDesktopInputDeliveryPlan(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
             let details = failures.map { "- \($0)" }.joined(separator: "\n")
@@ -4082,6 +4167,332 @@ enum RuntimeSelfTest {
         manifest: \(runtime.config.manifestURL.path)
         bundle: \(runtime.config.wallpaperRoot.path)
         """
+    }
+
+    /// Deterministic input-delivery decision matrix for the desktop click path:
+    /// which source delivers clicks for each window/trust combination, that the
+    /// listen-only CGEventTap path and the global-monitor fallback stay mutually
+    /// exclusive, and that a mid-session Accessibility grant restarts the sources.
+    private static func checkDesktopInputDeliveryPlan(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWallpaperEngineInputDeliverySelfTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let fixtureRoot = tempDirectory.appendingPathComponent("bundle", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixtureRoot, withIntermediateDirectories: true)
+        let sourcePreview = runtime.config.wallpaperRoot.appendingPathComponent("preview.jpg")
+        let fixturePreview = fixtureRoot.appendingPathComponent("preview.jpg")
+        do {
+            try FileManager.default.linkItem(at: sourcePreview, to: fixturePreview)
+        } catch {
+            try FileManager.default.copyItem(at: sourcePreview, to: fixturePreview)
+        }
+        let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
+        guard let sourceTexture = runtime.assetCatalog.spineAsset?.textures.first else {
+            failures.append("input-delivery fixture requires an active Spine texture")
+            return
+        }
+        let fixtureTexture = assetsRoot.appendingPathComponent("texture.png")
+        do {
+            try FileManager.default.linkItem(at: sourceTexture, to: fixtureTexture)
+        } catch {
+            try FileManager.default.copyItem(at: sourceTexture, to: fixtureTexture)
+        }
+        try Data("""
+        texture.png
+        size: 64,64
+        filter: Linear,Linear
+
+        base
+        bounds: 0,0,64,64
+
+        """.utf8).write(to: assetsRoot.appendingPathComponent("character.atlas"), options: .atomic)
+        try Data("""
+        {
+          "skeleton": {
+            "spine": "4.2.43",
+            "x": -32,
+            "y": -32,
+            "width": 64,
+            "height": 64
+          },
+          "bones": [
+            {
+              "name": "root"
+            }
+          ],
+          "slots": [
+            {
+              "name": "card",
+              "bone": "root",
+              "attachment": "base"
+            }
+          ],
+          "skins": [
+            {
+              "name": "default",
+              "attachments": {
+                "card": {
+                  "base": {
+                    "type": "region",
+                    "path": "base",
+                    "width": 64,
+                    "height": 64
+                  }
+                }
+              }
+            }
+          ],
+          "animations": {
+            "idle": {},
+            "act": {
+              "bones": {
+                "root": {
+                  "rotate": [
+                    { "time": 0.0, "value": 0 },
+                    { "time": 0.5, "value": 8 }
+                  ]
+                }
+              }
+            }
+          }
+        }
+        """.utf8).write(to: assetsRoot.appendingPathComponent("character.json"), options: .atomic)
+        let manifestURL = fixtureRoot.appendingPathComponent("wallpaper.native.json")
+        let manifestJSON = """
+        {
+          "schemaVersion": "macos-wallpaper-native.v2",
+          "metadata": {
+            "id": "selftest_input_delivery",
+            "title": "Self Test Input Delivery"
+          },
+          "runtime": {
+            "kind": "native-metal",
+            "targetFps": 30,
+            "maxFps": 60,
+            "fallbackFps": 15,
+            "scheduler": {
+              "maxInFlightCommandBuffers": 1,
+              "lateFramePolicy": "drop",
+              "catchUp": false
+            }
+          },
+          "displayPolicy": {
+            "primary": "full",
+            "secondary": "static",
+            "fullscreenObscured": "pause",
+            "occluded": "pause"
+          },
+          "thermalPolicy": {
+            "nominal": "30fps",
+            "serious": "15fps-or-video-only",
+            "critical": "pause"
+          },
+          "layerBudgets": {
+            "maxTexturePages": 1,
+            "maxTextureDimension": 4096,
+            "rssTargetMb": 250,
+            "rssHardMb": 500,
+            "primaryCpuTargetPercent": 10,
+            "cpuDowngradePercent": 20,
+            "cpuDowngradeWindowSeconds": 10
+          },
+          "interactionPolicy": {
+            "mode": "desktop-empty-only",
+            "blockApplicationWindows": true,
+            "blockDesktopItems": true
+          },
+          "assets": {
+            "staticImage": {
+              "id": "previewImage",
+              "path": "preview.jpg"
+            },
+            "spine": {
+              "id": "character",
+              "version": "4.2.43",
+              "json": "assets/character.json",
+              "atlas": "assets/character.atlas",
+              "textures": [
+                "assets/texture.png"
+              ],
+              "premultipliedAlpha": false
+            }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "static_image",
+              "asset": "previewImage"
+            },
+            {
+              "id": "character",
+              "type": "spine",
+              "asset": "character"
+            }
+          ],
+          "interactions": [
+            {
+              "event": "pointerMove",
+              "mapping": "lookDirection",
+              "actions": {
+                "idle": "idle",
+                "left": "idle",
+                "right": "idle",
+                "up": "idle",
+                "down": "idle"
+              }
+            },
+            {
+              "event": "pointerDown",
+              "hitZones": [
+                {
+                  "id": "click-zone",
+                  "rect": [0.30, 0.30, 0.70, 0.70],
+                  "action": "act",
+                  "trigger": "tap"
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "bundleRootOnly": true,
+            "requirePremultipliedAlpha": false,
+            "requireSpineVersion": "4.2.x",
+            "rejectUnknownLayerTypes": true
+          }
+        }
+        """
+        try Data(manifestJSON.utf8).write(to: manifestURL, options: .atomic)
+
+        let deliveryRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+            wallpaperRoot: fixtureRoot,
+            manifestURL: manifestURL,
+            clearDuration: true,
+            launchControlPanel: false,
+            launchWallpaper: false
+        ))
+        let plan = InteractionPlan(
+            interactions: deliveryRuntime.manifest.interactions,
+            policy: deliveryRuntime.manifest.interactionPolicy,
+            actionTailDurations: [:]
+        )
+        check(
+            plan.hitTest(point: CGPoint(x: 0.5, y: 0.5), button: .left)?.action == "act"
+                && plan.hitTest(point: CGPoint(x: 0.05, y: 0.05), button: .left) == nil,
+            "input-delivery fixture must expose one declared click zone plus empty-desktop space",
+            failures: &failures,
+            checks: &checks
+        )
+
+        let passiveTrusted = DesktopMouseInteractionMonitor.inputSources(
+            usesPassiveEventMonitoring: true,
+            eventTapStarted: DesktopInteractionGate.shouldUseEventTap(windowPassive: true, accessibilityTrusted: true),
+            accessibilityTrusted: true
+        )
+        let passiveUntrusted = DesktopMouseInteractionMonitor.inputSources(
+            usesPassiveEventMonitoring: true,
+            eventTapStarted: DesktopInteractionGate.shouldUseEventTap(windowPassive: true, accessibilityTrusted: false),
+            accessibilityTrusted: false
+        )
+        let activeWindow = DesktopMouseInteractionMonitor.inputSources(
+            usesPassiveEventMonitoring: false,
+            eventTapStarted: false,
+            accessibilityTrusted: false
+        )
+        check(
+            passiveTrusted.useEventTap
+                && passiveTrusted.useGlobalClickMonitors == false
+                && passiveTrusted.useLocalMonitor == false,
+            "trusted passive wallpaper windows must deliver clicks only through the listen-only CGEventTap",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            passiveUntrusted.useEventTap == false
+                && passiveUntrusted.useGlobalClickMonitors
+                && passiveUntrusted.useGlobalMoveMonitor,
+            "untrusted passive wallpaper windows must keep the global monitor click fallback without an event tap",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            activeWindow.useLocalMonitor
+                && activeWindow.useEventTap == false
+                && activeWindow.useGlobalClickMonitors,
+            "non-passive wallpaper windows must deliver clicks through the local monitor plus global fallback",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            passiveTrusted.useEventTap != passiveUntrusted.useEventTap
+                && passiveTrusted.useGlobalClickMonitors != passiveUntrusted.useGlobalClickMonitors,
+            "event tap and global click monitors must stay mutually exclusive so clicks are never double-delivered",
+            failures: &failures,
+            checks: &checks
+        )
+        let liveTrust = DesktopInteractionGate.hasAccessibilityTrust()
+        check(
+            DesktopMouseInteractionMonitor.shouldRestartForAccessibilityTrustChange(
+                isActive: true,
+                previousAccessibilityTrusted: !liveTrust,
+                currentAccessibilityTrusted: liveTrust
+            ),
+            "a mid-session Accessibility trust change must be observable through the restart decision so the tap path can take over",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.shouldRestartForAccessibilityTrustChange(
+                isActive: true,
+                previousAccessibilityTrusted: liveTrust,
+                currentAccessibilityTrusted: liveTrust
+            ) == false,
+            "an unchanged Accessibility trust reading must not churn the input sources",
+            failures: &failures,
+            checks: &checks
+        )
+        let trustedSummary = InteractionPlan.diagnosticSummary(
+            interactions: deliveryRuntime.manifest.interactions,
+            policy: deliveryRuntime.manifest.interactionPolicy,
+            runtimeInteractive: deliveryRuntime.config.interactive,
+            fitMode: deliveryRuntime.config.fitMode,
+            contentAspect: CGFloat(deliveryRuntime.assetCatalog.contentAspect),
+            accessibilityTrusted: true
+        )
+        let untrustedSummary = InteractionPlan.diagnosticSummary(
+            interactions: deliveryRuntime.manifest.interactions,
+            policy: deliveryRuntime.manifest.interactionPolicy,
+            runtimeInteractive: deliveryRuntime.config.interactive,
+            fitMode: deliveryRuntime.config.fitMode,
+            contentAspect: CGFloat(deliveryRuntime.assetCatalog.contentAspect),
+            accessibilityTrusted: false
+        )
+        check(
+            trustedSummary.contains("desktopMonitor: ready(desktop-empty-only,event-tap+precise-desktop-items)")
+                && untrustedSummary.contains("desktopMonitor: ready(desktop-empty-only,global-monitors-best-effort)"),
+            "interaction diagnostics must name the click delivery source for the trusted and untrusted passive paths",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            RuntimeDoctorReport.controlPanelSummary(runtime: deliveryRuntime, interactionStatus: "READY")
+                .contains("accessibilityAPI=true"),
+            "doctor summary must report that the AX API is actually used for input",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            InputDiagnostics.statusText(promptPolicy: .never).contains("accessibilityPromptPolicy: never"),
+            "input diagnostics must expose the never prompt policy used by CLI one-shot paths",
+            failures: &failures,
+            checks: &checks
+        )
     }
 
     private static func checkResourceGovernorTelemetry(
@@ -4351,6 +4762,40 @@ enum RuntimeSelfTest {
                 useGlobalClickMonitors: true
             ),
             "active desktop wallpaper windows must use local monitoring plus global fallback so below-desktop-window routing still receives click actions",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
+                usesPassiveEventMonitoring: true,
+                accessibilityTrusted: true
+            ) == DesktopInteractionGate.shouldUseEventTap(windowPassive: true, accessibilityTrusted: true)
+                && DesktopMouseInteractionMonitor.canStartEventTapWithoutPrompt(
+                    usesPassiveEventMonitoring: true,
+                    accessibilityTrusted: false
+                ) == DesktopInteractionGate.shouldUseEventTap(windowPassive: true, accessibilityTrusted: false),
+            "the monitor tap gate and the pure event-tap decision must stay on one truth table",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            DesktopMouseInteractionMonitor.inputSources(
+                usesPassiveEventMonitoring: true,
+                eventTapStarted: DesktopInteractionGate.shouldUseEventTap(
+                    windowPassive: true,
+                    accessibilityTrusted: true
+                ),
+                accessibilityTrusted: true
+            ).useEventTap
+                && DesktopMouseInteractionMonitor.inputSources(
+                    usesPassiveEventMonitoring: true,
+                    eventTapStarted: DesktopInteractionGate.shouldUseEventTap(
+                        windowPassive: true,
+                        accessibilityTrusted: false
+                    ),
+                    accessibilityTrusted: false
+                ).useGlobalClickMonitors,
+            "passive wallpaper input must deliver clicks through the event tap when trusted and through global monitors when untrusted",
             failures: &failures,
             checks: &checks
         )
@@ -5185,6 +5630,70 @@ enum RuntimeSelfTest {
         check(
             parsed.launchAtLogin == false,
             "EngineConfig must ignore persisted automatic launch; player is manual-start only",
+            failures: &failures,
+            checks: &checks
+        )
+        check(
+            loaded.accessibilityPromptPolicy == AccessibilityPromptPolicy.defaultPolicy.rawValue
+                && parsed.accessibilityPromptPolicy == .defaultPolicy,
+            "runtime settings must expose the Accessibility prompt policy key with the GUI-session default",
+            failures: &failures,
+            checks: &checks
+        )
+        let neverPromptConfig = runtime.config.replacing(
+            clearDuration: true,
+            accessibilityPromptPolicy: .never
+        )
+        try RuntimeSettingsStore.save(config: neverPromptConfig, to: settingsURL)
+        // validateOnly keeps this parse on the one-shot diagnostic path that never reads
+        // persisted settings, so the restored policy comes from the explicit argument.
+        let parsedNeverPrompt = try EngineConfig.parse([
+            "--validate-only",
+            "--accessibility-prompt-policy", "never"
+        ])
+        check(
+            parsedNeverPrompt.accessibilityPromptPolicy == .never,
+            "EngineConfig must restore a persisted never Accessibility prompt policy",
+            failures: &failures,
+            checks: &checks
+        )
+        try RuntimeSettingsStore.save(
+            PersistedEngineSettings(
+                schemaVersion: PersistedEngineSettings.currentSchemaVersion,
+                wallpaperRootPath: runtime.config.wallpaperRoot.standardizedFileURL.path,
+                displayMode: nil,
+                primaryDisplaySelector: nil,
+                interactive: nil,
+                captureDesktopInput: nil,
+                renderFps: nil,
+                matchDisplayRefresh: nil,
+                playbackRateOverride: nil,
+                audioEnabled: false,
+                fitMode: nil,
+                foregroundMode: nil,
+                launchAtLogin: false,
+                accessibilityPromptPolicy: "not-a-policy"
+            ),
+            to: settingsURL
+        )
+        let unknownPolicyParse = try EngineConfig.parse([])
+        check(
+            unknownPolicyParse.accessibilityPromptPolicy == .defaultPolicy,
+            "EngineConfig must fall back to the GUI-session prompt default for an unknown persisted policy value",
+            failures: &failures,
+            checks: &checks
+        )
+        let flagPolicyParse = try EngineConfig.parse(["--accessibility-prompt-policy", "never"])
+        check(
+            flagPolicyParse.accessibilityPromptPolicy == .never,
+            "EngineConfig must accept the explicit Accessibility prompt policy flag",
+            failures: &failures,
+            checks: &checks
+        )
+        let diagnosticPolicyParse = try EngineConfig.parse(["--validate-only"])
+        check(
+            diagnosticPolicyParse.accessibilityPromptPolicy == .defaultPolicy,
+            "diagnostic validation must ignore a persisted Accessibility prompt policy and keep the default",
             failures: &failures,
             checks: &checks
         )

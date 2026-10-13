@@ -202,6 +202,7 @@ final class WallpaperMetalView: MTKView {
             mouseMonitor = DesktopMouseInteractionMonitor(
                 window: window,
                 policy: interactionPolicy,
+                promptPolicy: runtime.config.accessibilityPromptPolicy,
                 pointerMoveInputMask: pointerMoveInputMask,
                 onMove: { [weak self] point, button in
                     guard let self else { return }
@@ -303,10 +304,7 @@ final class WallpaperMetalView: MTKView {
     }
 
     private func accessibilityTrustForInteraction() -> Bool {
-        guard RuntimeLifecyclePolicy.requiresAccessibilityTrustForDesktopItems(interactionPolicy) else {
-            return true
-        }
-        return DesktopInteractionGate.hasAccessibilityTrust()
+        DesktopInteractionGate.hasAccessibilityTrust(promptingPolicy: runtime.config.accessibilityPromptPolicy)
     }
 
     private func setMouseMonitorActive(

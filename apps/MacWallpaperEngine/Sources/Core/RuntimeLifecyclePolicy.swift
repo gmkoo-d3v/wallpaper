@@ -26,14 +26,14 @@ enum DisplayRebuildCommitDecision: Equatable {
 enum RuntimeLifecyclePolicy {
     static let startupFailurePolicy = "control-panel-recovery"
     static let visibilityPausePolicy = "pause-when-occluded-or-fullscreen-obscured"
-    static let desktopItemTrustPolicy = "no-permission-best-effort-desktop-items"
-    static let missingTrustInteractionDegradePolicy = "no-permission-pointer-and-click-monitoring"
+    static let desktopItemTrustPolicy = "precise-with-accessibility-trust-best-effort-without"
+    static let missingTrustInteractionDegradePolicy = "global-monitors-without-accessibility-trust"
     static let displayRebuildPolicy = "debounced-atomic-rollback"
     static let runningHostReplacementPolicy = "start-replacement-before-retiring-current-host"
     static let rendererFailureRecoveryPolicy = RendererRecoveryPolicy.policyName
     static let outsideContentTrackingPolicy = "ignore-same-window-outside-content-without-idle-reset"
     static let blockedDesktopEventTrackingPolicy = "ignore-blocked-desktop-events-without-idle-reset"
-    static let accessibilityPromptPolicy = "never-request-accessibility"
+    static let accessibilityPromptPolicy = AccessibilityPromptPolicy.defaultPolicy.rawValue
     static let rendererWarmupFallbackPolicy = "preview-last-frame-or-neutral-background-before-first-pause"
     static let visibleWindowFirstDrawPolicy = "preorder-and-postorder-bounded-visible-draw-retries"
     static let displayRebuildDebounceSeconds: TimeInterval = 0.25
@@ -149,8 +149,11 @@ enum RuntimeLifecyclePolicy {
         return shouldRouteDirectWallpaperMouseEvents(interactionPolicy: interactionPolicy)
     }
 
+    /// Trust is read for every enabled interaction mode: the listen-only CGEventTap
+    /// path needs Accessibility, so diagnostics must know the real trust state even
+    /// when desktop-item blocking is off.
     static func requiresAccessibilityTrustForDesktopItems(_ interactionPolicy: InteractionPolicy) -> Bool {
-        false
+        interactionPolicy.mode != .disabled
     }
 
     static func interactionPermissionStatus(

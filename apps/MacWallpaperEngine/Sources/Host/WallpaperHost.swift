@@ -14,6 +14,7 @@ final class WallpaperHost: NSObject {
     private var pendingDisplayRebuild: DispatchWorkItem?
     private var isRunning = false
     private var lastKnownScreenConfigurationSignature: String?
+    private var accessibilityTrustRefreshTimer: Timer?
 
     init(runtime: NativeRuntimeCore) throws {
         self.runtime = runtime
@@ -29,11 +30,18 @@ final class WallpaperHost: NSObject {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        let timer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.refreshInteractionState()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        accessibilityTrustRefreshTimer = timer
         isRunning = true
     }
 
     func stop() {
         isRunning = false
+        accessibilityTrustRefreshTimer?.invalidate()
+        accessibilityTrustRefreshTimer = nil
         pendingDisplayRebuild?.cancel()
         pendingDisplayRebuild = nil
         NotificationCenter.default.removeObserver(self)

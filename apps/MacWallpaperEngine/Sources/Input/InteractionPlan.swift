@@ -264,6 +264,11 @@ struct InteractionPlan {
     }
 
     func hitTest(point: CGPoint, button: PointerButton) -> InteractionHitResult? {
+        // A manifest-declared pointerDown interaction owns hit testing; declarative
+        // trigger-play bindings are the fallback for bundles without one.
+        if pointerDownConfig() != nil {
+            return legacyHitTest(point: point, button: button)
+        }
         if let legacyHit = legacyHitTest(point: point, button: button) {
             return legacyHit
         }
@@ -728,11 +733,15 @@ struct InteractionPlan {
             return "passive(no-interactions)"
         }
         guard policy.mode != .disabled else { return "disabled(policy)" }
+        let trusted = accessibilityTrusted ?? DesktopInteractionGate.hasAccessibilityTrust()
         if policy.mode == .desktopEmptyOnly, policy.blockDesktopItems {
-            _ = accessibilityTrusted
-            return "ready(\(policy.mode.rawValue),no-permission-best-effort)"
+            return trusted
+                ? "ready(\(policy.mode.rawValue),event-tap+precise-desktop-items)"
+                : "ready(\(policy.mode.rawValue),global-monitors-best-effort)"
         }
-        return "ready(\(policy.mode.rawValue))"
+        return trusted
+            ? "ready(\(policy.mode.rawValue),event-tap)"
+            : "ready(\(policy.mode.rawValue),global-monitors)"
     }
 
     private static func eventGateProbeLines(
