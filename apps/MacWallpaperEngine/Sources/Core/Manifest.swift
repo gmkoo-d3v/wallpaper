@@ -258,6 +258,12 @@ struct InteractionConfig: Decodable {
     let hitZones: [HitZone]?
     let defaultAction: PointerDownDefaultAction?
     let buttons: [PointerButton]?
+    let gaze: PointerMoveGazeConfig?
+}
+
+struct PointerMoveGazeConfig: Decodable {
+    let sensitivity: Double?
+    let returnSpeed: Double?
 }
 
 enum InteractionEvent: String, Decodable {

@@ -781,6 +781,13 @@ enum ManifestLoader {
                     }
                 }
                 try validateLookDirectionActions(interaction.actions)
+                if let gaze = interaction.gaze {
+                    for (label, value) in [("sensitivity", gaze.sensitivity), ("returnSpeed", gaze.returnSpeed)] {
+                        guard let value, value.isFinite, value > 0 else {
+                            throw EngineError.manifest("pointerMove gaze.\(label) must be a positive finite number")
+                        }
+                    }
+                }
             case .pointerDown:
                 if let buttons = interaction.buttons, buttons.isEmpty {
                     throw EngineError.manifest("pointerDown buttons must not be empty")

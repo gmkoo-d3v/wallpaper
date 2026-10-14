@@ -11,6 +11,32 @@ struct InteractionSnapshot {
     let pointerDragDistance: CGFloat
     let clickPulse: CGFloat
     let isInputActive: Bool
+    /// Continuous per-axis quadrant gaze weights (action, weight) for the current frame.
+    /// Empty when the bundle declares no pointerMove gaze config — the renderer then keeps
+    /// the legacy single-overlay quadrant path byte-identically.
+    let gazeWeights: [(action: String, weight: Double)]
+
+    init(
+        pointer: CGPoint,
+        command: String,
+        isPointerDown: Bool,
+        pointerSpeed: CGFloat,
+        pointerPressDuration: CGFloat,
+        pointerDragDistance: CGFloat,
+        clickPulse: CGFloat,
+        isInputActive: Bool,
+        gazeWeights: [(action: String, weight: Double)] = []
+    ) {
+        self.pointer = pointer
+        self.command = command
+        self.isPointerDown = isPointerDown
+        self.pointerSpeed = pointerSpeed
+        self.pointerPressDuration = pointerPressDuration
+        self.pointerDragDistance = pointerDragDistance
+        self.clickPulse = clickPulse
+        self.isInputActive = isInputActive
+        self.gazeWeights = gazeWeights
+    }
 }
 
 private enum PressGesturePhase {
@@ -33,6 +59,10 @@ final class InteractionController {
     private var pointerSpeed: CGFloat = 0
     private var pointerInputActiveUntil: CFTimeInterval = 0
     private var moveCommandState: String
+    /// Smoothed gaze velocity state ([-1,1] per axis) for continuous gaze blending; only
+    /// advanced when the pointerMove interaction declares a gaze config.
+    private var gazeVelocityState = CGPoint(x: 0, y: 0)
+    private var gazeWeightsState: [(action: String, weight: Double)] = []
     private var clickCommandState: String?
     private var clickCommandExpiresAt: CFTimeInterval = 0
     private var clickCommandHeld = false
@@ -191,7 +221,8 @@ final class InteractionController {
                     pointerPressDuration: pressDuration,
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
-                    isInputActive: true
+                    isInputActive: true,
+                            gazeWeights: gazeWeightsState
                 )
             } else if preCommitPress,
                       pressGesturePhase == .pendingTap,
@@ -224,7 +255,8 @@ final class InteractionController {
                     pointerPressDuration: pressDuration,
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
-                    isInputActive: true
+                    isInputActive: true,
+                            gazeWeights: gazeWeightsState
                 )
             } else if preCommitPress, pressGesturePhase == .holding, tapWindowAlive {
                 // Live press below commit on a tap-window holdAction zone kept promoted by a
@@ -242,7 +274,8 @@ final class InteractionController {
                     pointerPressDuration: pressDuration,
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
-                    isInputActive: true
+                    isInputActive: true,
+                            gazeWeights: gazeWeightsState
                 )
             } else if preCommitPress, pressGesturePhase == .holding, pressedHitTapAction == nil {
                 // Live .holding press kept promoted below commit on a bare holdAction zone:
@@ -257,7 +290,8 @@ final class InteractionController {
                     pointerPressDuration: pressDuration,
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
-                    isInputActive: true
+                    isInputActive: true,
+                            gazeWeights: gazeWeightsState
                 )
             }
         }
@@ -316,7 +350,8 @@ final class InteractionController {
                 pointerPressDuration: pressDuration,
                 pointerDragDistance: dragDistance,
                 clickPulse: min(max(pulse, 0.0), 1.0),
-                isInputActive: inputActive
+                isInputActive: inputActive,
+                        gazeWeights: gazeWeightsState
             )
         }
 
@@ -332,7 +367,8 @@ final class InteractionController {
             pointerPressDuration: pressDuration,
             pointerDragDistance: dragDistance,
             clickPulse: 0.0,
-            isInputActive: inputActive
+            isInputActive: inputActive,
+            gazeWeights: gazeWeightsState
         )
     }
 
@@ -616,6 +652,30 @@ final class InteractionController {
             elapsedSeconds: elapsed
         )
         moveCommandState = plan.command(for: smoothedPointerState, previousCommand: moveCommandState)
+        if let gaze = plan.pointerMoveGazeConfig(), let actions = plan.pointerMoveActions() {
+            gazeWeightsState = plan.gazeWeights(
+                point: smoothedPointerState,
+                previous: gazeVelocityState,
+                elapsedSeconds: elapsed,
+                sensitivity: gaze.sensitivity ?? 1,
+                returnSpeed: gaze.returnSpeed ?? 10,
+                actions: actions
+            )
+            // Keep the smoothed velocity state from the weights just produced (per-axis:
+            // signed horizontal from the left/right weight, vertical from up/down).
+            var vx = 0.0
+            var vy = 0.0
+            for entry in gazeWeightsState {
+                switch entry.action {
+                case actions["left"]: vx = -entry.weight
+                case actions["right"]: vx = entry.weight
+                case actions["up"]: vy = -entry.weight
+                case actions["down"]: vy = entry.weight
+                default: break
+                }
+            }
+            gazeVelocityState = CGPoint(x: CGFloat(vx), y: CGFloat(vy))
+        }
     }
 
     private func markPointerInputActiveLocked(now: CFTimeInterval) {

@@ -775,6 +775,7 @@ final class SpineSetupPoseRenderer {
     func draw(
         command: String,
         pointer: CGPoint,
+        gazeWeights: [(action: String, weight: Double)] = [],
         drawableSize: CGSize,
         contentRect: CGRect,
         encoder: MTLRenderCommandEncoder,
@@ -786,7 +787,7 @@ final class SpineSetupPoseRenderer {
         _ = drawableSize
         _ = contentRect
         let scale: Float = 1.0
-        let drawableBatches = batches(command: command, pointer: pointer)
+        let drawableBatches = batches(command: command, pointer: pointer, gazeWeights: gazeWeights)
         let foregroundAspectScale = SIMD2<Float>(1.0, 1.0)
 
         for batch in drawableBatches {
@@ -947,7 +948,12 @@ final class SpineSetupPoseRenderer {
         )
     }
 
-    private func batches(command: String, pointer: CGPoint, now: CFTimeInterval = CACurrentMediaTime()) -> [Batch] {
+    private func batches(
+        command: String,
+        pointer: CGPoint,
+        gazeWeights: [(action: String, weight: Double)] = [],
+        now: CFTimeInterval = CACurrentMediaTime()
+    ) -> [Batch] {
         let animationName = resolvedAnimationName(command: command, now: now)
         guard let activeAnimation = animations[animationName] ?? animations[idleAnimationName] else {
             return cachedBatches
@@ -987,7 +993,24 @@ final class SpineSetupPoseRenderer {
             state: &declarativeBindingState
         )
         let canUsePoseFrameCache = physicsConstraintsEnabled == false || sleepPhysicsForIdle
-        let sampleFps = previousOverlayAnimation == nil ? sampleFps(for: animationName) : poseSampleFps
+        // Continuous gaze blend: resolve declared gaze weights to (animation, time, weight)
+        // overlays applied on top of the idle base. Empty for bundles without a gaze config,
+        // keeping the legacy quadrant path byte-identical.
+        let gazeOverlays: [(animation: SpineAnimation, time: Double, weight: Double)]
+        if gazeWeights.isEmpty {
+            gazeOverlays = []
+        } else {
+            let gazeNow = now
+            gazeOverlays = gazeWeights.compactMap { entry in
+                guard entry.weight > 0.001,
+                      let animation = animations[entry.action] ?? animations[idleAnimationName],
+                      animation.name != idleAnimationName else {
+                    return nil
+                }
+                return (animation, time(in: animation, now: gazeNow), min(max(entry.weight, 0), 1))
+            }
+        }
+        let sampleFps = previousOverlayAnimation == nil && gazeOverlays.isEmpty ? sampleFps(for: animationName) : poseSampleFps
         let lookMix = lookAnimationNames.contains(activeAnimation.name) ? pointerLookMix(pointer) : 1.0
         let quantizedFrame = Int((activeAnimationTime * sampleFps).rounded())
         let quantizedIdleFrame = Int((idleAnimationTime * sampleFps).rounded())
@@ -996,7 +1019,12 @@ final class SpineSetupPoseRenderer {
         let quantizedTransition = Int((transitionMix * sampleFps).rounded())
         let quantizedLookMix = Int((lookMix * sampleFps).rounded())
         let bindingKey = Self.bindingPoseCacheKey(bindingSnapshot.spineBoneRotationOffsets, sampleFps: sampleFps)
-        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(idleAnimationName):\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame):bindings:\(bindingKey)"
+        // Quantized gaze weight signature (4 axes × round(weight×255)) so cache keys
+        // separate distinct blend poses without unbounded key churn.
+        let gazeKey = gazeOverlays.isEmpty
+            ? ""
+            : ":gaze:" + gazeOverlays.prefix(4).map { "\(Int(($0.weight * 255).rounded()))" }.joined(separator: ",")
+        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(idleAnimationName):\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame):bindings:\(bindingKey)\(gazeKey)"
         if cacheKey == cachedPoseKey {
             poseCacheExactHits += 1
             return cachedBatches
@@ -1024,6 +1052,7 @@ final class SpineSetupPoseRenderer {
                 overlayAnimation: activeOverlayAnimation,
                 overlayTime: activeAnimationTime,
                 overlayMix: activeOverlayMix * lookMix,
+                gazeOverlays: gazeOverlays,
                 physicsTime: posePhysicsTime,
                 boneRotationOffsets: bindingSnapshot.spineBoneRotationOffsets
             )
@@ -1171,6 +1200,62 @@ final class SpineSetupPoseRenderer {
         activeAnimationStartedAt = now
         lastPairCommand = nil
         lastPairPick = nil
+    }
+
+    /// Diagnostics-only: flattened vertex positions of the pose built for a command with
+    /// optional gaze overlays. Used by the self-test to prove weighted gaze overlays
+    /// change the pose; never used on the live render path.
+    func diagnosticVertexPositionsProbe(
+        command: String,
+        pointer: CGPoint = CGPoint(x: 0.5, y: 0.5),
+        gazeWeights: [(action: String, weight: Double)] = [],
+        now: CFTimeInterval = CACurrentMediaTime()
+    ) -> [Double] {
+        resetDiagnosticProbeState(at: now)
+        let animationName = resolvedAnimationName(command: command, now: now)
+        guard let idleAnimation = animations[idleAnimationName] else { return [] }
+        let idleTime = loopedTime(in: idleAnimation, startedAt: rendererStartedAt, now: now)
+        let activeAnimation = animations[animationName] ?? idleAnimation
+        let gazeOverlays: [(animation: SpineAnimation, time: Double, weight: Double)] = gazeWeights.compactMap { entry in
+            guard entry.weight > 0.001,
+                  let animation = animations[entry.action],
+                  animation.name != idleAnimationName else {
+                return nil
+            }
+            return (animation, time(in: animation, now: now), min(max(entry.weight, 0), 1))
+        }
+        let pose = evaluate(
+            baseAnimation: idleAnimation,
+            baseTime: idleTime,
+            previousOverlayAnimation: nil,
+            previousOverlayTime: 0,
+            previousOverlayMix: 0,
+            overlayAnimation: activeAnimation.name == idleAnimationName ? nil : activeAnimation,
+            overlayTime: time(in: activeAnimation, now: now),
+            overlayMix: activeAnimation.name == idleAnimationName ? 0 : 1,
+            gazeOverlays: gazeOverlays,
+            physicsTime: 0,
+            boneRotationOffsets: [:]
+        )
+        do {
+            let vertexBatches = try Self.buildVertexBatches(
+                slots: pose.slots,
+                attachments: attachments,
+                clippingAttachments: clippingAttachments,
+                bones: pose.boneWorld,
+                deforms: pose.deforms,
+                sequenceIndices: pose.sequenceIndices,
+                boneIndexByName: boneIndexByName,
+                atlas: atlas,
+                skeletonBounds: skeletonBounds,
+                placement: placement
+            )
+            return vertexBatches.flatMap { batch in
+                batch.vertices.flatMap { [Double($0.position.x), Double($0.position.y)] }
+            }
+        } catch {
+            return []
+        }
     }
 
     func diagnosticPoseCacheProbe(command: String, pointer: CGPoint = CGPoint(x: 0.5, y: 0.5)) -> PoseCacheProbe {
@@ -1426,6 +1511,7 @@ final class SpineSetupPoseRenderer {
         overlayAnimation: SpineAnimation?,
         overlayTime: Double,
         overlayMix: Double,
+        gazeOverlays: [(animation: SpineAnimation, time: Double, weight: Double)] = [],
         physicsTime: Double?,
         boneRotationOffsets: [String: Double] = [:]
     ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
@@ -1439,6 +1525,7 @@ final class SpineSetupPoseRenderer {
             overlayAnimation: overlayAnimation,
             overlayTime: overlayTime,
             overlayMix: overlayMix,
+            gazeOverlays: gazeOverlays,
             physicsTime: physicsTime,
             boneRotationOffsets: boneRotationOffsets,
             physicsStateOverride: &unusedPhysicsStateOverride,
@@ -1455,6 +1542,7 @@ final class SpineSetupPoseRenderer {
         overlayAnimation: SpineAnimation?,
         overlayTime: Double,
         overlayMix: Double,
+        gazeOverlays: [(animation: SpineAnimation, time: Double, weight: Double)] = [],
         physicsTime: Double?,
         boneRotationOffsets: [String: Double],
         physicsStateOverride: inout [String: PhysicsRuntimeState]?,
@@ -1495,6 +1583,24 @@ final class SpineSetupPoseRenderer {
                 animation: overlayAnimation,
                 time: overlayTime,
                 alpha: overlayMix,
+                to: &posedBones,
+                constraints: &posedConstraints,
+                slots: &posedSlots,
+                deforms: &deforms,
+                sequenceIndices: &sequenceIndices
+            )
+        }
+        // Continuous gaze overlays: idle base (α1) + every weighted quadrant overlay.
+        // Documented compromise: the existing apply() semantics are unchanged, so at
+        // weights < 0.5 attachment/sequence swaps and IK bend/compress/stretch decisions
+        // are transform/deform-only (no attachment switching); at ≥ 0.5 the overlay's
+        // attachment decisions apply, and a later gaze overlay can overwrite an earlier
+        // one's attachment choice (last-wins).
+        for gazeOverlay in gazeOverlays where gazeOverlay.weight > 0.001 {
+            apply(
+                animation: gazeOverlay.animation,
+                time: gazeOverlay.time,
+                alpha: gazeOverlay.weight,
                 to: &posedBones,
                 constraints: &posedConstraints,
                 slots: &posedSlots,

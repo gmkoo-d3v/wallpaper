@@ -209,6 +209,52 @@ struct InteractionPlan {
         )
     }
 
+    /// Continuous per-axis quadrant gaze weights for a lookDirection pointerMove interaction.
+    /// The pointer offset from neutral is scaled to [-1,1] and multiplied by sensitivity, then
+    /// smoothed exponentially toward that target with returnSpeed (time-based, same pattern as
+    /// `smooth`). Weights are per-axis quadrant weights (NOT sum-normalized): left/right come
+    /// from the x axis, up/down from the y axis, each capped at 1.
+    func gazeWeights(
+        point: CGPoint,
+        previous: CGPoint,
+        elapsedSeconds: CFTimeInterval,
+        sensitivity: Double,
+        returnSpeed: Double,
+        actions: [String: String]
+    ) -> [(action: String, weight: Double)] {
+        let pointer = clamp(point)
+        let neutral = Self.point(
+            interactions.first(where: { $0.event == .pointerMove })?.neutralPoint,
+            fallback: CGPoint(x: 0.5, y: 0.5)
+        )
+        let targetX = min(max(Double((pointer.x - neutral.x) * 2) * sensitivity, -1), 1)
+        let targetY = min(max(Double((pointer.y - neutral.y) * 2) * sensitivity, -1), 1)
+        // Exponential smoothing toward the target, frame-rate independent. returnSpeed is a RATE
+        // in 1/seconds (not a per-frame ratio), so alpha = 1 - exp(-returnSpeed * elapsed): any
+        // positive rate converges, and equal wall-clock time converges equally at 30Hz and 60Hz.
+        let clampedElapsed = min(
+            max(elapsedSeconds, 0),
+            InteractionPlan.maxPointerSmoothingElapsedSeconds
+        )
+        let alpha = 1.0 - exp(-max(returnSpeed, 0) * clampedElapsed)
+        let vx = min(max(Double(previous.x) + (targetX - Double(previous.x)) * alpha, -1), 1)
+        let vy = min(max(Double(previous.y) + (targetY - Double(previous.y)) * alpha, -1), 1)
+        var weights: [(action: String, weight: Double)] = []
+        if let action = actions["left"], vx < 0 {
+            weights.append((action: action, weight: min(-vx, 1)))
+        }
+        if let action = actions["right"], vx > 0 {
+            weights.append((action: action, weight: min(vx, 1)))
+        }
+        if let action = actions["up"], vy < 0 {
+            weights.append((action: action, weight: min(-vy, 1)))
+        }
+        if let action = actions["down"], vy > 0 {
+            weights.append((action: action, weight: min(vy, 1)))
+        }
+        return weights
+    }
+
     func command(for point: CGPoint, previousCommand: String = "idle") -> String {
         let pointer = clamp(point)
         guard let config = interactions.first(where: { $0.event == .pointerMove }),
@@ -236,6 +282,20 @@ struct InteractionPlan {
             return dy < 0 ? upAction : downAction
         }
         return effectivePreviousCommand
+    }
+
+    /// Gaze config of the lookDirection pointerMove interaction, if declared.
+    func pointerMoveGazeConfig() -> PointerMoveGazeConfig? {
+        interactions.first(where: {
+            $0.event == .pointerMove && $0.mapping == "lookDirection"
+        })?.gaze
+    }
+
+    /// Action map of the lookDirection pointerMove interaction, if declared.
+    func pointerMoveActions() -> [String: String]? {
+        interactions.first(where: {
+            $0.event == .pointerMove && $0.mapping == "lookDirection"
+        })?.actions
     }
 
     func idleCommand() -> String {
@@ -523,7 +583,12 @@ struct InteractionPlan {
             "releaseFadeSeconds: \(formatInteractionNumber(policy?.releaseFadeSeconds ?? 0.20))",
             "pointerMove: \(moveMapping)",
             "pointerMoveButtons: \(moveButtons.isEmpty ? "any" : moveButtons)",
-            "pointerMoveActions: \(moveActions)",
+            "pointerMoveActions: \(moveActions)"
+        ]
+        if let gaze = moveConfig?.gaze {
+            lines.append("pointerMoveGaze: sensitivity=\(formatInteractionNumber(gaze.sensitivity ?? 0)),returnSpeed=\(formatInteractionNumber(gaze.returnSpeed ?? 0))")
+        }
+        lines += [
             "pointerMoveProbes: \(moveProbeText)"
         ] + eventGateProbeLines(
             policy: effectivePolicy,

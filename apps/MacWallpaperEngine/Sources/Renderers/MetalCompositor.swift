@@ -403,6 +403,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
             spineRenderer.draw(
                 command: interactionSnapshot.command,
                 pointer: interactionSnapshot.pointer,
+                gazeWeights: interactionSnapshot.gazeWeights,
                 drawableSize: view.drawableSize,
                 contentRect: foregroundContentRect,
                 encoder: encoder,

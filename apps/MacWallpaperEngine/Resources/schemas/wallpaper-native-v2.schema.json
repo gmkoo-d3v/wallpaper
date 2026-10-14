@@ -391,6 +391,15 @@
         "buttons": {
           "type": "array",
           "items": { "$ref": "#/$defs/pointerButton" }
+        },
+        "gaze": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "sensitivity": { "type": "number", "exclusiveMinimum": 0 },
+            "returnSpeed": { "type": "number", "exclusiveMinimum": 0 }
+          }
         }
       },
       "allOf": [

@@ -1205,7 +1205,8 @@ enum RuntimeSelfTest {
                 deadZone: nil,
                 hitZones: nil,
                 defaultAction: nil,
-                buttons: nil
+                buttons: nil,
+                gaze: nil
             )
         ]
         let customLookPlan = InteractionPlan(
@@ -6097,7 +6098,8 @@ enum RuntimeSelfTest {
                         )
                     ],
                     defaultAction: nil,
-                    buttons: [.left]
+                    buttons: [.left],
+                    gaze: nil
                 )
             ],
             policy: nil
@@ -11582,7 +11584,8 @@ enum RuntimeSelfTest {
             deadZone: nil,
             hitZones: nil,
             defaultAction: nil,
-            buttons: nil
+            buttons: nil,
+            gaze: nil
         )
         func controller(
             holdCommitSeconds: Double?,
@@ -11615,7 +11618,8 @@ enum RuntimeSelfTest {
                             rubStartDistance: rubStartDistance
                         )],
                         defaultAction: nil,
-                        buttons: [.left]
+                        buttons: [.left],
+                        gaze: nil
                     ),
                     lookInteraction
                 ],
@@ -11857,7 +11861,8 @@ enum RuntimeSelfTest {
             deadZone: nil,
             hitZones: nil,
             defaultAction: nil,
-            buttons: nil
+            buttons: nil,
+            gaze: nil
         )
         func controller(
             zone: HitZone,
@@ -11873,7 +11878,8 @@ enum RuntimeSelfTest {
                         deadZone: nil,
                         hitZones: [zone],
                         defaultAction: nil,
-                        buttons: [.left]
+                        buttons: [.left],
+                        gaze: nil
                     ),
                     lookInteraction
                 ],
@@ -12558,7 +12564,8 @@ enum RuntimeSelfTest {
                         )
                     ],
                     defaultAction: nil,
-                    buttons: [.left]
+                    buttons: [.left],
+                    gaze: nil
                 )
         ]
         let pairPlan = InteractionPlan(
@@ -12623,7 +12630,8 @@ enum RuntimeSelfTest {
                         )
                     ],
                     defaultAction: nil,
-                    buttons: [.left]
+                    buttons: [.left],
+                    gaze: nil
                 )
             ],
             policy: nil,
@@ -12696,7 +12704,8 @@ enum RuntimeSelfTest {
                     )
                 ],
                 defaultAction: nil,
-                buttons: [.left]
+                buttons: [.left],
+                gaze: nil
             ),
             InteractionConfig(
                 event: .pointerMove,
@@ -12706,7 +12715,8 @@ enum RuntimeSelfTest {
                 deadZone: nil,
                 hitZones: nil,
                 defaultAction: nil,
-                buttons: nil
+                buttons: nil,
+                gaze: nil
             )
         ]
 
@@ -12772,6 +12782,183 @@ enum RuntimeSelfTest {
             checks: &checks
         )
 
+        // (v) Continuous gaze blend: pure gazeWeights truth table, frame-rate-independent
+        // smoothing, quadrant command back-compat, and a renderer weighted-overlay smoke.
+        let gazeInteractions: [InteractionConfig] = [
+            InteractionConfig(
+                event: .pointerMove,
+                mapping: "lookDirection",
+                actions: ["left": "lookLeft", "right": "lookRight", "up": "lookUp", "down": "lookDown", "idle": "idle"],
+                neutralPoint: nil,
+                deadZone: nil,
+                hitZones: nil,
+                defaultAction: nil,
+                buttons: nil,
+                gaze: PointerMoveGazeConfig(sensitivity: 1.0, returnSpeed: 1000)
+            )
+        ]
+        // Small idleDeadZone so the quadrant command probes fall outside the idle dead zone
+        // (gaze weights themselves ignore the dead zone, continuous by design).
+        let gazePolicy = InteractionPolicy(
+            mode: .desktopEmptyOnly,
+            blockApplicationWindows: true,
+            blockDesktopItems: true,
+            pointerSmoothing: 0.18,
+            pointerSampleFps: nil,
+            idleDeadZone: 0.01,
+            directionSwitchMargin: nil,
+            defaultClickTailSeconds: nil,
+            releaseFadeSeconds: nil
+        )
+        let gazePlan = InteractionPlan(interactions: gazeInteractions, policy: gazePolicy)
+        func gazeWeights(at point: CGPoint) -> [String: Double] {
+            Dictionary(uniqueKeysWithValues: gazePlan.gazeWeights(
+                point: point,
+                previous: CGPoint(x: 0, y: 0),
+                elapsedSeconds: 1.0,
+                sensitivity: 1.0,
+                returnSpeed: 1000,
+                actions: ["left": "lookLeft", "right": "lookRight", "up": "lookUp", "down": "lookDown", "idle": "idle"]
+            ).map { ($0.action, $0.weight) })
+        }
+        let centerWeights = gazeWeights(at: CGPoint(x: 0.5, y: 0.5))
+        check(
+            centerWeights.isEmpty,
+            "gaze weights at the neutral center must be all-zero (idle base only), got \(centerWeights)",
+            failures: &failures,
+            checks: &checks
+        )
+        let leftWeights = gazeWeights(at: CGPoint(x: 0.0, y: 0.5))
+        check(
+            abs((leftWeights["lookLeft"] ?? 0) - 1) < 0.001
+                && leftWeights["lookRight"] == nil
+                && leftWeights["lookUp"] == nil
+                && leftWeights["lookDown"] == nil,
+            "gaze weights far left must weight the left quadrant at ~1 with no other quadrant weighted, got \(leftWeights)",
+            failures: &failures,
+            checks: &checks
+        )
+        let diagonalWeights = gazeWeights(at: CGPoint(x: 0.25, y: 0.25))
+        check(
+            abs((diagonalWeights["lookLeft"] ?? 0) - 0.5) < 0.001
+                && abs((diagonalWeights["lookUp"] ?? 0) - 0.5) < 0.001
+                && diagonalWeights["lookRight"] == nil
+                && diagonalWeights["lookDown"] == nil,
+            "gaze weights on a diagonal must weight exactly two axes (left+up at 0.5), got \(diagonalWeights)",
+            failures: &failures,
+            checks: &checks
+        )
+        // Quadrant probes must stay outside the idle dead zone (the neutral point always resolves
+        // to the idle action, so the tie branch is only reachable off-center): the dominant-axis
+        // probe uses a ±0.20 x offset (|dx| > |dy| + margin), and the tie probe uses a ±0.15
+        // diagonal offset (|dx| == |dy| ≤ |·| + margin) which must keep the previous command.
+        check(
+            gazePlan.command(for: CGPoint(x: 0.30, y: 0.50), previousCommand: "idle") == "lookLeft"
+                && gazePlan.command(for: CGPoint(x: 0.35, y: 0.35), previousCommand: "lookRight") == "lookRight",
+            "command(for:) must keep quadrant semantics (dominant axis, tie keeps previous) even when a gaze config is declared",
+            failures: &failures,
+            checks: &checks
+        )
+        func gazeConvergedWeights(step: CFTimeInterval, totalSeconds: CFTimeInterval) -> [String: Double] {
+            var state = CGPoint(x: 0, y: 0)
+            var weights: [(action: String, weight: Double)] = []
+            var elapsed: CFTimeInterval = 0
+            while elapsed < totalSeconds {
+                elapsed += step
+                weights = gazePlan.gazeWeights(
+                    point: CGPoint(x: 0.0, y: 0.5),
+                    previous: state,
+                    elapsedSeconds: step,
+                    sensitivity: 1.0,
+                    returnSpeed: 6,
+                    actions: ["left": "lookLeft", "right": "lookRight", "up": "lookUp", "down": "lookDown", "idle": "idle"]
+                )
+                state = CGPoint(x: weights.first.map { -$0.weight } ?? 0, y: 0)
+            }
+            return Dictionary(uniqueKeysWithValues: weights.map { ($0.action, $0.weight) })
+        }
+        let gazeAt60Hz = gazeConvergedWeights(step: 1.0 / 60.0, totalSeconds: 1.0)
+        let gazeAt30Hz = gazeConvergedWeights(step: 1.0 / 30.0, totalSeconds: 1.0)
+        check(
+            abs((gazeAt60Hz["lookLeft"] ?? 0) - (gazeAt30Hz["lookLeft"] ?? 0)) < 0.002,
+            "gaze weight smoothing must be time-based so 30Hz and 60Hz render cadences converge consistently, got \(gazeAt60Hz["lookLeft"] ?? 0) vs \(gazeAt30Hz["lookLeft"] ?? 0)",
+            failures: &failures,
+            checks: &checks
+        )
+        checks += 1
+        if let device = MTLCreateSystemDefaultDevice() {
+            let gazeSpineURL = assetsRoot.appendingPathComponent("character_gaze.json")
+            try Data(spineJSON(withAnimationBlocks: """
+                    "idle": {},
+                    "lookLeft": {
+                      "bones": {
+                        "root": {
+                          "rotate": [
+                            { "time": 0.0, "value": 20 }
+                          ]
+                        }
+                      }
+                    }
+            """).utf8).write(to: gazeSpineURL, options: .atomic)
+            let gazeManifestURL = fixtureRoot.appendingPathComponent("wallpaper_gaze.native.json")
+            try Data(manifestJSON(tapAction: "idle", spineFile: "character_gaze.json").utf8)
+                .write(to: gazeManifestURL, options: .atomic)
+            do {
+                let gazeRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+                    wallpaperRoot: fixtureRoot,
+                    manifestURL: gazeManifestURL,
+                    displayMode: .primaryAnimated,
+                    renderFps: 30,
+                    foregroundMode: .nativeSpine,
+                    clearDuration: true,
+                    launchControlPanel: false,
+                    launchWallpaper: false
+                ))
+                guard let gazeSpineAsset = gazeRuntime.assetCatalog.spineAsset else {
+                    failures.append("gaze blend fixture lost its Spine asset")
+                    return
+                }
+                let gazeRenderer = try SpineSetupPoseRenderer(
+                    spineAsset: gazeSpineAsset,
+                    device: device,
+                    idleAnimationName: "idle",
+                    loopingAnimationNames: ["idle"],
+                    oneShotAnimationNames: []
+                )
+                let singleOverlay = gazeRenderer.diagnosticVertexPositionsProbe(
+                    command: "lookLeft",
+                    pointer: CGPoint(x: 0.5, y: 0.5),
+                    gazeWeights: []
+                )
+                let weightedOverlay = gazeRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.5, y: 0.5),
+                    gazeWeights: [("lookLeft", 0.5)]
+                )
+                check(
+                    singleOverlay.count > 0
+                        && weightedOverlay.count == singleOverlay.count
+                        && zip(singleOverlay, weightedOverlay).contains { abs($0 - $1) > 0.001 },
+                    "renderer weighted gaze overlay must produce different vertex positions than the idle-only pose (overlay applied), got \(singleOverlay.prefix(4)) vs \(weightedOverlay.prefix(4))",
+                    failures: &failures,
+                    checks: &checks
+                )
+            } catch {
+                check(
+                    false,
+                    "gaze blend fixture must construct for renderer overlay probing (\(error.localizedDescription))",
+                    failures: &failures,
+                    checks: &checks
+                )
+            }
+        } else {
+            check(
+                gazeWeights(at: CGPoint(x: 0.0, y: 0.5))["lookLeft"] != nil,
+                "gaze weight truth table must hold even without Metal for the renderer overlay probe",
+                failures: &failures,
+                checks: &checks
+            )
+        }
     }
 
     private static func check(
