@@ -945,7 +945,7 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=21 calibrated=5 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=21 calibrated=5 platformPolicy=4 unsupported=3 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         check(
@@ -1011,20 +1011,20 @@ enum RuntimeSelfTest {
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
                 && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.FaceTrackerBindingCalibration=2,Assembly-CSharp.SpineFaceTracker=15")
         )
-        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:21+calibrated:5+platform-policy:4+unsupported:2")
+        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:21+calibrated:5+platform-policy:4+unsupported:3")
             || (
                 sourceProvenanceReport.contains("id=unity-metadata-source-adapter")
                     && sourceProvenanceReport.contains("kind=metadata-only-unity-wallpaper-engine-application")
                     && sourceProvenanceReport.contains("imported=21")
                     && sourceProvenanceReport.contains("calibrated=5")
                     && sourceProvenanceReport.contains("platform-policy=4")
-                    && sourceProvenanceReport.contains("unsupported=2")
+                    && sourceProvenanceReport.contains("unsupported=3")
             )
         check(
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=21 calibrated=5 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=21 calibrated=5 platformPolicy=4 unsupported=3 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceProvenanceReport.contains("sourceAdapter:")
                 && sourceAdapterEvidenceOK
                 && sourceManagedScriptStatusOK
@@ -3312,9 +3312,9 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=2")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=3")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=21 calibrated=5 platformPolicy=4 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=21 calibrated=5 platformPolicy=4 unsupported=3 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=16 calibrated=4 platformPolicy=3 unsupported=2")
                 && bundleMatrix.contains("sourceDerivation: partial imported=16 calibrated=4 platformPolicy=3 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
@@ -3428,7 +3428,7 @@ enum RuntimeSelfTest {
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("yumeko=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("yumeko=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=2); derivation(partial imported=21 calibrated=5 platformPolicy=4 unsupported=2")
+                && completionAudit.contains("yumeko=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=3); derivation(partial imported=21 calibrated=5 platformPolicy=4 unsupported=3")
                 && completionAudit.contains("buburu=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=16 calibrated=4 platformPolicy=3 unsupported=2)")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+pixelate+scroll+vignette")
