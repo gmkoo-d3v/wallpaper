@@ -15,6 +15,11 @@ struct InteractionSnapshot {
     /// Empty when the bundle declares no pointerMove gaze config — the renderer then keeps
     /// the legacy single-overlay quadrant path byte-identically.
     let gazeWeights: [(action: String, weight: Double)]
+    /// True while the active press is a COMMITTED hold: a live press whose gesture phase is
+    /// holding and whose zone declares a holdAction (the committed-hold loop state). A
+    /// bone-follow binding gates its cursor follow on this flag: below the commit threshold
+    /// the press is neutral pending and no follow runs.
+    let isHoldingLoop: Bool
 
     init(
         pointer: CGPoint,
@@ -25,7 +30,8 @@ struct InteractionSnapshot {
         pointerDragDistance: CGFloat,
         clickPulse: CGFloat,
         isInputActive: Bool,
-        gazeWeights: [(action: String, weight: Double)] = []
+        gazeWeights: [(action: String, weight: Double)] = [],
+        isHoldingLoop: Bool = false
     ) {
         self.pointer = pointer
         self.command = command
@@ -36,6 +42,7 @@ struct InteractionSnapshot {
         self.clickPulse = clickPulse
         self.isInputActive = isInputActive
         self.gazeWeights = gazeWeights
+        self.isHoldingLoop = isHoldingLoop
     }
 }
 
@@ -222,7 +229,8 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState
+                            gazeWeights: gazeWeightsState,
+                            isHoldingLoop: false
                 )
             } else if preCommitPress,
                       pressGesturePhase == .pendingTap,
@@ -256,7 +264,8 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState
+                            gazeWeights: gazeWeightsState,
+                            isHoldingLoop: false
                 )
             } else if preCommitPress, pressGesturePhase == .holding, tapWindowAlive {
                 // Live press below commit on a tap-window holdAction zone kept promoted by a
@@ -275,7 +284,8 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState
+                            gazeWeights: gazeWeightsState,
+                            isHoldingLoop: false
                 )
             } else if preCommitPress, pressGesturePhase == .holding, pressedHitTapAction == nil {
                 // Live .holding press kept promoted below commit on a bare holdAction zone:
@@ -291,7 +301,8 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState
+                            gazeWeights: gazeWeightsState,
+                            isHoldingLoop: false
                 )
             }
         }
@@ -336,6 +347,12 @@ final class InteractionController {
             }
         }
         let isPointerDown = pressedButton != nil
+        // Committed-hold gate for the bone-follow cursor follow: a live press in the holding
+        // phase on a zone that declares a holdAction. Below the commit threshold the press is
+        // neutral pending (no follow); the committed loop state is what arms the follow.
+        let isHoldingLoop = pressedButton != nil
+            && pressedHitHoldAction != nil
+            && pressGesturePhase == .holding
         if let clickCommandState, clickCommandHeld || now < clickCommandExpiresAt {
             let fadeDuration = clickCommandHeld ? releaseFadeDuration : max(activeClickTailDuration, 0.001)
             let pulse = clickCommandHeld ? 1.0 : CGFloat((clickCommandExpiresAt - now) / fadeDuration)
@@ -351,7 +368,8 @@ final class InteractionController {
                 pointerDragDistance: dragDistance,
                 clickPulse: min(max(pulse, 0.0), 1.0),
                 isInputActive: inputActive,
-                        gazeWeights: gazeWeightsState
+                        gazeWeights: gazeWeightsState,
+                        isHoldingLoop: isHoldingLoop
             )
         }
 
@@ -368,7 +386,8 @@ final class InteractionController {
             pointerDragDistance: dragDistance,
             clickPulse: 0.0,
             isInputActive: inputActive,
-            gazeWeights: gazeWeightsState
+            gazeWeights: gazeWeightsState,
+            isHoldingLoop: isHoldingLoop
         )
     }
 

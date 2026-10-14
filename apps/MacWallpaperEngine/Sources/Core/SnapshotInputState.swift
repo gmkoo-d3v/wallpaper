@@ -18,6 +18,9 @@ struct SnapshotInputState: Decodable, Equatable {
     let pointerPressDurationSeconds: Double?
     let pointerDragDistance: Double?
     let thermalStateLevel: Double?
+    /// Committed-hold state of the interaction snapshot (InteractionSnapshot.isHoldingLoop):
+    /// bone-follow bindings follow the cursor only while this is true.
+    let holdActive: Bool?
 
     init(
         pointerPosition: SnapshotInputPoint? = nil,
@@ -25,7 +28,8 @@ struct SnapshotInputState: Decodable, Equatable {
         pointerSpeed: Double? = nil,
         pointerPressDurationSeconds: Double? = nil,
         pointerDragDistance: Double? = nil,
-        thermalStateLevel: Double? = nil
+        thermalStateLevel: Double? = nil,
+        holdActive: Bool? = nil
     ) {
         self.pointerPosition = pointerPosition
         self.pointerDown = pointerDown
@@ -33,6 +37,7 @@ struct SnapshotInputState: Decodable, Equatable {
         self.pointerPressDurationSeconds = pointerPressDurationSeconds
         self.pointerDragDistance = pointerDragDistance
         self.thermalStateLevel = thermalStateLevel
+        self.holdActive = holdActive
     }
 
     func replacing(
@@ -41,7 +46,8 @@ struct SnapshotInputState: Decodable, Equatable {
         pointerSpeed: Double? = nil,
         pointerPressDurationSeconds: Double? = nil,
         pointerDragDistance: Double? = nil,
-        thermalStateLevel: Double? = nil
+        thermalStateLevel: Double? = nil,
+        holdActive: Bool? = nil
     ) -> SnapshotInputState {
         SnapshotInputState(
             pointerPosition: pointerPosition ?? self.pointerPosition,
@@ -49,7 +55,8 @@ struct SnapshotInputState: Decodable, Equatable {
             pointerSpeed: pointerSpeed ?? self.pointerSpeed,
             pointerPressDurationSeconds: pointerPressDurationSeconds ?? self.pointerPressDurationSeconds,
             pointerDragDistance: pointerDragDistance ?? self.pointerDragDistance,
-            thermalStateLevel: thermalStateLevel ?? self.thermalStateLevel
+            thermalStateLevel: thermalStateLevel ?? self.thermalStateLevel,
+            holdActive: holdActive ?? self.holdActive
         )
     }
 
@@ -79,7 +86,8 @@ struct SnapshotInputState: Decodable, Equatable {
             pointerPressDurationSeconds: pressDuration,
             pointerDragDistance: dragDistance,
             systemTimeSeconds: systemTimeSeconds,
-            thermalStateLevel: thermal
+            thermalStateLevel: thermal,
+            holdActive: holdActive ?? false
         )
     }
 
@@ -102,6 +110,9 @@ struct SnapshotInputState: Decodable, Equatable {
         }
         if let thermalStateLevel {
             parts.append(String(format: "thermal=%.3f", thermalStateLevel))
+        }
+        if let holdActive {
+            parts.append("hold=\(holdActive)")
         }
         return parts.isEmpty ? "default" : parts.joined(separator: ",")
     }

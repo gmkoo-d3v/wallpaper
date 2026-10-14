@@ -355,6 +355,20 @@ struct BindingAdapter: Decodable {
     let settleEpsilon: Double?
     let maxVelocity: Double?
     let fixedStepSeconds: Double?
+    /// bone-follow: maximum follow displacement in skeleton-local units (ClampMagnitude cap).
+    let maxRadius: Double?
+    /// bone-follow: follow smoothing time constant in seconds (SmoothDamp smoothTime).
+    let smoothTime: Double?
+    /// bone-follow: click-grab offset subtracted from the follow target, local units.
+    let clickOffset: Double?
+    /// bone-follow: negates the follow x axis.
+    let invertX: Bool?
+    /// bone-follow: negates the follow y axis.
+    let invertY: Bool?
+    /// bone-follow: weight ramp rate in weight units per second (MoveTowards speed).
+    let returnSpeed: Double?
+    /// bone-follow: normalized screen-space anchor the cursor delta is measured from.
+    let anchorCenter: InteractionPoint?
 
     init(
         type: BindingAdapterType,
@@ -371,7 +385,14 @@ struct BindingAdapter: Decodable {
         mass: Double? = nil,
         settleEpsilon: Double? = nil,
         maxVelocity: Double? = nil,
-        fixedStepSeconds: Double? = nil
+        fixedStepSeconds: Double? = nil,
+        maxRadius: Double? = nil,
+        smoothTime: Double? = nil,
+        clickOffset: Double? = nil,
+        invertX: Bool? = nil,
+        invertY: Bool? = nil,
+        returnSpeed: Double? = nil,
+        anchorCenter: InteractionPoint? = nil
     ) {
         self.type = type
         self.neutralPoint = neutralPoint
@@ -388,11 +409,19 @@ struct BindingAdapter: Decodable {
         self.settleEpsilon = settleEpsilon
         self.maxVelocity = maxVelocity
         self.fixedStepSeconds = fixedStepSeconds
+        self.maxRadius = maxRadius
+        self.smoothTime = smoothTime
+        self.clickOffset = clickOffset
+        self.invertX = invertX
+        self.invertY = invertY
+        self.returnSpeed = returnSpeed
+        self.anchorCenter = anchorCenter
     }
 }
 
 enum BindingAdapterType: String, Decodable {
     case smoothLookAt = "smooth-lookat"
+    case boneFollow = "bone-follow"
     case triggerPlay = "trigger-play"
     case mapRange = "map-range"
     case spring

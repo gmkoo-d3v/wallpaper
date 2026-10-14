@@ -2,6 +2,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import Metal
+import QuartzCore
 
 enum RuntimeSelfTest {
     static func run(runtime: NativeRuntimeCore) throws -> String {
@@ -926,11 +927,11 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must report pointer movement support"
         )
         check(
-            capabilitySummary.contains("binding\tdeclarative\tdeclared\t1 binding(s) enabled=1 status=runtime-executable=1 adapters=smooth-lookat targets=spine.bone ids=faceTrackerBone71"),
+            capabilitySummary.contains("binding\tdeclarative\tdeclared\t1 binding(s) enabled=1 status=runtime-executable=1 adapters=bone-follow targets=spine.bone ids=faceTrackerBone71"),
             "runtime capabilities summary must expose manifest-declared declarative bindings as generic runtime objects"
         )
         check(
-            capabilitySummary.contains("entries=faceTrackerBone71:pointer.position->spine.bone.bone71 via smooth-lookat runtime-executable"),
+            capabilitySummary.contains("entries=faceTrackerBone71:pointer.position->spine.bone.bone71 via bone-follow runtime-executable"),
             "runtime capabilities summary must expose per-binding runtime status so generic bindings do not hide hard-coded behavior"
         )
         check(
@@ -1062,9 +1063,23 @@ enum RuntimeSelfTest {
             .environment["MAC_WALLPAPER_ENGINE_RETIRED_FIXTURES"]
             .map { URL(fileURLWithPath: $0) }
             ?? runtime.config.projectRoot.appendingPathComponent(".build-cache/sample-fixtures-retired")
+        // The active wallpaper root is part of the audit scope: a bundle loaded for
+        // this run (for example --wallpaper-root wallpapers/yumeko) must be audited
+        // from its own tree, otherwise a stale copy of the same bundle id elsewhere
+        // (the installed user library) shadows it and reports provenance for fields
+        // the active manifest no longer declares. The user library stays in scope
+        // only for bundles the active tree does not carry.
+        let activeWallpapersDirectory = runtime.config.wallpaperRoot.deletingLastPathComponent()
+        let activeBundleIDs = Set(
+            WallpaperBundleCatalog.diagnose(in: activeWallpapersDirectory).compactMap(\.bundle?.id)
+        )
         let bundleAuditDirectories = [
-            ProjectPaths.findUserWallpapersDirectory(),
-            retiredSampleFixturesDirectory
+            activeWallpapersDirectory,
+            retiredSampleFixturesDirectory,
+            ProjectPaths.findUserWallpapersDirectory().flatMap { directory in
+                let carried = WallpaperBundleCatalog.diagnose(in: directory).compactMap(\.bundle?.id)
+                return carried.contains(where: { activeBundleIDs.contains($0) }) ? nil : directory
+            }
         ].compactMap { directory -> URL? in
             guard let directory else { return nil }
             var isDirectory: ObjCBool = false
@@ -3385,8 +3400,8 @@ enum RuntimeSelfTest {
                 && completionAudit.contains("automated\tpass\tgeneric-player-contract")
                 && completionAudit.contains("automated\tpass\tdeclarative-binding-contract")
                 && completionAudit.contains("sources=pointer.position+pointer.x+pointer.y+pointer.down+pointer.speed+pointer.pressDuration+pointer.dragDistance+system.time+thermal.state")
-                && completionAudit.contains("yumeko=bindings(smooth-lookat)")
-                && completionAudit.contains("faceTrackerBone71:pointer.position->spine.bone.bone71 via smooth-lookat runtime-executable")
+                && completionAudit.contains("yumeko=bindings(bone-follow)")
+                && completionAudit.contains("faceTrackerBone71:pointer.position->spine.bone.bone71 via bone-follow runtime-executable")
                 && completionAudit.contains("sample_binding_click=bindings(map-range)")
                 && completionAudit.contains("pressBrightness:pointer.down->effect.tone.brightness via map-range runtime-executable")
                 && completionAudit.contains("moveOpacity:pointer.speed->effect.tone.opacity via map-range runtime-executable")
@@ -12958,6 +12973,166 @@ enum RuntimeSelfTest {
                 failures: &failures,
                 checks: &checks
             )
+        }
+
+        // (vi) Generic bone-follow adapter: hold-gated, translation-only cursor follow.
+        // Same fixture scaffolding as the gaze overlay probe above; the plan is injected
+        // straight into the renderer so the probe exercises the follow state machine
+        // (SmoothDamp smoothTime, ClampMagnitude maxRadius, weight ramp returnSpeed,
+        // return-home on release) without depending on a manifest-declared zone.
+        if let device = MTLCreateSystemDefaultDevice() {
+            let followSpineURL = assetsRoot.appendingPathComponent("character_bone_follow.json")
+            try Data(spineJSON(withAnimationBlocks: "        \"idle\": {}").utf8)
+                .write(to: followSpineURL, options: .atomic)
+            let followManifestURL = fixtureRoot.appendingPathComponent("wallpaper_bone_follow.native.json")
+            try Data(manifestJSON(tapAction: "idle", spineFile: "character_bone_follow.json").utf8)
+                .write(to: followManifestURL, options: .atomic)
+            do {
+                let followRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+                    wallpaperRoot: fixtureRoot,
+                    manifestURL: followManifestURL,
+                    displayMode: .primaryAnimated,
+                    renderFps: 30,
+                    foregroundMode: .nativeSpine,
+                    clearDuration: true,
+                    launchControlPanel: false,
+                    launchWallpaper: false
+                ))
+                guard let followSpineAsset = followRuntime.assetCatalog.spineAsset else {
+                    failures.append("bone-follow fixture lost its Spine asset")
+                    return
+                }
+                let followPlan = DeclarativeBindingPlan(
+                    bindings: [
+                        DeclarativeBinding(
+                            id: "followRoot",
+                            source: .pointerPosition,
+                            target: "spine.bone.root",
+                            adapter: BindingAdapter(
+                                type: .boneFollow,
+                                neutralPoint: nil,
+                                deadZone: nil,
+                                interpolation: nil,
+                                factor: nil,
+                                inputRange: nil,
+                                outputRange: nil,
+                                loop: nil,
+                                maxRadius: 10,
+                                smoothTime: 0.1,
+                                clickOffset: 0.15,
+                                returnSpeed: 10,
+                                anchorCenter: InteractionPoint(x: 0.5, y: 0.5)
+                            ),
+                            enabled: nil
+                        )
+                    ],
+                    effects: []
+                )
+                let followRenderer = try SpineSetupPoseRenderer(
+                    spineAsset: followSpineAsset,
+                    device: device,
+                    idleAnimationName: "idle",
+                    loopingAnimationNames: ["idle"],
+                    oneShotAnimationNames: [],
+                    declarativePlan: followPlan
+                )
+                // Skeleton bounds are -32..32, so projectSkeletonBoundsPoint scales skeleton
+                // units by 2/64: a follow offset of r units moves projected vertices by r/32.
+                func followDisplacement(from baseline: [Double], _ positions: [Double]) -> Double {
+                    let pairs = zip(baseline, positions).enumerated().filter { $0.offset % 2 == 0 }
+                    return pairs.map { abs($0.element.1 - $0.element.0) * 32 }.max() ?? .greatestFiniteMagnitude
+                }
+                let followBase = CACurrentMediaTime()
+                let setupPose = followRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.75, y: 0.35),
+                    holdActive: false,
+                    now: followBase
+                )
+                // Below the committed hold the press is neutral pending: no follow at all.
+                check(
+                    setupPose.count > 0 && followDisplacement(from: setupPose, followRenderer.diagnosticVertexPositionsProbe(
+                        command: "idle",
+                        pointer: CGPoint(x: 0.99, y: 0.01),
+                        holdActive: false,
+                        now: followBase + 0.5
+                    )) < 0.001,
+                    "bone-follow must not move the target bone while the hold is not committed (pending press keeps the setup pose)",
+                    failures: &failures,
+                    checks: &checks
+                )
+                // Committed hold for ~0.5 s: weight ramps to 1 and the smoothed target
+                // converges, so the bone displaces toward the cursor (target x = 5, y = -3).
+                var followNow = followBase
+                for step in 1...30 {
+                    followNow = followBase + CFTimeInterval(step) * (1.0 / 60.0)
+                    _ = followRenderer.diagnosticVertexPositionsProbe(
+                        command: "idle",
+                        pointer: CGPoint(x: 0.75, y: 0.35),
+                        holdActive: true,
+                        now: followNow
+                    )
+                }
+                let followPose = followRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.75, y: 0.35),
+                    holdActive: true,
+                    now: followNow
+                )
+                check(
+                    followDisplacement(from: setupPose, followPose) > 0.05,
+                    "bone-follow must displace the target bone toward the cursor while the hold is committed, got displacement \(followDisplacement(from: setupPose, followPose))",
+                    failures: &failures,
+                    checks: &checks
+                )
+                // ClampMagnitude: an extreme cursor must never exceed maxRadius (10 units).
+                _ = followRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.99, y: 0.01),
+                    holdActive: true,
+                    now: followNow + (1.0 / 60.0)
+                )
+                let clampedPose = followRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.99, y: 0.01),
+                    holdActive: true,
+                    now: followNow + (2.0 / 60.0)
+                )
+                check(
+                    followDisplacement(from: setupPose, clampedPose) <= 10.0 / 32.0 + 0.001,
+                    "bone-follow displacement must stay clamped at adapter.maxRadius (10 skeleton units) for an extreme cursor, got \(followDisplacement(from: setupPose, clampedPose) * 32)",
+                    failures: &failures,
+                    checks: &checks
+                )
+                // Release: the weight ramps back to 0 and the bone returns home.
+                for step in 1...30 {
+                    _ = followRenderer.diagnosticVertexPositionsProbe(
+                        command: "idle",
+                        pointer: CGPoint(x: 0.99, y: 0.01),
+                        holdActive: false,
+                        now: followNow + (2.0 / 60.0) + CFTimeInterval(step) * (1.0 / 60.0)
+                    )
+                }
+                let releasedPose = followRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.99, y: 0.01),
+                    holdActive: false,
+                    now: followNow + (2.0 / 60.0) + 0.51
+                )
+                check(
+                    followDisplacement(from: setupPose, releasedPose) < 0.1 * (10.0 / 32.0),
+                    "bone-follow must return the bone home after release as the follow weight ramps back to 0, got \(followDisplacement(from: setupPose, releasedPose) * 32)",
+                    failures: &failures,
+                    checks: &checks
+                )
+            } catch {
+                check(
+                    false,
+                    "bone-follow fixture must construct for renderer follow probing (\(error.localizedDescription))",
+                    failures: &failures,
+                    checks: &checks
+                )
+            }
         }
     }
 

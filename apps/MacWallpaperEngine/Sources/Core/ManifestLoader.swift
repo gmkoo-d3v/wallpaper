@@ -1063,8 +1063,54 @@ enum ManifestLoader {
             try validateFiniteNumberList(outputRange, label: "binding \(bindingID) adapter.outputRange", minCount: 2, maxCount: 8)
         }
         try validateSpringOnlyFields(adapter, bindingID: bindingID)
+        try validateBoneFollowOnlyFields(adapter, bindingID: bindingID)
 
         switch adapter.type {
+        case .boneFollow:
+            guard source == .pointerPosition else {
+                throw EngineError.manifest("binding \(bindingID) bone-follow adapter requires source pointer.position")
+            }
+            guard case .spineBone = target else {
+                throw EngineError.manifest("binding \(bindingID) bone-follow adapter requires a spine.bone target")
+            }
+            try validateFiniteNumber(
+                adapter.maxRadius,
+                label: "binding \(bindingID) adapter.maxRadius",
+                min: 0,
+                max: 1_000,
+                allowMin: false
+            )
+            try validateFiniteNumber(
+                adapter.smoothTime,
+                label: "binding \(bindingID) adapter.smoothTime",
+                min: 0,
+                max: 10,
+                allowMin: false
+            )
+            try validateFiniteNumber(
+                adapter.clickOffset,
+                label: "binding \(bindingID) adapter.clickOffset",
+                min: 0,
+                max: 1_000,
+                allowMin: true
+            )
+            try validateFiniteNumber(
+                adapter.returnSpeed,
+                label: "binding \(bindingID) adapter.returnSpeed",
+                min: 0,
+                max: 1_000,
+                allowMin: false
+            )
+            if let anchorCenter = adapter.anchorCenter {
+                try validateInteractionPoint(
+                    anchorCenter,
+                    label: "binding \(bindingID) adapter.anchorCenter",
+                    min: 0,
+                    max: 1,
+                    allowZero: true,
+                    allowMax: true
+                )
+            }
         case .smoothLookAt:
             guard source == .pointerPosition else {
                 throw EngineError.manifest("binding \(bindingID) smooth-lookat adapter requires source pointer.position")
@@ -1109,6 +1155,22 @@ enum ManifestLoader {
                 throw EngineError.manifest("binding \(bindingID) spring adapter cannot target spine.animation")
             }
             try validateSpringContract(adapter, source: source, bindingID: bindingID)
+        }
+    }
+
+    private static func validateBoneFollowOnlyFields(_ adapter: BindingAdapter, bindingID: String) throws {
+        guard adapter.type != .boneFollow else { return }
+        let boneFollowOnlyFields: [(String, Bool)] = [
+            ("maxRadius", adapter.maxRadius != nil),
+            ("smoothTime", adapter.smoothTime != nil),
+            ("clickOffset", adapter.clickOffset != nil),
+            ("invertX", adapter.invertX != nil),
+            ("invertY", adapter.invertY != nil),
+            ("returnSpeed", adapter.returnSpeed != nil),
+            ("anchorCenter", adapter.anchorCenter != nil)
+        ]
+        if let field = boneFollowOnlyFields.first(where: { $0.1 })?.0 {
+            throw EngineError.manifest("binding \(bindingID) adapter.\(field) is only supported by bone-follow adapters")
         }
     }
 

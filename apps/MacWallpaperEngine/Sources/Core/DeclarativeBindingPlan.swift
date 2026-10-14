@@ -76,6 +76,15 @@ struct DeclarativeBindingPlan {
         }
     }
 
+    var boneFollowBoneBindings: [DeclarativeBindingPlanEntry] {
+        bindingEntries.filter { entry in
+            entry.isEnabled
+                && entry.source == .pointerPosition
+                && entry.target.kind == .spineBone
+                && entry.adapterKind == BindingAdapterType.boneFollow.rawValue
+        }
+    }
+
     init(bindings: [DeclarativeBinding], effects: [EffectConfig]) {
         self.effectEntries = effects.map(DeclarativeEffectPlanEntry.init(effect:))
         self.bindingEntries = bindings.map(DeclarativeBindingPlanEntry.init(binding:))
@@ -134,6 +143,10 @@ struct DeclarativeBindingPlanEntry {
                   self.target.kind == .spineBone,
                   binding.adapter.type == .smoothLookAt,
                   binding.adapter.factor?.isEmpty == false {
+            self.runtimeStatus = .runtimeExecutable
+        } else if binding.source == .pointerPosition,
+                  self.target.kind == .spineBone,
+                  binding.adapter.type == .boneFollow {
             self.runtimeStatus = .runtimeExecutable
         } else {
             self.runtimeStatus = .declaredOnly

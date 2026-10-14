@@ -491,6 +491,25 @@ final class SpineSetupPoseRenderer {
         let byteCount: Int
     }
 
+    /// Renderer-owned mutable state for one bone-follow binding (same container pattern as
+    /// the gaze velocity state and physicsStates: live state, never part of the pose-cache
+    /// key beyond the quantized follow signature).
+    private final class BoneFollowRuntimeState {
+        var smoothedX = 0.0
+        var smoothedY = 0.0
+        var weight = 0.0
+        var lastTime: CFTimeInterval?
+    }
+
+    /// Per-frame evaluation result of one bone-follow binding: the translation offset added
+    /// onto the posed bone x/y (setup pose plus animation translation), never a rotation.
+    private struct BoneFollowOffset {
+        let boneIndex: Int
+        let x: Double
+        let y: Double
+        let weight: Double
+    }
+
     struct GeometrySample {
         let actionName: String
         let time: Double
@@ -551,6 +570,8 @@ final class SpineSetupPoseRenderer {
     private let animationTransitionPolicy: AnimationTransitionPolicy
     private var activeAnimationTransitionDuration: CFTimeInterval
     private var declarativeBindingState = DeclarativeBindingEvaluationState()
+    private var boneFollowStates: [String: BoneFollowRuntimeState] = [:]
+    private var lastBoneFollowSampleAt: CFTimeInterval?
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
     private var cachedBatches: [Batch]
     private var cachedPoseKey = ""
@@ -776,6 +797,7 @@ final class SpineSetupPoseRenderer {
         command: String,
         pointer: CGPoint,
         gazeWeights: [(action: String, weight: Double)] = [],
+        holdActive: Bool = false,
         drawableSize: CGSize,
         contentRect: CGRect,
         encoder: MTLRenderCommandEncoder,
@@ -787,7 +809,12 @@ final class SpineSetupPoseRenderer {
         _ = drawableSize
         _ = contentRect
         let scale: Float = 1.0
-        let drawableBatches = batches(command: command, pointer: pointer, gazeWeights: gazeWeights)
+        let drawableBatches = batches(
+            command: command,
+            pointer: pointer,
+            gazeWeights: gazeWeights,
+            holdActive: holdActive
+        )
         let foregroundAspectScale = SIMD2<Float>(1.0, 1.0)
 
         for batch in drawableBatches {
@@ -952,6 +979,7 @@ final class SpineSetupPoseRenderer {
         command: String,
         pointer: CGPoint,
         gazeWeights: [(action: String, weight: Double)] = [],
+        holdActive: Bool = false,
         now: CFTimeInterval = CACurrentMediaTime()
     ) -> [Batch] {
         let animationName = resolvedAnimationName(command: command, now: now)
@@ -988,9 +1016,17 @@ final class SpineSetupPoseRenderer {
             plan: declarativePlan,
             input: DeclarativeBindingEvaluationInput(
                 pointerPosition: pointer,
-                systemTimeSeconds: now
+                systemTimeSeconds: now,
+                holdActive: holdActive
             ),
             state: &declarativeBindingState
+        )
+        // Bone-follow: per-binding cursor-follow translation state advanced once per frame
+        // (renderer-owned mutable state, same container pattern as gaze/physics state).
+        let boneFollowOffsets = advanceBoneFollowStates(
+            pointer: pointer,
+            holdActive: holdActive,
+            now: now
         )
         let canUsePoseFrameCache = physicsConstraintsEnabled == false || sleepPhysicsForIdle
         // Continuous gaze blend: resolve declared gaze weights to (animation, time, weight)
@@ -1024,7 +1060,16 @@ final class SpineSetupPoseRenderer {
         let gazeKey = gazeOverlays.isEmpty
             ? ""
             : ":gaze:" + gazeOverlays.prefix(4).map { "\(Int(($0.weight * 255).rounded()))" }.joined(separator: ",")
-        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(idleAnimationName):\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame):bindings:\(bindingKey)\(gazeKey)"
+        // Quantized bone-follow signature (per binding: round(x×q), round(y×q), round(weight×255))
+        // so cache keys separate distinct follow poses without unbounded key churn — mirrors
+        // the gaze cache-key pattern.
+        let boneFollowKey = boneFollowOffsets.isEmpty
+            ? ""
+            : ":boneFollow:" + boneFollowOffsets.map {
+                let quantizer = max(sampleFps, 1)
+                return "\(Int(($0.x * quantizer).rounded())),\(Int(($0.y * quantizer).rounded())),\(Int(($0.weight * 255).rounded()))"
+            }.joined(separator: ";")
+        let cacheKey = "\(activeAnimation.name):\(quantizedFrame):idle:\(idleAnimationName):\(quantizedIdleFrame):previous:\(previousOverlayAnimation?.name ?? "none"):\(quantizedPreviousFrame):mix:\(quantizedTransition):look:\(quantizedLookMix):physics:\(quantizedPhysicsFrame):bindings:\(bindingKey)\(gazeKey)\(boneFollowKey)"
         if cacheKey == cachedPoseKey {
             poseCacheExactHits += 1
             return cachedBatches
@@ -1054,7 +1099,8 @@ final class SpineSetupPoseRenderer {
                 overlayMix: activeOverlayMix * lookMix,
                 gazeOverlays: gazeOverlays,
                 physicsTime: posePhysicsTime,
-                boneRotationOffsets: bindingSnapshot.spineBoneRotationOffsets
+                boneRotationOffsets: bindingSnapshot.spineBoneRotationOffsets,
+                boneFollowOffsets: boneFollowOffsets
             )
             let vertexBatches = try Self.buildVertexBatches(
                 slots: pose.slots,
@@ -1099,6 +1145,78 @@ final class SpineSetupPoseRenderer {
         let dx = abs(Double(pointer.x - lookNeutralPoint.x))
         let dy = abs(Double(pointer.y - lookNeutralPoint.y))
         return dx <= Double(lookDeadZone.x) && dy <= Double(lookDeadZone.y)
+    }
+
+    /// Per-binding bone-follow state advanced once per frame. Faithful to the CIL-proven
+    /// mechanism (UpdateMouseTarget ClampMagnitude(MaxRadius) + Vector2.SmoothDamp(SmoothTime)
+    /// + MoveTowards(weight, 1, dt×returnSpeed) while dragging, weight → 0 on release):
+    /// while holdActive the weight ramps to 1 at returnSpeed/s and the smoothed target
+    /// converges with a first-order SmoothDamp approximation
+    /// (smoothed += (target − smoothed) × (1 − exp(−dt / max(smoothTime, eps)))); when not
+    /// holdActive the weight ramps back to 0 and the bone lerps to its setup position.
+    /// The target is the cursor delta from anchorCenter mapped to local units by maxRadius
+    /// (screen edge = maxRadius displacement), minus clickOffset along the delta direction,
+    /// then ClampMagnitude(maxRadius); invertX/invertY negate the axes.
+    private func advanceBoneFollowStates(
+        pointer: CGPoint,
+        holdActive: Bool,
+        now: CFTimeInterval
+    ) -> [BoneFollowOffset] {
+        let bindings = declarativePlan.boneFollowBoneBindings
+        guard bindings.isEmpty == false else { return [] }
+        let elapsed = max(0, min(now - (lastBoneFollowSampleAt ?? now), 0.25))
+        lastBoneFollowSampleAt = now
+        var offsets: [BoneFollowOffset] = []
+        for binding in bindings {
+            guard let boneIndex = boneIndexByName[binding.target.id] else { continue }
+            let state = boneFollowStates[binding.id] ?? {
+                let seeded = BoneFollowRuntimeState()
+                seeded.lastTime = now
+                return seeded
+            }()
+            boneFollowStates[binding.id] = state
+            let dt = state.lastTime.map { max(0, min(now - $0, 0.25)) } ?? elapsed
+            state.lastTime = now
+
+            let maxRadius = binding.adapter.maxRadius ?? 10
+            let smoothTime = max(binding.adapter.smoothTime ?? 0.1, 0.001)
+            let clickOffset = max(binding.adapter.clickOffset ?? 0, 0)
+            let returnSpeed = max(binding.adapter.returnSpeed ?? 10, 0.001)
+            let anchor = CGPoint(
+                x: binding.adapter.anchorCenter?.x ?? 0.5,
+                y: binding.adapter.anchorCenter?.y ?? 0.5
+            )
+            var dx = (Double(pointer.x) - anchor.x) * 2 * maxRadius
+            var dy = (Double(pointer.y) - anchor.y) * 2 * maxRadius
+            if binding.adapter.invertX == true { dx = -dx }
+            if binding.adapter.invertY == true { dy = -dy }
+            let magnitude = (dx * dx + dy * dy).squareRoot()
+            if magnitude > 0 {
+                let shrunk = max(0, magnitude - clickOffset)
+                dx *= shrunk / magnitude
+                dy *= shrunk / magnitude
+            }
+            let clampedMagnitude = (dx * dx + dy * dy).squareRoot()
+            if clampedMagnitude > maxRadius, clampedMagnitude > 0 {
+                dx *= maxRadius / clampedMagnitude
+                dy *= maxRadius / clampedMagnitude
+            }
+            if holdActive {
+                let alpha = 1 - exp(-dt / smoothTime)
+                state.smoothedX += (dx - state.smoothedX) * alpha
+                state.smoothedY += (dy - state.smoothedY) * alpha
+                state.weight = min(state.weight + dt * returnSpeed, 1)
+            } else {
+                state.weight = max(state.weight - dt * returnSpeed, 0)
+            }
+            offsets.append(BoneFollowOffset(
+                boneIndex: boneIndex,
+                x: state.smoothedX * state.weight,
+                y: state.smoothedY * state.weight,
+                weight: state.weight
+            ))
+        }
+        return offsets
     }
 
     private func resetPhysicsStates(at time: Double) {
@@ -1200,6 +1318,10 @@ final class SpineSetupPoseRenderer {
         activeAnimationStartedAt = now
         lastPairCommand = nil
         lastPairPick = nil
+        // Bone-follow state is frame-history state; a probe session starts from rest so
+        // synthetic frame sequences are deterministic.
+        boneFollowStates = [:]
+        lastBoneFollowSampleAt = now
     }
 
     /// Diagnostics-only: flattened vertex positions of the pose built for a command with
@@ -1209,6 +1331,7 @@ final class SpineSetupPoseRenderer {
         command: String,
         pointer: CGPoint = CGPoint(x: 0.5, y: 0.5),
         gazeWeights: [(action: String, weight: Double)] = [],
+        holdActive: Bool = false,
         now: CFTimeInterval = CACurrentMediaTime()
     ) -> [Double] {
         resetDiagnosticProbeState(at: now)
@@ -1224,6 +1347,11 @@ final class SpineSetupPoseRenderer {
             }
             return (animation, time(in: animation, now: now), min(max(entry.weight, 0), 1))
         }
+        let boneFollowOffsets = advanceBoneFollowStates(
+            pointer: pointer,
+            holdActive: holdActive,
+            now: now
+        )
         let pose = evaluate(
             baseAnimation: idleAnimation,
             baseTime: idleTime,
@@ -1235,7 +1363,8 @@ final class SpineSetupPoseRenderer {
             overlayMix: activeAnimation.name == idleAnimationName ? 0 : 1,
             gazeOverlays: gazeOverlays,
             physicsTime: 0,
-            boneRotationOffsets: [:]
+            boneRotationOffsets: [:],
+            boneFollowOffsets: boneFollowOffsets
         )
         do {
             let vertexBatches = try Self.buildVertexBatches(
@@ -1513,7 +1642,8 @@ final class SpineSetupPoseRenderer {
         overlayMix: Double,
         gazeOverlays: [(animation: SpineAnimation, time: Double, weight: Double)] = [],
         physicsTime: Double?,
-        boneRotationOffsets: [String: Double] = [:]
+        boneRotationOffsets: [String: Double] = [:],
+        boneFollowOffsets: [BoneFollowOffset] = []
     ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
         var unusedPhysicsStateOverride: [String: PhysicsRuntimeState]? = nil
         return evaluate(
@@ -1528,6 +1658,7 @@ final class SpineSetupPoseRenderer {
             gazeOverlays: gazeOverlays,
             physicsTime: physicsTime,
             boneRotationOffsets: boneRotationOffsets,
+            boneFollowOffsets: boneFollowOffsets,
             physicsStateOverride: &unusedPhysicsStateOverride,
             deterministicWalkPhysics: false
         )
@@ -1545,6 +1676,7 @@ final class SpineSetupPoseRenderer {
         gazeOverlays: [(animation: SpineAnimation, time: Double, weight: Double)] = [],
         physicsTime: Double?,
         boneRotationOffsets: [String: Double],
+        boneFollowOffsets: [BoneFollowOffset] = [],
         physicsStateOverride: inout [String: PhysicsRuntimeState]?,
         deterministicWalkPhysics: Bool
     ) -> (boneWorld: [BoneWorld], slots: [Slot], deforms: [String: [String: [Double]]], sequenceIndices: [String: [String: Int]]) {
@@ -1620,6 +1752,7 @@ final class SpineSetupPoseRenderer {
             slots: &posedSlots
         )
         applyDeclarativeBoneRotationOffsets(boneRotationOffsets, to: &posedBones)
+        applyBoneFollowOffsets(boneFollowOffsets, to: &posedBones)
 
         // Diagnostics-walk mode: physics integrates once over a fresh, independent states map
         // with the absolute-time substep accumulator (deterministic physics(t)), or inertly
@@ -1682,6 +1815,23 @@ final class SpineSetupPoseRenderer {
                 continue
             }
             posedBones[index].rotation += offset
+        }
+    }
+
+    /// Bone-follow translation: bone.x/y = posed.x/y + smoothed×weight (translation only,
+    /// never rotation — the CIL follow mechanism writes the bone transform position).
+    private func applyBoneFollowOffsets(
+        _ offsets: [BoneFollowOffset],
+        to posedBones: inout [Bone]
+    ) {
+        for offset in offsets {
+            guard offset.boneIndex < posedBones.count,
+                  offset.x.isFinite,
+                  offset.y.isFinite else {
+                continue
+            }
+            posedBones[offset.boneIndex].x += offset.x
+            posedBones[offset.boneIndex].y += offset.y
         }
     }
 

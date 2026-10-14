@@ -541,17 +541,44 @@
               ]
             }
           }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "bone-follow" } },
+            "required": ["type"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["factor"] },
+                { "required": ["inputRange"] },
+                { "required": ["outputRange"] },
+                { "required": ["loop"] },
+                { "required": ["interpolation"] },
+                { "required": ["neutralPoint"] },
+                { "required": ["deadZone"] }
+              ]
+            }
+          }
         }
       ],
       "properties": {
         "type": {
           "enum": [
             "smooth-lookat",
+            "bone-follow",
             "trigger-play",
             "map-range",
             "spring"
           ]
         },
+        "maxRadius": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+        "smoothTime": { "type": "number", "exclusiveMinimum": 0, "maximum": 10 },
+        "clickOffset": { "type": "number", "minimum": 0, "maximum": 1000 },
+        "invertX": { "type": "boolean" },
+        "invertY": { "type": "boolean" },
+        "returnSpeed": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+        "anchorCenter": { "$ref": "#/$defs/point" },
         "neutralPoint": { "$ref": "#/$defs/point" },
         "deadZone": { "$ref": "#/$defs/point" },
         "interpolation": { "enum": ["linear", "smooth-step", "spring"] },

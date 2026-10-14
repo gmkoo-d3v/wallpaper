@@ -9,6 +9,9 @@ struct DeclarativeBindingEvaluationInput {
     let pointerDragDistance: Double
     let systemTimeSeconds: Double
     let thermalStateLevel: Double
+    /// Committed-hold gate (InteractionSnapshot.isHoldingLoop): bone-follow bindings follow
+    /// the cursor only while a hold press is committed; below commit the follow weight decays.
+    let holdActive: Bool
 
     init(
         pointerPosition: CGPoint = CGPoint(x: 0.5, y: 0.5),
@@ -17,7 +20,8 @@ struct DeclarativeBindingEvaluationInput {
         pointerPressDurationSeconds: Double = 0,
         pointerDragDistance: Double = 0,
         systemTimeSeconds: Double = 0,
-        thermalStateLevel: Double = 0
+        thermalStateLevel: Double = 0,
+        holdActive: Bool = false
     ) {
         self.pointerPosition = pointerPosition
         self.pointerDown = pointerDown
@@ -26,6 +30,7 @@ struct DeclarativeBindingEvaluationInput {
         self.pointerDragDistance = pointerDragDistance
         self.systemTimeSeconds = systemTimeSeconds
         self.thermalStateLevel = thermalStateLevel
+        self.holdActive = holdActive
     }
 }
 

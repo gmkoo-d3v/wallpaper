@@ -404,6 +404,7 @@ final class MetalCompositor: NSObject, MTKViewDelegate {
                 command: interactionSnapshot.command,
                 pointer: interactionSnapshot.pointer,
                 gazeWeights: interactionSnapshot.gazeWeights,
+                holdActive: interactionSnapshot.isHoldingLoop,
                 drawableSize: view.drawableSize,
                 contentRect: foregroundContentRect,
                 encoder: encoder,
