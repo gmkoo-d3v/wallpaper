@@ -12980,13 +12980,15 @@ enum RuntimeSelfTest {
         // straight into the renderer so the probe exercises the follow state machine
         // (SmoothDamp smoothTime, ClampMagnitude maxRadius, weight ramp returnSpeed,
         // return-home on release) without depending on a manifest-declared zone.
+        let followSpineURL = assetsRoot.appendingPathComponent("character_bone_follow.json")
+        let followManifestURL = fixtureRoot.appendingPathComponent("wallpaper_bone_follow.native.json")
+        try Data(spineJSON(withAnimationBlocks: "        \"idle\": {}").utf8)
+            .write(to: followSpineURL, options: .atomic)
+        try Data(manifestJSON(tapAction: "idle", spineFile: "character_bone_follow.json").utf8)
+            .write(to: followManifestURL, options: .atomic)
         if let device = MTLCreateSystemDefaultDevice() {
-            let followSpineURL = assetsRoot.appendingPathComponent("character_bone_follow.json")
             try Data(spineJSON(withAnimationBlocks: "        \"idle\": {}").utf8)
                 .write(to: followSpineURL, options: .atomic)
-            let followManifestURL = fixtureRoot.appendingPathComponent("wallpaper_bone_follow.native.json")
-            try Data(manifestJSON(tapAction: "idle", spineFile: "character_bone_follow.json").utf8)
-                .write(to: followManifestURL, options: .atomic)
             do {
                 let followRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
                     wallpaperRoot: fixtureRoot,
@@ -13141,6 +13143,167 @@ enum RuntimeSelfTest {
                     checks: &checks
                 )
             }
+        }
+
+        // (vii) Bare-hold zone (trigger=hold, plain action, NO holdAction) must arm the
+        // bone-follow gate: InteractionSnapshot.isHoldingLoop is gated on the zone trigger
+        // (pressedHitTrigger == .hold), not on a declared holdAction, so buburu-style
+        // bare-hold face/head zones drive the bone-follow while a committed hold is live,
+        // and stay static below the hold (no press).
+        do {
+            let bareHoldManifest = try ManifestLoader.load(url: followManifestURL, bundleRoot: fixtureRoot)
+            let bareHoldPlan = DeclarativeBindingPlan(
+                bindings: [
+                    DeclarativeBinding(
+                        id: "followRoot",
+                        source: .pointerPosition,
+                        target: "spine.bone.root",
+                        adapter: BindingAdapter(
+                            type: .boneFollow,
+                            neutralPoint: nil,
+                            deadZone: nil,
+                            interpolation: nil,
+                            factor: nil,
+                            inputRange: nil,
+                            outputRange: nil,
+                            loop: nil,
+                            maxRadius: 10,
+                            smoothTime: 0.1,
+                            clickOffset: 0.15,
+                            returnSpeed: 10,
+                            anchorCenter: InteractionPoint(x: 0.5, y: 0.5)
+                        ),
+                        enabled: nil
+                    )
+                ],
+                effects: []
+            )
+            // Fixture zone: trigger=hold with a plain action and NO holdAction/tapAction —
+            // the buburu face/head shape. Undeclared hold timing collapses to the default
+            // tap-detection window, so the press starts .holding at pointer-down.
+            let bareHoldInteractions = [
+                InteractionConfig(
+                    event: .pointerDown,
+                    mapping: nil,
+                    actions: nil,
+                    neutralPoint: nil,
+                    deadZone: nil,
+                    hitZones: [
+                        HitZone(
+                            id: "bare-hold",
+                            rect: [0.0, 0.0, 1.0, 1.0],
+                            ellipse: nil,
+                            action: "idle",
+                            tapAction: nil,
+                            holdAction: nil,
+                            rubAction: nil,
+                            trigger: .hold,
+                            tailSeconds: nil,
+                            tapTailSeconds: nil,
+                            rubTailSeconds: nil,
+                            holdStartSeconds: nil,
+                            holdCommitSeconds: nil,
+                            rubStartSeconds: nil,
+                            rubStartDistance: nil,
+                            buttons: [.left],
+                            priority: nil
+                        )
+                    ],
+                    defaultAction: nil,
+                    buttons: nil,
+                    gaze: nil
+                )
+            ]
+            var bareClock: CFTimeInterval = 0
+            let bareController = InteractionController(
+                interactions: bareHoldInteractions,
+                policy: bareHoldManifest.interactionPolicy,
+                declarativePlan: bareHoldPlan,
+                clock: { bareClock }
+            )
+            bareController.pointerMoved(to: CGPoint(x: 0.75, y: 0.35))
+            bareClock += 1.0 / 60.0
+            let bareIdle = bareController.snapshot()
+            check(
+                bareIdle.isHoldingLoop == false,
+                "bare-hold zone without any press must not report a holding loop (static)",
+                failures: &failures,
+                checks: &checks
+            )
+            bareController.pointerDown(at: CGPoint(x: 0.75, y: 0.35), button: .left)
+            var bareHeld = bareController.snapshot()
+            for _ in 1...30 {
+                bareClock += 1.0 / 60.0
+                bareHeld = bareController.snapshot()
+            }
+            check(
+                bareHeld.isHoldingLoop == true,
+                "bare-hold zone (trigger=hold, no holdAction) must arm isHoldingLoop while the hold is live (bone-follow gate open)",
+                failures: &failures,
+                checks: &checks
+            )
+            let bareHoldRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+                wallpaperRoot: fixtureRoot,
+                manifestURL: followManifestURL,
+                displayMode: .primaryAnimated,
+                renderFps: 30,
+                foregroundMode: .nativeSpine,
+                clearDuration: true,
+                launchControlPanel: false,
+                launchWallpaper: false
+            ))
+            if let device = MTLCreateSystemDefaultDevice(), let bareSpineAsset = bareHoldRuntime.assetCatalog.spineAsset {
+                let bareRenderer = try SpineSetupPoseRenderer(
+                    spineAsset: bareSpineAsset,
+                    device: device,
+                    idleAnimationName: "idle",
+                    loopingAnimationNames: ["idle"],
+                    oneShotAnimationNames: [],
+                    declarativePlan: bareHoldPlan
+                )
+                func bareDisplacement(from baseline: [Double], _ positions: [Double]) -> Double {
+                    let pairs = zip(baseline, positions).enumerated().filter { $0.offset % 2 == 0 }
+                    return pairs.map { abs($0.element.1 - $0.element.0) * 32 }.max() ?? .greatestFiniteMagnitude
+                }
+                let bareBase = CACurrentMediaTime()
+                let bareSetup = bareRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.75, y: 0.35),
+                    holdActive: false,
+                    now: bareBase
+                )
+                var bareNow = bareBase
+                for step in 1...30 {
+                    bareNow = bareBase + CFTimeInterval(step) * (1.0 / 60.0)
+                    _ = bareRenderer.diagnosticVertexPositionsProbe(
+                        command: "idle",
+                        pointer: CGPoint(x: 0.75, y: 0.35),
+                        holdActive: bareHeld.isHoldingLoop,
+                        now: bareNow,
+                        resetState: false
+                    )
+                }
+                let barePose = bareRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.75, y: 0.35),
+                    holdActive: bareHeld.isHoldingLoop,
+                    now: bareNow,
+                    resetState: false
+                )
+                check(
+                    bareSetup.count > 0 && bareDisplacement(from: bareSetup, barePose) > 0.05,
+                    "bare-hold live hold must displace the followed bone toward the cursor (trigger-gated follow), got \(bareDisplacement(from: bareSetup, barePose))",
+                    failures: &failures,
+                    checks: &checks
+                )
+            }
+        } catch {
+            check(
+                false,
+                "bare-hold bone-follow fixture must construct (\(error.localizedDescription))",
+                failures: &failures,
+                checks: &checks
+            )
         }
     }
 

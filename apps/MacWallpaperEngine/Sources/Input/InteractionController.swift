@@ -348,10 +348,12 @@ final class InteractionController {
         }
         let isPointerDown = pressedButton != nil
         // Committed-hold gate for the bone-follow cursor follow: a live press in the holding
-        // phase on a zone that declares a holdAction. Below the commit threshold the press is
-        // neutral pending (no follow); the committed loop state is what arms the follow.
+        // phase on a trigger=hold zone. Gated on the trigger (not on a declared holdAction) so
+        // bare-hold zones (no holdAction declared) arm the bone-follow too; zones that do
+        // declare a holdAction are unaffected. Below the commit threshold the press is neutral
+        // pending (no follow); the committed hold state is what arms the follow.
         let isHoldingLoop = pressedButton != nil
-            && pressedHitHoldAction != nil
+            && pressedHitTrigger == .hold
             && pressGesturePhase == .holding
         if let clickCommandState, clickCommandHeld || now < clickCommandExpiresAt {
             let fadeDuration = clickCommandHeld ? releaseFadeDuration : max(activeClickTailDuration, 0.001)
