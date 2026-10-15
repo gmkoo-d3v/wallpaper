@@ -13055,7 +13055,8 @@ enum RuntimeSelfTest {
                         command: "idle",
                         pointer: CGPoint(x: 0.99, y: 0.01),
                         holdActive: false,
-                        now: followBase + 0.5
+                        now: followBase + 0.5,
+                        resetState: false
                     )) < 0.001,
                     "bone-follow must not move the target bone while the hold is not committed (pending press keeps the setup pose)",
                     failures: &failures,
@@ -13070,14 +13071,16 @@ enum RuntimeSelfTest {
                         command: "idle",
                         pointer: CGPoint(x: 0.75, y: 0.35),
                         holdActive: true,
-                        now: followNow
+                        now: followNow,
+                        resetState: false
                     )
                 }
                 let followPose = followRenderer.diagnosticVertexPositionsProbe(
                     command: "idle",
-                    pointer: CGPoint(x: 0.75, y: 0.35),
-                    holdActive: true,
-                    now: followNow
+                        pointer: CGPoint(x: 0.75, y: 0.35),
+                        holdActive: true,
+                    now: followNow,
+                    resetState: false
                 )
                 check(
                     followDisplacement(from: setupPose, followPose) > 0.05,
@@ -13086,6 +13089,8 @@ enum RuntimeSelfTest {
                     checks: &checks
                 )
                 // ClampMagnitude: an extreme cursor must never exceed maxRadius (10 units).
+                // Fresh from-rest sequence at the extreme cursor so the smoothed target
+                // converges to the clamped magnitude (10, -10) within the ramp window.
                 _ = followRenderer.diagnosticVertexPositionsProbe(
                     command: "idle",
                     pointer: CGPoint(x: 0.99, y: 0.01),
@@ -13094,9 +13099,10 @@ enum RuntimeSelfTest {
                 )
                 let clampedPose = followRenderer.diagnosticVertexPositionsProbe(
                     command: "idle",
-                    pointer: CGPoint(x: 0.99, y: 0.01),
-                    holdActive: true,
-                    now: followNow + (2.0 / 60.0)
+                        pointer: CGPoint(x: 0.99, y: 0.01),
+                        holdActive: true,
+                    now: followNow + (2.0 / 60.0),
+                    resetState: false
                 )
                 check(
                     followDisplacement(from: setupPose, clampedPose) <= 10.0 / 32.0 + 0.001,
@@ -13110,14 +13116,16 @@ enum RuntimeSelfTest {
                         command: "idle",
                         pointer: CGPoint(x: 0.99, y: 0.01),
                         holdActive: false,
-                        now: followNow + (2.0 / 60.0) + CFTimeInterval(step) * (1.0 / 60.0)
+                        now: followNow + (2.0 / 60.0) + CFTimeInterval(step) * (1.0 / 60.0),
+                        resetState: false
                     )
                 }
                 let releasedPose = followRenderer.diagnosticVertexPositionsProbe(
                     command: "idle",
-                    pointer: CGPoint(x: 0.99, y: 0.01),
-                    holdActive: false,
-                    now: followNow + (2.0 / 60.0) + 0.51
+                        pointer: CGPoint(x: 0.99, y: 0.01),
+                        holdActive: false,
+                    now: followNow + (2.0 / 60.0) + 0.51,
+                    resetState: false
                 )
                 check(
                     followDisplacement(from: setupPose, releasedPose) < 0.1 * (10.0 / 32.0),

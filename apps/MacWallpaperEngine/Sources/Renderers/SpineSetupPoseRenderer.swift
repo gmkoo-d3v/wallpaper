@@ -572,6 +572,10 @@ final class SpineSetupPoseRenderer {
     private var declarativeBindingState = DeclarativeBindingEvaluationState()
     private var boneFollowStates: [String: BoneFollowRuntimeState] = [:]
     private var lastBoneFollowSampleAt: CFTimeInterval?
+    /// One-shot flag set by diagnosticVertexPositionsProbe(resetState:) so the next
+    /// resetDiagnosticProbeState call also drops bone-follow history (from-rest probe);
+    /// an accumulating probe sequence leaves it alone.
+    private var resetDiagnosticBoneFollowState = true
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
     private var cachedBatches: [Batch]
     private var cachedPoseKey = ""
@@ -1318,10 +1322,15 @@ final class SpineSetupPoseRenderer {
         activeAnimationStartedAt = now
         lastPairCommand = nil
         lastPairPick = nil
-        // Bone-follow state is frame-history state; a probe session starts from rest so
-        // synthetic frame sequences are deterministic.
-        boneFollowStates = [:]
-        lastBoneFollowSampleAt = now
+        // Bone-follow state is frame-history state, like physics state: the live path never
+        // wipes it, so a probe session that reset it here could never ramp the follow weight
+        // and the behavioral test measured zero displacement. resetState: false on
+        // diagnosticVertexPositionsProbe accumulates it across a synthetic frame sequence;
+        // resetState: true (the default) starts the sequence from rest.
+        if resetDiagnosticBoneFollowState {
+            boneFollowStates = [:]
+            lastBoneFollowSampleAt = now
+        }
     }
 
     /// Diagnostics-only: flattened vertex positions of the pose built for a command with
@@ -1332,9 +1341,13 @@ final class SpineSetupPoseRenderer {
         pointer: CGPoint = CGPoint(x: 0.5, y: 0.5),
         gazeWeights: [(action: String, weight: Double)] = [],
         holdActive: Bool = false,
-        now: CFTimeInterval = CACurrentMediaTime()
+        now: CFTimeInterval = CACurrentMediaTime(),
+        resetState: Bool = true
     ) -> [Double] {
-        resetDiagnosticProbeState(at: now)
+        if resetState {
+            resetDiagnosticBoneFollowState = true
+            resetDiagnosticProbeState(at: now)
+        }
         let animationName = resolvedAnimationName(command: command, now: now)
         guard let idleAnimation = animations[idleAnimationName] else { return [] }
         let idleTime = loopedTime(in: idleAnimation, startedAt: rendererStartedAt, now: now)
