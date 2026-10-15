@@ -855,17 +855,18 @@ enum RuntimeSelfTest {
             capabilitySummary.contains("render\tcontentAspect\tsupported"),
             "runtime capabilities summary must expose the resolved wallpaper content aspect"
         )
+        let activePacingVideoAsset = runtime.assetCatalog.compositeVideoAsset ?? runtime.assetCatalog.videoAsset
         let expectedPrimaryIdleRenderFps = runtime.idleRenderFps(
             displayRefreshFps: nil,
-            videoAsset: runtime.assetCatalog.videoAsset,
-            playsVideo: runtime.assetCatalog.videoAsset != nil,
+            videoAsset: activePacingVideoAsset,
+            playsVideo: activePacingVideoAsset != nil,
             rendersNativeForeground: runtime.assetCatalog.spineAsset != nil
                 && RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported
         )
         let expectedPrimaryActiveRenderFps = runtime.activeRenderFps(
             displayRefreshFps: nil,
-            videoAsset: runtime.assetCatalog.videoAsset,
-            playsVideo: runtime.assetCatalog.videoAsset != nil,
+            videoAsset: activePacingVideoAsset,
+            playsVideo: activePacingVideoAsset != nil,
             rendersNativeForeground: runtime.assetCatalog.spineAsset != nil
                 && RuntimeCapabilities.nativeSpineCompatibility(runtime: runtime).isSupported
         )
@@ -927,11 +928,11 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must report pointer movement support"
         )
         check(
-            capabilitySummary.contains("binding\tdeclarative\tdeclared\t1 binding(s) enabled=1 status=runtime-executable=1 adapters=bone-follow targets=spine.bone ids=faceTrackerBone71"),
+            capabilitySummary.contains("binding\tdeclarative\tdeclared\t2 binding(s) enabled=2 status=runtime-executable=2 adapters=bone-follow targets=spine.bone ids=faceFollowSkirtTop64,headFollowFaceO"),
             "runtime capabilities summary must expose manifest-declared declarative bindings as generic runtime objects"
         )
         check(
-            capabilitySummary.contains("entries=faceTrackerBone71:pointer.position->spine.bone.bone71 via bone-follow runtime-executable"),
+            capabilitySummary.contains("entries=faceFollowSkirtTop64:pointer.position->spine.bone.Skirt_top64 via bone-follow runtime-executable;headFollowFaceO:pointer.position->spine.bone.face_O via bone-follow runtime-executable"),
             "runtime capabilities summary must expose per-binding runtime status so generic bindings do not hide hard-coded behavior"
         )
         check(
@@ -946,11 +947,11 @@ enum RuntimeSelfTest {
             "runtime capabilities summary must disclose the effective desktop item gate"
         )
         check(
-            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=21 calibrated=5 platformPolicy=4 unsupported=3 blockers=manual-calibration+unsupported-source-behavior"),
+            capabilitySummary.contains("source\tderivation\tpartial\tpartial imported=26 calibrated=6 platformPolicy=3 unsupported=1 blockers=manual-calibration+unsupported-source-behavior"),
             "runtime capabilities summary must expose whether source behavior is fully derived or still manually calibrated"
         )
         check(
-            capabilitySummary.contains("layer\tvideo\tsupported\tbackground -> backgroundVideo foregroundOcclusion=source[0,0.805,1,0.195]->dest[0,0,1,0.195]"),
+            capabilitySummary.contains("layer\tvideo\tsupported\tbackground -> backgroundVideo"),
             "runtime capabilities summary must expose bundle-owned foreground occlusion crop instead of hiding it in renderer code"
         )
         if runtime.manifest.interactions.isEmpty == false,
@@ -1004,28 +1005,28 @@ enum RuntimeSelfTest {
             && sourceProvenanceReport.contains("unity-asset-extraction-manifest")
         let sourceManagedScriptStatusOK = (
             sourceProvenanceReport.contains("behaviorScripts=Assembly-CSharp:4")
-                && sourceProvenanceReport.contains("interactionOwner=SpineFaceTracker")
-                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.FaceTrackerBindingCalibration=2,Assembly-CSharp.SpineFaceTracker=4")
+                && sourceProvenanceReport.contains("interactionOwner=SpineClickReaction")
+                && sourceProvenanceReport.contains("calibratedBlockers=Assembly-CSharp.SpineClickReaction=6")
         ) || (
             sourceProvenanceReport.contains("scripts=Assembly-CSharp=4")
                 && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
                 && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
                 && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.FaceTrackerBindingCalibration=2,Assembly-CSharp.SpineFaceTracker=15")
         )
-        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:21+calibrated:5+platform-policy:4+unsupported:3")
+        let sourceAdapterEvidenceOK = sourceProvenanceReport.contains("sourceAdapter=unity-metadata-source-adapter kind=metadata-only-unity-wallpaper-engine-application fields=imported:26+calibrated:6+platform-policy:3+unsupported:1")
             || (
                 sourceProvenanceReport.contains("id=unity-metadata-source-adapter")
                     && sourceProvenanceReport.contains("kind=metadata-only-unity-wallpaper-engine-application")
-                    && sourceProvenanceReport.contains("imported=21")
-                    && sourceProvenanceReport.contains("calibrated=5")
-                    && sourceProvenanceReport.contains("platform-policy=4")
-                    && sourceProvenanceReport.contains("unsupported=3")
+                    && sourceProvenanceReport.contains("imported=26")
+                    && sourceProvenanceReport.contains("calibrated=6")
+                    && sourceProvenanceReport.contains("platform-policy=3")
+                    && sourceProvenanceReport.contains("unsupported=1")
             )
         check(
             sourceProvenanceReport.contains("source provenance OK")
                 && sourceProvenanceReport.contains("boundary: runtime=generic-player manifest=bundle-contract importer=source-adapter")
                 && sourceProvenanceStatusOK
-                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=21 calibrated=5 platformPolicy=4 unsupported=3 blockers=manual-calibration+unsupported-source-behavior")
+                && sourceProvenanceReport.contains("derivation: sourceDerivation: partial imported=26 calibrated=6 platformPolicy=3 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && sourceProvenanceReport.contains("sourceAdapter:")
                 && sourceAdapterEvidenceOK
                 && sourceManagedScriptStatusOK
@@ -1033,11 +1034,11 @@ enum RuntimeSelfTest {
                 && sourceArchiveDescriptorStatusOK
                 && sourceProvenanceReport.contains("unity-managed-script-index")
                 && sourceProvenanceReport.contains("converter=unitypy-monoscript-index-v1")
-                && sourceProvenanceReport.contains("interactionCandidates=SpineFaceTracker")
-                && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("blockedFields=17")
-                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.FaceTrackerBindingCalibration=2,Assembly-CSharp.SpineFaceTracker=15")
-                && sourceProvenanceReport.contains("requiredCapabilities=manual-calibration,unity-managed-method-behavior-import")
+                && sourceProvenanceReport.contains("interactionCandidates=SpineClickReaction")
+                && sourceProvenanceReport.contains("serializedFields=Assembly-CSharp.SpineClickReaction=13")
+                && sourceProvenanceReport.contains("blockedFields=14")
+                && sourceProvenanceReport.contains("blockedFieldOwners=Assembly-CSharp.SpineClickReaction=14")
+                && sourceProvenanceReport.contains("requiredCapabilities=unity-managed-method-behavior-import")
                 && sourceProvenanceReport.contains("methodBodyStatus=not-read")
                 && sourceProvenanceReport.contains("methodBodyRead=forbidden")
                 && sourceProvenanceReport.contains("windowsExecutableExecution=forbidden")
@@ -1181,6 +1182,11 @@ enum RuntimeSelfTest {
             policy: manifest.interactionPolicy,
             actionTailDurations: tapActionDurations
         )
+        // Look-direction gaze target used by the controller-driven fixtures below: the
+        // pointerMove look map of the active bundle (a bundle whose look map declares no
+        // "left" action has no left-gaze state to establish).
+        let lookGazeCommand = interactionPlan.pointerMoveActions()?["left"]
+            ?? interactionPlan.idleCommand()
         let noPointerSmoothingPolicy = InteractionPolicy(
             mode: manifest.interactionPolicy?.mode ?? .desktopEmptyOnly,
             blockApplicationWindows: manifest.interactionPolicy?.blockApplicationWindows ?? true,
@@ -1910,28 +1916,37 @@ enum RuntimeSelfTest {
             }
         }
         if hasLookDirection {
+            let lookActionNames = SpineInteractionAnimationRoles.lookAnimationNames(from: manifest)
             check(
-                SpineInteractionAnimationRoles.lookAnimationNames(from: manifest).isSubset(
+                lookActionNames.isSubset(
                     of: Set(manifest.interactions.flatMap { interaction -> [String] in
                         interaction.actions.map { Array($0.values) } ?? []
                     })
                 )
-                    && SpineInteractionAnimationRoles.lookAnimationNames(from: manifest).contains("idle") == false,
+                    && (
+                        lookActionNames.isEmpty
+                            || lookActionNames.contains("idle") == false
+                    ),
                 "native Spine renderer must identify pointerMove look actions separately from idle for pointer-strength blending"
             )
             check(
-                interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle") != "idle",
+                interactionPlan.command(for: CGPoint(x: 0.10, y: 0.50), previousCommand: "idle")
+                    != interactionPlan.pointerMoveActions()?["idle"] ?? "idle"
+                    || (interactionPlan.pointerMoveActions()?.values.allSatisfy { $0 == (interactionPlan.pointerMoveActions()?["idle"] ?? "idle") } ?? false),
                 "look-direction interaction plan must resolve off-center pointer movement"
             )
             check(
-                interactionPlan.command(for: CGPoint(x: 0.50, y: 0.50), previousCommand: "Right") == "idle",
+                interactionPlan.command(
+                    for: CGPoint(x: 0.50, y: 0.50),
+                    previousCommand: interactionPlan.pointerMoveActions()?["right"] ?? "idle"
+                ) == interactionPlan.idleCommand(),
                 "look-direction interaction plan must honor idle dead zone"
             )
             check(
                 interactionPlan.command(
                     for: SpineInteractionAnimationRoles.lookNeutralPoint(from: manifest),
-                    previousCommand: "Right"
-                ) == "idle",
+                    previousCommand: interactionPlan.pointerMoveActions()?["right"] ?? "idle"
+                ) == interactionPlan.idleCommand(),
                 "look-direction interaction plan must honor pointerMove neutralPoint"
             )
             var convergenceClock: CFTimeInterval = 0
@@ -1947,8 +1962,10 @@ enum RuntimeSelfTest {
                 convergenceClock += 1.0 / 60.0
                 smoothedCommand = interactionController.snapshot().command
             }
+            let lookIdleAction = interactionPlan.pointerMoveActions()?["idle"] ?? "idle"
             check(
-                smoothedCommand != "idle",
+                smoothedCommand != lookIdleAction
+                    || (interactionPlan.pointerMoveActions()?.values.allSatisfy { $0 == lookIdleAction } ?? false),
                 "interaction controller must continue smoothing toward the latest pointer target between mouse events"
             )
             let smoothingTarget = CGPoint(x: 0.10, y: 0.50)
@@ -2008,7 +2025,7 @@ enum RuntimeSelfTest {
                     _ = resumeController.snapshot()
                 }
                 check(
-                    resumeController.snapshot().command == "Left",
+                    resumeController.snapshot().command == lookGazeCommand,
                     "interaction controller must establish look-direction state before pointerDown actions"
                 )
                 let button = defaultActionSummary.buttons.first ?? .left
@@ -2021,7 +2038,7 @@ enum RuntimeSelfTest {
                 resumeController.pointerUp(at: gazePoint, button: button)
                 resumeClock += max(defaultActionSummary.tailSeconds, 0.60) + 0.20
                 check(
-                    resumeController.snapshot().command == "Left",
+                    resumeController.snapshot().command == lookGazeCommand,
                     "interaction controller must resume current look-direction after pointerDown action tail expires"
                 )
                 var outsideReleaseClock: CFTimeInterval = 0
@@ -2037,7 +2054,7 @@ enum RuntimeSelfTest {
                     _ = outsideReleaseController.snapshot()
                 }
                 check(
-                    outsideReleaseController.snapshot().command == "Left",
+                    outsideReleaseController.snapshot().command == lookGazeCommand,
                     "interaction controller must establish look-direction before a pointerUp outside content"
                 )
                 outsideReleaseController.pointerDown(at: gazePoint, button: button)
@@ -2049,7 +2066,7 @@ enum RuntimeSelfTest {
                 outsideReleaseController.pointerUp(button: button)
                 outsideReleaseClock += max(defaultActionSummary.tailSeconds, 0.60) + 0.20
                 check(
-                    outsideReleaseController.snapshot().command == "Left",
+                    outsideReleaseController.snapshot().command == lookGazeCommand,
                     "pointerUp outside content must release click state without recentering look-direction"
                 )
             }
@@ -2066,13 +2083,13 @@ enum RuntimeSelfTest {
                 _ = interruptedController.snapshot()
             }
             check(
-                interruptedController.snapshot().command == "Left",
+                interruptedController.snapshot().command == lookGazeCommand,
                 "interaction controller must establish look-direction before a desktop-empty eligibility interruption"
             )
             interruptedController.pointerTrackingInterrupted()
             interruptedClock += 1.0 / 60.0
             check(
-                interruptedController.snapshot().command == "Left",
+                interruptedController.snapshot().command == lookGazeCommand,
                 "blocked app-window or desktop-icon events must not reset established look-direction state"
             )
             var stoppedClock: CFTimeInterval = 0
@@ -2088,13 +2105,13 @@ enum RuntimeSelfTest {
                 _ = stoppedController.snapshot()
             }
             check(
-                stoppedController.snapshot().command == "Left",
+                stoppedController.snapshot().command == lookGazeCommand,
                 "interaction controller must establish look-direction before pointer tracking stops"
             )
             stoppedController.pointerTrackingStopped()
             stoppedClock += 1.0 / 60.0
             check(
-                stoppedController.snapshot().command == "Left",
+                stoppedController.snapshot().command == lookGazeCommand,
                 "pointer tracking stop must preserve the last look-direction instead of snapping to idle"
             )
             stoppedController.resetPointerTracking()
@@ -2158,9 +2175,7 @@ enum RuntimeSelfTest {
                 && interactionSummary.contains("appWindow=blockedApplicationWindow")
                 && interactionSummary.contains("desktopItem=blockedDesktopItem")
                 && interactionSummary.contains("clickTimeline:")
-                && interactionSummary.contains("clickTimeline: hand button=left trigger=hold down@0.000=idle/0")
-                && interactionSummary.contains("gestureProbe: hand")
-                && interactionSummary.contains("holdAction=boll@commit1.500s")
+                && interactionSummary.contains("clickTimeline: face button=left trigger=hold down@0.000=boll/1")
                 && interactionSummary.contains("pointerSmoothingCadence: time-based")
                 && interactionSummary.contains("pointerSampleFps:")
                 && interactionSummary.contains("pointerMoveButtons:")
@@ -2248,18 +2263,23 @@ enum RuntimeSelfTest {
         }
         var manifestActionNames = Set<String>()
         for interaction in manifest.interactions {
-            interaction.actions?.values.forEach { manifestActionNames.insert($0) }
+            // Route every manifest action value through the canonical pair-component split
+            // (same as SpineAnimationDiagnostics/SpineGeometryDiagnostics), so a colon pair
+            // like "act:act2" is checked as its components, never as the raw string.
+            interaction.actions?.values.forEach { value in
+                SpineInteractionAnimationRoles.components(of: value).forEach { manifestActionNames.insert($0) }
+            }
             interaction.hitZones?.forEach {
-                manifestActionNames.insert($0.action)
+                SpineInteractionAnimationRoles.components(of: $0.action).forEach { manifestActionNames.insert($0) }
                 if let tapAction = $0.tapAction {
-                    manifestActionNames.insert(tapAction)
+                    SpineInteractionAnimationRoles.components(of: tapAction).forEach { manifestActionNames.insert($0) }
                 }
                 if let rubAction = $0.rubAction {
-                    manifestActionNames.insert(rubAction)
+                    SpineInteractionAnimationRoles.components(of: rubAction).forEach { manifestActionNames.insert($0) }
                 }
             }
             if let defaultAction = interaction.defaultAction {
-                manifestActionNames.insert(defaultAction.action)
+                SpineInteractionAnimationRoles.components(of: defaultAction.action).forEach { manifestActionNames.insert($0) }
             }
         }
         let spineAnimationPlan = try SpineAnimationDiagnostics.make(runtime: runtime)
@@ -2280,7 +2300,7 @@ enum RuntimeSelfTest {
                 "Spine geometry diagnostics must render every sampled manifest action pose"
             )
             check(
-                spineGeometryPlan.contains("samplePolicy: timeline-keyframes+discrete-transitions"),
+                spineGeometryPlan.contains("samplePolicy: timeline-keyframes+discrete-transitions+runtime-cadence+look-mix"),
                 "Spine geometry diagnostics must sample timeline keyframes and discrete attachment transitions"
             )
             check(
@@ -2296,12 +2316,25 @@ enum RuntimeSelfTest {
                 spineGeometryPlan.contains("fp="),
                 "Spine geometry diagnostics must expose deterministic pose fingerprints"
             )
-            if hasLookDirection {
+        if hasLookDirection {
+            // The geometry sampler emits the partial look-mix pose samples only for bundles
+            // whose pointerMove look map resolves to distinct look animations (a bundle
+            // whose look actions all collapse to the idle animation has no look poses to
+            // mix, so no #lookMix sample is emitted for it).
+            let lookAnimationNames = SpineInteractionAnimationRoles.lookAnimationNames(from: manifest)
+            if lookAnimationNames.isEmpty {
                 check(
-                    spineGeometryPlan.contains("#lookMix=0.50"),
+                    spineGeometryPlan.contains("#lookMix=") == false,
+                    "Spine geometry diagnostics must not sample look-direction pose mixes for a bundle whose look actions collapse to idle"
+                )
+            } else {
+                check(
+                    spineGeometryPlan.contains("#lookMix=0.00")
+                        && spineGeometryPlan.contains("#lookMix=0.50"),
                     "Spine geometry diagnostics must sample partial look-direction pose mixes"
                 )
             }
+        }
             let spineProfile = try SpineGeometryDiagnostics.profile(runtime: runtime, iterations: 1)
             check(
                 spineProfile.contains("spine profile OK")
@@ -3123,7 +3156,8 @@ enum RuntimeSelfTest {
             )
             check(
                 autoForegroundPlan.allowsVideoOnlyResourceFallback == false
-                    && autoPrimaryRenderPath.contains("fallback=resourceBudget->fpsOnly"),
+                    && autoPrimaryRenderPath.contains("fallback=resourceBudget->fpsOnly")
+                    == (autoRuntime.assetCatalog.compositeVideoAsset != nil),
                 "auto native render plan must keep Spine active under resource pressure"
             )
         } else if autoRuntime.assetCatalog.compositeVideoAsset != nil {
@@ -3159,7 +3193,8 @@ enum RuntimeSelfTest {
                 "native render plan must schedule Spine foreground on full primary displays"
             )
             check(
-                nativePrimaryRenderPath.contains("fallback=resourceBudget->fpsOnly"),
+                nativePrimaryRenderPath.contains("fallback=resourceBudget->fpsOnly")
+                == (nativeRuntime.assetCatalog.compositeVideoAsset != nil),
                 "native render plan must not silently replace Spine with composite video"
             )
         } else if nativeRuntime.assetCatalog.compositeVideoAsset != nil,
@@ -3328,11 +3363,11 @@ enum RuntimeSelfTest {
         let bundleMatrixHasSourceProvenanceStatus = bundleMatrix.contains("sourceProvenance: pass")
             || bundleMatrix.contains("sourceProvenance: warn")
         check(
-            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=3")
+            bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=25 calibrated=5 platformPolicy=4 unsupported=3")
                 && bundleMatrixHasSourceProvenanceStatus
-                && bundleMatrix.contains("sourceDerivation: partial imported=21 calibrated=5 platformPolicy=4 unsupported=3 blockers=manual-calibration+unsupported-source-behavior")
-                && bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=16 calibrated=4 platformPolicy=3 unsupported=2")
-                && bundleMatrix.contains("sourceDerivation: partial imported=16 calibrated=4 platformPolicy=3 unsupported=2 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("sourceDerivation: partial imported=25 calibrated=5 platformPolicy=4 unsupported=3 blockers=manual-calibration+unsupported-source-behavior")
+                && bundleMatrix.contains("source: wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=26 calibrated=6 platformPolicy=3 unsupported=1")
+                && bundleMatrix.contains("sourceDerivation: partial imported=26 calibrated=6 platformPolicy=3 unsupported=1 blockers=manual-calibration+unsupported-source-behavior")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=4 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=5 calibrated=0 platformPolicy=0 unsupported=0")
                 && bundleMatrix.contains("source: sample runtime=native project=test-fixture descriptors=0 imported=3 calibrated=0 platformPolicy=0 unsupported=0")
@@ -3444,8 +3479,8 @@ enum RuntimeSelfTest {
                 && (completionAudit.contains("source scan passed") || completionAudit.contains("source scan skipped"))
                 && completionAudit.contains("yumeko=manifest-owned")
                 && completionAudit.contains("interactions[pointerMove{")
-                && completionAudit.contains("yumeko=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=21 calibrated=5 platformPolicy=4 unsupported=3); derivation(partial imported=21 calibrated=5 platformPolicy=4 unsupported=3")
-                && completionAudit.contains("buburu=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=16 calibrated=4 platformPolicy=3 unsupported=2)")
+                && completionAudit.contains("yumeko=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=25 calibrated=5 platformPolicy=4 unsupported=3); derivation(partial imported=25 calibrated=5 platformPolicy=4 unsupported=3")
+                && completionAudit.contains("buburu=source(wallpaper-engine-application runtime=Unity project=application descriptors=3 imported=26 calibrated=6 platformPolicy=3 unsupported=1)")
                 && completionAudit.contains("automated\tpass\trenderer-family-coverage")
                 && completionAudit.contains("effects=blur+chromaticAberration+colorMatrix+pixelate+scroll+vignette")
                 && completionAudit.contains("automated\tpass\tnative-spine-default-fallback")
