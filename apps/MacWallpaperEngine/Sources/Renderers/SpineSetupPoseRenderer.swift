@@ -1344,8 +1344,8 @@ final class SpineSetupPoseRenderer {
         now: CFTimeInterval = CACurrentMediaTime(),
         resetState: Bool = true
     ) -> [Double] {
+        resetDiagnosticBoneFollowState = resetState
         if resetState {
-            resetDiagnosticBoneFollowState = true
             resetDiagnosticProbeState(at: now)
         }
         let animationName = resolvedAnimationName(command: command, now: now)
