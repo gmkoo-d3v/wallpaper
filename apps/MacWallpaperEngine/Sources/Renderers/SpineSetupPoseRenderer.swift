@@ -803,6 +803,7 @@ final class SpineSetupPoseRenderer {
         gazeWeights: [(action: String, weight: Double)] = [],
         holdActive: Bool = false,
         pressActive: Bool = false,
+        now: CFTimeInterval? = nil,
         drawableSize: CGSize,
         contentRect: CGRect,
         encoder: MTLRenderCommandEncoder,
@@ -819,7 +820,8 @@ final class SpineSetupPoseRenderer {
             pointer: pointer,
             gazeWeights: gazeWeights,
             holdActive: holdActive,
-            pressActive: pressActive
+            pressActive: pressActive,
+            now: now ?? CACurrentMediaTime()
         )
         let foregroundAspectScale = SIMD2<Float>(1.0, 1.0)
 

@@ -21,6 +21,11 @@ struct SnapshotInputState: Decodable, Equatable {
     /// Committed-hold state of the interaction snapshot (InteractionSnapshot.isHoldingLoop):
     /// bone-follow bindings follow the cursor only while this is true.
     let holdActive: Bool?
+    /// True when at least one `--snapshot-pointer[...]` interaction flag was declared.
+    /// Golden fixtures pass a bare pointer position as a declarative BINDING input only;
+    /// the hit-zone resolution path must not activate for them.
+    var declaresPointerInteraction: Bool { declaresPointerInteractionFlag ?? false }
+    private let declaresPointerInteractionFlag: Bool?
 
     init(
         pointerPosition: SnapshotInputPoint? = nil,
@@ -29,7 +34,8 @@ struct SnapshotInputState: Decodable, Equatable {
         pointerPressDurationSeconds: Double? = nil,
         pointerDragDistance: Double? = nil,
         thermalStateLevel: Double? = nil,
-        holdActive: Bool? = nil
+        holdActive: Bool? = nil,
+        declaresPointerInteraction: Bool = false
     ) {
         self.pointerPosition = pointerPosition
         self.pointerDown = pointerDown
@@ -38,6 +44,7 @@ struct SnapshotInputState: Decodable, Equatable {
         self.pointerDragDistance = pointerDragDistance
         self.thermalStateLevel = thermalStateLevel
         self.holdActive = holdActive
+        self.declaresPointerInteractionFlag = declaresPointerInteraction
     }
 
     func replacing(
@@ -56,7 +63,8 @@ struct SnapshotInputState: Decodable, Equatable {
             pointerPressDurationSeconds: pointerPressDurationSeconds ?? self.pointerPressDurationSeconds,
             pointerDragDistance: pointerDragDistance ?? self.pointerDragDistance,
             thermalStateLevel: thermalStateLevel ?? self.thermalStateLevel,
-            holdActive: holdActive ?? self.holdActive
+            holdActive: holdActive ?? self.holdActive,
+            declaresPointerInteraction: true
         )
     }
 

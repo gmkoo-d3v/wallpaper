@@ -4238,6 +4238,7 @@ enum RuntimeSelfTest {
         try checkHitZoneTapModeSemantics(failures: &failures, checks: &checks)
         try checkCommittedHoldActionSemantics(from: runtime, failures: &failures, checks: &checks)
         try checkGazeSensitivityAndPressSuppression(from: runtime, failures: &failures, checks: &checks)
+        try checkSnapshotPointerResolution(failures: &failures, checks: &checks)
         try checkDesktopInputDeliveryPlan(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
@@ -4257,6 +4258,156 @@ enum RuntimeSelfTest {
     /// which source delivers clicks for each window/trust combination, that the
     /// listen-only CGEventTap path and the global-monitor fallback stay mutually
     /// exclusive, and that a mid-session Accessibility grant restarts the sources.
+    /// Snapshot-path resolution: a declarative snapshot pointer input must resolve through the
+    /// SAME pointer→hit-zone→command logic the live path runs (replaySnapshotInput), so the
+    /// gimmick PNGs are visual proof of the resolved pose. Covers the DS--72 matrix shapes:
+    /// a tap-zone press resolves the zone action (pair command), a bare-hold zone press resolves
+    /// the hold action, and a holdAction-zone press at/after holdCommit resolves the holdAction
+    /// loop while a below-commit press stays neutral pending.
+    private static func checkSnapshotPointerResolution(failures: inout [String], checks: inout Int) throws {
+        func zone(
+            id: String,
+            action: String,
+            tapAction: String? = nil,
+            holdAction: String? = nil,
+            trigger: HitZoneTrigger,
+            tapMode: HitZoneTapMode? = nil,
+            holdCommitSeconds: Double? = nil
+        ) -> HitZone {
+            HitZone(
+                id: id,
+                rect: [0.0, 0.0, 1.0, 1.0],
+                ellipse: nil,
+                action: action,
+                tapAction: tapAction,
+                holdAction: holdAction,
+                rubAction: nil,
+                trigger: trigger,
+                tapMode: tapMode,
+                tailSeconds: nil,
+                tapTailSeconds: nil,
+                rubTailSeconds: nil,
+                holdStartSeconds: nil,
+                holdCommitSeconds: holdCommitSeconds,
+                rubStartSeconds: nil,
+                rubStartDistance: nil,
+                buttons: [.left],
+                priority: nil
+            )
+        }
+        let lookInteraction = InteractionConfig(
+            event: .pointerMove,
+            mapping: "lookDirection",
+            actions: ["left": "idle", "right": "idle", "up": "idle", "down": "idle", "idle": "idle"],
+            neutralPoint: nil,
+            deadZone: nil,
+            hitZones: nil,
+            defaultAction: nil,
+            buttons: nil,
+            gaze: nil
+        )
+        func replay(zones: [HitZone], pointer: CGPoint, down: Bool, press: Double) -> InteractionSnapshot {
+            // The live path samples the snapshot during the press (the frame loop runs
+            // snapshot() every frame); the replay cadence must include those samples so the
+            // live-press rules see the same promotion state a live press lives in.
+            let controller = InteractionController(
+                interactions: [
+                    InteractionConfig(
+                        event: .pointerDown,
+                        mapping: nil,
+                        actions: nil,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        hitZones: zones,
+                        defaultAction: nil,
+                        buttons: [.left],
+                        gaze: nil
+                    ),
+                    lookInteraction
+                ],
+                policy: nil,
+                actionTailDurations: [:],
+                clock: { 0 }
+            )
+            let cadence = 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+            var sample = -press + cadence
+            while sample < 0 {
+                _ = controller.replaySnapshotInput(
+                    pointer: pointer,
+                    pointerDown: down,
+                    pressDurationSeconds: -sample,
+                    dragDistance: 0,
+                    now: 0
+                )
+                sample += cadence
+            }
+            return controller.replaySnapshotInput(
+                pointer: pointer,
+                pointerDown: down,
+                pressDurationSeconds: press,
+                dragDistance: 0,
+                now: 0
+            )
+        }
+        let center = CGPoint(x: 0.5, y: 0.5)
+
+        // Tap zone (pair command, down mode): the snapshot pointer on the zone resolves the
+        // zone action, not idle.
+        let tapCommand = replay(
+            zones: [zone(id: "body", action: "act:act2", trigger: .tap, tapMode: .down)],
+            pointer: center,
+            down: true,
+            press: 0
+        ).command
+        check(
+            tapCommand.contains("act"),
+            "snapshot replay: pointer on a tap zone with down must resolve a pair act command, got \(tapCommand)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // Bare-hold zone (no tapAction, no holdAction): the press resolves the zone action.
+        let holdCommand = replay(
+            zones: [zone(id: "face", action: "boll", trigger: .hold)],
+            pointer: center,
+            down: true,
+            press: 0.3
+        ).command
+        check(
+            holdCommand == "boll",
+            "snapshot replay: pointer on a bare hold zone with down must resolve the hold action boll, got \(holdCommand)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // holdAction zone (yumeko hand shape): below commit the press is neutral pending; at
+        // press 1.6 (>= commit 1.5) the replay must resolve the holdAction loop command.
+        let handZones = [zone(id: "hand", action: "act", tapAction: "act", holdAction: "boll", trigger: .hold, holdCommitSeconds: 1.5)]
+        let handPreCommit = replay(zones: handZones, pointer: center, down: true, press: 0.3)
+        check(
+            handPreCommit.command == "idle" && handPreCommit.isPointerDown,
+            "snapshot replay: holdAction zone below commit must stay neutral pending (idle, press live), got \(handPreCommit.command)",
+            failures: &failures,
+            checks: &checks
+        )
+        let handCommitted = replay(zones: handZones, pointer: center, down: true, press: 1.6)
+        check(
+            handCommitted.command == "boll" && handCommitted.isHoldingLoop,
+            "snapshot replay: holdAction zone at press 1.6 (commit 1.5) must resolve the holdAction loop boll with the committed-hold gate armed, got \(handCommitted.command) holding=\(handCommitted.isHoldingLoop)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // No pointer press: the move/idle steady state (the replay must not invent a command).
+        let idleCommand = replay(zones: handZones, pointer: center, down: false, press: 0).command
+        check(
+            idleCommand == "idle",
+            "snapshot replay: pointer without down must resolve the move/idle command, got \(idleCommand)",
+            failures: &failures,
+            checks: &checks
+        )
+    }
+
     private static func checkDesktopInputDeliveryPlan(
         from runtime: NativeRuntimeCore,
         failures: inout [String],

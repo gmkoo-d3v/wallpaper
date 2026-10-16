@@ -46,7 +46,7 @@ struct InteractionSnapshot {
     }
 }
 
-private enum PressGesturePhase {
+enum PressGesturePhase {
     case inactive
     case pendingTap
     case holding
@@ -54,51 +54,51 @@ private enum PressGesturePhase {
 }
 
 final class InteractionController {
-    private let defaultClickTailDuration: CFTimeInterval
-    private let releaseFadeDuration: CFTimeInterval
+    let defaultClickTailDuration: CFTimeInterval
+    let releaseFadeDuration: CFTimeInterval
     private let pointerInputActiveTailSeconds: CFTimeInterval = 0.20
     private let lock = NSLock()
-    private var pointerState = CGPoint(x: 0.5, y: 0.5)
-    private var smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
-    private var lastSmoothSampleAt: CFTimeInterval
-    private var lastPointerSpeedSampleAt: CFTimeInterval
-    private var lastPointerSpeedSamplePoint = CGPoint(x: 0.5, y: 0.5)
-    private var pointerSpeed: CGFloat = 0
-    private var pointerInputActiveUntil: CFTimeInterval = 0
-    private var moveCommandState: String
+    var pointerState = CGPoint(x: 0.5, y: 0.5)
+    var smoothedPointerState = CGPoint(x: 0.5, y: 0.5)
+    var lastSmoothSampleAt: CFTimeInterval
+    var lastPointerSpeedSampleAt: CFTimeInterval
+    var lastPointerSpeedSamplePoint = CGPoint(x: 0.5, y: 0.5)
+    var pointerSpeed: CGFloat = 0
+    var pointerInputActiveUntil: CFTimeInterval = 0
+    var moveCommandState: String
     /// Smoothed gaze velocity state ([-1,1] per axis) for continuous gaze blending; only
     /// advanced when the pointerMove interaction declares a gaze config.
-    private var gazeVelocityState = CGPoint(x: 0, y: 0)
-    private var gazeWeightsState: [(action: String, weight: Double)] = []
-    private var clickCommandState: String?
-    private var clickCommandExpiresAt: CFTimeInterval = 0
-    private var clickCommandHeld = false
-    private var activeClickTailDuration: CFTimeInterval
-    private var pressedHitAction: String?
-    private var pressedHitTapAction: String?
+    var gazeVelocityState = CGPoint(x: 0, y: 0)
+    var gazeWeightsState: [(action: String, weight: Double)] = []
+    var clickCommandState: String?
+    var clickCommandExpiresAt: CFTimeInterval = 0
+    var clickCommandHeld = false
+    var activeClickTailDuration: CFTimeInterval
+    var pressedHitAction: String?
+    var pressedHitTapAction: String?
     /// Committed-hold loop action for the active press (nil for zones without holdAction).
     /// Crossing holdCommit promotes the press to this action (held, looped) instead of the
     /// base action, and a committed release ends it with the release fade only — the loop
     /// stops on release with no committed-action tail replay.
-    private var pressedHitHoldAction: String?
+    var pressedHitHoldAction: String?
     /// True for the lifetime of a press on a zone that declares a holdAction; cleared on
     /// release or tracking teardown. A live press keeps its pending/committed state through
     /// the snapshot live-press rule (see snapshot); this flag only marks that the active
     /// press lives on a holdAction zone.
-    private var pressedHitHoldActionActive = false
-    private var pressedHitRubAction: String?
-    private var pressedHitTrigger: HitZoneTrigger?
+    var pressedHitHoldActionActive = false
+    var pressedHitRubAction: String?
+    var pressedHitTrigger: HitZoneTrigger?
     /// Tap fire timing of the active press's zone: .down fires the tap action at press time
     /// and the release only ends the press (no second fire, no release-tail replay).
-    private var pressedHitTapMode: HitZoneTapMode = .up
+    var pressedHitTapMode: HitZoneTapMode = .up
     /// Last gaze weight vector produced by the gaze blend, kept through press suppression so
     /// the weights restore exactly on release.
-    private var lastGazeWeights: [(action: String, weight: Double)] = []
-    private var pressedHitTailDuration: CFTimeInterval = 0
-    private var pressedHitTapTailDuration: CFTimeInterval = 0
-    private var pressedHitRubTailDuration: CFTimeInterval = 0
-    private var pressedHitHoldStartSeconds: CFTimeInterval = 0
-    private var pressedHitHoldCommitSeconds: CFTimeInterval = 0
+    var lastGazeWeights: [(action: String, weight: Double)] = []
+    var pressedHitTailDuration: CFTimeInterval = 0
+    var pressedHitTapTailDuration: CFTimeInterval = 0
+    var pressedHitRubTailDuration: CFTimeInterval = 0
+    var pressedHitHoldStartSeconds: CFTimeInterval = 0
+    var pressedHitHoldCommitSeconds: CFTimeInterval = 0
     /// True when the press must not release through the tap branch: only an explicitly
     /// declared holdCommitSeconds = 0 declares a no-effect hold zone with no tap window.
     /// Absent commit timing (or a positive commit) keeps the tap-below-commit behavior,
@@ -108,19 +108,19 @@ final class InteractionController {
     /// When true (or when the press started holding directly), the snapshot hold preview
     /// may promote a pending press; an alive tap window keeps snapshot promotion at the
     /// positive commit threshold so the preview never steals the tap decision.
-    private var pressedHitTapBranchDisabled = false
-    private var pressedHitRubStartSeconds: CFTimeInterval = 0
-    private var pressedHitRubStartDistance: CGFloat = 0.035
-    private var pressGesturePhase: PressGesturePhase = .inactive
-    private var pressedButton: PointerButton?
-    private var pressStartedAt: CFTimeInterval = 0
-    private var pressStartPoint = CGPoint(x: 0.5, y: 0.5)
-    private var pressRubStartPoint = CGPoint(x: 0.5, y: 0.5)
-    private var pressRubWindowOpened = false
-    private var pressMaxDragDistance: CGFloat = 0
-    private var pressMaxDisplacement: CGFloat = 0
-    private let plan: InteractionPlan
-    private let idleCommand: String
+    var pressedHitTapBranchDisabled = false
+    var pressedHitRubStartSeconds: CFTimeInterval = 0
+    var pressedHitRubStartDistance: CGFloat = 0.035
+    var pressGesturePhase: PressGesturePhase = .inactive
+    var pressedButton: PointerButton?
+    var pressStartedAt: CFTimeInterval = 0
+    var pressStartPoint = CGPoint(x: 0.5, y: 0.5)
+    var pressRubStartPoint = CGPoint(x: 0.5, y: 0.5)
+    var pressRubWindowOpened = false
+    var pressMaxDragDistance: CGFloat = 0
+    var pressMaxDisplacement: CGFloat = 0
+    let plan: InteractionPlan
+    let idleCommand: String
     private let clock: () -> CFTimeInterval
 
     init(
@@ -157,7 +157,12 @@ final class InteractionController {
         defer { lock.unlock() }
 
         advanceSmoothedPointerLocked()
-        let now = clock()
+        return snapshotLocked(now: clock())
+    }
+
+    /// The snapshot resolution body, assuming the lock is already held. The public snapshot()
+    /// and the snapshot-input replay share this single resolution.
+    private func snapshotLocked(now: CFTimeInterval) -> InteractionSnapshot {
         // Gaze suppression gate: the source runs the gaze blend only while the pointer is NOT
         // pressed at all (source CIL: the gaze block sits behind `!GetMouseButton(0)`, and
         // the click-start handler sets isLookingAround=true for any press), so ANY held press must
@@ -407,6 +412,157 @@ final class InteractionController {
             gazeWeights: gazeSuppressedForPress ? [] : lastGazeWeights,
             isHoldingLoop: isHoldingLoop
         )
+    }
+
+    /// Deterministic replay of the live pointer→hit-zone→command resolution for a single
+    /// declarative snapshot input (the `--wallpaper-snapshot --snapshot-pointer[...]` path).
+    /// The live path builds its state through pointerMoved/pointerDown/pointerDragged/
+    /// pointerUp events on the clock; a snapshot declares only a static input vector, so this
+    /// method reconstructs the same state-machine state from that vector — the SAME plan
+    /// (hitTest/command/gazeWeights) and the SAME promotion helpers (promoteToHoldActionLocked,
+    /// activateDelayedHoldIfNeededLocked, activateRubIfNeededLocked) the live path runs, never a
+    /// re-derived command mapping:
+    /// - move phase: pointerMoved semantics (speed, input-active, smoothed pointer, gaze blend);
+    /// - press phase: pointerDown semantics (hit-zone capture, tapMode/trigger/holdCommit
+    ///   collapse, tap-branch disable rules);
+    /// - press-duration advance: the drag promotion cadence (activateDelayedHoldIfNeeded +
+    ///   activateRubIfNeeded), so a press at/after holdCommit lands in exactly the state a live
+    ///   committed hold lives in — holdAction loop held, isHoldingLoop armed, gaze suppressed;
+    /// - release phase (pointerDown false): pointerUp semantics (activateHoldForReleaseLocked +
+    ///   finishPointerUpLocked), so a below-commit release resolves through the tap action with
+    ///   its tail and a committed release falls to the move command with the release fade.
+    /// The snapshot() call at the end runs the identical snapshot resolution the live frames
+    /// run, so the returned command is what the live renderer would draw for this input.
+    func replaySnapshotInput(
+        pointer: CGPoint,
+        pointerDown: Bool,
+        pressDurationSeconds: Double,
+        dragDistance: Double,
+        now: CFTimeInterval
+    ) -> InteractionSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let clamped = clamp(pointer)
+        let pressDuration = min(max(pressDurationSeconds.isFinite ? pressDurationSeconds : 0, 0), 10)
+        let drag = min(max(dragDistance.isFinite ? dragDistance : 0, 0), 2)
+
+        // Move phase (pointerMoved semantics): speed, input-active tail, raw pointer, then the
+        // shared smoothing/gaze-blend advance.
+        if plan.allowsPointerMove(button: nil) {
+            updatePointerSpeedLocked(to: clamped, now: now)
+            pointerState = clamped
+            markPointerInputActiveLocked(now: now)
+        } else {
+            pointerSpeed = 0
+            pointerState = plan.lookNeutralPoint()
+            moveCommandState = idleCommand
+            pointerInputActiveUntil = 0
+        }
+        advanceSmoothedPointerLocked()
+
+        guard pointerDown else {
+            // No press: the release-free steady state (move command + gaze weights).
+            return snapshotLocked(now: now)
+        }
+
+        // Press phase (pointerDown semantics), with the press clocked `pressDuration` ago so
+        // every threshold comparison below reads the declared press duration.
+        let pressStarted = now - pressDuration
+        let hitResult = plan.hitTest(point: clamped, button: .left)
+        resetPointerSpeedSampleLocked(to: clamped, now: pressStarted)
+        pointerState = clamped
+        markPointerInputActiveLocked(now: now)
+        pressStartedAt = pressStarted
+        pressStartPoint = clamped
+        pressRubStartPoint = clamped
+        pressMaxDragDistance = 0
+        pressMaxDisplacement = 0
+        pressedButton = .left
+        pressedHitAction = hitResult?.action
+        pressedHitTapAction = hitResult?.tapAction
+        pressedHitHoldAction = hitResult?.holdAction
+        pressedHitHoldActionActive = hitResult?.holdAction != nil
+        pressedHitRubAction = hitResult?.rubAction
+        pressedHitTrigger = hitResult?.trigger ?? .tap
+        pressedHitTapMode = hitResult?.tapMode ?? .up
+        pressedHitTailDuration = hitResult?.tailSeconds ?? defaultClickTailDuration
+        pressedHitTapTailDuration = hitResult?.tapTailSeconds ?? defaultClickTailDuration
+        pressedHitRubTailDuration = hitResult?.rubTailSeconds ?? defaultClickTailDuration
+        pressedHitHoldStartSeconds = hitResult?.holdStartSeconds ?? 0
+        let defaultsBothOmitted = hitResult?.holdEffectiveStartDeclared == false
+        pressedHitHoldCommitSeconds = defaultsBothOmitted
+            ? defaultClickTailDuration
+            : hitResult?.holdCommitSeconds ?? pressedHitHoldStartSeconds
+        if defaultsBothOmitted {
+            pressedHitHoldStartSeconds = defaultClickTailDuration
+        }
+        pressedHitTapBranchDisabled = hitResult?.holdCommitSecondsDeclared == true
+            && hitResult?.holdCommitSeconds == 0
+        if hitResult?.holdAction != nil, hitResult?.tapAction == nil {
+            pressedHitTapBranchDisabled = true
+        }
+        pressedHitRubStartSeconds = hitResult?.rubStartSeconds ?? 0
+        pressedHitRubStartDistance = hitResult?.rubStartDistance ?? 0.035
+        pressGesturePhase = .inactive
+        pressRubWindowOpened = pressedHitRubStartSeconds <= 0
+        clickCommandState = nil
+        clickCommandHeld = false
+        clickCommandExpiresAt = 0
+        activeClickTailDuration = pressedHitTailDuration
+        if let hitResult {
+            let trigger = hitResult.trigger
+            if trigger == .hold, hitResult.tapAction != nil {
+                pressGesturePhase = .pendingTap
+                clickCommandState = nil
+                clickCommandHeld = false
+                activeClickTailDuration = hitResult.tapTailSeconds
+                clickCommandExpiresAt = 0
+            } else if trigger == .hold, hitResult.holdAction != nil {
+                pressGesturePhase = .holding
+                clickCommandState = nil
+                clickCommandHeld = false
+                activeClickTailDuration = pressedHitTailDuration
+                clickCommandExpiresAt = 0
+            } else {
+                let hitAction = hitResult.action
+                clickCommandState = hitAction
+                clickCommandHeld = trigger == .hold
+                clickCommandExpiresAt = pressStarted + (trigger == .hold
+                    ? releaseFadeDuration
+                    : (hitResult.tapMode == .down ? pressedHitTailDuration : 0))
+                pressGesturePhase = trigger == .hold ? .holding : .inactive
+            }
+        } else {
+            moveCommandState = plan.command(for: clamped, previousCommand: moveCommandState)
+        }
+
+        // Press-duration advance: the drag promotion cadence over the declared press window,
+        // with the declared drag distance applied at the press start (the same
+        // updatePressDragDistanceLocked result a live drag sequence accumulates). The live
+        // frame loop samples snapshot() every frame during the press, so the cadence here
+        // runs the same promotion helpers AND the snapshot resolution (the live-press rules
+        // live in snapshotLocked), matching the state a live press lives in at `now`.
+        // A snapshot declares a HELD press: the cadence ends at the final held-press
+        // snapshot at `now`; no release-phase helpers run (there is no pointer-up in the
+        // declared input).
+        pressMaxDragDistance = drag
+        if pressDuration > 0 {
+            let cadence = 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+            var sample = pressStarted + cadence
+            while sample <= now + 0.0000001 {
+                activateDelayedHoldIfNeededLocked(now: sample)
+                activateRubIfNeededLocked(now: sample)
+                _ = snapshotLocked(now: sample)
+                sample += cadence
+            }
+            activateDelayedHoldIfNeededLocked(now: now)
+            activateRubIfNeededLocked(now: now)
+            return snapshotLocked(now: now)
+        }
+
+        // Down at the press instant: the pointer-down snapshot, no release re-decision.
+        return snapshotLocked(now: now)
     }
 
     func pointerMoved(to normalizedPoint: CGPoint) {
@@ -685,7 +841,7 @@ final class InteractionController {
         plan.clamp(point)
     }
 
-    private func advanceSmoothedPointerLocked() {
+    func advanceSmoothedPointerLocked() {
         let now = clock()
         let elapsed = now - lastSmoothSampleAt
         lastSmoothSampleAt = now
@@ -725,11 +881,11 @@ final class InteractionController {
         }
     }
 
-    private func markPointerInputActiveLocked(now: CFTimeInterval) {
+    func markPointerInputActiveLocked(now: CFTimeInterval) {
         pointerInputActiveUntil = now + pointerInputActiveTailSeconds
     }
 
-    private func updatePointerSpeedLocked(to point: CGPoint, now: CFTimeInterval) {
+    func updatePointerSpeedLocked(to point: CGPoint, now: CFTimeInterval) {
         let elapsed = now - lastPointerSpeedSampleAt
         defer {
             lastPointerSpeedSampleAt = now
@@ -745,19 +901,19 @@ final class InteractionController {
         pointerSpeed = min(max(distance / CGFloat(elapsed), 0), 10)
     }
 
-    private func resetPointerSpeedSampleLocked(to point: CGPoint, now: CFTimeInterval) {
+    func resetPointerSpeedSampleLocked(to point: CGPoint, now: CFTimeInterval) {
         lastPointerSpeedSampleAt = now
         lastPointerSpeedSamplePoint = point
         pointerSpeed = 0
     }
 
-    private func pointerPressDurationLocked(now: CFTimeInterval) -> CGFloat {
+    func pointerPressDurationLocked(now: CFTimeInterval) -> CGFloat {
         guard pressedButton != nil else { return 0 }
         let duration = max(now - pressStartedAt, 0)
         return CGFloat(min(max(duration, 0), 10))
     }
 
-    private func pointerDragDistanceLocked() -> CGFloat {
+    func pointerDragDistanceLocked() -> CGFloat {
         min(max(pressMaxDragDistance, 0), 2)
     }
 
@@ -769,7 +925,7 @@ final class InteractionController {
             || abs(pointerState.y - smoothedPointerState.y) > 0.001
     }
 
-    private func activateDelayedHoldIfNeededLocked(now: CFTimeInterval) {
+    func activateDelayedHoldIfNeededLocked(now: CFTimeInterval) {
         if pressedHitTrigger == .hold,
            pressedHitTapAction == nil,
            pressedHitHoldAction != nil {
@@ -805,7 +961,7 @@ final class InteractionController {
 
     /// Commits a holdAction press: the loop command replaces whatever the press was showing
     /// and is held until release. Only called at/after the holdCommit crossing.
-    private func promoteToHoldActionLocked(now: CFTimeInterval) {
+    func promoteToHoldActionLocked(now: CFTimeInterval) {
         guard let pressedHitHoldAction else { return }
         pressGesturePhase = .holding
         clickCommandState = pressedHitHoldAction
@@ -875,7 +1031,7 @@ final class InteractionController {
         activateDelayedHoldLocked(now: now)
     }
 
-    private func activateDelayedHoldLocked(now: CFTimeInterval) {
+    func activateDelayedHoldLocked(now: CFTimeInterval) {
         guard let pressedHitAction,
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
@@ -889,7 +1045,7 @@ final class InteractionController {
         clickCommandExpiresAt = now + releaseFadeDuration
     }
 
-    private func updatePressDisplacementLocked(
+    func updatePressDisplacementLocked(
         to point: CGPoint,
         previousPoint: CGPoint,
         now: CFTimeInterval,
@@ -912,14 +1068,14 @@ final class InteractionController {
         pressMaxDisplacement = max(pressMaxDisplacement, sqrt(dx * dx + dy * dy))
     }
 
-    private func updatePressDragDistanceLocked(to point: CGPoint) {
+    func updatePressDragDistanceLocked(to point: CGPoint) {
         guard pressedButton != nil else { return }
         let dx = point.x - pressStartPoint.x
         let dy = point.y - pressStartPoint.y
         pressMaxDragDistance = max(pressMaxDragDistance, sqrt(dx * dx + dy * dy))
     }
 
-    private func activateRubIfNeededLocked(now: CFTimeInterval) {
+    func activateRubIfNeededLocked(now: CFTimeInterval) {
         guard let pressedHitRubAction,
               pressedHitTrigger == .hold,
               pressedHitTapAction != nil,
@@ -1044,7 +1200,7 @@ final class InteractionController {
     }
 
     /// Shared press-state teardown for pointer-up.
-    private func finishPressStateLocked(now: CFTimeInterval) {
+    func finishPressStateLocked(now: CFTimeInterval) {
         pressedHitTrigger = nil
         pressedHitTapMode = .up
         pressedHitTailDuration = 0

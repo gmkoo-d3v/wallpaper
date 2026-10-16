@@ -13,6 +13,7 @@ struct WallpaperSnapshotDiagnostics {
 
     final class Renderer {
         private let runtime: NativeRuntimeCore
+        private let actionTailDurations: [String: CFTimeInterval]
         private let width: Int
         private let height: Int
         private let device: MTLDevice
@@ -31,7 +32,8 @@ struct WallpaperSnapshotDiagnostics {
         init(
             runtime: NativeRuntimeCore,
             width: Int,
-            height: Int
+            height: Int,
+            actionTailDurations: [String: CFTimeInterval] = [:]
         ) throws {
             guard width > 0, height > 0, width <= 8192, height <= 8192 else {
                 throw EngineError.invalidArgument("Wallpaper snapshot size must be between 1x1 and 8192x8192")
@@ -44,6 +46,7 @@ struct WallpaperSnapshotDiagnostics {
             }
 
             self.runtime = runtime
+            self.actionTailDurations = actionTailDurations
             self.width = width
             self.height = height
             self.device = device
@@ -89,8 +92,35 @@ struct WallpaperSnapshotDiagnostics {
             }
         }
 
+        struct RenderOutcome {
+            let snapshot: Snapshot
+            /// The command the live interaction resolution produced for this input (the
+            /// resolved pose), nil when no pointer was declared (fixed-action render).
+            let resolved: SnapshotInteractionResolver.Resolution?
+        }
+
         func render(actionName: String, time: Double, inputState: SnapshotInputState = SnapshotInputState()) throws -> Snapshot {
+            try renderOutcome(actionName: actionName, time: time, inputState: inputState).snapshot
+        }
+
+        func renderOutcome(actionName: String, time: Double, inputState: SnapshotInputState = SnapshotInputState()) throws -> RenderOutcome {
             let bindingInput = try inputState.evaluationInput(systemTimeSeconds: time, context: "wallpaper snapshot")
+            // Pointer-declared snapshots run the REAL pointer→hit-zone→command resolution
+            // (the same InteractionPlan/InteractionController logic the live frames run, via
+            // the deterministic replay), so the PNG shows the gimmick pose the desktop would
+            // show for that input — not a fixed idle/action name.
+            let resolution: SnapshotInteractionResolver.Resolution?
+            if inputState.declaresPointerInteraction {
+                resolution = try SnapshotInteractionResolver.resolve(
+                    runtime: runtime,
+                    inputState: inputState,
+                    time: time,
+                    actionTailDurations: actionTailDurations
+                )
+            } else {
+                resolution = nil
+            }
+            let resolvedActionName = resolution?.command ?? actionName
             guard let commandBuffer = commandQueue.makeCommandBuffer() else {
                 throw EngineError.renderer("Could not create Metal command buffer for wallpaper snapshot")
             }
@@ -133,16 +163,40 @@ struct WallpaperSnapshotDiagnostics {
             if foregroundPlan.usesNativeSpine,
                let spineRenderer,
                background.usesCompositeVideo == false {
-                try spineRenderer.encodeDiagnosticPose(
-                    actionName: actionName,
-                    time: time,
-                    encoder: encoder,
-                    normalPipelineState: normalPipelineState,
-                    additivePipelineState: additivePipelineState,
-                    multiplyPipelineState: multiplyPipelineState,
-                    screenPipelineState: screenPipelineState,
-                    bindingInput: bindingInput
-                )
+                if let resolution {
+                    // Live-parity pose: the resolved command through the same draw path the
+                    // live frames use (batches: resolvedAnimationName, gaze overlays with the
+                    // press gate, bone-follow with the committed-hold gate, transitions). The
+                    // fixed snapshot time keeps the render deterministic; the transition starts
+                    // at the same instant so the resolved pose renders at full mix.
+                    spineRenderer.resetDiagnosticProbeState(at: time)
+                    spineRenderer.draw(
+                        command: resolution.command,
+                        pointer: resolution.pointer,
+                        gazeWeights: resolution.gazeWeights,
+                        holdActive: resolution.holdActive,
+                        pressActive: resolution.pressActive,
+                        now: time,
+                        drawableSize: CGSize(width: width, height: height),
+                        contentRect: CGRect(x: -1, y: -1, width: 2, height: 2),
+                        encoder: encoder,
+                        normalPipelineState: normalPipelineState,
+                        additivePipelineState: additivePipelineState,
+                        multiplyPipelineState: multiplyPipelineState,
+                        screenPipelineState: screenPipelineState
+                    )
+                } else {
+                    try spineRenderer.encodeDiagnosticPose(
+                        actionName: resolvedActionName,
+                        time: time,
+                        encoder: encoder,
+                        normalPipelineState: normalPipelineState,
+                        additivePipelineState: additivePipelineState,
+                        multiplyPipelineState: multiplyPipelineState,
+                        screenPipelineState: screenPipelineState,
+                        bindingInput: bindingInput
+                    )
+                }
                 foreground = "nativeSpine"
             } else if foregroundPlan.usesCompositeVideo || background.usesCompositeVideo {
                 foreground = "compositeVideo"
@@ -156,7 +210,10 @@ struct WallpaperSnapshotDiagnostics {
                 device: device,
                 commandBuffer: commandBuffer
             )
-            return Snapshot(image: image, background: background.label, foreground: foreground)
+            return RenderOutcome(
+                snapshot: Snapshot(image: image, background: background.label, foreground: foreground),
+                resolved: resolution
+            )
         }
     }
 
@@ -186,23 +243,23 @@ struct WallpaperSnapshotDiagnostics {
         height: Int,
         inputState: SnapshotInputState = SnapshotInputState()
     ) throws -> String {
-        let snapshot = try renderSnapshot(
+        let outcome = try Renderer(
             runtime: runtime,
-            actionName: actionName,
-            time: time,
             width: width,
             height: height,
-            inputState: inputState
-        )
+            actionTailDurations: SpineAnimationDiagnostics.tapActionDurations(runtime: runtime)
+        ).renderOutcome(actionName: actionName, time: time, inputState: inputState)
+        let snapshot = outcome.snapshot
         try MetalSnapshotImage.writePNG(snapshot.image, to: destination)
 
         var lines = [
             "wallpaper snapshot OK",
-            "action: \(actionName)",
+            "action: \(outcome.resolved?.command ?? actionName)",
             "time: \(formatSeconds(time))",
             "size: \(width)x\(height)",
             "fitMode: \(runtime.config.fitMode.rawValue)",
             "input: \(inputState.summary)",
+            "resolved: \(outcome.resolved?.summary ?? "fixed-action(\(actionName))")",
             "background: \(snapshot.background)",
             "foreground: \(snapshot.foreground)",
             "output: \(destination.path)"
