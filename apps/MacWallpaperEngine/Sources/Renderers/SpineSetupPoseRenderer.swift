@@ -994,7 +994,7 @@ final class SpineSetupPoseRenderer {
         now: CFTimeInterval = CACurrentMediaTime(),
         poseTime: Double? = nil
     ) -> [Batch] {
-        let animationName = resolvedAnimationName(command: command, now: now)
+        let animationName = resolvedAnimationName(command: command, now: now, poseTime: poseTime)
         guard let activeAnimation = animations[animationName] ?? animations[idleAnimationName] else {
             return cachedBatches
         }
@@ -1002,10 +1002,22 @@ final class SpineSetupPoseRenderer {
         // declared pose time instead of a wall-clock-anchored elapsed time, so a fixed
         // snapshot `time` selects the pose the desktop shows at that moment of the clip.
         let declaredPoseTime = poseTime
-        let activeAnimationTime = declaredPoseTime ?? time(in: activeAnimation, now: now)
+        // A one-shot clip (the grouped tap pair act/act2) is a fixed-length animation: the
+        // declared pose time is how far INTO the fired clip the pose sits, so it clamps at the
+        // clip duration instead of sampling past its last key (the same clamp the live
+        // wall-clock path applies in time(in:)). A looping clip (idle, a hold loop) keeps the
+        // declared time as an absolute time.
+        let activeAnimationTime = declaredPoseTime.map {
+            activeAnimation.duration > 0 ? min($0, activeAnimation.duration) : $0
+        } ?? time(in: activeAnimation, now: now)
         let idleAnimation = animations[idleAnimationName]
-        let idleAnimationTime = declaredPoseTime
-            ?? (idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0)
+        // Declared-pose mode: the idle BASE is the clip's own looped timeline at the declared
+        // time (the same loopedTime the live wall-clock path uses), not the raw declared time.
+        // A declared time past the idle duration would otherwise sample past the idle's last
+        // key and leave the base at a stale keyframe.
+        let idleAnimationTime = declaredPoseTime.map { poseTime in
+            idleAnimation.map { loopedTime(in: $0, startedAt: 0, now: poseTime) } ?? 0
+        } ?? (idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0)
         let transitionMix = declaredPoseTime != nil ? 1.0 : animationTransitionMix(now: now)
         let activeOverlayAnimation = activeAnimation.name == idleAnimationName ? nil : activeAnimation
         let activeOverlayMix = activeOverlayAnimation == nil ? 0 : transitionMix
@@ -1019,6 +1031,15 @@ final class SpineSetupPoseRenderer {
         if transitionMix >= 1.0 {
             previousOverlayAnimationName = nil
         }
+        // Declared-pose mode is a single deterministic evaluation: the physics accumulator must
+        // start from rest at the pose time (the same from-rest semantics the diagnostics walk
+        // uses). Seeding the live wall-clock accumulator instead makes the pose depend on the
+        // renderer's previous frame, so the same snapshot input can render different pixels.
+        // The wipe (not resetPhysicsStates, which no-ops on an empty map) gives every constraint
+        // a first call with needsReset = true at the pose time.
+        if declaredPoseTime != nil {
+            physicsStates = [:]
+        }
         let physicsTime = (declaredPoseTime ?? max(0, now - rendererStartedAt)) * playbackRate
         let sleepPhysicsForIdle = shouldSleepPhysicsForIdle(
             animationName: activeAnimation.name,
@@ -1027,7 +1048,11 @@ final class SpineSetupPoseRenderer {
             previousOverlayAnimation: previousOverlayAnimation
         )
         if sleepPhysicsForIdle != physicsIdleSleeping {
-            resetPhysicsStates(at: sleepPhysicsForIdle ? 0 : physicsTime)
+            // Declared-pose mode starts from rest above and only records the gate; the live
+            // wall-clock path keeps its own reseed-on-transition semantics.
+            if declaredPoseTime == nil {
+                resetPhysicsStates(at: sleepPhysicsForIdle ? 0 : physicsTime)
+            }
             physicsIdleSleeping = sleepPhysicsForIdle
         }
         let posePhysicsTime = physicsConstraintsEnabled && sleepPhysicsForIdle == false ? physicsTime : 0
@@ -1075,7 +1100,9 @@ final class SpineSetupPoseRenderer {
                       animation.name != idleAnimationName else {
                     return nil
                 }
-                return (animation, declaredPoseTime ?? time(in: animation, now: gazeNow), min(max(entry.weight, 0), 1))
+                return (animation, declaredPoseTime.map { poseTime in
+                    animation.duration > 0 ? min(poseTime, animation.duration) : poseTime
+                } ?? time(in: animation, now: gazeNow), min(max(entry.weight, 0), 1))
             }
         }
         let sampleFps = previousOverlayAnimation == nil && gazeOverlays.isEmpty ? sampleFps(for: animationName) : poseSampleFps
@@ -1615,8 +1642,24 @@ final class SpineSetupPoseRenderer {
         )
     }
 
+    /// Grouped-skip-if-act-playing guard (source IL 309-333): true when the incoming command
+    /// is a grouped tap command (a multi-component pair like "act:act2") and the animation
+    /// currently on the track is one of that group's components that has NOT finished — the
+    /// IL's `GetCurrent(1); if name == actAnimation or act2Animation → ret`. The caller keeps
+    /// the active animation and never re-queues the tap.
+    private func groupedTapGuardActive(for command: String, now: CFTimeInterval) -> Bool {
+        let components = SpineInteractionAnimationRoles.components(of: command)
+        guard components.count > 1, components.contains(activeAnimationName) else {
+            return false
+        }
+        guard let current = animations[activeAnimationName] else {
+            return false
+        }
+        return (now - activeAnimationStartedAt) * playbackRate < max(current.duration, 0.1)
+    }
+
     /// Colon commands ("a:b") are random animation pairs: pick once per command transition and
-    /// keep the pick while the incoming command string is unchanged.
+    /// keep the pick while the command string is unchanged.
     private func resolvedPairCommandName(_ command: String) -> String {
         guard command.contains(":") else {
             lastPairCommand = nil
@@ -1638,7 +1681,33 @@ final class SpineSetupPoseRenderer {
         return picked
     }
 
-    private func resolvedAnimationName(command: String, now: CFTimeInterval) -> String {
+    private func resolvedAnimationName(
+        command: String,
+        now: CFTimeInterval,
+        poseTime: Double? = nil
+    ) -> String {
+        // Grouped-skip-if-act-playing guard (source IL 309-333): the grouped tap zone
+        // (body|leg, action "act:act2") first reads GetCurrent(track 1) and returns without
+        // playing when the animation still on the track is one of the group's own components
+        // and has not finished. A re-click during act/act2 must therefore be a no-op: the
+        // pair pick stays frozen (no new random pick, no restart) and the clip plays out its
+        // tail. The guard is gated on the requested command being a multi-component pair
+        // (the grouped zone), so every other bundle and command path stays byte-identical.
+        // Declared-pose mode (a snapshot replay draw): the replay is a SINGLE synthetic
+        // evaluation, so the IL's "skip if the group's own clip is still playing" guard can
+        // never be true here — the track is always reset to idle right before the draw. The
+        // guard's pair-pick freeze would keep the previous probe's pick (or fall through to
+        // idle), so a grouped tap command ("act:act2") rendered the idle pose instead of the
+        // one-shot act/act2 pose. A declared pose time means "draw the pose this command
+        // fires", so the pick is re-rolled for this command and the guard is skipped.
+        if poseTime == nil, groupedTapGuardActive(for: command, now: now) {
+            return activeAnimationName
+        }
+        // Declared-pose mode always re-rolls the pair pick (resetDiagnosticProbeState already
+        // cleared it; this also covers a draw that runs without the reset).
+        if poseTime != nil {
+            pairCommandProbeReset()
+        }
         let requestedName = resolvedPairCommandName(command)
         let requested = animations[requestedName] == nil ? idleAnimationName : requestedName
         let current = animations[activeAnimationName]
