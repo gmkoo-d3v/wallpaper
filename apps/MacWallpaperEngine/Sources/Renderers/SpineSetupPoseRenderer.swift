@@ -4882,6 +4882,9 @@ final class SpineSetupPoseRenderer {
     }
 
     private static func normalizeDegrees(_ value: Double) -> Double {
+        // Non-finite input would make the subtraction loops never terminate (NaN
+        // comparisons are always false); map it to 0 instead of spinning.
+        guard value.isFinite else { return 0 }
         var result = value
         while result > 180 {
             result -= 360

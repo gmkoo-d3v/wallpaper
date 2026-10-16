@@ -13686,10 +13686,12 @@ enum RuntimeSelfTest {
             CGPoint(x: 0.125, y: 0.875),
         ]
         let sensitivityMatches = sensitivityProbes.allSatisfy { point in
-            let resolved = weights(plainPlan, at: point, sensitivity: 1.0)
-            let unscaled = weights(plainPlan, at: point, sensitivity: 1)
-            return resolved.count == unscaled.count && resolved.allSatisfy { key, value in
-                abs(value - (unscaled[key] ?? -1)) < 0.0001
+            // nil plan sensitivity resolved at the controller call site vs an explicit
+            // 1.0 in the config — comparing 1.0 against 1 here would be a tautology.
+            let resolved = weights(gazePlan(sensitivity: nil), at: point, sensitivity: 1.0)
+            let explicit = weights(gazePlan(sensitivity: 1.0), at: point, sensitivity: 1.0)
+            return resolved.count == explicit.count && resolved.allSatisfy { key, value in
+                abs(value - (explicit[key] ?? -1)) < 0.0001
             }
         }
         check(

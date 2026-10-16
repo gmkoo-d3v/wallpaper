@@ -159,16 +159,15 @@ final class InteractionController {
         advanceSmoothedPointerLocked()
         let now = clock()
         // Gaze suppression gate: the source runs the gaze blend only while the pointer is NOT
-        // pressed on a hit zone (isLookingAround stays false while the pointer is on the
-        // collider), so a live press on a pointerDown zone must zero the gaze weights. A press
-        // that hits nothing leaves the gaze running, and a bundle without a pointerDown
-        // interaction has no press owner at all, so its weights stay untouched.
+        // pressed at all (source CIL: the gaze block sits behind `!GetMouseButton(0)`, and
+        // the click-start handler sets isLookingAround=true for any press), so ANY held press must
+        // zero the gaze weights — a press that hits no zone still suppresses the gaze.
+        // A bundle without a pointerDown interaction has no press owner at all, so its
+        // weights stay untouched.
         // The blend still advances every snapshot while suppressed (see advanceSmoothedPointerLocked),
         // so the snapshot only hides the weights during the press; the suppressed vector is kept
         // in lastGazeWeights and the weights are restored on release.
         let gazeSuppressedForPress = pressedButton != nil
-            && (plan.hitTest(point: smoothedPointerState, button: pressedButton ?? .left) != nil
-                || plan.hitTest(point: pressStartPoint, button: pressedButton ?? .left) != nil)
         // Snapshot hold preview runs at the bare holdStart threshold (pre-existing
         // behavior). The preview never steals the tap decision: with an alive tap window
         // (tapAction present, no explicit 0 commit, positive commit threshold) and the
