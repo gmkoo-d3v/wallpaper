@@ -448,8 +448,13 @@ final class InteractionController {
         let drag = min(max(dragDistance.isFinite ? dragDistance : 0, 0), 2)
 
         // Move phase (pointerMoved semantics): speed, input-active tail, raw pointer, then the
-        // shared smoothing/gaze-blend advance.
-        if plan.allowsPointerMove(button: nil) {
+        // shared smoothing/gaze-blend advance. A snapshot declares a hover position, so the
+        // move is unbuttoned (button nil); the mask's accepts(nil) is the hover-acceptance bit,
+        // NOT whether any buttoned move is accepted — a buttons:["left"] mask still accepts
+        // hover moves live (acceptsAnyMove), so the replay must use the same gate, otherwise a
+        // hover-only snapshot resets to neutral and resolves idle gaze=none.
+        let moveMask = plan.pointerMoveInputMask()
+        if moveMask.accepts(button: nil) || moveMask.acceptsAnyMove {
             updatePointerSpeedLocked(to: clamped, now: now)
             pointerState = clamped
             markPointerInputActiveLocked(now: now)
@@ -459,7 +464,54 @@ final class InteractionController {
             moveCommandState = idleCommand
             pointerInputActiveUntil = 0
         }
-        advanceSmoothedPointerLocked()
+        // The replay is a single synthetic sample: the controller was constructed with
+        // lastSmoothSampleAt == now, so a bare advance would see elapsed = 0 and the
+        // gaze blend would never converge (alpha = 1 - exp(-returnSpeed * 0) = 0 keeps
+        // every weight at 0 and the snapshot renders idle regardless of the pointer).
+        // Converge the blend over the reference cadence, repeated to a steady state. The
+        // advance reads clock() (a fixed value under the snapshot resolver), so the blend
+        // is converged directly here with the same math advanceSmoothedPointerLocked runs,
+        // and the smoothed pointer is set to the declared position (the converged limit of
+        // the pointer smoothing).
+        // plan.smooth clamps elapsed to maxPointerSmoothingElapsedSeconds (1/30), so a single
+        // call with elapsed=10 converges only one frame's alpha (~0.12) and leaves the smoothed
+        // pointer near neutral — the gaze target would then be ~0 and every weight 0. Iterate
+        // the smoothing to its fixed point (the clamped target), the converged limit of the
+        // live pointer smoothing.
+        for _ in 0..<600 {
+            smoothedPointerState = plan.smooth(
+                current: smoothedPointerState,
+                target: pointerState,
+                elapsedSeconds: 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+            )
+        }
+        moveCommandState = plan.command(for: smoothedPointerState, previousCommand: moveCommandState)
+        if let gaze = plan.pointerMoveGazeConfig(), let actions = plan.pointerMoveActions() {
+            let cadence = 1.0 / InteractionPlan.pointerSmoothingReferenceFps
+            for _ in 0..<60 {
+                gazeWeightsState = plan.gazeWeights(
+                    point: smoothedPointerState,
+                    previous: gazeVelocityState,
+                    elapsedSeconds: cadence,
+                    sensitivity: gaze.sensitivity ?? 1,
+                    returnSpeed: gaze.returnSpeed ?? 10,
+                    actions: actions
+                )
+                var vx = 0.0
+                var vy = 0.0
+                for entry in gazeWeightsState {
+                    switch entry.action {
+                    case actions["left"]: vx = -entry.weight
+                    case actions["right"]: vx = entry.weight
+                    case actions["up"]: vy = -entry.weight
+                    case actions["down"]: vy = entry.weight
+                    default: break
+                    }
+                }
+                gazeVelocityState = CGPoint(x: CGFloat(vx), y: CGFloat(vy))
+            }
+            lastGazeWeights = gazeWeightsState
+        }
 
         guard pointerDown else {
             // No press: the release-free steady state (move command + gaze weights).

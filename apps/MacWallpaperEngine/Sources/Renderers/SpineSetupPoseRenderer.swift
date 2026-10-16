@@ -804,6 +804,7 @@ final class SpineSetupPoseRenderer {
         holdActive: Bool = false,
         pressActive: Bool = false,
         now: CFTimeInterval? = nil,
+        poseTime: Double? = nil,
         drawableSize: CGSize,
         contentRect: CGRect,
         encoder: MTLRenderCommandEncoder,
@@ -821,7 +822,8 @@ final class SpineSetupPoseRenderer {
             gazeWeights: gazeWeights,
             holdActive: holdActive,
             pressActive: pressActive,
-            now: now ?? CACurrentMediaTime()
+            now: now ?? CACurrentMediaTime(),
+            poseTime: poseTime
         )
         let foregroundAspectScale = SIMD2<Float>(1.0, 1.0)
 
@@ -989,19 +991,27 @@ final class SpineSetupPoseRenderer {
         gazeWeights: [(action: String, weight: Double)] = [],
         holdActive: Bool = false,
         pressActive: Bool = false,
-        now: CFTimeInterval = CACurrentMediaTime()
+        now: CFTimeInterval = CACurrentMediaTime(),
+        poseTime: Double? = nil
     ) -> [Batch] {
         let animationName = resolvedAnimationName(command: command, now: now)
         guard let activeAnimation = animations[animationName] ?? animations[idleAnimationName] else {
             return cachedBatches
         }
-        let activeAnimationTime = time(in: activeAnimation, now: now)
+        // Declared-pose mode (snapshot live-draw parity): every animation samples at the
+        // declared pose time instead of a wall-clock-anchored elapsed time, so a fixed
+        // snapshot `time` selects the pose the desktop shows at that moment of the clip.
+        let declaredPoseTime = poseTime
+        let activeAnimationTime = declaredPoseTime ?? time(in: activeAnimation, now: now)
         let idleAnimation = animations[idleAnimationName]
-        let idleAnimationTime = idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0
-        let transitionMix = animationTransitionMix(now: now)
+        let idleAnimationTime = declaredPoseTime
+            ?? (idleAnimation.map { loopedTime(in: $0, startedAt: rendererStartedAt, now: now) } ?? 0)
+        let transitionMix = declaredPoseTime != nil ? 1.0 : animationTransitionMix(now: now)
         let activeOverlayAnimation = activeAnimation.name == idleAnimationName ? nil : activeAnimation
         let activeOverlayMix = activeOverlayAnimation == nil ? 0 : transitionMix
-        let previousOverlayAnimation = previousOverlayAnimationName.flatMap { animations[$0] }
+        let previousOverlayAnimation = declaredPoseTime == nil
+            ? previousOverlayAnimationName.flatMap { animations[$0] }
+            : nil
         let previousOverlayTime = previousOverlayAnimation.map {
             time(in: $0, startedAt: previousOverlayAnimationStartedAt, now: now)
         } ?? 0
@@ -1009,7 +1019,7 @@ final class SpineSetupPoseRenderer {
         if transitionMix >= 1.0 {
             previousOverlayAnimationName = nil
         }
-        let physicsTime = max(0, now - rendererStartedAt) * playbackRate
+        let physicsTime = (declaredPoseTime ?? max(0, now - rendererStartedAt)) * playbackRate
         let sleepPhysicsForIdle = shouldSleepPhysicsForIdle(
             animationName: activeAnimation.name,
             pointer: pointer,
@@ -1021,6 +1031,11 @@ final class SpineSetupPoseRenderer {
             physicsIdleSleeping = sleepPhysicsForIdle
         }
         let posePhysicsTime = physicsConstraintsEnabled && sleepPhysicsForIdle == false ? physicsTime : 0
+        // Declared-pose mode is a single deterministic evaluation: drop the previous-frame
+        // pose-cache key so a cached live-frame batch can never stand in for the pose.
+        if declaredPoseTime != nil {
+            cachedPoseKey = ""
+        }
         let bindingSnapshot = DeclarativeBindingEvaluator.evaluate(
             plan: declarativePlan,
             input: DeclarativeBindingEvaluationInput(
@@ -1036,7 +1051,8 @@ final class SpineSetupPoseRenderer {
             pointer: pointer,
             holdActive: holdActive,
             pressActive: pressActive,
-            now: now
+            now: now,
+            poseTime: declaredPoseTime
         )
         let canUsePoseFrameCache = physicsConstraintsEnabled == false || sleepPhysicsForIdle
         // Continuous gaze blend: resolve declared gaze weights to (animation, time, weight)
@@ -1059,7 +1075,7 @@ final class SpineSetupPoseRenderer {
                       animation.name != idleAnimationName else {
                     return nil
                 }
-                return (animation, time(in: animation, now: gazeNow), min(max(entry.weight, 0), 1))
+                return (animation, declaredPoseTime ?? time(in: animation, now: gazeNow), min(max(entry.weight, 0), 1))
             }
         }
         let sampleFps = previousOverlayAnimation == nil && gazeOverlays.isEmpty ? sampleFps(for: animationName) : poseSampleFps
@@ -1177,11 +1193,17 @@ final class SpineSetupPoseRenderer {
         pointer: CGPoint,
         holdActive: Bool,
         pressActive: Bool,
-        now: CFTimeInterval
+        now: CFTimeInterval,
+        poseTime: Double? = nil
     ) -> [BoneFollowOffset] {
         let bindings = declarativePlan.boneFollowBoneBindings
         guard bindings.isEmpty == false else { return [] }
-        let elapsed = max(0, min(now - (lastBoneFollowSampleAt ?? now), 0.25))
+        // Declared-pose mode: the follow ramp integrates over the declared pose time, so a
+        // fixed snapshot time selects how far the follow has converged (the wall-clock delta
+        // of a single synthetic frame is 0 and would leave the follow at its rest pose).
+        let elapsed = poseTime != nil
+            ? min(max(poseTime ?? 0, 0), 0.25)
+            : max(0, min(now - (lastBoneFollowSampleAt ?? now), 0.25))
         lastBoneFollowSampleAt = now
         var offsets: [BoneFollowOffset] = []
         for binding in bindings {
@@ -1192,7 +1214,7 @@ final class SpineSetupPoseRenderer {
                 return seeded
             }()
             boneFollowStates[binding.id] = state
-            let dt = state.lastTime.map { max(0, min(now - $0, 0.25)) } ?? elapsed
+            let dt = poseTime != nil ? elapsed : (state.lastTime.map { max(0, min(now - $0, 0.25)) } ?? elapsed)
             state.lastTime = now
 
             let maxRadius = binding.adapter.maxRadius ?? 10

@@ -167,8 +167,10 @@ struct WallpaperSnapshotDiagnostics {
                     // Live-parity pose: the resolved command through the same draw path the
                     // live frames use (batches: resolvedAnimationName, gaze overlays with the
                     // press gate, bone-follow with the committed-hold gate, transitions). The
-                    // fixed snapshot time keeps the render deterministic; the transition starts
-                    // at the same instant so the resolved pose renders at full mix.
+                    // declared snapshot time is passed as the ANIMATION time (poseTime), not
+                    // just as the clock, so the resolved clip samples at that pose time instead
+                    // of a wall-clock-anchored elapsed time (which collapsed to 0 and made every
+                    // pointer-resolved snapshot render the frame-0 pose identically).
                     spineRenderer.resetDiagnosticProbeState(at: time)
                     spineRenderer.draw(
                         command: resolution.command,
@@ -177,6 +179,7 @@ struct WallpaperSnapshotDiagnostics {
                         holdActive: resolution.holdActive,
                         pressActive: resolution.pressActive,
                         now: time,
+                        poseTime: time,
                         drawableSize: CGSize(width: width, height: height),
                         contentRect: CGRect(x: -1, y: -1, width: 2, height: 2),
                         encoder: encoder,
