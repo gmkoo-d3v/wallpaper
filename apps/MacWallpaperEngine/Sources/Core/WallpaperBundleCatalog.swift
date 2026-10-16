@@ -47,24 +47,24 @@ enum WallpaperBundleCatalog {
         if let projectRoot {
             directories.append(projectRoot.appendingPathComponent("wallpapers"))
         }
-        return diagnose(in: directories)
+        return diagnose(in: directories, projectRoot: projectRoot)
     }
 
     static func discoverDefaultBundles(projectRoot: URL? = ProjectPaths.findCatalogProjectRoot()) -> [WallpaperBundleSummary] {
         diagnoseDefaultBundles(projectRoot: projectRoot).compactMap(\.bundle)
     }
 
-    static func discover(in directories: [URL]) -> [WallpaperBundleSummary] {
-        diagnose(in: directories).compactMap(\.bundle)
+    static func discover(in directories: [URL], projectRoot: URL? = nil) -> [WallpaperBundleSummary] {
+        diagnose(in: directories, projectRoot: projectRoot).compactMap(\.bundle)
     }
 
-    static func diagnose(in directories: [URL]) -> [WallpaperBundleDiagnostic] {
+    static func diagnose(in directories: [URL], projectRoot: URL? = nil) -> [WallpaperBundleDiagnostic] {
         var seenPaths = Set<String>()
         var seenIds: [String: WallpaperBundleSummary] = [:]
         var diagnostics: [WallpaperBundleDiagnostic] = []
 
         for directory in directories {
-            for diagnostic in diagnose(in: directory) {
+            for diagnostic in diagnose(in: directory, projectRoot: projectRoot) {
                 let key = diagnostic.root.standardizedFileURL.resolvingSymlinksInPath().path
                 guard seenPaths.insert(key).inserted else { continue }
                 if let bundle = diagnostic.bundle {
@@ -96,9 +96,9 @@ enum WallpaperBundleCatalog {
         diagnose(in: wallpapersDirectory).compactMap(\.bundle)
     }
 
-    static func diagnose(in wallpapersDirectory: URL) -> [WallpaperBundleDiagnostic] {
+    static func diagnose(in wallpapersDirectory: URL, projectRoot: URL? = nil) -> [WallpaperBundleDiagnostic] {
         candidateBundleDirectories(in: wallpapersDirectory)
-            .map(diagnoseBundle)
+            .map { diagnoseBundle($0, projectRoot: projectRoot) }
     }
 
     static func validateBundle(_ url: URL) -> WallpaperBundleSummary? {
@@ -109,14 +109,14 @@ enum WallpaperBundleCatalog {
         return diagnostic.bundle
     }
 
-    static func requireValidBundle(_ url: URL) throws -> WallpaperBundleSummary {
+    static func requireValidBundle(_ url: URL, projectRoot: URL? = nil) throws -> WallpaperBundleSummary {
         let root = url.standardizedFileURL
         guard ProjectPaths.directoryExists(root) else {
             throw EngineError.invalidArgument("Wallpaper bundle is not a directory: \(root.path)")
         }
         let manifestURL = try ManifestLoader.manifestURL(forBundleRoot: root)
 
-        let manifest = try ManifestLoader.load(url: manifestURL, bundleRoot: root)
+        let manifest = try ManifestLoader.load(url: manifestURL, bundleRoot: root, projectRoot: projectRoot)
         return WallpaperBundleSummary(
             id: metadataValue(manifest.metadata?.id) ?? root.lastPathComponent,
             displayName: metadataValue(manifest.metadata?.title) ?? displayName(for: root),
@@ -169,10 +169,10 @@ enum WallpaperBundleCatalog {
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
-    static func diagnoseBundle(_ url: URL) -> WallpaperBundleDiagnostic {
+    static func diagnoseBundle(_ url: URL, projectRoot: URL? = nil) -> WallpaperBundleDiagnostic {
         let root = url.standardizedFileURL
         do {
-            let bundle = try requireValidBundle(root)
+            let bundle = try requireValidBundle(root, projectRoot: projectRoot)
             return WallpaperBundleDiagnostic(root: bundle.root, status: .valid, bundle: bundle, errorMessage: nil)
         } catch {
             return WallpaperBundleDiagnostic(root: root, status: .invalid, bundle: nil, errorMessage: error.localizedDescription)

@@ -13,6 +13,8 @@ struct InteractionHitResult {
     let holdAction: String?
     let rubAction: String?
     let trigger: HitZoneTrigger
+    /// Tap fire timing for tap-triggered zones; .up is the historical release-time behavior.
+    let tapMode: HitZoneTapMode
     let tailSeconds: CFTimeInterval
     let tapTailSeconds: CFTimeInterval
     let rubTailSeconds: CFTimeInterval
@@ -42,6 +44,7 @@ struct InteractionHitZoneSummary {
     let holdAction: String?
     let rubAction: String?
     let trigger: HitZoneTrigger
+    let tapMode: HitZoneTapMode
     let declaredTailSeconds: CFTimeInterval
     let tailSeconds: CFTimeInterval
     let declaredTapTailSeconds: CFTimeInterval
@@ -61,6 +64,9 @@ struct InteractionHitZoneSummary {
         let buttonText = buttons.map(\.rawValue).joined(separator: "+")
         let rectText = rect.map { String(format: "%.3f", $0) }.joined(separator: ",")
         let tailText = String(format: "%.2fs", declaredTailSeconds)
+        // Appended last so zones without an explicit tapMode keep the exact pre-tapMode
+        // byte layout of the hit-zone detail line.
+        let tapModeText = trigger == .tap && tapMode == .down ? " tapMode=down" : ""
         let effectiveTail = effectiveTailText(
             label: "effectiveTail",
             declared: declaredTailSeconds,
@@ -92,7 +98,7 @@ struct InteractionHitZoneSummary {
             )
             return " rubAction=\($0) rubTail=\(String(format: "%.2fs", declaredRubTailSeconds))\(effectiveRubTail) rubStart=\(String(format: "%.2fs", rubStartSeconds)) rubDistance=\(String(format: "%.3f", Double(rubStartDistance)))"
         } ?? ""
-        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText)\(bareHoldActionText)\(rubText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)\(effectiveTail)"
+        return "\(id):\(action) trigger=\(trigger.rawValue)\(tapText)\(bareHoldActionText)\(rubText) buttons=\(buttonText) priority=\(priority) shape=\(shape) bounds=[\(rectText)] tail=\(tailText)\(effectiveTail)\(tapModeText)"
     }
 
     private func effectiveTailText(label: String, declared: CFTimeInterval, effective: CFTimeInterval) -> String {
@@ -214,6 +220,11 @@ struct InteractionPlan {
     /// smoothed exponentially toward that target with returnSpeed (time-based, same pattern as
     /// `smooth`). Weights are per-axis quadrant weights (NOT sum-normalized): left/right come
     /// from the x axis, up/down from the y axis, each capped at 1.
+    /// The per-axis ClampMagnitude(1) cap is applied to the SENSITIVITY-SCALED target, matching
+    /// the source behavior (target = ((viewport − 0.5) × 2) × gazeSensitivity, then
+    /// ClampMagnitude(1)): a sensitivity above 1 saturates a quadrant weight before the pointer
+    /// reaches the screen edge (1.2 saturates at half the neutral-to-edge distance), and an
+    /// absent/nil sensitivity (resolved to 1 by the caller) keeps the edge-normalized mapping.
     func gazeWeights(
         point: CGPoint,
         previous: CGPoint,
@@ -348,6 +359,7 @@ struct InteractionPlan {
             holdAction: nil,
             rubAction: nil,
             trigger: .tap,
+            tapMode: .up,
             tailSeconds: tailDuration(for: action) ?? defaultClickTailDuration,
             tapTailSeconds: tailDuration(for: action) ?? defaultClickTailDuration,
             rubTailSeconds: tailDuration(for: action) ?? defaultClickTailDuration,
@@ -417,6 +429,7 @@ struct InteractionPlan {
                 holdAction: selected.holdAction,
                 rubAction: selected.rubAction,
                 trigger: selected.trigger ?? .tap,
+                tapMode: selected.tapMode ?? .up,
                 tailSeconds: resolvedTailSeconds(for: selected),
                 tapTailSeconds: resolvedTapTailSeconds(for: selected),
                 rubTailSeconds: resolvedRubTailSeconds(for: selected),
@@ -438,6 +451,7 @@ struct InteractionPlan {
                 holdAction: nil,
                 rubAction: nil,
                 trigger: defaultAction.trigger ?? .tap,
+                tapMode: .up,
                 tailSeconds: resolvedTailSeconds(for: defaultAction),
                 tapTailSeconds: resolvedTailSeconds(for: defaultAction),
                 rubTailSeconds: resolvedTailSeconds(for: defaultAction),
@@ -466,6 +480,7 @@ struct InteractionPlan {
                 holdAction: hitZone.holdAction,
                 rubAction: hitZone.rubAction,
                 trigger: hitZone.trigger ?? .tap,
+                tapMode: hitZone.tapMode ?? .up,
                 declaredTailSeconds: declaredTailSeconds(for: hitZone),
                 tailSeconds: resolvedTailSeconds(for: hitZone),
                 declaredTapTailSeconds: declaredTapTailSeconds(for: hitZone),
@@ -646,6 +661,7 @@ struct InteractionPlan {
                     point: center,
                     button: probeButton,
                     trigger: zone.trigger,
+                    tapMode: zone.tapMode,
                     tailSeconds: zone.tailSeconds,
                     holdStartSeconds: zone.holdStartSeconds,
                     holdCommitSeconds: zone.holdCommitSeconds,
@@ -916,6 +932,7 @@ struct InteractionPlan {
         point: CGPoint,
         button: PointerButton,
         trigger: HitZoneTrigger,
+        tapMode: HitZoneTapMode = .up,
         tailSeconds: CFTimeInterval,
         holdStartSeconds: CFTimeInterval,
         holdCommitSeconds: CFTimeInterval,
@@ -1233,7 +1250,9 @@ struct InteractionPlan {
         // Appended after the tap/rub annotations so zones without holdAction stay
         // byte-identical.
         let holdActionText = hit.holdAction.map { " holdAction=\($0)" } ?? ""
-        return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText)\(holdActionText)\(rubText) tail=\(formatInteractionNumber(hit.tailSeconds))"
+        // Appended last so tap zones without an explicit down mode stay byte-identical.
+        let tapModeText = hit.trigger == .tap && hit.tapMode == .down ? " tapMode=down" : ""
+        return "zone=\(hit.zoneID) action=\(hit.action) trigger=\(hit.trigger.rawValue)\(tapText)\(holdActionText)\(rubText)\(tapModeText) tail=\(formatInteractionNumber(hit.tailSeconds))"
     }
 
     func clamp(_ point: CGPoint) -> CGPoint {

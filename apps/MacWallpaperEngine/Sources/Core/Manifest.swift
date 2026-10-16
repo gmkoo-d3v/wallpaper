@@ -281,6 +281,13 @@ enum HitZoneTrigger: String, Decodable {
     case hold
 }
 
+/// When a tap-triggered zone fires its action: at pointer-press ("down") or at
+/// pointer-release ("up", the historical engine behavior). Declared per hit zone.
+enum HitZoneTapMode: String, Decodable {
+    case down
+    case up
+}
+
 struct InteractionPoint: Decodable {
     let x: Double
     let y: Double
@@ -295,6 +302,8 @@ struct HitZone: Decodable {
     let holdAction: String?
     let rubAction: String?
     let trigger: HitZoneTrigger?
+    /// Tap fire timing: "down" fires the action at pointer-press, "up" (default) at release.
+    let tapMode: HitZoneTapMode?
     let tailSeconds: Double?
     let tapTailSeconds: Double?
     let rubTailSeconds: Double?

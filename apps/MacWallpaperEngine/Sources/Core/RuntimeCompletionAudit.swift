@@ -74,7 +74,7 @@ enum RuntimeCompletionAudit {
         manualEvidenceURL: URL? = nil
     ) throws -> String {
         let manualEvidence = try loadManualEvidence(from: manualEvidenceURL)
-        let diagnostics = bundleDirectories.map(WallpaperBundleCatalog.diagnose(in:))
+        let diagnostics = bundleDirectories.map { WallpaperBundleCatalog.diagnose(in: $0, projectRoot: projectRoot) }
             ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
         let invalidDiagnostics = diagnostics.filter { $0.status == .invalid }
@@ -1394,7 +1394,7 @@ enum RuntimeCompletionAudit {
         projectRoot: URL? = ProjectPaths.findCatalogProjectRoot(),
         bundleDirectories: [URL]? = nil
     ) throws -> String {
-        let diagnostics = bundleDirectories.map(WallpaperBundleCatalog.diagnose(in:))
+        let diagnostics = bundleDirectories.map { WallpaperBundleCatalog.diagnose(in: $0, projectRoot: projectRoot) }
             ?? WallpaperBundleCatalog.diagnoseDefaultBundles(projectRoot: projectRoot)
         let bundles = diagnostics.compactMap(\.bundle)
         let interactiveSpineBundles = bundles.filter {

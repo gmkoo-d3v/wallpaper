@@ -2438,6 +2438,7 @@ enum RuntimeSelfTest {
                 let downSnapshot = clickController.snapshot()
                 let shortTouchAction = hitZone.tapAction ?? hitZone.action
                 let defersShortTouchUntilRelease = hitZone.trigger == .hold && hitZone.tapAction != nil
+                let firesAtPress = hitZone.trigger == .tap && hitZone.tapMode == .down
                 let pendingTouchAction = defersShortTouchUntilRelease ? interactionPlan.idleCommand() : shortTouchAction
                 let pendingTouchPulseIsValid = defersShortTouchUntilRelease
                     ? downSnapshot.clickPulse == 0
@@ -2448,10 +2449,40 @@ enum RuntimeSelfTest {
                 )
                 clickController.pointerUp(at: center, button: acceptedButton)
                 let upSnapshot = clickController.snapshot()
-                check(
-                    upSnapshot.command == shortTouchAction && upSnapshot.clickPulse > 0,
-                    "interaction controller must keep initial click action \(shortTouchAction) visible after pointerUp for hit zone \(hitZone.id)"
-                )
+                if firesAtPress {
+                    // Down-mode tap zone: the action fired at press, so the release must keep the
+                    // command live without restarting the tail — the tail expires a tail-length
+                    // after the DOWN, not after the release.
+                    check(
+                        upSnapshot.command == shortTouchAction && upSnapshot.clickPulse > 0,
+                        "interaction controller must fire tapMode=down zone \(hitZone.id) at pointer-down and let pointer-up end the press without a tail replay"
+                    )
+                    var downTailClock: CFTimeInterval = 0
+                    let tailClock = InteractionController(
+                        interactions: manifest.interactions,
+                        policy: manifest.interactionPolicy,
+                        actionTailDurations: tapActionDurations,
+                        clock: { downTailClock }
+                    )
+                    downTailClock = 0
+                    tailClock.pointerDown(at: center, button: acceptedButton)
+                    downTailClock = max(hitZone.tailSeconds - 0.05, 0.01)
+                    tailClock.pointerUp(at: center, button: acceptedButton)
+                    let downTailHeld = tailClock.snapshot()
+                    downTailClock = hitZone.tailSeconds + 0.05
+                    let downTailExpired = tailClock.snapshot()
+                    check(
+                        downTailHeld.command == shortTouchAction
+                            && downTailExpired.command == interactionPlan.idleCommand()
+                            && downTailExpired.clickPulse == 0.0,
+                        "tapMode=down zone \(hitZone.id) must expire its tail a tail-length after the press, not after the release"
+                    )
+                } else {
+                    check(
+                        upSnapshot.command == shortTouchAction && upSnapshot.clickPulse > 0,
+                        "interaction controller must keep initial click action \(shortTouchAction) visible after pointerUp for hit zone \(hitZone.id)"
+                    )
+                }
                 if hasLookDirection {
                     let lookNeutral = SpineInteractionAnimationRoles.lookNeutralPoint(from: manifest)
                     let lookProbe = CGPoint(
@@ -4204,7 +4235,9 @@ enum RuntimeSelfTest {
         try checkUnsupportedSpineCompatibilityBundle(from: runtime, failures: &failures, checks: &checks)
         try checkSpineAnimationPairSyntax(from: runtime, failures: &failures, checks: &checks)
         try checkHoldCommitTapBranchSemantics(from: runtime, failures: &failures, checks: &checks)
+        try checkHitZoneTapModeSemantics(failures: &failures, checks: &checks)
         try checkCommittedHoldActionSemantics(from: runtime, failures: &failures, checks: &checks)
+        try checkGazeSensitivityAndPressSuppression(from: runtime, failures: &failures, checks: &checks)
         try checkDesktopInputDeliveryPlan(from: runtime, failures: &failures, checks: &checks)
 
         if failures.isEmpty == false {
@@ -6117,6 +6150,7 @@ enum RuntimeSelfTest {
                             holdAction: nil,
                             rubAction: nil,
                             trigger: .tap,
+                            tapMode: nil,
                             tailSeconds: 0.5,
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
@@ -6136,6 +6170,7 @@ enum RuntimeSelfTest {
                             holdAction: nil,
                             rubAction: nil,
                             trigger: .hold,
+                            tapMode: nil,
                             tailSeconds: 1.15,
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
@@ -11615,6 +11650,7 @@ enum RuntimeSelfTest {
                 holdAction: nil,
                 rubAction: rubAction,
                 trigger: .hold,
+                tapMode: nil,
                 tailSeconds: tailSeconds,
                 tapTailSeconds: tapTailSeconds,
                 rubTailSeconds: rubTailSeconds,
@@ -11859,6 +11895,139 @@ enum RuntimeSelfTest {
         )
     }
 
+    /// Hit-zone `tapMode` fire timing with an injected clock. Implemented rules: a tap zone
+    /// with tapMode="down" fires its action at pointer-press (command set at down, pulse 1)
+    /// and the release only ends the press — no second fire and no release-tap replay, so the
+    /// tail clock keeps running from the press. A tap zone with tapMode="up" (or no tapMode)
+    /// keeps the historical release-time fire byte-identically.
+    private static func checkHitZoneTapModeSemantics(
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        func tapZone(id: String, tapMode: HitZoneTapMode?) -> HitZone {
+            HitZone(
+                id: id,
+                rect: [0.0, 0.0, 1.0, 1.0],
+                ellipse: nil,
+                action: "act:act2",
+                tapAction: nil,
+                holdAction: nil,
+                rubAction: nil,
+                trigger: .tap,
+                tapMode: tapMode,
+                tailSeconds: 1.0,
+                tapTailSeconds: nil,
+                rubTailSeconds: nil,
+                holdStartSeconds: nil,
+                holdCommitSeconds: nil,
+                rubStartSeconds: nil,
+                rubStartDistance: nil,
+                buttons: [.left],
+                priority: nil
+            )
+        }
+        func controller(
+            tapMode: HitZoneTapMode?,
+            clock: @escaping () -> CFTimeInterval
+        ) -> InteractionController {
+            InteractionController(
+                interactions: [
+                    InteractionConfig(
+                        event: .pointerDown,
+                        mapping: nil,
+                        actions: nil,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        hitZones: [tapZone(id: "body", tapMode: tapMode)],
+                        defaultAction: nil,
+                        buttons: [.left],
+                        gaze: nil
+                    ),
+                    InteractionConfig(
+                        event: .pointerMove,
+                        mapping: "lookDirection",
+                        actions: ["left": "idle", "right": "idle", "up": "idle", "down": "idle", "idle": "idle"],
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        hitZones: nil,
+                        defaultAction: nil,
+                        buttons: nil,
+                        gaze: nil
+                    )
+                ],
+                policy: nil,
+                actionTailDurations: [:],
+                clock: clock
+            )
+        }
+        let center = CGPoint(x: 0.5, y: 0.5)
+
+        // Down mode: the command is live at pointer-down (fire at press), and the release
+        // neither re-fires nor restarts the tail — the tail expires one tail-length after
+        // the PRESS, not after the release.
+        var downClock: CFTimeInterval = 0
+        let downController = controller(tapMode: .down, clock: { downClock })
+        downController.pointerDown(at: center, button: .left)
+        let downSnapshot = downController.snapshot()
+        check(
+            downSnapshot.command == "act:act2" && downSnapshot.clickPulse > 0.99,
+            "tapMode=down: pointer-down must fire the zone action immediately (command live at down)",
+            failures: &failures,
+            checks: &checks
+        )
+        downClock = 0.4
+        downController.pointerUp(at: center, button: .left)
+        let downUpSnapshot = downController.snapshot()
+        check(
+            downUpSnapshot.command == "act:act2" && downUpSnapshot.clickPulse > 0,
+            "tapMode=down: release must keep the already-fired command playing (no second fire, no replay)",
+            failures: &failures,
+            checks: &checks
+        )
+        downClock = 1.0 - 0.05
+        let downTailHeld = downController.snapshot()
+        downClock = 1.0 + 0.01
+        let downExpired = downController.snapshot()
+        check(
+            downTailHeld.command == "act:act2" && downExpired.command == "idle" && downExpired.clickPulse == 0.0,
+            "tapMode=down: the tail clock starts at the press, so the command expires a tail-length after DOWN (release must not extend it)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // Up mode (explicit): the press stays neutral and the release fires the action.
+        var upClock: CFTimeInterval = 0
+        let upController = controller(tapMode: .up, clock: { upClock })
+        upController.pointerDown(at: center, button: .left)
+        let upDownSnapshot = upController.snapshot()
+        upClock = 0.016
+        upController.pointerUp(at: center, button: .left)
+        let upUpSnapshot = upController.snapshot()
+        check(
+            upDownSnapshot.command == "idle" && upDownSnapshot.clickPulse == 0
+                && upUpSnapshot.command == "act:act2" && upUpSnapshot.clickPulse > 0.99,
+            "tapMode=up: pointer-down must stay neutral and pointer-up must fire the zone action",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // Absent tapMode (default): byte-identical to the historical up behavior.
+        var absentClock: CFTimeInterval = 0
+        let absentController = controller(tapMode: nil, clock: { absentClock })
+        absentController.pointerDown(at: center, button: .left)
+        let absentDownSnapshot = absentController.snapshot()
+        absentClock = 0.016
+        absentController.pointerUp(at: center, button: .left)
+        let absentUpSnapshot = absentController.snapshot()
+        check(
+            absentDownSnapshot.command == "idle" && absentDownSnapshot.clickPulse == 0
+                && absentUpSnapshot.command == "act:act2" && absentUpSnapshot.clickPulse > 0.99,
+            "absent tapMode must default to the historical up (release-time) fire semantics",
+            failures: &failures,
+            checks: &checks
+        )
+    }
+
     /// Committed-hold `holdAction` semantics with an injected clock. Implemented rules:
     /// a zone with action + tapAction + holdAction (explicit positive holdCommit) runs the
     /// legacy pre-commit tap window: down is pending, a pre-commit snapshot keeps the legacy
@@ -11892,6 +12061,7 @@ enum RuntimeSelfTest {
                 holdAction: holdAction,
                 rubAction: nil,
                 trigger: .hold,
+                tapMode: nil,
                 tailSeconds: nil,
                 tapTailSeconds: nil,
                 rubTailSeconds: nil,
@@ -12583,6 +12753,7 @@ enum RuntimeSelfTest {
                             holdAction: nil,
                             rubAction: nil,
                             trigger: .tap,
+                            tapMode: nil,
                             tailSeconds: nil,
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
@@ -12602,6 +12773,7 @@ enum RuntimeSelfTest {
                             holdAction: nil,
                             rubAction: nil,
                             trigger: .hold,
+                            tapMode: nil,
                             tailSeconds: nil,
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
@@ -12668,6 +12840,7 @@ enum RuntimeSelfTest {
                             holdAction: nil,
                             rubAction: nil,
                             trigger: .hold,
+                            tapMode: nil,
                             tailSeconds: nil,
                             tapTailSeconds: 0.4,
                             rubTailSeconds: nil,
@@ -12723,6 +12896,7 @@ enum RuntimeSelfTest {
                         holdAction: nil,
                         rubAction: nil,
                         trigger: .tap,
+                        tapMode: nil,
                         tailSeconds: nil,
                         tapTailSeconds: nil,
                         rubTailSeconds: nil,
@@ -12742,6 +12916,7 @@ enum RuntimeSelfTest {
                         holdAction: nil,
                         rubAction: nil,
                         trigger: .hold,
+                        tapMode: nil,
                         tailSeconds: nil,
                         tapTailSeconds: nil,
                         rubTailSeconds: nil,
@@ -13180,6 +13355,85 @@ enum RuntimeSelfTest {
             }
         }
 
+        // (vi-b) Physics NaN/termination guards: a non-finite substep accumulator must never
+        // spin the repeat-while loops (they drain only via `remaining -= step`, which a NaN
+        // never satisfies), and a non-finite rotation input must reset instead of accumulating.
+        // The fixture poisons the physics accumulator through the probe hook; the call simply
+        // must return (a guardless loop would hang the self-test), and the following finite
+        // call must produce a finite pose (the guard zeroed the accumulator, not the pose).
+        do {
+            let nanPhysicsSpineURL = assetsRoot.appendingPathComponent("character_nan_physics.json")
+            let nanPhysicsManifestURL = fixtureRoot.appendingPathComponent("wallpaper_nan_physics.native.json")
+            try Data("""
+                    {
+                      "skeleton": { "spine": "4.2.43", "x": -32, "y": -32, "width": 64, "height": 64 },
+                      "bones": [
+                        { "name": "root" },
+                        { "name": "hair", "parent": "root", "length": 80 }
+                      ],
+                      "slots": [
+                        { "name": "card", "bone": "root", "attachment": "base" }
+                      ],
+                      "physics": [
+                        {
+                          "name": "hair", "bone": "hair",
+                          "x": 5.0, "y": 5.0, "rotate": 0.8,
+                          "inertia": 0.5, "strength": 100, "damping": 1, "limit": 100000
+                        }
+                      ],
+                      "skins": [
+                        { "name": "default", "attachments": { "card": { "base": {
+                          "type": "region", "path": "base", "width": 64, "height": 64 } } } }
+                      ],
+                      "animations": { "idle": {} }
+                    }
+                    """
+                .utf8).write(to: nanPhysicsSpineURL, options: .atomic)
+            try Data(manifestJSON(tapAction: "idle", spineFile: "character_nan_physics.json").utf8)
+                .write(to: nanPhysicsManifestURL, options: .atomic)
+            if let device = MTLCreateSystemDefaultDevice(),
+               let nanRuntime = try? NativeRuntimeCore(config: runtime.config.replacing(
+                    wallpaperRoot: fixtureRoot,
+                    manifestURL: nanPhysicsManifestURL,
+                    displayMode: .primaryAnimated,
+                    renderFps: 30,
+                    foregroundMode: .nativeSpine,
+                    clearDuration: true,
+                    launchControlPanel: false,
+                    launchWallpaper: false
+               )), let nanSpineAsset = nanRuntime.assetCatalog.spineAsset {
+                let nanRenderer = try SpineSetupPoseRenderer(
+                    spineAsset: nanSpineAsset,
+                    device: device,
+                    idleAnimationName: "idle",
+                    loopingAnimationNames: ["idle"],
+                    oneShotAnimationNames: []
+                )
+                let nanBase = CACurrentMediaTime()
+                // Poisoned accumulator: the guarded loops must terminate (this returns).
+                let poisonedPose = nanRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle", now: nanBase, poisonPhysicsState: true
+                )
+                let recoveredPose = nanRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle", now: nanBase + (1.0 / 60.0), resetState: false
+                )
+                check(
+                    poisonedPose.count > 0 && recoveredPose.count > 0
+                        && recoveredPose.allSatisfy { $0.isFinite },
+                    "physics NaN guards must terminate the substep loops and leave a finite pose after a poisoned accumulator, got poisoned=\(poisonedPose.count) recovered=\(recoveredPose.count)",
+                    failures: &failures,
+                    checks: &checks
+                )
+            }
+        } catch {
+            check(
+                false,
+                "physics NaN-guard fixture must construct (\(error.localizedDescription))",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+
         // (vii) Bare-hold zone (trigger=hold, plain action, NO holdAction) must arm the
         // bone-follow gate: InteractionSnapshot.isHoldingLoop is gated on the zone trigger
         // (pressedHitTrigger == .hold), not on a declared holdAction, so buburu-style
@@ -13233,6 +13487,7 @@ enum RuntimeSelfTest {
                             holdAction: nil,
                             rubAction: nil,
                             trigger: .hold,
+                            tapMode: nil,
                             tailSeconds: nil,
                             tapTailSeconds: nil,
                             rubTailSeconds: nil,
@@ -13336,6 +13591,440 @@ enum RuntimeSelfTest {
             check(
                 false,
                 "bare-hold bone-follow fixture must construct (\(error.localizedDescription))",
+                failures: &failures,
+                checks: &checks
+            )
+        }
+    }
+
+    /// CIL-faithful gaze fixes: (a) the gaze target is the sensitivity-scaled pointer offset
+    /// BEFORE the per-axis ClampMagnitude(1) cap (target = ((viewport − 0.5) × 2) ×
+    /// gazeSensitivity, then ClampMagnitude(1)), so a sensitivity above 1 saturates a quadrant
+    /// weight before the pointer reaches the screen edge and an absent sensitivity keeps the
+    /// edge-normalized mapping; (b) the gaze blend is suppressed while a press is live on a
+    /// pointerDown hit zone (isLookingAround stays false while the pointer is on the collider),
+    /// and restored on release.
+    private static func checkGazeSensitivityAndPressSuppression(
+        from runtime: NativeRuntimeCore,
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        checks += 1
+        let lookActions = ["left": "lookLeft", "right": "lookRight", "up": "lookUp", "down": "lookDown", "idle": "idle"]
+
+        func gazePlan(sensitivity: Double?) -> InteractionPlan {
+            InteractionPlan(
+                interactions: [
+                    InteractionConfig(
+                        event: .pointerMove,
+                        mapping: "lookDirection",
+                        actions: lookActions,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        hitZones: nil,
+                        defaultAction: nil,
+                        buttons: nil,
+                        gaze: PointerMoveGazeConfig(sensitivity: sensitivity, returnSpeed: 1000)
+                    )
+                ],
+                policy: InteractionPolicy(
+                    mode: .desktopEmptyOnly,
+                    blockApplicationWindows: true,
+                    blockDesktopItems: true,
+                    pointerSmoothing: 0,
+                    pointerSampleFps: nil,
+                    idleDeadZone: 0.01,
+                    directionSwitchMargin: nil,
+                    defaultClickTailSeconds: nil,
+                    releaseFadeSeconds: nil
+                )
+            )
+        }
+
+        func weights(_ plan: InteractionPlan, at point: CGPoint, sensitivity: Double) -> [String: Double] {
+            Dictionary(uniqueKeysWithValues: plan.gazeWeights(
+                point: point,
+                previous: CGPoint(x: 0, y: 0),
+                elapsedSeconds: 1.0,
+                sensitivity: sensitivity,
+                returnSpeed: 1000,
+                actions: lookActions
+            ).map { ($0.action, $0.weight) })
+        }
+
+        // (a) Sensitivity is a factor applied BEFORE the clamp: with sensitivity 2 the left
+        // weight is already saturated at half the neutral-to-edge distance (x = 0.25), and the
+        // quarter-distance point (x = 0.375) sits at 0.5.
+        let doubledPlan = gazePlan(sensitivity: 2.0)
+        let doubledHalfScreen = weights(doubledPlan, at: CGPoint(x: 0.25, y: 0.5), sensitivity: 2.0)
+        check(
+            abs((doubledHalfScreen["lookLeft"] ?? 0) - 1) < 0.001,
+            "gaze sensitivity 2.0 must reach the full quadrant weight at half the neutral-to-edge distance (sensitivity scales the target before the clamp), got \(doubledHalfScreen)",
+            failures: &failures,
+            checks: &checks
+        )
+        let doubledQuarterScreen = weights(doubledPlan, at: CGPoint(x: 0.375, y: 0.5), sensitivity: 2.0)
+        check(
+            abs((doubledQuarterScreen["lookLeft"] ?? 0) - 0.5) < 0.001,
+            "gaze sensitivity 2.0 must weight the left quadrant at 0.5 a quarter of the way to the edge, got \(doubledQuarterScreen)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // (b) An absent sensitivity resolves to 1.0 at the controller call site, so the
+        // sensitivity-scaled target must equal the plain edge-normalized target at every
+        // pointer position (bundles without a gaze sensitivity keep their current behavior).
+        let plainPlan = gazePlan(sensitivity: nil)
+        let sensitivityProbes: [CGPoint] = [
+            CGPoint(x: 0.5, y: 0.5),
+            CGPoint(x: 0.4375, y: 0.5),
+            CGPoint(x: 0.375, y: 0.5),
+            CGPoint(x: 0.25, y: 0.5),
+            CGPoint(x: 0.0, y: 0.5),
+            CGPoint(x: 0.5, y: 0.75),
+            CGPoint(x: 0.5, y: 0.0),
+            CGPoint(x: 0.125, y: 0.875),
+        ]
+        let sensitivityMatches = sensitivityProbes.allSatisfy { point in
+            let resolved = weights(plainPlan, at: point, sensitivity: 1.0)
+            let unscaled = weights(plainPlan, at: point, sensitivity: 1)
+            return resolved.count == unscaled.count && resolved.allSatisfy { key, value in
+                abs(value - (unscaled[key] ?? -1)) < 0.0001
+            }
+        }
+        check(
+            sensitivityMatches,
+            "gaze weights with sensitivity resolved to 1.0 must equal the unscaled edge-normalized weights at every probe point (nil sensitivity keeps the current mapping)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // (c) Gaze suppression while pressing: a live press on a hit zone must zero the gaze
+        // weights in the snapshot, and the weights must be restored after the release. The
+        // fixture mirrors the yumeko declaration shape (lookDirection gaze + one hold hit zone)
+        // with self-test names.
+        var gazeClock: CFTimeInterval = 0
+        let pressZone = HitZone(
+            id: "gaze_press_zone",
+            rect: [0.40, 0.40, 0.60, 0.60],
+            ellipse: nil,
+            action: "act",
+            tapAction: "act",
+            holdAction: "loopY",
+            rubAction: nil,
+            trigger: .hold,
+            tapMode: nil,
+            tailSeconds: nil,
+            tapTailSeconds: nil,
+            rubTailSeconds: nil,
+            holdStartSeconds: nil,
+            holdCommitSeconds: 0.4,
+            rubStartSeconds: nil,
+            rubStartDistance: nil,
+            buttons: [.left],
+            priority: nil
+        )
+        let gazeController = InteractionController(
+            interactions: [
+                InteractionConfig(
+                    event: .pointerDown,
+                    mapping: nil,
+                    actions: nil,
+                    neutralPoint: nil,
+                    deadZone: nil,
+                    hitZones: [pressZone],
+                    defaultAction: nil,
+                    buttons: [.left],
+                    gaze: nil
+                ),
+                InteractionConfig(
+                    event: .pointerMove,
+                    mapping: "lookDirection",
+                    actions: lookActions,
+                    neutralPoint: nil,
+                    deadZone: nil,
+                    hitZones: nil,
+                    defaultAction: nil,
+                    buttons: nil,
+                    gaze: PointerMoveGazeConfig(sensitivity: 1.2, returnSpeed: 10)
+                )
+            ],
+            policy: InteractionPolicy(
+                mode: .desktopEmptyOnly,
+                blockApplicationWindows: true,
+                blockDesktopItems: true,
+                pointerSmoothing: 0,
+                pointerSampleFps: nil,
+                idleDeadZone: 0.01,
+                directionSwitchMargin: nil,
+                defaultClickTailSeconds: nil,
+                releaseFadeSeconds: nil
+            ),
+            actionTailDurations: [:],
+            clock: { gazeClock }
+        )
+        let gazePoint = CGPoint(x: 0.05, y: 0.5)
+        gazeController.pointerMoved(to: gazePoint)
+        // Drive the blend at frame cadence: the gaze blend clamps its sample delta to the
+        // 1/30s smoothing window (same cap as pointer smoothing), so convergence is measured
+        // in frames, not wall-clock seconds.
+        for _ in 0..<600 {
+            gazeClock += 1.0 / 60.0
+            gazeController.snapshot()
+        }
+        let gazeBeforePress = gazeController.snapshot()
+        let gazeBeforePressWeights = Dictionary(uniqueKeysWithValues: gazeBeforePress.gazeWeights.map { ($0.action, $0.weight) })
+        check(
+            abs((gazeBeforePressWeights["lookLeft"] ?? 0) - 1) < 0.001,
+            "gaze fixture must run the left quadrant at full weight before the press (sensitivity 1.2 saturates the far-left pointer), got \(gazeBeforePressWeights)",
+            failures: &failures,
+            checks: &checks
+        )
+        gazeController.pointerDown(at: CGPoint(x: 0.5, y: 0.5), button: .left)
+        gazeClock += 1.0 / 60.0
+        let gazePressed = gazeController.snapshot()
+        check(
+            gazePressed.isPointerDown && gazePressed.gazeWeights.isEmpty,
+            "gaze weights must be suppressed to zero while a press is live on a hit zone (source: isLookingAround stays false while the pointer is on the collider), got \(gazePressed.gazeWeights.map { ($0.action, $0.weight) })",
+            failures: &failures,
+            checks: &checks
+        )
+        gazeController.pointerUp(at: CGPoint(x: 0.5, y: 0.5), button: .left)
+        gazeClock += 1.0
+        let gazeReleased = gazeController.snapshot()
+        let gazeReleasedWeights = Dictionary(uniqueKeysWithValues: gazeReleased.gazeWeights.map { ($0.action, $0.weight) })
+        check(
+            gazeReleasedWeights["lookLeft"] != nil && gazeReleased.isPointerDown == false,
+            "gaze weights must be restored after the press releases, got \(gazeReleasedWeights)",
+            failures: &failures,
+            checks: &checks
+        )
+
+        // (d) Renderer-side gate: the same press flag must zero the gaze overlays in the pose,
+        // so a pressed pose equals the idle-only pose and an unpressed weighted pose differs.
+        checks += 1
+        if let device = MTLCreateSystemDefaultDevice() {
+            let fileManager = FileManager.default
+            let fixtureRoot = fileManager.temporaryDirectory
+                .appendingPathComponent("MacWallpaperEngineGazePressGateSelfTest-\(UUID().uuidString)", isDirectory: true)
+            defer {
+                try? fileManager.removeItem(at: fixtureRoot)
+            }
+            let assetsRoot = fixtureRoot.appendingPathComponent("assets", isDirectory: true)
+            try fileManager.createDirectory(at: assetsRoot, withIntermediateDirectories: true)
+            guard let sourceTexture = runtime.assetCatalog.spineAsset?.textures.first else {
+                failures.append("gaze press-gate fixture requires an active Spine texture")
+                return
+            }
+            let fixtureTexture = assetsRoot.appendingPathComponent("texture.png")
+            do {
+                try fileManager.linkItem(at: sourceTexture, to: fixtureTexture)
+            } catch {
+                try fileManager.copyItem(at: sourceTexture, to: fixtureTexture)
+            }
+            let atlasText = """
+            texture.png
+            size: 64,64
+            filter: Linear,Linear
+
+            base
+            bounds: 0,0,64,64
+            offsets: 0,0,64,64
+            """
+            try Data(atlasText.utf8).write(to: assetsRoot.appendingPathComponent("character.atlas"), options: .atomic)
+            func gazeGateSpineJSON(withAnimationBlocks blocks: String) -> String {
+                """
+                {
+                  "skeleton": {
+                    "spine": "4.2.43",
+                    "x": -32,
+                    "y": -32,
+                    "width": 64,
+                    "height": 64
+                  },
+                  "bones": [
+                    {
+                      "name": "root"
+                    }
+                  ],
+                  "slots": [
+                    {
+                      "name": "card",
+                      "bone": "root",
+                      "attachment": "base"
+                    }
+                  ],
+                  "skins": [
+                    {
+                      "name": "default",
+                      "attachments": {
+                        "card": {
+                          "base": {
+                            "type": "region",
+                            "path": "base",
+                            "width": 64,
+                            "height": 64
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "animations": {
+                \(blocks)
+                  }
+                }
+                """
+            }
+            let gazeGateSpineURL = assetsRoot.appendingPathComponent("character_gaze_gate.json")
+            try Data(gazeGateSpineJSON(withAnimationBlocks: """
+                    "idle": {},
+                    "lookLeft": {
+                      "bones": {
+                        "root": {
+                          "rotate": [
+                            { "time": 0.0, "value": 20 }
+                          ]
+                        }
+                      }
+                    }
+            """).utf8).write(to: gazeGateSpineURL, options: .atomic)
+            let gazeGateManifestURL = fixtureRoot.appendingPathComponent("wallpaper_gaze_gate.native.json")
+            try Data("""
+            {
+              "schemaVersion": "macos-wallpaper-native.v2",
+              "metadata": {
+                "id": "selftest_gaze_press_gate",
+                "title": "Self Test Gaze Press Gate"
+              },
+              "runtime": {
+                "kind": "native-metal",
+                "targetFps": 30,
+                "maxFps": 60,
+                "fallbackFps": 15,
+                "scheduler": {
+                  "maxInFlightCommandBuffers": 1,
+                  "lateFramePolicy": "drop",
+                  "catchUp": false
+                }
+              },
+              "displayPolicy": {
+                "primary": "full",
+                "secondary": "static",
+                "fullscreenObscured": "pause",
+                "occluded": "pause"
+              },
+              "thermalPolicy": {
+                "nominal": "30fps",
+                "serious": "15fps-or-static",
+                "critical": "pause"
+              },
+              "layerBudgets": {
+                "maxTexturePages": 1,
+                "maxTextureDimension": 4096,
+                "rssTargetMb": 128,
+                "rssHardMb": 256,
+                "primaryCpuTargetPercent": 5,
+                "cpuDowngradePercent": 10,
+                "cpuDowngradeWindowSeconds": 10
+              },
+              "assets": {
+                "spine": {
+                  "id": "gazeGateCharacter",
+                  "version": "4.2.43",
+                  "json": "assets/character_gaze_gate.json",
+                  "atlas": "assets/character.atlas",
+                  "textures": [
+                    "assets/texture.png"
+                  ],
+                  "premultipliedAlpha": false
+                }
+              },
+              "layers": [
+                {
+                  "id": "character",
+                  "type": "spine",
+                  "asset": "gazeGateCharacter",
+                  "renderingMode": "setup-mesh"
+                }
+              ],
+              "interactions": [
+                {
+                  "event": "pointerMove",
+                  "mapping": "lookDirection",
+                  "actions": {
+                    "left": "idle",
+                    "right": "idle",
+                    "up": "idle",
+                    "down": "idle",
+                    "idle": "idle"
+                  }
+                }
+              ],
+              "validation": {
+                "bundleRootOnly": true,
+                "requirePremultipliedAlpha": false,
+                "requireSpineVersion": "4.2.x",
+                "rejectUnknownLayerTypes": true
+              }
+            }
+            """.utf8).write(to: gazeGateManifestURL, options: .atomic)
+            let gazeGateRuntime = try NativeRuntimeCore(config: runtime.config.replacing(
+                wallpaperRoot: fixtureRoot,
+                manifestURL: gazeGateManifestURL,
+                displayMode: .primaryAnimated,
+                renderFps: 30,
+                foregroundMode: .nativeSpine,
+                clearDuration: true,
+                launchControlPanel: false,
+                launchWallpaper: false
+            ))
+            guard let gazeGateSpineAsset = gazeGateRuntime.assetCatalog.spineAsset else {
+                failures.append("gaze press-gate fixture lost its Spine asset")
+                return
+            }
+            let gazeGateRenderer = try SpineSetupPoseRenderer(
+                spineAsset: gazeGateSpineAsset,
+                device: device,
+                idleAnimationName: "idle",
+                loopingAnimationNames: ["idle"],
+                oneShotAnimationNames: []
+            )
+            let gateNow: CFTimeInterval = 100
+            let idlePose = gazeGateRenderer.diagnosticVertexPositionsProbe(
+                command: "idle",
+                pointer: CGPoint(x: 0.05, y: 0.5),
+                gazeWeights: [],
+                now: gateNow
+            )
+            let pressedPose = gazeGateRenderer.diagnosticVertexPositionsProbe(
+                command: "idle",
+                pointer: CGPoint(x: 0.05, y: 0.5),
+                gazeWeights: [("lookLeft", 1.0)],
+                pressActive: true,
+                now: gateNow + 1.0
+            )
+            let unpressedPose = gazeGateRenderer.diagnosticVertexPositionsProbe(
+                command: "idle",
+                pointer: CGPoint(x: 0.05, y: 0.5),
+                gazeWeights: [("lookLeft", 1.0)],
+                pressActive: false,
+                now: gateNow + 2.0
+            )
+            let pressedDelta = zip(idlePose, pressedPose).contains { abs($0 - $1) > 0.001 }
+            let unpressedDelta = zip(idlePose, unpressedPose).contains { abs($0 - $1) > 0.001 }
+            check(
+                idlePose.count > 0
+                    && pressedPose.count == idlePose.count
+                    && pressedDelta == false
+                    && unpressedDelta,
+                "renderer gaze press gate must keep the pressed pose identical to the idle-only pose while the unpressed weighted pose differs, got pressedDelta \(pressedDelta) / unpressedDelta \(unpressedDelta)",
+                failures: &failures,
+                checks: &checks
+            )
+        } else {
+            check(
+                weights(plainPlan, at: CGPoint(x: 0.0, y: 0.5), sensitivity: 1)["lookLeft"] != nil,
+                "gaze press-gate truth table must hold even without Metal for the renderer gate probe",
                 failures: &failures,
                 checks: &checks
             )

@@ -802,6 +802,7 @@ final class SpineSetupPoseRenderer {
         pointer: CGPoint,
         gazeWeights: [(action: String, weight: Double)] = [],
         holdActive: Bool = false,
+        pressActive: Bool = false,
         drawableSize: CGSize,
         contentRect: CGRect,
         encoder: MTLRenderCommandEncoder,
@@ -817,7 +818,8 @@ final class SpineSetupPoseRenderer {
             command: command,
             pointer: pointer,
             gazeWeights: gazeWeights,
-            holdActive: holdActive
+            holdActive: holdActive,
+            pressActive: pressActive
         )
         let foregroundAspectScale = SIMD2<Float>(1.0, 1.0)
 
@@ -984,6 +986,7 @@ final class SpineSetupPoseRenderer {
         pointer: CGPoint,
         gazeWeights: [(action: String, weight: Double)] = [],
         holdActive: Bool = false,
+        pressActive: Bool = false,
         now: CFTimeInterval = CACurrentMediaTime()
     ) -> [Batch] {
         let animationName = resolvedAnimationName(command: command, now: now)
@@ -1030,6 +1033,7 @@ final class SpineSetupPoseRenderer {
         let boneFollowOffsets = advanceBoneFollowStates(
             pointer: pointer,
             holdActive: holdActive,
+            pressActive: pressActive,
             now: now
         )
         let canUsePoseFrameCache = physicsConstraintsEnabled == false || sleepPhysicsForIdle
@@ -1041,6 +1045,12 @@ final class SpineSetupPoseRenderer {
             gazeOverlays = []
         } else {
             let gazeNow = now
+            // Source gate: the gaze blend runs only while the pointer is NOT pressed on a hit
+            // zone, so a live press zeroes every gaze weight before the overlays resolve.
+            // Bundles without a gaze config never reach this branch (empty weights), and a
+            // bundle with a gaze config but no pointerDown zones never has a live press, so
+            // both stay byte-identical.
+            let gazeWeights = pressActive ? [] : gazeWeights
             gazeOverlays = gazeWeights.compactMap { entry in
                 guard entry.weight > 0.001,
                       let animation = animations[entry.action] ?? animations[idleAnimationName],
@@ -1164,6 +1174,7 @@ final class SpineSetupPoseRenderer {
     private func advanceBoneFollowStates(
         pointer: CGPoint,
         holdActive: Bool,
+        pressActive: Bool,
         now: CFTimeInterval
     ) -> [BoneFollowOffset] {
         let bindings = declarativePlan.boneFollowBoneBindings
@@ -1341,17 +1352,31 @@ final class SpineSetupPoseRenderer {
         pointer: CGPoint = CGPoint(x: 0.5, y: 0.5),
         gazeWeights: [(action: String, weight: Double)] = [],
         holdActive: Bool = false,
+        pressActive: Bool = false,
         now: CFTimeInterval = CACurrentMediaTime(),
-        resetState: Bool = true
+        resetState: Bool = true,
+        poisonPhysicsState: Bool = false
     ) -> [Double] {
         resetDiagnosticBoneFollowState = resetState
         if resetState {
             resetDiagnosticProbeState(at: now)
         }
+        // Self-test hook: poison the physics accumulator so the substep loops start with a
+        // non-finite `remaining` (the never-draining condition the termination guards must
+        // survive). Never set outside the self-test.
+        if poisonPhysicsState {
+            for key in physicsStates.keys {
+                physicsStates[key]?.remaining = .nan
+            }
+        }
         let animationName = resolvedAnimationName(command: command, now: now)
         guard let idleAnimation = animations[idleAnimationName] else { return [] }
         let idleTime = loopedTime(in: idleAnimation, startedAt: rendererStartedAt, now: now)
         let activeAnimation = animations[animationName] ?? idleAnimation
+        // Same press gate as the live batches path: a live press on a hit zone suppresses the
+        // gaze overlays (source: isLookingAround stays false while the pointer is on the
+        // collider), so the probe measures the suppressed pose.
+        let gazeWeights = pressActive ? [] : gazeWeights
         let gazeOverlays: [(animation: SpineAnimation, time: Double, weight: Double)] = gazeWeights.compactMap { entry in
             guard entry.weight > 0.001,
                   let animation = animations[entry.action],
@@ -1363,6 +1388,7 @@ final class SpineSetupPoseRenderer {
         let boneFollowOffsets = advanceBoneFollowStates(
             pointer: pointer,
             holdActive: holdActive,
+            pressActive: pressActive,
             now: now
         )
         let pose = evaluate(
@@ -4301,7 +4327,17 @@ final class SpineSetupPoseRenderer {
                     let strength = constraint.strength
                     let wind = constraint.wind * referenceScale
                     let gravity = constraint.gravity * referenceScale
+                    // Termination guard: a non-finite accumulator (NaN/±Inf from poisoned
+                    // upstream state) never satisfies `remaining < step`, so the substep
+                    // loop would spin forever. Cap the iterations; on overflow the
+                    // accumulator is zeroed and the loop ends (finite inputs never hit it).
+                    var guardCount = 0
                     repeat {
+                        if guardCount >= 4096 {
+                            remaining = 0
+                            break
+                        }
+                        guardCount += 1
                         if hasX {
                             runtime.xVelocity += (wind - runtime.xOffset * strength) * massStep
                             runtime.xOffset += runtime.xVelocity * step
@@ -4339,7 +4375,16 @@ final class SpineSetupPoseRenderer {
                 if hasRotation {
                     let targetAngle = atan2(dy + runtime.ty, dx + runtime.tx)
                     let rotationDelta = targetAngle - axisAngle - runtime.rotateOffset * mixedRotation
-                    runtime.rotateOffset += normalizeRadians(rotationDelta) * inertia
+                    // Non-finite guard: a poisoned target/offset would accumulate NaN into
+                    // rotateOffset and poison every later frame; reset the rotation state
+                    // instead of accumulating (finite inputs are unchanged).
+                    if (dx + runtime.tx).isFinite, (dy + runtime.ty).isFinite,
+                       axisAngle.isFinite, runtime.rotateOffset.isFinite, mixedRotation.isFinite {
+                        runtime.rotateOffset += normalizeRadians(rotationDelta) * inertia
+                    } else {
+                        runtime.rotateOffset = 0
+                        runtime.rotateVelocity = 0
+                    }
                     let updatedAngle = runtime.rotateOffset * mixedRotation + axisAngle
                     axisCos = cos(updatedAngle)
                     axisSin = sin(updatedAngle)
@@ -4362,7 +4407,16 @@ final class SpineSetupPoseRenderer {
                     let wind = constraint.wind
                     let gravity = constraint.gravity
                     let lengthFactor = states[boneIndex].length / max(referenceScale, 0.0001)
+                    // Termination guard: same as the translate loop — a non-finite
+                    // accumulator never drains, so cap the iterations and zero the
+                    // accumulator instead of spinning forever.
+                    var guardCount = 0
                     repeat {
+                        if guardCount >= 4096 {
+                            remaining = 0
+                            break
+                        }
+                        guardCount += 1
                         remaining -= step
                         if hasScale {
                             runtime.scaleVelocity += (wind * axisCos - gravity * axisSin - runtime.scaleOffset * strength) * massStep
@@ -4373,6 +4427,15 @@ final class SpineSetupPoseRenderer {
                             runtime.rotateVelocity -= ((wind * axisSin + gravity * axisCos) * lengthFactor + runtime.rotateOffset * strength) * massStep
                             runtime.rotateOffset += runtime.rotateVelocity * step
                             runtime.rotateVelocity *= dampingFactor
+                            // Non-finite guard: a poisoned velocity/offset would make the
+                            // substep loop never drain and would poison every later frame;
+                            // zero the rotation state and end the loop (finite inputs unchanged).
+                            if runtime.rotateOffset.isFinite == false || runtime.rotateVelocity.isFinite == false {
+                                runtime.rotateOffset = 0
+                                runtime.rotateVelocity = 0
+                                remaining = 0
+                                break
+                            }
                             if remaining >= step {
                                 let updatedAngle = runtime.rotateOffset * mixedRotation + axisAngle
                                 axisCos = cos(updatedAngle)
@@ -4805,6 +4868,9 @@ final class SpineSetupPoseRenderer {
     }
 
     private static func normalizeRadians(_ value: Double) -> Double {
+        // Non-finite input would make the subtraction loops never terminate (NaN
+        // comparisons are always false); map it to 0 instead of spinning.
+        guard value.isFinite else { return 0 }
         var result = value
         while result > .pi {
             result -= .pi * 2

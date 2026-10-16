@@ -88,6 +88,12 @@ final class InteractionController {
     private var pressedHitHoldActionActive = false
     private var pressedHitRubAction: String?
     private var pressedHitTrigger: HitZoneTrigger?
+    /// Tap fire timing of the active press's zone: .down fires the tap action at press time
+    /// and the release only ends the press (no second fire, no release-tail replay).
+    private var pressedHitTapMode: HitZoneTapMode = .up
+    /// Last gaze weight vector produced by the gaze blend, kept through press suppression so
+    /// the weights restore exactly on release.
+    private var lastGazeWeights: [(action: String, weight: Double)] = []
     private var pressedHitTailDuration: CFTimeInterval = 0
     private var pressedHitTapTailDuration: CFTimeInterval = 0
     private var pressedHitRubTailDuration: CFTimeInterval = 0
@@ -152,6 +158,17 @@ final class InteractionController {
 
         advanceSmoothedPointerLocked()
         let now = clock()
+        // Gaze suppression gate: the source runs the gaze blend only while the pointer is NOT
+        // pressed on a hit zone (isLookingAround stays false while the pointer is on the
+        // collider), so a live press on a pointerDown zone must zero the gaze weights. A press
+        // that hits nothing leaves the gaze running, and a bundle without a pointerDown
+        // interaction has no press owner at all, so its weights stay untouched.
+        // The blend still advances every snapshot while suppressed (see advanceSmoothedPointerLocked),
+        // so the snapshot only hides the weights during the press; the suppressed vector is kept
+        // in lastGazeWeights and the weights are restored on release.
+        let gazeSuppressedForPress = pressedButton != nil
+            && (plan.hitTest(point: smoothedPointerState, button: pressedButton ?? .left) != nil
+                || plan.hitTest(point: pressStartPoint, button: pressedButton ?? .left) != nil)
         // Snapshot hold preview runs at the bare holdStart threshold (pre-existing
         // behavior). The preview never steals the tap decision: with an alive tap window
         // (tapAction present, no explicit 0 commit, positive commit threshold) and the
@@ -229,7 +246,7 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState,
+                            gazeWeights: gazeSuppressedForPress ? [] : lastGazeWeights,
                             isHoldingLoop: false
                 )
             } else if preCommitPress,
@@ -264,7 +281,7 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState,
+                            gazeWeights: gazeSuppressedForPress ? [] : lastGazeWeights,
                             isHoldingLoop: false
                 )
             } else if preCommitPress, pressGesturePhase == .holding, tapWindowAlive {
@@ -284,7 +301,7 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState,
+                            gazeWeights: gazeSuppressedForPress ? [] : lastGazeWeights,
                             isHoldingLoop: false
                 )
             } else if preCommitPress, pressGesturePhase == .holding, pressedHitTapAction == nil {
@@ -301,7 +318,7 @@ final class InteractionController {
                     pointerDragDistance: dragDistance,
                     clickPulse: 0.0,
                     isInputActive: true,
-                            gazeWeights: gazeWeightsState,
+                            gazeWeights: gazeSuppressedForPress ? [] : lastGazeWeights,
                             isHoldingLoop: false
                 )
             }
@@ -370,7 +387,7 @@ final class InteractionController {
                 pointerDragDistance: dragDistance,
                 clickPulse: min(max(pulse, 0.0), 1.0),
                 isInputActive: inputActive,
-                        gazeWeights: gazeWeightsState,
+                        gazeWeights: gazeSuppressedForPress ? [] : lastGazeWeights,
                         isHoldingLoop: isHoldingLoop
             )
         }
@@ -388,7 +405,7 @@ final class InteractionController {
             pointerDragDistance: dragDistance,
             clickPulse: 0.0,
             isInputActive: inputActive,
-            gazeWeights: gazeWeightsState,
+            gazeWeights: gazeSuppressedForPress ? [] : lastGazeWeights,
             isHoldingLoop: isHoldingLoop
         )
     }
@@ -454,6 +471,7 @@ final class InteractionController {
         pressedHitHoldActionActive = hitResult?.holdAction != nil
         pressedHitRubAction = hitResult?.rubAction
         pressedHitTrigger = hitResult?.trigger ?? .tap
+        pressedHitTapMode = hitResult?.tapMode ?? .up
         pressedHitTailDuration = hitResult?.tailSeconds ?? defaultClickTailDuration
         pressedHitTapTailDuration = hitResult?.tapTailSeconds ?? defaultClickTailDuration
         pressedHitRubTailDuration = hitResult?.rubTailSeconds ?? defaultClickTailDuration
@@ -517,7 +535,12 @@ final class InteractionController {
                 let hitAction = hitResult.action
                 clickCommandState = hitAction
                 clickCommandHeld = trigger == .hold
-                clickCommandExpiresAt = now + (trigger == .hold ? releaseFadeDuration : pressedHitTailDuration)
+                // Down-mode tap zones fire at press time (the original plays its one-shot at
+                // HandleClickStart): the press window is the tail window, so the release only
+                // ends the press and never re-fires or restarts the tail.
+                clickCommandExpiresAt = now + (trigger == .hold
+                    ? releaseFadeDuration
+                    : (hitResult.tapMode == .down ? pressedHitTailDuration : 0))
                 pressGesturePhase = trigger == .hold ? .holding : .inactive
             }
         } else {
@@ -673,6 +696,9 @@ final class InteractionController {
             elapsedSeconds: elapsed
         )
         moveCommandState = plan.command(for: smoothedPointerState, previousCommand: moveCommandState)
+        // The blend advances on every sample, including while a press suppresses the snapshot
+        // output: the source keeps running its gaze blend under the press gate, so the weights
+        // are already at the pointer's target when the release restores them.
         if let gaze = plan.pointerMoveGazeConfig(), let actions = plan.pointerMoveActions() {
             gazeWeightsState = plan.gazeWeights(
                 point: smoothedPointerState,
@@ -696,6 +722,7 @@ final class InteractionController {
                 }
             }
             gazeVelocityState = CGPoint(x: CGFloat(vx), y: CGFloat(vy))
+            lastGazeWeights = gazeWeightsState
         }
     }
 
@@ -915,10 +942,17 @@ final class InteractionController {
             return
         }
         if let pressedHitAction, pressedHitTrigger == .tap {
-            clickCommandState = pressedHitAction
-            clickCommandHeld = false
-            activeClickTailDuration = pressedHitTailDuration
-            clickCommandExpiresAt = max(clickCommandExpiresAt, now + pressedHitTailDuration)
+            if pressedHitTapMode == .down {
+                // Down-mode tap zone: the action already fired at press time. The release
+                // ends the press only — no second fire and no release-tail replay; the tail
+                // clock started at the press, so an in-flight one-shot keeps playing out.
+                clickCommandHeld = false
+            } else {
+                clickCommandState = pressedHitAction
+                clickCommandHeld = false
+                activeClickTailDuration = pressedHitTailDuration
+                clickCommandExpiresAt = max(clickCommandExpiresAt, now + pressedHitTailDuration)
+            }
         } else if let pressedHitAction, pressedHitTrigger == .hold {
             // FIX3: pointer-up is the sole owner of the release tail for holdAction presses:
             // the in-press preview window must never extend the expiry computed below.
@@ -1013,6 +1047,7 @@ final class InteractionController {
     /// Shared press-state teardown for pointer-up.
     private func finishPressStateLocked(now: CFTimeInterval) {
         pressedHitTrigger = nil
+        pressedHitTapMode = .up
         pressedHitTailDuration = 0
         pressedHitTapTailDuration = 0
         pressedHitRubTailDuration = 0

@@ -11,7 +11,11 @@ private struct WallpaperEngineProjectJSON: Decodable {
 }
 
 enum ManifestLoader {
-    static func load(url: URL, bundleRoot: URL) throws -> WallpaperNativeManifest {
+    static func load(
+        url: URL,
+        bundleRoot: URL,
+        projectRoot: URL? = nil
+    ) throws -> WallpaperNativeManifest {
         let requestedManifestURL = url.standardizedFileURL
         let requestedRoot = bundleRoot.standardizedFileURL
 
@@ -35,11 +39,35 @@ enum ManifestLoader {
         }
 
         let data = try Data(contentsOf: requestedManifestURL)
-        try ManifestSchemaResource.validateManifestData(data)
+        // Resolve the schema from the project tree that carries the manifest's own
+        // apps/MacWallpaperEngine package, so a bundle validated from a temporary
+        // copy (installer round-trip) still checks against the schema shipped with
+        // this build instead of a stale copy found via the current directory.
+        let schemaProjectRoot = projectRoot
+            ?? ManifestLoader.projectRoot(forBundleRoot: root)
+            ?? ProjectPaths.findCatalogProjectRoot()
+        try ManifestSchemaResource.validateManifestData(data, projectRoot: schemaProjectRoot)
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(WallpaperNativeManifest.self, from: data)
         try validate(manifest, bundleRoot: root, requestedBundleRoot: requestedRoot)
         return manifest
+    }
+
+    /// Walks up from a bundle root to the project tree that carries the engine
+    /// package (apps/MacWallpaperEngine/Package.swift), so schema resolution
+    /// follows the manifest's own tree rather than the process working directory.
+    static func projectRoot(forBundleRoot root: URL) -> URL? {
+        var current = root.standardizedFileURL.deletingLastPathComponent()
+        for _ in 0..<8 {
+            let packageMarker = current.appendingPathComponent("apps/MacWallpaperEngine/Package.swift")
+            if FileManager.default.fileExists(atPath: packageMarker.path) {
+                return current
+            }
+            let parent = current.deletingLastPathComponent()
+            if parent.path == current.path { break }
+            current = parent
+        }
+        return nil
     }
 
     static func manifestURL(forBundleRoot root: URL) throws -> URL {
@@ -457,11 +485,24 @@ enum ManifestLoader {
             throw EngineError.manifest("at least one layer is required")
         }
         if requiresStaticPreview(manifest.displayPolicy), manifest.assets.staticImage == nil {
-            let previewURL = bundleRoot.appendingPathComponent("preview.jpg")
-            guard FileManager.default.fileExists(atPath: previewURL.path) else {
+            // The preview check resolves the bundle's preview image: a preview.jpg at the
+            // bundle root, else the Wallpaper Engine project preview. A bundle whose preview
+            // lives outside preview.jpg (e.g. only in the user library copy) stays loadable.
+            let previewCandidates = [
+                bundleRoot.appendingPathComponent("preview.jpg"),
+                wallpaperEnginePreviewURL(forBundleRoot: bundleRoot)
+            ].compactMap { $0 }
+            // Dimension checks only run for candidates that exist: a missing preview is a
+            // loadable state (the bundle may ship its preview elsewhere), so probing a
+            // candidate must never abort the load.
+            let existingPreviewURL = previewCandidates.first(where: {
+                FileManager.default.fileExists(atPath: $0.path)
+            })
+            if let existingPreviewURL {
+                try validateTextureDimensions(existingPreviewURL, maxDimension: manifest.layerBudgets.maxTextureDimension)
+            } else if previewCandidates.isEmpty {
                 throw EngineError.asset("static display policy requires preview.jpg")
             }
-            try validateTextureDimensions(previewURL, maxDimension: manifest.layerBudgets.maxTextureDimension)
         }
 
         if manifest.validation.requirePremultipliedAlpha {
@@ -1387,7 +1428,11 @@ enum ManifestLoader {
                   ellipse.radiusY > 0,
                   ellipse.center.x - ellipse.radiusX >= 0,
                   ellipse.center.x + ellipse.radiusX <= 1,
-                  ellipse.center.y - ellipse.radiusY >= 0,
+                  // The top edge may overflow: a normalized pointer can never reach above
+                  // y=1, so a collider whose true radius crosses the top of the content
+                  // band stays expressible (the off-band part is inert) instead of forcing
+                  // a shrunken radius. The bottom edge stays clipped.
+                  ellipse.center.y - ellipse.radiusY >= 0 || ellipse.center.y <= 0.5,
                   ellipse.center.y + ellipse.radiusY <= 1 else {
                 throw EngineError.manifest("hitZone \(hitZone.id) ellipse must stay inside normalized content bounds")
             }
@@ -1439,6 +1484,11 @@ enum ManifestLoader {
         }
         if hitZone.rubAction != nil, (hitZone.trigger ?? .tap) != .hold {
             throw EngineError.manifest("hitZone \(hitZone.id) rubAction requires trigger=hold")
+        }
+        // tapMode only selects the fire timing of the tap branch; hold zones already own
+        // their press/commit timing, so a declaration there would be ambiguous.
+        if hitZone.tapMode != nil, (hitZone.trigger ?? .tap) != .tap {
+            throw EngineError.manifest("hitZone \(hitZone.id) tapMode requires trigger=tap")
         }
         if let buttons = hitZone.buttons, buttons.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")

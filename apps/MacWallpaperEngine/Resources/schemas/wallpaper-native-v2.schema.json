@@ -441,6 +441,7 @@
         "holdAction": { "type": "string", "minLength": 1 },
         "rubAction": { "type": "string", "minLength": 1 },
         "trigger": { "enum": ["tap", "hold"] },
+        "tapMode": { "enum": ["down", "up"] },
         "tailSeconds": { "type": "number", "minimum": 0 },
         "tapTailSeconds": { "type": "number", "minimum": 0 },
         "rubTailSeconds": { "type": "number", "minimum": 0 },
