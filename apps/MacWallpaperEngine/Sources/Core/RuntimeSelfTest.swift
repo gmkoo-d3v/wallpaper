@@ -4236,6 +4236,7 @@ enum RuntimeSelfTest {
         try checkSpineAnimationPairSyntax(from: runtime, failures: &failures, checks: &checks)
         try checkHoldCommitTapBranchSemantics(from: runtime, failures: &failures, checks: &checks)
         try checkHitZoneTapModeSemantics(failures: &failures, checks: &checks)
+        try checkBodyTapResolvesGroupedAction(failures: &failures, checks: &checks)
         try checkCommittedHoldActionSemantics(from: runtime, failures: &failures, checks: &checks)
         try checkGazeSensitivityAndPressSuppression(from: runtime, failures: &failures, checks: &checks)
         try checkSnapshotPointerResolution(failures: &failures, checks: &checks)
@@ -12177,6 +12178,108 @@ enum RuntimeSelfTest {
             failures: &failures,
             checks: &checks
         )
+    }
+
+    /// Live-path body-tap proof: the SAME InteractionController + InteractionPlan objects the
+    /// live pointer path runs (pointerDown → plan.hitTest → snapshot command), driven with the
+    /// shipped buburu hit-zone geometry (face 30 > body 25 > leg 24 > head 10). A press inside
+    /// the body ellipse — including the body∩head overlap where the huge head ellipse covers
+    /// the point — must resolve the grouped act:act2 command, never the head/face actions.
+    private static func checkBodyTapResolvesGroupedAction(
+        failures: inout [String],
+        checks: inout Int
+    ) throws {
+        func ellipseZone(
+            id: String,
+            center: (Double, Double),
+            radius: (Double, Double),
+            action: String,
+            trigger: HitZoneTrigger,
+            tapMode: HitZoneTapMode?,
+            priority: Int
+        ) -> HitZone {
+            HitZone(
+                id: id,
+                rect: nil,
+                ellipse: HitZoneEllipse(
+                    center: InteractionPoint(x: center.0, y: center.1),
+                    radiusX: radius.0,
+                    radiusY: radius.1
+                ),
+                action: action,
+                tapAction: nil,
+                holdAction: nil,
+                rubAction: nil,
+                trigger: trigger,
+                tapMode: tapMode,
+                tailSeconds: nil,
+                tapTailSeconds: nil,
+                rubTailSeconds: nil,
+                holdStartSeconds: nil,
+                holdCommitSeconds: nil,
+                rubStartSeconds: nil,
+                rubStartDistance: nil,
+                buttons: [.left],
+                priority: priority
+            )
+        }
+        // Body center and the body∩head overlap point: both must fire the grouped act:act2.
+        for (label, point) in [
+            ("body center", CGPoint(x: 0.62, y: 0.70)),
+            ("body∩head overlap", CGPoint(x: 0.58, y: 0.66)),
+        ] {
+            var clock: CFTimeInterval = 0
+            let pressController = InteractionController(
+                interactions: [
+                    InteractionConfig(
+                        event: .pointerDown,
+                        mapping: nil,
+                        actions: nil,
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        hitZones: [
+                            ellipseZone(id: "face", center: (0.5009, 0.2774), radius: (0.0324, 0.2663),
+                                        action: "boll", trigger: .hold, tapMode: nil, priority: 30),
+                            ellipseZone(id: "head", center: (0.53855, 0.38308), radius: (0.2847, 0.50705),
+                                        action: "idle_Default", trigger: .hold, tapMode: nil, priority: 10),
+                            ellipseZone(id: "body", center: (0.59416, 0.74296), radius: (0.06785, 0.12062),
+                                        action: "act:act2", trigger: .tap, tapMode: .down, priority: 25),
+                            ellipseZone(id: "leg", center: (0.0893, 0.6346), radius: (0.0893, 0.3203),
+                                        action: "act:act2", trigger: .tap, tapMode: .down, priority: 24),
+                        ],
+                        defaultAction: nil,
+                        buttons: [.left],
+                        gaze: nil
+                    ),
+                    InteractionConfig(
+                        event: .pointerMove,
+                        mapping: "lookDirection",
+                        actions: ["left": "idle", "right": "idle", "up": "idle", "down": "idle", "idle": "idle"],
+                        neutralPoint: nil,
+                        deadZone: nil,
+                        hitZones: nil,
+                        defaultAction: nil,
+                        buttons: nil,
+                        gaze: nil
+                    )
+                ],
+                policy: nil,
+                actionTailDurations: [:],
+                clock: { clock }
+            )
+            pressController.pointerDown(at: point, button: .left)
+            var command = pressController.snapshot().command
+            for _ in 0..<30 {
+                clock += 1.0 / 60.0
+                command = pressController.snapshot().command
+            }
+            check(
+                command == "act:act2",
+                "live-path body tap (\(label) \(point.debugDescription)) must resolve the grouped act:act2 command, not head/face",
+                failures: &failures,
+                checks: &checks
+            )
+        }
     }
 
     /// Committed-hold `holdAction` semantics with an injected clock. Implemented rules:
