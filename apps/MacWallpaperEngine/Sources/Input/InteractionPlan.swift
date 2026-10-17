@@ -409,17 +409,21 @@ struct InteractionPlan {
             guard zoneButtons.contains(button), contains(point: pointer, in: hitZone) else { return nil }
             return (index, hitZone)
         }
-        // CIL first-match semantics: priority is strictly dominant; equal priorities
-        // resolve to the first-declared zone (stable). Zone area must never override
-        // priority — a large low-priority zone must not shadow a small high-priority one.
-        if let selected = matches.max(by: { left, right in
+        // CIL first-match semantics: the shipped code tests zones in decision
+        // order and BREAKS on the first hit, so the winner is the highest-priority
+        // zone and, among equal priorities, the FIRST-declared one (stable). Sort
+        // by (priority DESC, declaration index ASC) and take the first. Zone area
+        // must never override priority — a large low-priority zone must not shadow
+        // a small high-priority one.
+        let ordered = matches.sorted { left, right in
             let leftPriority = left.hitZone.priority ?? 0
             let rightPriority = right.hitZone.priority ?? 0
             if leftPriority != rightPriority {
-                return leftPriority < rightPriority
+                return leftPriority > rightPriority
             }
-            return left.index > right.index
-        })?.hitZone {
+            return left.index < right.index
+        }
+        if let selected = ordered.first?.hitZone {
             return InteractionHitResult(
                 zoneID: selected.id,
                 action: selected.action,
