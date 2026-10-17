@@ -12867,6 +12867,28 @@ enum RuntimeSelfTest {
                     failures: &failures,
                     checks: &checks
                 )
+                // (iii-a2) LIVE grouped-tap pose: a real desktop click on the grouped zone
+                // (no declared pose time) must put a pair component on the track AND move the
+                // body. Replays the live decision chain frame by frame (idle → pair command →
+                // animation frames) and compares each resolved pose against the idle pose —
+                // a resolved-but-never-applied pair would render idle pixels.
+                let liveFrames: [(animation: String, vertices: [Double])] =
+                    renderer.diagnosticLiveTapSequenceProbe(command: "a:b", frames: 8)
+                let liveAnimations = Set(liveFrames.map { $0.animation })
+                let idlePose = renderer.diagnosticVertexPositionsProbe(command: "idle")
+                var poseMoved = false
+                for frame in liveFrames where frame.vertices.count == idlePose.count {
+                    for (lhs, rhs) in zip(frame.vertices, idlePose) where abs(lhs - rhs) > 1e-6 {
+                        poseMoved = true
+                        break
+                    }
+                }
+                check(
+                    liveAnimations.isSubset(of: ["a", "b"]) && poseMoved,
+                    "live grouped tap (no poseTime) must apply the resolved pair component to the active animation and move the body pose away from idle, got animations \(liveAnimations.sorted()) moved=\(poseMoved)",
+                    failures: &failures,
+                    checks: &checks
+                )
             } catch {
                 check(
                     false,

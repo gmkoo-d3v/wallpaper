@@ -1398,6 +1398,34 @@ final class SpineSetupPoseRenderer {
     /// Diagnostics-only: flattened vertex positions of the pose built for a command with
     /// optional gaze overlays. Used by the self-test to prove weighted gaze overlays
     /// change the pose; never used on the live render path.
+    /// Diagnostics-only: replays a LIVE tap sequence (no declared pose time) frame by frame —
+    /// idle frames, a press frame carrying the grouped pair command, then animation frames —
+    /// and returns the resolved animation name plus the pose vertices of every frame. Unlike
+    /// `diagnosticVertexPositionsProbe` this never resets the transient state between frames,
+    /// so it exercises the real live decision chain (grouped guard → pair pick → transition).
+    func diagnosticLiveTapSequenceProbe(
+        command: String,
+        frames: Int,
+        now: CFTimeInterval = CACurrentMediaTime(),
+        frameStep: CFTimeInterval = 1.0 / 30.0
+    ) -> [(animation: String, vertices: [Double])] {
+        resetDiagnosticProbeState(at: now)
+        var frames = frames
+        var results: [(String, [Double])] = []
+        var clock = now
+        while frames > 0 {
+            let resolved = resolvedAnimationName(command: command, now: clock)
+            results.append((resolved, diagnosticVertexPositionsProbe(
+                command: command,
+                now: clock,
+                resetState: false
+            )))
+            clock += frameStep
+            frames -= 1
+        }
+        return results
+    }
+
     func diagnosticVertexPositionsProbe(
         command: String,
         pointer: CGPoint = CGPoint(x: 0.5, y: 0.5),
@@ -1702,6 +1730,15 @@ final class SpineSetupPoseRenderer {
         // fires", so the pick is re-rolled for this command and the guard is skipped.
         if poseTime == nil, groupedTapGuardActive(for: command, now: now) {
             return activeAnimationName
+        }
+        // A NEW grouped press (the command string changed = a fresh tap on the grouped zone)
+        // must re-roll the pair pick, exactly like the declared-pose path above. Without this
+        // the pick stays frozen on the first component for the whole session, so a live body
+        // tap after the first one keeps resolving the same clip and the body never re-animates.
+        // The guard above already returned for a re-click while the group's own clip plays, so
+        // reaching here with a changed command is genuinely a new press.
+        if poseTime == nil, command != lastPairCommand, command.contains(":") {
+            pairCommandProbeReset()
         }
         // Declared-pose mode always re-rolls the pair pick (resetDiagnosticProbeState already
         // cleared it; this also covers a draw that runs without the reset).
