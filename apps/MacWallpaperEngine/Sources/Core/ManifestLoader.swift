@@ -1492,10 +1492,14 @@ enum ManifestLoader {
         if hitZone.rubAction != nil, (hitZone.trigger ?? .tap) != .hold {
             throw EngineError.manifest("hitZone \(hitZone.id) rubAction requires trigger=hold")
         }
-        // tapMode only selects the fire timing of the tap branch; hold zones already own
-        // their press/commit timing, so a declaration there would be ambiguous.
-        if hitZone.tapMode != nil, (hitZone.trigger ?? .tap) != .tap {
-            throw EngineError.manifest("hitZone \(hitZone.id) tapMode requires trigger=tap")
+        // tapMode only selects the fire timing of the tap branch (press vs release). It is
+        // meaningful on tap zones and on hold zones that declare a tapAction (the press-time
+        // tap preview fires at pointer-down); a hold zone without a tapAction has no tap
+        // branch, so a declaration there would be ambiguous.
+        if hitZone.tapMode != nil,
+           (hitZone.trigger ?? .tap) != .tap,
+           hitZone.tapAction == nil {
+            throw EngineError.manifest("hitZone \(hitZone.id) tapMode requires trigger=tap or a tapAction")
         }
         if let buttons = hitZone.buttons, buttons.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) buttons must not be empty")

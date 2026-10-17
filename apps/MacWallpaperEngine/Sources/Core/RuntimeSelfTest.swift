@@ -2241,6 +2241,7 @@ enum RuntimeSelfTest {
             let probeButton = probeHitZone.buttons.first ?? .left
             let probeInitialAction = probeHitZone.tapAction ?? probeHitZone.action
             let probeDefersShortTouch = probeHitZone.trigger == .hold && probeHitZone.tapAction != nil
+                && probeHitZone.tapMode != .down
             let probeDownExpectation = probeDefersShortTouch
                 ? "downSnapshot: \(interactionPlan.idleCommand())/0"
                 : "downSnapshot: \(probeInitialAction)/1"
@@ -2443,7 +2444,9 @@ enum RuntimeSelfTest {
                 let downSnapshot = clickController.snapshot()
                 let shortTouchAction = hitZone.tapAction ?? hitZone.action
                 let defersShortTouchUntilRelease = hitZone.trigger == .hold && hitZone.tapAction != nil
-                let firesAtPress = hitZone.trigger == .tap && hitZone.tapMode == .down
+                    && hitZone.tapMode != .down
+                let firesAtPress = (hitZone.trigger == .tap && hitZone.tapMode == .down)
+                    || (hitZone.trigger == .hold && hitZone.tapAction != nil && hitZone.tapMode == .down)
                 let pendingTouchAction = defersShortTouchUntilRelease ? interactionPlan.idleCommand() : shortTouchAction
                 let pendingTouchPulseIsValid = defersShortTouchUntilRelease
                     ? downSnapshot.clickPulse == 0

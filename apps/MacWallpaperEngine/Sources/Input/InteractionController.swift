@@ -255,7 +255,8 @@ final class InteractionController {
                 )
             } else if preCommitPress,
                       pressGesturePhase == .pendingTap,
-                      pressedHitTapAction != nil {
+                      pressedHitTapAction != nil,
+                      pressedHitTapMode == .up {
                 // Live pendingTap press on a holdAction zone (the tap-window pre-commit
                 // phase): neutral pending — returned directly with inputActive true, so an
                 // elapsed tap tail can never blank the live press to an idle/pulse-0 move
@@ -564,7 +565,17 @@ final class InteractionController {
         activeClickTailDuration = pressedHitTailDuration
         if let hitResult {
             let trigger = hitResult.trigger
-            if trigger == .hold, hitResult.tapAction != nil {
+            if trigger == .hold, hitResult.tapAction != nil, hitResult.tapMode == .down {
+                // Down-mode tap branch on a hold zone (source fires the tap at pointer-down,
+                // CIL HandleClickStart): the tapAction fires at press time with the tap tail,
+                // while the press stays pending so a hold past holdCommit still promotes to
+                // the holdAction loop (activateDelayedHoldIfNeededLocked owns the crossing).
+                pressGesturePhase = .pendingTap
+                clickCommandState = hitResult.tapAction
+                clickCommandHeld = false
+                activeClickTailDuration = hitResult.tapTailSeconds
+                clickCommandExpiresAt = pressStarted + hitResult.tapTailSeconds
+            } else if trigger == .hold, hitResult.tapAction != nil {
                 pressGesturePhase = .pendingTap
                 clickCommandState = nil
                 clickCommandHeld = false
@@ -720,7 +731,17 @@ final class InteractionController {
         activeClickTailDuration = pressedHitTailDuration
         if let hitResult {
             let trigger = hitResult.trigger
-            if trigger == .hold, hitResult.tapAction != nil {
+            if trigger == .hold, hitResult.tapAction != nil, hitResult.tapMode == .down {
+                // Down-mode tap branch on a hold zone (source fires the tap at pointer-down,
+                // CIL HandleClickStart): the tapAction fires at press time with the tap tail,
+                // while the press stays pending so a hold past holdCommit still promotes to
+                // the holdAction loop (activateDelayedHoldIfNeededLocked owns the crossing).
+                pressGesturePhase = .pendingTap
+                clickCommandState = hitResult.tapAction
+                clickCommandHeld = false
+                activeClickTailDuration = hitResult.tapTailSeconds
+                clickCommandExpiresAt = now + hitResult.tapTailSeconds
+            } else if trigger == .hold, hitResult.tapAction != nil {
                 // Pending press: the tap-tail timer starts at the first snapshot promotion
                 // (the live-press block), never at pointer-down, so an undeclared tap tail
                 // cannot expire while the press is live before the commit decision.
