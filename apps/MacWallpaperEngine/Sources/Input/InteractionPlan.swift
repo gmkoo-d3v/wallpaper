@@ -59,6 +59,11 @@ struct InteractionHitZoneSummary {
     let rect: [Double]
     let shape: String
     let priority: Int
+    /// True geometric center of the zone shape (ellipse center / polygon centroid), when the
+    /// zone declares one. The bbox center is unreliable for edge-clipped bounds (the bounds
+    /// clip at the 0..1 content edges) and for zones whose bbox center falls inside a
+    /// higher-priority overlapping zone; diagnostics that must probe a zone itself use this.
+    let geometricCenter: CGPoint?
 
     var detailText: String {
         let buttonText = buttons.map(\.rawValue).joined(separator: "+")
@@ -496,7 +501,8 @@ struct InteractionPlan {
                 buttons: hitZone.buttons ?? interactionButtons,
                 rect: bounds(of: hitZone),
                 shape: shapeName(of: hitZone),
-                priority: hitZone.priority ?? 0
+                priority: hitZone.priority ?? 0,
+                geometricCenter: geometricCenter(of: hitZone)
             )
         }
     }
@@ -1304,8 +1310,22 @@ struct InteractionPlan {
             && Double(point.y) <= rect[3]
     }
 
-    private func bounds(of hitZone: HitZone) -> [Double] {
+    /// The zone shape's true center: the ellipse center, or the polygon vertex centroid.
+    /// Nil for rect-only zones.
+    private func geometricCenter(of hitZone: HitZone) -> CGPoint? {
         if let ellipse = hitZone.ellipse {
+            return CGPoint(x: ellipse.center.x, y: ellipse.center.y)
+        }
+        if let polygon = hitZone.polygon, polygon.count >= 3 {
+            return CGPoint(
+                x: polygon.map(\.x).reduce(0, +) / Double(polygon.count),
+                y: polygon.map(\.y).reduce(0, +) / Double(polygon.count)
+            )
+        }
+        return nil
+    }
+
+    private func bounds(of hitZone: HitZone) -> [Double] {        if let ellipse = hitZone.ellipse {
             return [
                 max(0, ellipse.center.x - ellipse.radiusX),
                 max(0, ellipse.center.y - ellipse.radiusY),

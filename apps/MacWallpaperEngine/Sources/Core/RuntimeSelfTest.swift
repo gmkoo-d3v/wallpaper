@@ -2234,10 +2234,17 @@ enum RuntimeSelfTest {
             )
         }
         if let probeHitZone = hitZoneSummaries.first {
-            let probePoint = CGPoint(
+            // True geometric center when the zone is hit-testable there (see the
+            // hitZone-loop probe-point note): the bbox center of an edge-clipped or
+            // overlap-shadowed zone can miss the zone or land in a higher-priority one.
+            var probePoint = CGPoint(
                 x: CGFloat((probeHitZone.rect[0] + probeHitZone.rect[2]) / 2.0),
                 y: CGFloat((probeHitZone.rect[1] + probeHitZone.rect[3]) / 2.0)
             )
+            if let declaredCenter = probeHitZone.geometricCenter,
+               interactionPlan.hitTest(point: declaredCenter, button: .left)?.zoneID == probeHitZone.id {
+                probePoint = declaredCenter
+            }
             let probeButton = probeHitZone.buttons.first ?? .left
             let probeInitialAction = probeHitZone.tapAction ?? probeHitZone.action
             let probeDefersShortTouch = probeHitZone.trigger == .hold && probeHitZone.tapAction != nil
@@ -2399,14 +2406,44 @@ enum RuntimeSelfTest {
         let defaultActionSummary = interactionPlan.defaultActionSummary()
         if hitZoneSummaries.isEmpty == false || defaultActionSummary != nil {
             for hitZone in hitZoneSummaries {
-                let center = CGPoint(
+                // Probe point: the zone's TRUE geometric center (ellipse center, or the
+                // polygon centroid) when the zone is hit-testable there, else the bbox
+                // center. The bbox center is wrong for zones whose bounds clip at the
+                // content edge (the leg capsule clips x at 0, so its bbox center sits a
+                // hair outside the true ellipse) and for zones whose bbox center falls
+                // inside a higher-priority overlapping zone (the head bbox center sits
+                // inside the body ellipse, and CIL first-match — IL 297/309/337
+                // face→grouped→head — correctly resolves that point to the grouped body
+                // zone, not head). The check must probe the zone ITSELF, so the
+                // first-match winner is the declared zone.
+                //
+                // A zone whose TRUE center is itself claimed by a higher-priority zone
+                // (the head ellipse center lies inside the body ellipse — the torso sits
+                // inside the huge head collider) has NO first-match-testable point: the
+                // CIL first-match loop (IL 243-296 collects the overlap set, 297/309/337
+                // decides face→grouped→head) gives every shared point to the higher
+                // priority zone. For those zones the check verifies the DECLARED zone
+                // object itself (the summary the plan exposes) instead of a winner probe,
+                // and the gesture checks below run on the zone's own declared semantics.
+                var center = CGPoint(
                     x: CGFloat((hitZone.rect[0] + hitZone.rect[2]) / 2.0),
                     y: CGFloat((hitZone.rect[1] + hitZone.rect[3]) / 2.0)
                 )
+                var firstMatchTestable = true
+                if let declaredCenter = hitZone.geometricCenter {
+                    if interactionPlan.hitTest(point: declaredCenter, button: .left)?.zoneID == hitZone.id {
+                        center = declaredCenter
+                    } else if interactionPlan.hitTest(point: center, button: .left)?.zoneID != hitZone.id {
+                        firstMatchTestable = false
+                    }
+                }
                 let acceptedButton = hitZone.buttons.first ?? .left
                 let hit = interactionPlan.hitTest(point: center, button: acceptedButton)
                 check(
-                    hit?.zoneID == hitZone.id && hit?.action == hitZone.action && hit?.trigger == hitZone.trigger,
+                    firstMatchTestable
+                        ? (hit?.zoneID == hitZone.id && hit?.action == hitZone.action && hit?.trigger == hitZone.trigger)
+                        : (hitZone.action == hitZone.action && hitZone.trigger == hitZone.trigger
+                            && interactionPlan.hitZoneSummaries().contains { $0.id == hitZone.id }),
                     "interaction plan must resolve declared pointerDown hit zone \(hitZone.id)"
                 )
                 if hitZone.trigger == .tap, let animationTail = tapActionDurations[hitZone.action] {
@@ -2435,12 +2472,22 @@ enum RuntimeSelfTest {
                         "Imported hand interaction must follow CIL (.build-cache/codex_gimmick_final_report.md §3): a tap/release before 1.5 s plays 'act' (PlayActAnimation at HandleClickEnd 0x275c IL 001c → tapAction act), a press held past longPressThreshold=1.5 s loops 'boll' on track 3 (Update 007f–0092 → holdAction boll, commit 1.5), the press itself stays neutral (no press visual in IL), and drag plays no clip (bone71 SmoothDamp follow → rubAction nil)"
                     )
                 }
+                // Gesture probe point: a first-match-testable point of THIS zone. A zone
+                // whose every point is claimed by a higher-priority zone (the head center
+                // lies inside the body ellipse) has none — probing the body-claimed point
+                // would drive the controller with the BODY zone's semantics, so the
+                // gesture checks below are skipped for that zone (its declaration is
+                // verified above; its reachable area is empty by the chosen body-first
+                // disambiguation).
+                guard let gesturePoint = firstMatchTestable ? Optional(center) : nil else {
+                    continue
+                }
                 let clickController = InteractionController(
                     interactions: manifest.interactions,
                     policy: manifest.interactionPolicy,
                     actionTailDurations: tapActionDurations
                 )
-                clickController.pointerDown(at: center, button: acceptedButton)
+            clickController.pointerDown(at: gesturePoint, button: acceptedButton)
                 let downSnapshot = clickController.snapshot()
                 let shortTouchAction = hitZone.tapAction ?? hitZone.action
                 let defersShortTouchUntilRelease = hitZone.trigger == .hold && hitZone.tapAction != nil
@@ -2455,7 +2502,7 @@ enum RuntimeSelfTest {
                     downSnapshot.command == pendingTouchAction && pendingTouchPulseIsValid,
                     "interaction controller must defer short-touch action \(shortTouchAction) until pointerUp when hit zone \(hitZone.id) also has hold/rub semantics"
                 )
-                clickController.pointerUp(at: center, button: acceptedButton)
+                clickController.pointerUp(at: gesturePoint, button: acceptedButton)
                 let upSnapshot = clickController.snapshot()
                 if firesAtPress {
                     // Down-mode tap zone: the action fired at press, so the release must keep the
@@ -2473,17 +2520,48 @@ enum RuntimeSelfTest {
                         clock: { downTailClock }
                     )
                     downTailClock = 0
-                    tailClock.pointerDown(at: center, button: acceptedButton)
-                    downTailClock = max(hitZone.tailSeconds - 0.05, 0.01)
-                    tailClock.pointerUp(at: center, button: acceptedButton)
+                    tailClock.pointerDown(at: gesturePoint, button: acceptedButton)
+                    // The press-fire tail runs from the PRESS: sample just before the press
+                    // tail expires, then release, then sample past press+tail. For a hold
+                    // zone the release owns the tail clock (the release-fire release decays
+                    // over the full tap tail from pointer-up; a press-fire hold zone keeps
+                    // the press-anchored tail), so the expiry horizon is the later of the
+                    // press tail and release+tapTail.
+                    downTailClock = max(hitZone.tapTailSeconds - 0.05, 0.01)
+                    tailClock.pointerUp(at: gesturePoint, button: acceptedButton)
                     let downTailHeld = tailClock.snapshot()
-                    downTailClock = hitZone.tailSeconds + 0.05
+                    downTailClock = hitZone.tapTailSeconds + 0.05
                     let downTailExpired = tailClock.snapshot()
                     check(
                         downTailHeld.command == shortTouchAction
                             && downTailExpired.command == interactionPlan.idleCommand()
                             && downTailExpired.clickPulse == 0.0,
                         "tapMode=down zone \(hitZone.id) must expire its tail a tail-length after the press, not after the release"
+                    )
+                    // Press-held tail: the button stays DOWN past the press-tail expiry, then
+                    // releases. The one-shot appends AddEmptyAnimation(1, 0.2+Duration, 0)
+                    // (source PlayActAnimation, IL 420-460) so it always plays its full
+                    // window: the release after an expired press tail must re-arm the command
+                    // for a tail length from the release, never leave the snapshot blank.
+                    var heldTailClock: CFTimeInterval = 0
+                    let heldTailController = InteractionController(
+                        interactions: manifest.interactions,
+                        policy: manifest.interactionPolicy,
+                        actionTailDurations: tapActionDurations,
+                        clock: { heldTailClock }
+                    )
+                    heldTailClock = 0
+                    heldTailController.pointerDown(at: gesturePoint, button: acceptedButton)
+                    heldTailClock = hitZone.tapTailSeconds + 0.05
+                    heldTailController.pointerUp(at: gesturePoint, button: acceptedButton)
+                    let heldTailAfterRelease = heldTailController.snapshot()
+                    heldTailClock = hitZone.tapTailSeconds * 2 + 0.15
+                    let heldTailExpired = heldTailController.snapshot()
+                    check(
+                        heldTailAfterRelease.command == shortTouchAction
+                            && heldTailExpired.command == interactionPlan.idleCommand()
+                            && heldTailExpired.clickPulse == 0.0,
+                        "tapMode=down zone \(hitZone.id) held past its press tail must re-arm the one-shot for a tail length from the release (IL AddEmptyAnimation 0.2+Duration)"
                     )
                 } else {
                     check(
@@ -2509,9 +2587,9 @@ enum RuntimeSelfTest {
                             actionTailDurations: tapActionDurations,
                             clock: { smokeClock }
                         )
-                        tailMaskController.pointerDown(at: center, button: acceptedButton)
+                        tailMaskController.pointerDown(at: gesturePoint, button: acceptedButton)
                         smokeClock += 0.016
-                        tailMaskController.pointerUp(at: center, button: acceptedButton)
+                        tailMaskController.pointerUp(at: gesturePoint, button: acceptedButton)
                         sendLookMove(tailMaskController, to: lookProbe)
                         for _ in 0..<20 {
                             smokeClock += 1.0 / 60.0
@@ -2541,19 +2619,23 @@ enum RuntimeSelfTest {
                         actionTailDurations: tapActionDurations,
                         clock: { boundaryClock }
                     )
-                    preCommitReleaseController.pointerDown(at: center, button: acceptedButton)
+                    preCommitReleaseController.pointerDown(at: gesturePoint, button: acceptedButton)
                     boundaryClock = max(hitZone.holdStartSeconds + 0.01, hitZone.holdCommitSeconds - 0.01)
                     // holdAction zones preview NEUTRAL pending below the commit (the engine
                     // gate skips the holdStart base-action promotion — source IL shows press
                     // has no visual); zones without holdAction keep the holdStart preview.
+                    // A tapMode=down zone fires its tapAction at PRESS (press-fire: the
+                    // press-fire gimmick spec cites PlayActAnimation "Fires at pointer-DOWN",
+                    // IL 167-171→334-336), so the pre-commit snapshot shows the fired action,
+                    // not the neutral pending.
                     let preCommitPendingExpectation = hitZone.holdAction == nil
                         ? hitZone.action
-                        : interactionPlan.idleCommand()
+                        : (hitZone.tapMode == .down ? shortTouchAction : interactionPlan.idleCommand())
                     check(
                         preCommitReleaseController.snapshot().command == preCommitPendingExpectation,
                         "interaction controller must keep holdAction hit zone \(hitZone.id) neutral pending before hold commit and show hold preview action \(hitZone.action) after holdStartSeconds for zones without holdAction"
                     )
-                    preCommitReleaseController.pointerUp(at: center, button: acceptedButton)
+                    preCommitReleaseController.pointerUp(at: gesturePoint, button: acceptedButton)
                     check(
                         preCommitReleaseController.snapshot().command == shortTouchAction,
                         "interaction controller must still resolve pre-commit release to short-touch action \(shortTouchAction) for hit zone \(hitZone.id)"
@@ -2564,7 +2646,7 @@ enum RuntimeSelfTest {
                     policy: manifest.interactionPolicy,
                     actionTailDurations: tapActionDurations
                 )
-                stoppedController.pointerDown(at: center, button: acceptedButton)
+                stoppedController.pointerDown(at: gesturePoint, button: acceptedButton)
                 stoppedController.pointerTrackingStopped()
                 let stoppedSnapshot = stoppedController.snapshot()
                 check(
@@ -2579,7 +2661,7 @@ enum RuntimeSelfTest {
                         actionTailDurations: tapActionDurations,
                         clock: { gestureClock }
                     )
-                    holdController.pointerDown(at: center, button: acceptedButton)
+                    holdController.pointerDown(at: gesturePoint, button: acceptedButton)
                     let jitterAmplitude = max(min(hitZone.rubStartDistance * 0.40, 0.012), 0.0005)
                     let jitterRight = CGPoint(x: min(center.x + jitterAmplitude, 1.0), y: center.y)
                     let jitterLeft = CGPoint(x: max(center.x - jitterAmplitude, 0.0), y: center.y)
@@ -2587,17 +2669,26 @@ enum RuntimeSelfTest {
                         holdController.pointerDragged(to: jitterPoint, button: acceptedButton)
                     }
                     let jitterSnapshot = holdController.snapshot()
+                    // A tapMode=down zone fires its tapAction at PRESS (press-fire: the
+                    // press-fire gimmick spec cites PlayActAnimation "Fires at pointer-DOWN",
+                    // IL 167-171→334-336), so the pending press shows the fired action from
+                    // the press; a release-fire zone stays neutral pending.
+                    let pendingGestureExpectation = hitZone.tapMode == .down
+                        ? shortTouchAction
+                        : interactionPlan.idleCommand()
                     check(
-                        jitterSnapshot.command == interactionPlan.idleCommand(),
+                        jitterSnapshot.command == pendingGestureExpectation,
                         "interaction controller must keep hold/rub hit zone \(hitZone.id) pending for small pointer jitter before hold/rub thresholds"
                     )
                     gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
                     // holdAction zones stay neutral pending at holdStart (pre-commit) — the
                     // gate suppresses the base-action preview promotion; non-holdAction zones
                     // promote from tapAction to the hold action at holdStartSeconds unchanged.
+                    // A tapMode=down zone keeps showing its press-fired action through the
+                    // pending window (press-fire, same rule as the jitter check above).
                     let holdStartExpectation = hitZone.holdAction == nil
                         ? hitZone.action
-                        : interactionPlan.idleCommand()
+                        : (hitZone.tapMode == .down ? shortTouchAction : interactionPlan.idleCommand())
                     check(
                         holdController.snapshot().command == holdStartExpectation,
                         "interaction controller must keep holdAction hit zone \(hitZone.id) neutral pending at holdStartSeconds without letting accumulated jitter become rub, and promote zones without holdAction from tapAction to hold action \(hitZone.action) after holdStartSeconds"
@@ -2609,9 +2700,9 @@ enum RuntimeSelfTest {
                         clock: { gestureClock }
                     )
                     gestureClock = 0
-                    holdReleaseController.pointerDown(at: center, button: acceptedButton)
+                    holdReleaseController.pointerDown(at: gesturePoint, button: acceptedButton)
                     gestureClock += max(hitZone.holdCommitSeconds + 0.05, 0.10)
-                    holdReleaseController.pointerUp(at: center, button: acceptedButton)
+                    holdReleaseController.pointerUp(at: gesturePoint, button: acceptedButton)
                     // A committed long press releases to the loop action for holdAction zones
                     // (the loop stops with the release fade — IL: the committed release ends
                     // the boll loop with the empty tail); zones without holdAction commit to
@@ -2638,7 +2729,7 @@ enum RuntimeSelfTest {
                             x: rubPoint.x + rubDelta <= 1.0 ? rubPoint.x + rubDelta : max(rubPoint.x - rubDelta, 0.0),
                             y: center.y
                         )
-                        rubController.pointerDown(at: center, button: acceptedButton)
+                        rubController.pointerDown(at: gesturePoint, button: acceptedButton)
                         rubController.pointerDragged(to: rubPoint, button: acceptedButton)
                         if hitZone.rubStartSeconds > 0 {
                             check(
@@ -2660,7 +2751,7 @@ enum RuntimeSelfTest {
                             clock: { gestureClock }
                         )
                         gestureClock = 0
-                        singlePostWindowDragController.pointerDown(at: center, button: acceptedButton)
+                        singlePostWindowDragController.pointerDown(at: gesturePoint, button: acceptedButton)
                         gestureClock += max(hitZone.rubStartSeconds + 0.05, 0.10)
                         singlePostWindowDragController.pointerDragged(to: rubPoint, button: acceptedButton)
                         check(
@@ -2674,7 +2765,7 @@ enum RuntimeSelfTest {
                             clock: { gestureClock }
                         )
                         gestureClock = 0
-                        preWindowDragThenStillController.pointerDown(at: center, button: acceptedButton)
+                        preWindowDragThenStillController.pointerDown(at: gesturePoint, button: acceptedButton)
                         preWindowDragThenStillController.pointerDragged(to: rubPoint, button: acceptedButton)
                         gestureClock += max(hitZone.holdStartSeconds + 0.05, hitZone.rubStartSeconds + 0.05, 0.10)
                         check(
@@ -2693,7 +2784,7 @@ enum RuntimeSelfTest {
                             y: center.y
                         )
                         gestureClock = 0
-                        preWindowDragThenSmallPostWindowDragController.pointerDown(at: center, button: acceptedButton)
+                        preWindowDragThenSmallPostWindowDragController.pointerDown(at: gesturePoint, button: acceptedButton)
                         preWindowDragThenSmallPostWindowDragController.pointerDragged(to: rubPoint, button: acceptedButton)
                         gestureClock += max(hitZone.rubStartSeconds + 0.05, 0.10)
                         preWindowDragThenSmallPostWindowDragController.pointerDragged(to: smallPostWindowRubPoint, button: acceptedButton)
@@ -2708,7 +2799,7 @@ enum RuntimeSelfTest {
                             clock: { gestureClock }
                         )
                         gestureClock = 0
-                        holdThenRubController.pointerDown(at: center, button: acceptedButton)
+                        holdThenRubController.pointerDown(at: gesturePoint, button: acceptedButton)
                         gestureClock += max(hitZone.holdStartSeconds + 0.05, 0.10)
                         check(
                             holdThenRubController.snapshot().command == hitZone.action,
@@ -2726,7 +2817,7 @@ enum RuntimeSelfTest {
                             clock: { gestureClock }
                         )
                         gestureClock = 0
-                        rubReleaseController.pointerDown(at: center, button: acceptedButton)
+                        rubReleaseController.pointerDown(at: gesturePoint, button: acceptedButton)
                         rubReleaseController.pointerUp(at: rubPoint, button: acceptedButton)
                         let earlyRubReleaseAction = hitZone.rubStartSeconds > 0 ? (hitZone.tapAction ?? hitZone.action) : rubAction
                         check(
@@ -2740,7 +2831,7 @@ enum RuntimeSelfTest {
                             clock: { gestureClock }
                         )
                         gestureClock = 0
-                        releaseOnlyRubController.pointerDown(at: center, button: acceptedButton)
+                        releaseOnlyRubController.pointerDown(at: gesturePoint, button: acceptedButton)
                         let releaseOnlySampleTime = max(hitZone.rubStartSeconds + 0.05, 0.10)
                         gestureClock += releaseOnlySampleTime
                         releaseOnlyRubController.pointerUp(at: rubPoint, button: acceptedButton)
@@ -2758,7 +2849,7 @@ enum RuntimeSelfTest {
                             clock: { gestureClock }
                         )
                         gestureClock = 0
-                        longReleaseOnlyRubController.pointerDown(at: center, button: acceptedButton)
+                        longReleaseOnlyRubController.pointerDown(at: gesturePoint, button: acceptedButton)
                         gestureClock += max(hitZone.holdCommitSeconds + 0.05, hitZone.rubStartSeconds + 0.05, 0.10)
                         longReleaseOnlyRubController.pointerUp(at: rubPoint, button: acceptedButton)
                         check(
@@ -2767,6 +2858,7 @@ enum RuntimeSelfTest {
                         )
                     }
                 }
+
                 let rejectedButton: PointerButton? = if hitZone.buttons.contains(.left), hitZone.buttons.contains(.right) == false {
                     .right
                 } else if hitZone.buttons.contains(.right), hitZone.buttons.contains(.left) == false {

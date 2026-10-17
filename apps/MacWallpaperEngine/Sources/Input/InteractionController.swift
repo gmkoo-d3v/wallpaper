@@ -256,21 +256,32 @@ final class InteractionController {
             } else if preCommitPress,
                       pressGesturePhase == .pendingTap,
                       pressedHitTapAction != nil,
-                      pressedHitTapMode == .up {
-                // Live pendingTap press on a holdAction zone (the tap-window pre-commit
+                      pressedHitTapMode == .up,
+                      pressedHitHoldAction != nil {
+                // Live pendingTap press on a HOLD-ACTION zone (the tap-window pre-commit
                 // phase): neutral pending — returned directly with inputActive true, so an
                 // elapsed tap tail can never blank the live press to an idle/pulse-0 move
                 // snapshot while the finger is down. The preview gate keeps this press
-                // un-promoted below the commit (IL: press has no visual; the release action
-                // plays at click-end, the loop arms only past holdCommit). The pending press
-                // carries no click command of its own, so the pending state owns the state
-                // machine here: clear any elapsed tail window (pointer-up owns the tail clock
-                // for a holdAction zone — the release decays over the full tap tail from the
-                // release) so no stale pending-tail residue can render under the press or
+                // un-promoted below the commit (source IL: press has no visual; the release
+                // action plays at click-end, the loop arms only past holdCommit). The pending
+                // press carries no click command of its own, so the pending state owns the
+                // state machine here: clear any elapsed tail window (pointer-up owns the tail
+                // clock for a holdAction zone — the release decays over the full tap tail from
+                // the release) so no stale pending-tail residue can render under the press or
                 // bleed into the committed-loop sample after the crossing. Pointer-up
                 // re-decides a below-commit release through the tap action (see
                 // activateHoldForReleaseLocked), so the neutral pending never steals the tap
                 // decision.
+                //
+                // Gated on pressedHitHoldAction != nil: the neutral-pending return is the
+                // release-fire semantics of a holdAction zone (source HandleClickEnd calls
+                // PlayActAnimation only at pointer-UP; the press handler sets the pressing
+                // flag with NO clip call — press has no visual; the release-fire gimmick
+                // spec cites HandleClickEnd il:605-637). A zone WITHOUT a holdAction (a bare
+                // hold zone) keeps the pre-existing holdStart base-action preview promotion
+                // byte-identically — its press-time command (set in pointerDown) must stay
+                // visible through the pending window, so it must NOT take this neutral
+                // return.
                 clickCommandState = nil
                 clickCommandHeld = false
                 clickCommandExpiresAt = 0
@@ -570,11 +581,17 @@ final class InteractionController {
                 // CIL HandleClickStart): the tapAction fires at press time with the tap tail,
                 // while the press stays pending so a hold past holdCommit still promotes to
                 // the holdAction loop (activateDelayedHoldIfNeededLocked owns the crossing).
+                // The tail window must stay OPEN for the full tap tail even when the press
+                // starts inside the smoothing warm-up (the first snapshot() advances the
+                // clock by one cadence tick before the down snapshot is read — a press-tail
+                // expiry anchored exactly at press+tail would already be stale at the down
+                // sample); anchor the window at now + tail − one cadence tick so the tail
+                // still expires a tail-length after the press.
                 pressGesturePhase = .pendingTap
                 clickCommandState = hitResult.tapAction
                 clickCommandHeld = false
                 activeClickTailDuration = hitResult.tapTailSeconds
-                clickCommandExpiresAt = pressStarted + hitResult.tapTailSeconds
+                clickCommandExpiresAt = now + max(hitResult.tapTailSeconds - 1.0 / InteractionPlan.pointerSmoothingReferenceFps, 0.001)
             } else if trigger == .hold, hitResult.tapAction != nil {
                 pressGesturePhase = .pendingTap
                 clickCommandState = nil
@@ -812,7 +829,15 @@ final class InteractionController {
             clickCommandHeld = false
             activeClickTailDuration = releaseFadeDuration
             clickCommandExpiresAt = now + releaseFadeDuration
-        } else if clickCommandState == nil || now >= clickCommandExpiresAt {
+        } else if let command = clickCommandState, now < clickCommandExpiresAt {
+            // A live (unheld) click tail survives the tracking stop: keep the command and
+            // its press-anchored expiry so the pending tap-fire state is preserved (the
+            // tail still expires on its own clock). The grouped one-shot fires at
+            // pointer-DOWN (source HandleClickStart → PlayActAnimation, IL 167-171→334-336),
+            // so a press-time tap command must remain visible when desktop tracking stops
+            // mid-press.
+            clickCommandState = command
+        } else {
             clickCommandState = nil
             clickCommandExpiresAt = 0
         }
@@ -1174,7 +1199,17 @@ final class InteractionController {
                 // Down-mode tap zone: the action already fired at press time. The release
                 // ends the press only — no second fire and no release-tail replay; the tail
                 // clock started at the press, so an in-flight one-shot keeps playing out.
+                // Exception: if the press-time tail already EXPIRED while the button stayed
+                // down, the command must re-arm for a tail length from the release — the
+                // grouped one-shot appends AddEmptyAnimation(1, 0.2+Duration, 0) so it always
+                // plays its full window (source PlayActAnimation, IL 420-460); a release
+                // after an expired press tail must not leave the snapshot blank (idle/0).
                 clickCommandHeld = false
+                if clickCommandState == nil || now >= clickCommandExpiresAt {
+                    clickCommandState = pressedHitAction
+                    activeClickTailDuration = pressedHitTailDuration
+                    clickCommandExpiresAt = now + pressedHitTailDuration
+                }
             } else {
                 clickCommandState = pressedHitAction
                 clickCommandHeld = false
