@@ -1393,10 +1393,10 @@ enum ManifestLoader {
         if let rubAction = hitZone.rubAction, rubAction.isEmpty {
             throw EngineError.manifest("hitZone \(hitZone.id) rubAction must not be empty")
         }
-        let hasRect = hitZone.rect != nil
-        let hasEllipse = hitZone.ellipse != nil
-        guard hasRect != hasEllipse else {
-            throw EngineError.manifest("hitZone \(hitZone.id) must define exactly one shape: rect or ellipse")
+        let shapeCount = [hitZone.rect != nil, hitZone.ellipse != nil, hitZone.polygon != nil]
+            .filter { $0 }.count
+        guard shapeCount == 1 else {
+            throw EngineError.manifest("hitZone \(hitZone.id) must define exactly one shape: rect, ellipse, or polygon")
         }
 
         if let rect = hitZone.rect {
@@ -1435,6 +1435,13 @@ enum ManifestLoader {
                   ellipse.center.y - ellipse.radiusY >= 0 || ellipse.center.y <= 0.5,
                   ellipse.center.y + ellipse.radiusY <= 1 else {
                 throw EngineError.manifest("hitZone \(hitZone.id) ellipse must stay inside normalized content bounds")
+            }
+        }
+        if let polygon = hitZone.polygon {
+            guard polygon.count >= 3,
+                  polygon.allSatisfy({ $0.x.isFinite && $0.y.isFinite
+                      && $0.x >= 0 && $0.x <= 1 && $0.y >= 0 && $0.y <= 1 }) else {
+                throw EngineError.manifest("hitZone \(hitZone.id) polygon needs at least 3 finite vertices inside normalized content bounds")
             }
         }
         if let tailSeconds = hitZone.tailSeconds {

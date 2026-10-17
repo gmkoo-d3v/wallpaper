@@ -1267,6 +1267,32 @@ struct InteractionPlan {
             return dx * dx + dy * dy <= 1
         }
 
+        // Even-odd (crossing-number) point-in-polygon test on normalized vertices.
+        if let polygon = hitZone.polygon, polygon.count >= 3 {
+            let px = Double(point.x)
+            let py = Double(point.y)
+            var inside = false
+            var index = polygon.startIndex
+            var next = polygon.index(after: polygon.startIndex)
+            while next < polygon.endIndex {
+                let a = polygon[index]
+                let b = polygon[next]
+                if (a.y > py) != (b.y > py),
+                   px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x {
+                    inside.toggle()
+                }
+                index = next
+                next = polygon.index(after: next)
+            }
+            let last = polygon[polygon.index(before: polygon.endIndex)]
+            let first = polygon[polygon.startIndex]
+            if (last.y > py) != (first.y > py),
+               px < (first.x - last.x) * (py - last.y) / (first.y - last.y) + last.x {
+                inside.toggle()
+            }
+            return inside
+        }
+
         guard let rect = hitZone.rect, rect.count == 4 else { return false }
         return Double(point.x) >= rect[0]
             && Double(point.x) <= rect[2]
@@ -1283,11 +1309,21 @@ struct InteractionPlan {
                 min(1, ellipse.center.y + ellipse.radiusY)
             ]
         }
+        if let polygon = hitZone.polygon, polygon.count >= 3 {
+            return [
+                polygon.map(\.x).min() ?? 0,
+                polygon.map(\.y).min() ?? 0,
+                polygon.map(\.x).max() ?? 0,
+                polygon.map(\.y).max() ?? 0
+            ]
+        }
         return hitZone.rect ?? [0, 0, 0, 0]
     }
 
     private func shapeName(of hitZone: HitZone) -> String {
-        hitZone.ellipse == nil ? "rect" : "ellipse"
+        if hitZone.ellipse != nil { return "ellipse" }
+        if hitZone.polygon != nil { return "polygon" }
+        return "rect"
     }
 
     private func resolvedTailSeconds(for hitZone: HitZone) -> CFTimeInterval {

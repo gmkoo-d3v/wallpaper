@@ -297,6 +297,7 @@ struct HitZone: Decodable {
     let id: String
     let rect: [Double]?
     let ellipse: HitZoneEllipse?
+    let polygon: [HitZonePoint]?
     let action: String
     let tapAction: String?
     let holdAction: String?
@@ -319,6 +320,11 @@ struct HitZoneEllipse: Decodable {
     let center: InteractionPoint
     let radiusX: Double
     let radiusY: Double
+}
+
+struct HitZonePoint: Decodable {
+    let x: Double
+    let y: Double
 }
 
 struct PointerDownDefaultAction: Decodable {
