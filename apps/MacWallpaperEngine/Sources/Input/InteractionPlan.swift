@@ -1270,6 +1270,20 @@ struct InteractionPlan {
         )
     }
 
+    /// True when `point` lies inside the zone's declared shape (ellipse/polygon/rect),
+    /// ignoring priority and first-match resolution. Self-test witness probing uses this
+    /// to find a point geometrically inside a zone whose declared center is claimed by a
+    /// higher-priority overlapping zone.
+    func contains(geometricPoint point: CGPoint, in hitZone: HitZone) -> Bool {
+        contains(point: point, in: hitZone)
+    }
+
+    /// The declared hit zone with this id from the pointerDown config, when present.
+    /// Lets a self-test probe the zone's real shape for witness-point search.
+    func declaredHitZone(id: String) -> HitZone? {
+        pointerDownConfig()?.hitZones?.first(where: { $0.id == id })
+    }
+
     private func contains(point: CGPoint, in hitZone: HitZone) -> Bool {
         if let ellipse = hitZone.ellipse {
             let dx = (Double(point.x) - ellipse.center.x) / ellipse.radiusX

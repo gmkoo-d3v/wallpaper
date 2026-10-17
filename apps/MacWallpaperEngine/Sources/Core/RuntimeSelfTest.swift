@@ -2434,7 +2434,35 @@ enum RuntimeSelfTest {
                     if interactionPlan.hitTest(point: declaredCenter, button: .left)?.zoneID == hitZone.id {
                         center = declaredCenter
                     } else if interactionPlan.hitTest(point: center, button: .left)?.zoneID != hitZone.id {
-                        firstMatchTestable = false
+                        // The declared center is shadowed by a higher-priority zone (the
+                        // head ellipse center lies inside the body ellipse). The zone still
+                        // has first-match-testable area — a point inside its own shape but
+                        // outside every higher-priority zone — so probe a geometric witness
+                        // on a normalized grid instead of declaring the zone untestable.
+                        if let declaredZone = interactionPlan.declaredHitZone(id: hitZone.id) {
+                            witnessSearch: do {
+                                for step in 1...99 {
+                                    let x = CGFloat(step) / 100.0
+                                    for row in 1...99 {
+                                        let y = CGFloat(row) / 100.0
+                                        let probe = CGPoint(x: x, y: y)
+                                        guard interactionPlan.contains(geometricPoint: probe, in: declaredZone) else {
+                                            continue
+                                        }
+                                        if interactionPlan.hitTest(point: probe, button: .left)?.zoneID == hitZone.id {
+                                            center = probe
+                                            break witnessSearch
+                                        }
+                                    }
+                                }
+                            }
+                            firstMatchTestable = interactionPlan.hitTest(
+                                point: center,
+                                button: .left
+                            )?.zoneID == hitZone.id
+                        } else {
+                            firstMatchTestable = false
+                        }
                     }
                 }
                 let acceptedButton = hitZone.buttons.first ?? .left
