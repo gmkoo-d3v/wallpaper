@@ -409,16 +409,14 @@ struct InteractionPlan {
             guard zoneButtons.contains(button), contains(point: pointer, in: hitZone) else { return nil }
             return (index, hitZone)
         }
+        // CIL first-match semantics: priority is strictly dominant; equal priorities
+        // resolve to the first-declared zone (stable). Zone area must never override
+        // priority — a large low-priority zone must not shadow a small high-priority one.
         if let selected = matches.max(by: { left, right in
             let leftPriority = left.hitZone.priority ?? 0
             let rightPriority = right.hitZone.priority ?? 0
             if leftPriority != rightPriority {
                 return leftPriority < rightPriority
-            }
-            let leftArea = area(of: left.hitZone)
-            let rightArea = area(of: right.hitZone)
-            if leftArea != rightArea {
-                return leftArea > rightArea
             }
             return left.index > right.index
         })?.hitZone {
@@ -1274,15 +1272,6 @@ struct InteractionPlan {
             && Double(point.x) <= rect[2]
             && Double(point.y) >= rect[1]
             && Double(point.y) <= rect[3]
-    }
-
-    private func area(of hitZone: HitZone) -> Double {
-        if let ellipse = hitZone.ellipse {
-            return Double.pi * ellipse.radiusX * ellipse.radiusY
-        }
-
-        guard let rect = hitZone.rect, rect.count == 4 else { return .greatestFiniteMagnitude }
-        return max(0, rect[2] - rect[0]) * max(0, rect[3] - rect[1])
     }
 
     private func bounds(of hitZone: HitZone) -> [Double] {
