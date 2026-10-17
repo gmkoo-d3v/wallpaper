@@ -1395,9 +1395,6 @@ final class SpineSetupPoseRenderer {
         }
     }
 
-    /// Diagnostics-only: flattened vertex positions of the pose built for a command with
-    /// optional gaze overlays. Used by the self-test to prove weighted gaze overlays
-    /// change the pose; never used on the live render path.
     /// Diagnostics-only: replays a LIVE tap sequence (no declared pose time) frame by frame —
     /// idle frames, a press frame carrying the grouped pair command, then animation frames —
     /// and returns the resolved animation name plus the pose vertices of every frame. Unlike
@@ -1426,6 +1423,9 @@ final class SpineSetupPoseRenderer {
         return results
     }
 
+    /// Diagnostics-only: flattened vertex positions of the pose built for a command with
+    /// optional gaze overlays. Used by the self-test to prove weighted gaze overlays
+    /// change the pose; never used on the live render path.
     func diagnosticVertexPositionsProbe(
         command: String,
         pointer: CGPoint = CGPoint(x: 0.5, y: 0.5),
