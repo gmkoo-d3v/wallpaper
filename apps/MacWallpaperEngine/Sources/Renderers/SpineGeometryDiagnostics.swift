@@ -234,7 +234,7 @@ struct SpineGeometryDiagnostics {
         spineAsset: SpineAsset,
         device: MTLDevice
     ) throws -> SpineSetupPoseRenderer {
-        try SpineSetupPoseRenderer(
+        let renderer = try SpineSetupPoseRenderer(
             spineAsset: spineAsset,
             device: device,
             playbackRate: runtime.selectedPlaybackRate,
@@ -253,6 +253,18 @@ struct SpineGeometryDiagnostics {
             oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: runtime.manifest),
             declarativePlan: DeclarativeBindingPlan(manifest: runtime.manifest)
         )
+        // Deterministic self-test: seed the pair pick so geometry-walk fingerprints are
+        // reproducible run to run (production keeps the system RNG).
+        if SpineSetupPoseRenderer.deterministicSelfTest {
+            var seed: UInt64 = 0x9E3779B97F4A7C15
+            renderer.pairPickRNG = {
+                seed ^= seed << 13
+                seed ^= seed >> 7
+                seed ^= seed << 17
+                return Int(seed >> 33)
+            }
+        }
+        return renderer
     }
 
     private static func noSpineSummary(actionNames: [String]) -> String {

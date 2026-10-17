@@ -6,6 +6,11 @@ import QuartzCore
 
 enum RuntimeSelfTest {
     static func run(runtime: NativeRuntimeCore) throws -> String {
+        // Deterministic run: every RNG-dependent probe (pair picks, geometry-walk
+        // fingerprints) uses a seeded stream instead of the system RNG, so a run either
+        // passes or fails reproducibly instead of flaking on RNG luck.
+        SpineSetupPoseRenderer.deterministicSelfTest = true
+        defer { SpineSetupPoseRenderer.deterministicSelfTest = false }
         var failures: [String] = []
         var checks = 0
 
@@ -12875,6 +12880,14 @@ enum RuntimeSelfTest {
                 loopingAnimationNames: SpineInteractionAnimationRoles.loopingAnimationNames(from: pairRuntime.manifest),
                 oneShotAnimationNames: SpineInteractionAnimationRoles.oneShotAnimationNames(from: pairRuntime.manifest)
             )
+            // Deterministic pair pick: seeded stream alternates a/b across fresh transitions,
+            // so the freeze check and the 200-transition coverage check pass reproducibly
+            // instead of depending on system-RNG luck.
+            var pairSeed: UInt64 = 0x2545F4914F6CDD1D
+            renderer.pairPickRNG = {
+                pairSeed = pairSeed &* 6364136223846793005 &+ 1442695040888963407
+                return Int((pairSeed >> 33) & 1)
+            }
             // The probe re-enters resolvedAnimationName, whose one-shot branch can echo the
             // outgoing one-shot while requesting idle; the pair pick itself must stay frozen
             // while the command is unchanged, which is asserted with the pair-dedicated probe.

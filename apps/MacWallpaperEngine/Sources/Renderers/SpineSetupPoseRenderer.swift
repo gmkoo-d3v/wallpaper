@@ -593,6 +593,14 @@ final class SpineSetupPoseRenderer {
     private var previousOverlayAnimationStartedAt: CFTimeInterval = CACurrentMediaTime()
     private var lastPairCommand: String?
     private var lastPairPick: String?
+    /// Deterministic seed for the grouped-pair pick (the CIL Random.Range(0,2) stand-in).
+    /// Production keeps the system RNG; the self-test installs a fixed seed so a run's
+    /// outcomes never depend on RNG luck (the 200-transition coverage probe needs both
+    /// components to appear, and the geometry-walk pose fingerprints depend on the pick).
+    var pairPickRNG: (() -> Int)?
+    /// True inside the deterministic self-test run; geometry-walk construction installs a
+    /// seeded `pairPickRNG` so walk fingerprints are reproducible run to run.
+    static var deterministicSelfTest = false
     let batchCount: Int
     let triangleVertexCount: Int
     private static let enablePathConstraints = true
@@ -1703,7 +1711,9 @@ final class SpineSetupPoseRenderer {
         // animation name.
         let components = SpineInteractionAnimationRoles.components(of: command)
         let candidates = components.filter { animations[$0] != nil }
-        let picked = candidates.isEmpty ? idleAnimationName : candidates[Int.random(in: 0..<candidates.count)]
+        let bound = max(candidates.count, 1)
+        let index = pairPickRNG.map { $0() % bound } ?? Int.random(in: 0..<bound)
+        let picked = candidates.isEmpty ? idleAnimationName : candidates[index]
         lastPairCommand = command
         lastPairPick = picked
         return picked
