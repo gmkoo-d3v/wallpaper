@@ -1043,7 +1043,12 @@ final class InteractionController {
         if pressedHitTrigger == .hold,
            pressedHitTapAction != nil,
            pressedHitHoldAction != nil {
-            if pressGesturePhase == .pendingTap, now - pressStartedAt >= pressedHitHoldCommitSeconds {
+            // A press that already fired its tap at pointer-down (tapMode=down) must stay
+            // fired: the commit crossing must not replace the one-shot with the loop, so the
+            // promotion is skipped while the press is still in the pendingTap phase.
+            if pressGesturePhase == .pendingTap,
+               pressedHitTapMode != .down,
+               now - pressStartedAt >= pressedHitHoldCommitSeconds {
                 promoteToHoldActionLocked(now: now)
             }
             return
@@ -1119,6 +1124,12 @@ final class InteractionController {
             // tap decision stays with pointer-up: a live tap branch emits the tap action, and
             // a bare holdAction zone (no tap branch) replays the base action with the plain
             // hold tail. The holdStart preview never steals the tap decision.
+            // A press whose tap already fired at pointer-down (tapMode=down) keeps that
+            // one-shot: the commit crossing must not replace it with the loop, so the release
+            // stays below-commit pending and the release finalization keeps the live command.
+            if pressedHitTapMode == .down, pressGesturePhase == .pendingTap {
+                return
+            }
             if now - pressStartedAt >= pressedHitHoldCommitSeconds {
                 promoteToHoldActionLocked(now: now)
             } else {
@@ -1219,7 +1230,12 @@ final class InteractionController {
         } else if let pressedHitAction, pressedHitTrigger == .hold {
             // FIX3: pointer-up is the sole owner of the release tail for holdAction presses:
             // the in-press preview window must never extend the expiry computed below.
-            if pressedHitHoldAction != nil {
+            // A press that already fired its tap at pointer-down (tapMode=down) keeps that
+            // one-shot and its press-anchored tail: the release only ends the press, so the
+            // expiry must NOT be zeroed (that would blank the in-flight one-shot) and must
+            // never be replaced by the loop.
+            if pressedHitHoldAction != nil,
+               !(pressedHitTapMode == .down && pressGesturePhase == .pendingTap) {
                 clickCommandExpiresAt = 0
             }
             let pressDuration = now - pressStartedAt
@@ -1235,6 +1251,10 @@ final class InteractionController {
             let commitsToHoldAction = pressedHitHoldAction != nil
                 && pressGesturePhase != .rubbing
                 && pressDuration >= pressedHitHoldCommitSeconds
+                // A press whose tap already fired at pointer-down (tapMode=down) is never
+                // re-committed to the loop at release: the release only ends the press and the
+                // press-fired one-shot keeps playing out on its press-anchored tail.
+                && !(pressedHitTapMode == .down && pressGesturePhase == .pendingTap)
             if commitsToHoldAction {
                 // Committed holdAction release: the loop was playing (or commits at this
                 // very release), so release must STOP it — the command falls to the move/idle
@@ -1261,13 +1281,18 @@ final class InteractionController {
                     // strictly below the commit threshold releases the tap action, everything
                     // else — including commit == holdStart == 0, whose threshold every release
                     // passes — is the committed hold.
-                    if let pressedHitTapAction, tapWindowAlive, pressDuration < pressedHitHoldCommitSeconds {
+                    if let pressedHitTapAction, tapWindowAlive, pressDuration < pressedHitHoldCommitSeconds,
+                       !(pressedHitTapMode == .down && pressGesturePhase == .pendingTap) {
                         // Tap-versus-hold decision below the commit threshold: an alive tap
                         // branch wins (its tail clock starts at the release, so a pre-commit
                         // tap release decays over the full tap tail from pointer-up). For a
                         // holdAction zone, re-decision rules — demote to pending for a
                         // pre-commit snapshot-promoted preview, or commit past the threshold —
                         // already ran in activateHoldForReleaseLocked before this finalization.
+                        // A press that already fired its tap at pointer-down (tapMode=down)
+                        // must not re-fire it at the release: it falls through to the base
+                        // branch below, which keeps the press-fired one-shot alive on its
+                        // press-anchored tail.
                         releasedAction = pressedHitTapAction
                         releasedTail = pressedHitTapTailDuration
                     } else if pressDuration < pressedHitHoldCommitSeconds,
@@ -1293,10 +1318,27 @@ final class InteractionController {
                 // Release finalization applies to every hold branch outcome (rub, tap, committed
                 // hold): the released command plays its tail and the press-held state clears, so
                 // a rubbing press is not stuck held after pointer-up.
-                clickCommandState = releasedAction
-                clickCommandHeld = false
-                activeClickTailDuration = max(releasedTail, releaseFadeDuration)
-                clickCommandExpiresAt = now + activeClickTailDuration
+                // Exception: a press that already fired its tap at pointer-down (tapMode=down)
+                // keeps the command it is already showing and its press-anchored expiry — the
+                // release only ends the press (no second fire, no tail restart). If that tail
+                // already expired while the button stayed down, re-arm it for a tail length
+                // from the release (the one-shot always plays its full window).
+                if pressedHitTapMode == .down, pressGesturePhase == .pendingTap {
+                    clickCommandHeld = false
+                    if clickCommandState == nil || now >= clickCommandExpiresAt {
+                        // The press-fire tail already expired while the button stayed down:
+                        // re-arm the press-fired one-shot for a tail length from the release
+                        // (the one-shot always plays its full window).
+                        clickCommandState = pressedHitTapAction ?? pressedHitAction
+                        activeClickTailDuration = pressedHitTapTailDuration
+                        clickCommandExpiresAt = now + pressedHitTapTailDuration
+                    }
+                } else {
+                    clickCommandState = releasedAction
+                    clickCommandHeld = false
+                    activeClickTailDuration = max(releasedTail, releaseFadeDuration)
+                    clickCommandExpiresAt = now + activeClickTailDuration
+                }
             }
         }
         pressedHitAction = nil
