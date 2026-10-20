@@ -12398,7 +12398,7 @@ enum RuntimeSelfTest {
                     )
                 ],
                 policy: nil,
-                actionTailDurations: [:],
+                actionTailDurations: ["act": 6.3333, "act2": 2.9333],
                 clock: { clock }
             )
             pressController.pointerDown(at: point, button: .left)
@@ -12410,6 +12410,26 @@ enum RuntimeSelfTest {
             check(
                 command == "act:act2",
                 "live-path body tap (\(label) \(point.debugDescription)) must resolve the grouped act:act2 command, not head/face",
+                failures: &failures,
+                checks: &checks
+            )
+            // Buburu "body/leg tap goes dead for ~6 s" report: the grouped pair command must
+            // stay exposed for the WHOLE act-play window, not just the default 1.15 s click
+            // tail. The CIL's PlayActAnimation appends AddEmptyAnimation(1, 0.2+Duration, 0)
+            // so the one-shot always plays its full window (act = 6.333 s), and the
+            // grouped-skip guard (IL 309-333) reads GetCurrent(1) and returns while the
+            // group's own clip is still on the track. With a short tail the snapshot drops to
+            // idle at 1.15 s, the renderer's guard never sees the pair command on a later
+            // tap, and the pick stays frozen — the body looks dead until the face-hold path
+            // resets it. A tap at +2 s (inside act's duration, past act2's) must still expose
+            // act:act2.
+            clock += 2.0
+            pressController.pointerUp(button: .left)
+            pressController.pointerDown(at: point, button: .left)
+            let reTapCommand = pressController.snapshot().command
+            check(
+                reTapCommand == "act:act2",
+                "live-path body re-tap at +2 s (inside the act clip window) must still expose the grouped act:act2 command — the tap tail must be floored at the longest group clip so the CIL's act-play window stays reachable, got \(reTapCommand ?? "nil")",
                 failures: &failures,
                 checks: &checks
             )
@@ -13132,6 +13152,93 @@ enum RuntimeSelfTest {
                 check(
                     liveAnimations.isSubset(of: ["a", "b"]) && poseMoved,
                     "live grouped tap (no poseTime) must apply the resolved pair component to the active animation and move the body pose away from idle, got animations \(liveAnimations.sorted()) moved=\(poseMoved)",
+                    failures: &failures,
+                    checks: &checks
+                )
+
+                // (iii-b) Grouped-tap window lifecycle (the buburu "body/leg tap goes dead"
+                // report): replay the CIL press cadence frame by frame — tap, let the one-shot
+                // play, re-tap WHILE the clip still plays (must be SKIPPED, IL 309-333
+                // GetCurrent(1); if name==act|act2 → ret), let the clip COMPLETE, then tap
+                // again (must restart, never stick on the finished clip). The command column
+                // mirrors what the InteractionController exposes per frame: the pair command
+                // only while a tap tail is live, idle otherwise. The fixture clips are a=0.5 s
+                // and b=1.5 s, so the 30-frame (1 s) windows straddle both durations.
+                let lifecycleCommands: [String] = (0..<90).map { frame in
+                    switch frame {
+                    case 0..<30: return "a:b"      // first tap: press + tail window live
+                    case 30..<60: return "a:b"     // re-press while the clip may still play
+                    default: return "idle"         // tails expired: idle frames
+                    }
+                }
+                var lifecycleRestarted = false
+                var lifecycleStuck = false
+                var lifecycleSawGrouped = false
+                var lifecycleSkipFaithful = false
+                for seed in 0..<24 {
+                    var lifecycleSeed = UInt64(0x9E3779B97F4A7C15) &+ UInt64(seed) &* 6364136223846793005
+                    renderer.pairPickRNG = {
+                        lifecycleSeed = lifecycleSeed &* 6364136223846793005 &+ 1442695040888963407
+                        return Int((lifecycleSeed >> 33) & 1)
+                    }
+                    let resolved = renderer.diagnosticGroupedTapLifecycleProbe(
+                        commands: lifecycleCommands,
+                        now: 100_000,
+                        frameStep: 1.0 / 30.0
+                    )
+                    let firstPick = resolved.first ?? ""
+                    if firstPick == "a" || firstPick == "b" {
+                        lifecycleSawGrouped = true
+                    }
+                    // Re-press window: while the picked clip (firstPick duration) is still
+                    // playing the guard must keep it; after it completed the re-press must
+                    // resolve a pair component again (a restart), never stick on the finished
+                    // clip while the track is no longer inside its duration.
+                    let firstDuration = firstPick == "a" ? 0.5 : 1.5
+                    for frame in 30..<60 {
+                        let elapsed = Double(frame) / 30.0
+                        let name = resolved[frame]
+                        if elapsed < firstDuration {
+                            // Still inside the clip duration: the IL's GetCurrent read sees the
+                            // group's own unfinished clip, so the re-tap is a no-op and the
+                            // track must keep the SAME clip (no re-roll, no restart).
+                            if name != firstPick {
+                                lifecycleStuck = true
+                            } else {
+                                lifecycleSkipFaithful = true
+                            }
+                        } else if name != "a", name != "b" {
+                            lifecycleStuck = true
+                        }
+                    }
+                    // After the clip completed, the idle frames must NOT keep echoing the
+                    // finished one-shot: the track falls back to idle (the CIL's
+                    // AddEmptyAnimation tail), so a later tap starts from a clean track.
+                    if resolved.last != "idle" {
+                        lifecycleStuck = true
+                    }
+                    // A tap after completion restarts the clip: a fresh lifecycle where the
+                    // first window is idle (clip never fired) and the pair command arrives
+                    // only after the previous clip's duration must resolve a pair component.
+                    let restartCommands: [String] = (0..<90).map { frame in
+                        frame < 60 ? "idle" : "a:b"
+                    }
+                    let restart = renderer.diagnosticGroupedTapLifecycleProbe(
+                        commands: restartCommands,
+                        now: 200_000,
+                        frameStep: 1.0 / 30.0
+                    )
+                    if restart.last != "a", restart.last != "b" {
+                        lifecycleStuck = true
+                    }
+                    if restart.contains(where: { $0 == "a" || $0 == "b" }) {
+                        lifecycleRestarted = true
+                    }
+                }
+                renderer.pairPickRNG = nil
+                check(
+                    lifecycleSawGrouped && lifecycleRestarted && lifecycleSkipFaithful && !lifecycleStuck,
+                    "grouped tap window must match the CIL act-play window: skip re-taps while the group's own clip plays, restart after it completed, never leave the track stuck on a finished one-shot (sawGrouped=\(lifecycleSawGrouped) restarted=\(lifecycleRestarted) skipFaithful=\(lifecycleSkipFaithful) stuck=\(lifecycleStuck))",
                     failures: &failures,
                     checks: &checks
                 )

@@ -1397,6 +1397,22 @@ final class SpineSetupPoseRenderer {
         lastPairPick = nil
     }
 
+    /// Diagnostics-only: the animation name currently on the track (what the grouped-skip
+    /// guard's `GetCurrent(1)` reads). Never used on the live render path.
+    var diagnosticActiveAnimationName: String {
+        activeAnimationName
+    }
+
+    /// Diagnostics-only: the duration (seconds) of a named animation, or nil when the name is
+    /// not on the skeleton. The live desktop path uses this to floor a grouped tap zone's tail
+    /// at the LONGEST component clip, so the snapshot keeps exposing the pair command for the
+    /// whole act-play window — the CIL's guard reads GetCurrent(1) and returns while the group's
+    /// own clip is still on the track (IL 309-333), so a shorter tail would drop the command to
+    /// idle mid-clip and the next tap could no longer reach the guard.
+    func diagnosticAnimationDuration(named name: String) -> Double? {
+        animations[name]?.duration
+    }
+
     /// Drops the transient renderer state used only by diagnostics: the one-shot tail window
     /// and the active pair pick, so a probe cannot echo a previously played one-shot. The
     /// one-shot window must stay OPEN (started "now"): with an idle-valued active animation
@@ -1443,6 +1459,31 @@ final class SpineSetupPoseRenderer {
             )))
             clock += frameStep
             frames -= 1
+        }
+        return results
+    }
+
+    /// Diagnostics-only: replays a LIVE grouped-tap lifecycle frame by frame (no declared pose
+    /// time) and returns the resolved animation name of every frame. `commands` carries one
+    /// command per frame — the command the snapshot exposes that frame (the grouped pair
+    /// "act:act2" while a tap's tail window is live, "idle" once it expires) — so the caller
+    /// can express the CIL's press cadence: a re-press while the group's own clip still plays
+    /// must be SKIPPED by the grouped guard (IL 309-333 `GetCurrent(1); if name==act|act2 →
+    /// ret`), and a press after the clip completed must re-roll the pick and restart the clip.
+    /// Never resets transient state between frames, so it exercises the real live chain
+    /// (grouped guard → pair pick → transition).
+    func diagnosticGroupedTapLifecycleProbe(
+        commands: [String],
+        now: CFTimeInterval = CACurrentMediaTime(),
+        frameStep: CFTimeInterval = 1.0 / 30.0
+    ) -> [String] {
+        resetDiagnosticProbeState(at: now)
+        var results: [String] = []
+        results.reserveCapacity(commands.count)
+        var clock = now
+        for command in commands {
+            results.append(resolvedAnimationName(command: command, now: clock))
+            clock += frameStep
         }
         return results
     }

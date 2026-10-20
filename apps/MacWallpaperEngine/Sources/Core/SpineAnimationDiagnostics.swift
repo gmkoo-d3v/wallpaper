@@ -103,12 +103,21 @@ struct SpineAnimationDiagnostics {
                 var names: [String] = []
                 if (hitZone.trigger ?? .tap) == .tap {
                     names.append(hitZone.action)
+                    // Colon pair actions ("act:act2") never match a skeleton animation name,
+                    // so the raw string lookup below yields nothing and the tap tail falls to
+                    // the default click tail — shorter than the group's own clips. The tail
+                    // must cover the LONGEST component clip (the CIL appends
+                    // AddEmptyAnimation(1, 0.2+Duration, 0) after the picked clip, so the
+                    // one-shot always plays its full window), so index the components too.
+                    names.append(contentsOf: SpineInteractionAnimationRoles.components(of: hitZone.action))
                 }
                 if let tapAction = hitZone.tapAction {
                     names.append(tapAction)
+                    names.append(contentsOf: SpineInteractionAnimationRoles.components(of: tapAction))
                 }
                 if let rubAction = hitZone.rubAction {
                     names.append(rubAction)
+                    names.append(contentsOf: SpineInteractionAnimationRoles.components(of: rubAction))
                 }
                 return names
             }
