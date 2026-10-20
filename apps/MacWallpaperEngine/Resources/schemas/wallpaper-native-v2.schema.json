@@ -588,6 +588,7 @@
           ]
         },
         "maxRadius": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+        "followAmplitude": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
         "smoothTime": { "type": "number", "exclusiveMinimum": 0, "maximum": 10 },
         "clickOffset": { "type": "number", "minimum": 0, "maximum": 1000 },
         "invertX": { "type": "boolean" },

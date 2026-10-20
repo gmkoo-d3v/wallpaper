@@ -576,6 +576,14 @@ final class SpineSetupPoseRenderer {
     /// resetDiagnosticProbeState call also drops bone-follow history (from-rest probe);
     /// an accumulating probe sequence leaves it alone.
     private var resetDiagnosticBoneFollowState = true
+    /// Self-test hook: when set, diagnosticVertexPositionsProbe replaces the bone-follow
+    /// offsets with this fixed (x, y) at weight 1, isolating the offset's pose effect from
+    /// the ramp. Never set outside the self-test.
+    var diagnosticBoneFollowOverride: (x: Double, y: Double)?
+    /// Self-test hook: when true, diagnosticVertexPositionsProbe returns the raw projected
+    /// skeleton-bounds corners (root world tx, ty) instead of vertices, so the self-test can
+    /// measure the follow offset in skeleton units directly. Never set outside the self-test.
+    var diagnosticBoneWorldTranslationProbe = false
     private var physicsStates: [String: PhysicsRuntimeState] = [:]
     private var cachedBatches: [Batch]
     private var cachedPoseKey = ""
@@ -1253,6 +1261,14 @@ final class SpineSetupPoseRenderer {
             state.lastTime = now
 
             let maxRadius = binding.adapter.maxRadius ?? 10
+            // Screen-visibility amplification (documented calibration): the mapping below
+            // treats the cursor's full travel from anchorCenter as spanning maxRadius, so a
+            // small skeleton-local maxRadius (e.g. bone71's 10 ≈ 0.5 screen px) is invisible.
+            // followAmplitude widens the cursor→local mapping range applied BEFORE the
+            // ClampMagnitude cap below (dx = (pointer − anchor) × 2 × maxRadius ×
+            // followAmplitude), so the cursor reaches the cap at followAmplitude of the
+            // screen travel; the CIL ClampMagnitude(maxRadius) cap still binds unchanged.
+            let followAmplitude = max(binding.adapter.followAmplitude ?? 1, 0.001)
             let smoothTime = max(binding.adapter.smoothTime ?? 0.1, 0.001)
             let clickOffset = max(binding.adapter.clickOffset ?? 0, 0)
             let returnSpeed = max(binding.adapter.returnSpeed ?? 10, 0.001)
@@ -1260,8 +1276,8 @@ final class SpineSetupPoseRenderer {
                 x: binding.adapter.anchorCenter?.x ?? 0.5,
                 y: binding.adapter.anchorCenter?.y ?? 0.5
             )
-            var dx = (Double(pointer.x) - anchor.x) * 2 * maxRadius
-            var dy = (Double(pointer.y) - anchor.y) * 2 * maxRadius
+            var dx = (Double(pointer.x) - anchor.x) * 2 * maxRadius * followAmplitude
+            var dy = (Double(pointer.y) - anchor.y) * 2 * maxRadius * followAmplitude
             if binding.adapter.invertX == true { dx = -dx }
             if binding.adapter.invertY == true { dy = -dy }
             let magnitude = (dx * dx + dy * dy).squareRoot()
@@ -1478,6 +1494,16 @@ final class SpineSetupPoseRenderer {
             pressActive: pressActive,
             now: now
         )
+        let effectiveFollowOffsets: [BoneFollowOffset]
+        if let followOverride = diagnosticBoneFollowOverride {
+            // Self-test hook: replace the follow offsets with a fixed (x, y) at weight 1 so
+            // the probe measures the offset's pose effect in isolation from the ramp.
+            effectiveFollowOffsets = boneFollowOffsets.map {
+                BoneFollowOffset(boneIndex: $0.boneIndex, x: followOverride.x, y: followOverride.y, weight: 1)
+            }
+        } else {
+            effectiveFollowOffsets = boneFollowOffsets
+        }
         let pose = evaluate(
             baseAnimation: idleAnimation,
             baseTime: idleTime,
@@ -1490,8 +1516,13 @@ final class SpineSetupPoseRenderer {
             gazeOverlays: gazeOverlays,
             physicsTime: 0,
             boneRotationOffsets: [:],
-            boneFollowOffsets: boneFollowOffsets
+            boneFollowOffsets: effectiveFollowOffsets
         )
+        if diagnosticBoneWorldTranslationProbe {
+            // Self-test hook: raw root-bone world translation (skeleton units), so the
+            // follow offset is measurable without the vertex projection.
+            return pose.boneWorld.first.map { [Double($0.tx), Double($0.ty)] } ?? []
+        }
         do {
             let vertexBatches = try Self.buildVertexBatches(
                 slots: pose.slots,

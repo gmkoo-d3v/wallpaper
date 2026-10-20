@@ -372,6 +372,11 @@ struct BindingAdapter: Decodable {
     let fixedStepSeconds: Double?
     /// bone-follow: maximum follow displacement in skeleton-local units (ClampMagnitude cap).
     let maxRadius: Double?
+    /// bone-follow: screen-visibility amplification of the cursor→local mapping, applied
+    /// pre-clamp (dx = (pointer − anchor) × 2 × maxRadius × followAmplitude). It widens the
+    /// mapping range so the cursor reaches the cap at followAmplitude of the screen travel;
+    /// the ClampMagnitude(maxRadius) cap still binds. Default 1.0 (legacy mapping).
+    let followAmplitude: Double?
     /// bone-follow: follow smoothing time constant in seconds (SmoothDamp smoothTime).
     let smoothTime: Double?
     /// bone-follow: click-grab offset subtracted from the follow target, local units.
@@ -402,6 +407,7 @@ struct BindingAdapter: Decodable {
         maxVelocity: Double? = nil,
         fixedStepSeconds: Double? = nil,
         maxRadius: Double? = nil,
+        followAmplitude: Double? = nil,
         smoothTime: Double? = nil,
         clickOffset: Double? = nil,
         invertX: Bool? = nil,
@@ -425,6 +431,7 @@ struct BindingAdapter: Decodable {
         self.maxVelocity = maxVelocity
         self.fixedStepSeconds = fixedStepSeconds
         self.maxRadius = maxRadius
+        self.followAmplitude = followAmplitude
         self.smoothTime = smoothTime
         self.clickOffset = clickOffset
         self.invertX = invertX

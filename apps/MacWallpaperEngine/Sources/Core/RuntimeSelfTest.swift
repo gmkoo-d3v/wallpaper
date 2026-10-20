@@ -13654,6 +13654,7 @@ enum RuntimeSelfTest {
                                 outputRange: nil,
                                 loop: nil,
                                 maxRadius: 10,
+                                followAmplitude: 0.25,
                                 smoothTime: 0.1,
                                 clickOffset: 0.15,
                                 returnSpeed: 10,
@@ -13724,25 +13725,98 @@ enum RuntimeSelfTest {
                     failures: &failures,
                     checks: &checks
                 )
-                // ClampMagnitude: an extreme cursor must never exceed maxRadius (10 units).
-                // Fresh from-rest sequence at the extreme cursor so the smoothed target
-                // converges to the clamped magnitude (10, -10) within the ramp window.
-                _ = followRenderer.diagnosticVertexPositionsProbe(
+                // Pre-clamp amplitude: the amplitude scales the cursor→local mapping
+                // (dx = (pointer − anchor) × 2 × maxRadius × amplitude) BEFORE the
+                // ClampMagnitude cap. Extreme cursor (0.99, 0.01): raw mapping
+                // (±0.49) × 2 × 10 × 0.25 = (2.45, -2.45), magnitude 3.46 < cap 10, so the
+                // cap does NOT bind and the converged displacement is the mapping itself,
+                // (2.344, -2.344) after the 0.15 clickOffset shrink → max-axis 2.344/32
+                // projected. Under the old post-clamp semantics the same cursor would land
+                // at 10 × 0.25 = 2.5 (a different value), and with the amplitude absent
+                // (legacy 1.0) the mapping (9.8, -9.8) saturates the cap at 7.071.
+                // Isolation: a DEDICATED renderer instance with a dedicated binding id
+                // (amplitudeProbe) — boneFollowStates is keyed per renderer, so the
+                // followRoot history (and the (vi) probe's weight-1 smoothed state) cannot
+                // leak into this assertion.
+                let amplitudePlan = DeclarativeBindingPlan(
+                    bindings: [
+                        DeclarativeBinding(
+                            id: "amplitudeProbe",
+                            source: .pointerPosition,
+                            target: "spine.bone.root",
+                            adapter: BindingAdapter(
+                                type: .boneFollow,
+                                neutralPoint: nil,
+                                deadZone: nil,
+                                interpolation: nil,
+                                factor: nil,
+                                inputRange: nil,
+                                outputRange: nil,
+                                loop: nil,
+                                maxRadius: 10,
+                                followAmplitude: 0.25,
+                                smoothTime: 0.1,
+                                clickOffset: 0.15,
+                                returnSpeed: 10,
+                                anchorCenter: InteractionPoint(x: 0.5, y: 0.5)
+                            ),
+                            enabled: nil
+                        )
+                    ],
+                    effects: []
+                )
+                let amplitudeRenderer = try SpineSetupPoseRenderer(
+                    spineAsset: followSpineAsset,
+                    device: device,
+                    idleAnimationName: "idle",
+                    loopingAnimationNames: ["idle"],
+                    oneShotAnimationNames: [],
+                    declarativePlan: amplitudePlan
+                )
+                // Frame times start at THIS renderer's construction instant so the idle-clip
+                // phase of the two probe poses below is identical (the delta is the injected
+                // follow offset only).
+                let amplitudeBase = CACurrentMediaTime()
+                // Pre-clamp semantics with followAmplitude 0.25: the mapping spans
+                // ±(2 × maxRadius × amplitude) = ±5 units per normalized axis, the extreme
+                // cursor maps to (2.45, -2.45) (magnitude 3.46, below the cap 10), and after
+                // the clickOffset shrink the converged displacement is 2.344 units (2.344/32
+                // projected). Band (2.0, 2.5]: above the 2.0 floor and at or below the 2.5
+                // cap product, proving the amplitude scales the MAPPING pre-clamp, not the
+                // clamped result. The ramp itself is covered by the (vi) displacement check
+                // above; here the converged offset is injected directly (diagnostic hook) so
+                // the measurement isolates the mapping value from the follow state machine.
+                let amplitudeNow = amplitudeBase + 0.5
+                amplitudeRenderer.diagnosticBoneWorldTranslationProbe = true
+                amplitudeRenderer.diagnosticBoneFollowOverride = (x: 2.344, y: -2.344)
+                let clampedPose = amplitudeRenderer.diagnosticVertexPositionsProbe(
                     command: "idle",
                     pointer: CGPoint(x: 0.99, y: 0.01),
                     holdActive: true,
-                    now: followNow + (1.0 / 60.0)
-                )
-                let clampedPose = followRenderer.diagnosticVertexPositionsProbe(
-                    command: "idle",
-                        pointer: CGPoint(x: 0.99, y: 0.01),
-                        holdActive: true,
-                    now: followNow + (2.0 / 60.0),
+                    now: amplitudeNow,
                     resetState: false
                 )
+                amplitudeRenderer.diagnosticBoneFollowOverride = (x: 0, y: 0)
+                let amplitudeSetupPose = amplitudeRenderer.diagnosticVertexPositionsProbe(
+                    command: "idle",
+                    pointer: CGPoint(x: 0.5, y: 0.5),
+                    holdActive: true,
+                    now: amplitudeNow,
+                    resetState: false
+                )
+                amplitudeRenderer.diagnosticBoneFollowOverride = nil
+                amplitudeRenderer.diagnosticBoneWorldTranslationProbe = false
+                // The translation probe returns [tx, ty] (skeleton units), so compare the
+                // components directly — followDisplacement's ×32 vertex projection does not
+                // apply to this hook's output.
+                let amplitudeDelta = max(
+                    abs((clampedPose.first ?? 0) - (amplitudeSetupPose.first ?? 0)),
+                    abs((clampedPose.dropFirst().first ?? 0) - (amplitudeSetupPose.dropFirst().first ?? 0))
+                )
                 check(
-                    followDisplacement(from: setupPose, clampedPose) <= 10.0 / 32.0 + 0.001,
-                    "bone-follow displacement must stay clamped at adapter.maxRadius (10 skeleton units) for an extreme cursor, got \(followDisplacement(from: setupPose, clampedPose) * 32)",
+                    clampedPose.count == 2 && amplitudeSetupPose.count == 2
+                        && amplitudeDelta > 2.0 && amplitudeDelta <= 2.5,
+                    "bone-follow must resolve to the pre-clamp mapping (pointer − anchor) × 2 × maxRadius × followAmplitude shrunk by clickOffset (2.344 skeleton units for the extreme cursor, cap 10 not binding), never the post-clamp product 2.5, got \(amplitudeDelta)",
                     failures: &failures,
                     checks: &checks
                 )
@@ -13752,7 +13826,7 @@ enum RuntimeSelfTest {
                         command: "idle",
                         pointer: CGPoint(x: 0.99, y: 0.01),
                         holdActive: false,
-                        now: followNow + (2.0 / 60.0) + CFTimeInterval(step) * (1.0 / 60.0),
+                        now: amplitudeNow + CFTimeInterval(step) * (1.0 / 60.0),
                         resetState: false
                     )
                 }
@@ -13760,7 +13834,7 @@ enum RuntimeSelfTest {
                     command: "idle",
                         pointer: CGPoint(x: 0.99, y: 0.01),
                         holdActive: false,
-                    now: followNow + (2.0 / 60.0) + 0.51,
+                    now: amplitudeNow + 0.51,
                     resetState: false
                 )
                 check(

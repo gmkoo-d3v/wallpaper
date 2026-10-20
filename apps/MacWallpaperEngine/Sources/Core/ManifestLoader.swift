@@ -1142,6 +1142,15 @@ enum ManifestLoader {
                 max: 1_000,
                 allowMin: false
             )
+            if let followAmplitude = adapter.followAmplitude {
+                try validateFiniteNumber(
+                    followAmplitude,
+                    label: "binding \(bindingID) adapter.followAmplitude",
+                    min: 0,
+                    max: 100,
+                    allowMin: false
+                )
+            }
             if let anchorCenter = adapter.anchorCenter {
                 try validateInteractionPoint(
                     anchorCenter,
@@ -1203,6 +1212,7 @@ enum ManifestLoader {
         guard adapter.type != .boneFollow else { return }
         let boneFollowOnlyFields: [(String, Bool)] = [
             ("maxRadius", adapter.maxRadius != nil),
+            ("followAmplitude", adapter.followAmplitude != nil),
             ("smoothTime", adapter.smoothTime != nil),
             ("clickOffset", adapter.clickOffset != nil),
             ("invertX", adapter.invertX != nil),
