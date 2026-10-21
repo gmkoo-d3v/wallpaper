@@ -66,3 +66,6 @@ preview_intermediate/
 preview_assets/
 
 wallpapers/
+
+# Build output scratch dir
+out/
